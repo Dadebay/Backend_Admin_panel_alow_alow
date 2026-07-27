@@ -18,6 +18,10 @@ rule, payment flow, external provider, or architecture decision, update
 `docs/PROJECT_CONTEXT.md` in the same change. This is the durable source for
 future sessions and context compaction.
 
+If a task adds, removes, renames, or moves a major backend module or frontend
+FSD slice, update the repository tree in `docs/PROJECT_CONTEXT.md` as part of
+the same change.
+
 ## Sources of truth
 
 Use these in order:

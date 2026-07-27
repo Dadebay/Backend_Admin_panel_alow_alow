@@ -30,6 +30,75 @@ managed PostgreSQL, TLS Redis, S3, SMS credentials, and a maps provider.
 Durable business data belongs in PostgreSQL. Temporary OTP data belongs in
 Redis. Images belong in S3-compatible storage.
 
+## Repository structure
+
+This is the target structure and an architectural contract. When a task adds or
+moves a major module, update this tree in the same change.
+
+```text
+alowalow/
+├── AGENTS.md
+├── docs/
+│   └── PROJECT_CONTEXT.md
+├── api/
+│   ├── AGENTS.md
+│   ├── prisma/
+│   │   ├── schema.prisma
+│   │   ├── migrations/
+│   │   └── seed.ts
+│   ├── src/
+│   │   ├── auth/          # OTP, JWT, refresh sessions, SMS
+│   │   ├── users/         # staff and customer addresses
+│   │   ├── catalog/       # categories and products
+│   │   ├── marketing/     # banners and promo codes
+│   │   ├── media/         # S3-compatible image storage
+│   │   ├── orders/        # workflow, assignment, route, rating, cash
+│   │   ├── common/        # guards, decorators, shared HTTP types
+│   │   ├── config/        # validated environment configuration
+│   │   ├── prisma/        # Prisma service/module
+│   │   ├── redis/         # Redis infrastructure adapter
+│   │   └── generated/     # generated Prisma client; never edit manually
+│   └── test/              # unit and isolated HTTP e2e tests
+├── app/                   # Next.js routes, layouts, and provider composition
+│   ├── AGENTS.md
+│   └── lib/               # temporary generated schema/client location
+├── src/                   # target React/FSD product layers
+│   ├── widgets/           # composed admin sections
+│   ├── features/          # user actions and mutations
+│   ├── entities/          # domain UI, types, queries, table columns
+│   └── shared/
+│       ├── api/           # generated contract, HTTP/query clients, keys
+│       ├── ui/            # reusable primitives
+│       ├── config/
+│       └── lib/
+├── docker-compose.yml     # PostgreSQL, Redis, MinIO for local development
+└── .openai/hosting.json   # existing private admin frontend deployment
+```
+
+Backend modules normally contain a module, controller, service, DTOs, and a
+policy file when the domain has authorization or state-transition rules.
+
+Frontend slice internals should use:
+
+```text
+slice/
+├── api/       # queries and mutations
+├── model/     # types, query keys, state, domain helpers
+├── ui/        # components and table columns
+├── lib/       # private slice helpers when necessary
+└── index.ts   # public API for cross-slice imports
+```
+
+The allowed frontend dependency direction is:
+
+```text
+app → widgets → features → entities → shared
+```
+
+Do not expand the current monolithic `app/page.tsx`. Migrate touched behavior
+into the target FSD structure. Do not put NestJS business logic in controllers,
+Prisma access in React, or duplicate backend policies in client state.
+
 ## Roles
 
 - `CUSTOMER`: own addresses, orders, cancellation where allowed, rating.

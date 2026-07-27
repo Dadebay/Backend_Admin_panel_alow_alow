@@ -19,6 +19,7 @@
     "openapi": "npm run build --silent && node scripts/generate-openapi.mjs"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "3.1095.0",
     "@nestjs/common": "11.1.28",
     "@nestjs/config": "4.0.4",
     "@nestjs/core": "11.1.28",
@@ -40,25 +41,27 @@
     "sharp": "0.35.3"
   },
   "devDependencies": {
-    "@nestjs/cli": "11.0.16",
-    "@nestjs/schematics": "11.0.9",
+    "@nestjs/cli": "11.0.24",
+    "@nestjs/schematics": "11.1.0",
     "@types/express": "5.0.6",
     "@types/multer": "2.0.0",
     "@types/node": "22.19.19",
     "@types/pg": "8.15.6",
-    "@vitest/coverage-v8": "4.0.18",
-    "eslint": "9.39.4",
+    "@vitest/coverage-v8": "4.1.10",
+    "eslint": "10.8.0",
     "prettier": "3.8.2",
     "prisma": "7.9.0",
     "tsx": "4.20.6",
     "typescript": "5.9.3",
-    "typescript-eslint": "8.59.3",
-    "vitest": "4.0.18"
+    "typescript-eslint": "8.65.0",
+    "vitest": "4.1.10"
   },
   "overrides": {
     "@prisma/dev": "0.24.16",
+    "brace-expansion": "5.0.8",
     "find-my-way": "9.7.0",
     "js-yaml": "5.2.2",
+    "minimatch": "10.2.5",
     "path-to-regexp": "8.4.2",
     "valibot": "1.4.2"
   }

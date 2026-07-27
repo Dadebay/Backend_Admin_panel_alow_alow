@@ -7,8 +7,13 @@ export type AppEnv = {
   ACCESS_TOKEN_TTL: string;
   REFRESH_TOKEN_TTL_DAYS: number;
   CORS_ORIGINS: string;
-  UPLOAD_DIR: string;
   MAX_IMAGE_BYTES: number;
+  S3_REGION: string;
+  S3_BUCKET: string;
+  S3_ENDPOINT: string;
+  S3_ACCESS_KEY_ID: string;
+  S3_SECRET_ACCESS_KEY: string;
+  S3_FORCE_PATH_STYLE: boolean;
 };
 
 export function validateEnv(source: Record<string, unknown>): AppEnv {
@@ -19,6 +24,12 @@ export function validateEnv(source: Record<string, unknown>): AppEnv {
     return typeof value === "number" || typeof value === "string"
       ? Number(value)
       : fallback;
+  };
+  const boolean = (key: string, fallback: boolean) => {
+    const value = source[key];
+    if (typeof value === "boolean") return value;
+    if (typeof value === "string") return value.toLowerCase() === "true";
+    return fallback;
   };
   const nodeEnv = text(
     "NODE_ENV",
@@ -39,6 +50,19 @@ export function validateEnv(source: Record<string, unknown>): AppEnv {
       "JWT_ACCESS_SECRET and OTP_PEPPER must each contain at least 32 characters",
     );
   }
+  const s3AccessKeyId = text(
+    "S3_ACCESS_KEY_ID",
+    isProduction ? "" : "alofood",
+  );
+  const s3SecretAccessKey = text(
+    "S3_SECRET_ACCESS_KEY",
+    isProduction ? "" : "alofood-local-secret",
+  );
+  if (Boolean(s3AccessKeyId) !== Boolean(s3SecretAccessKey)) {
+    throw new Error(
+      "S3_ACCESS_KEY_ID and S3_SECRET_ACCESS_KEY must be provided together",
+    );
+  }
 
   return {
     NODE_ENV: nodeEnv,
@@ -55,7 +79,15 @@ export function validateEnv(source: Record<string, unknown>): AppEnv {
       "CORS_ORIGINS",
       "http://localhost:3000,http://localhost:3001",
     ),
-    UPLOAD_DIR: text("UPLOAD_DIR", "uploads"),
     MAX_IMAGE_BYTES: number("MAX_IMAGE_BYTES", 5_242_880),
+    S3_REGION: text("S3_REGION", "us-east-1"),
+    S3_BUCKET: text("S3_BUCKET", "alo-food-media"),
+    S3_ENDPOINT: text(
+      "S3_ENDPOINT",
+      isProduction ? "" : "http://localhost:9000",
+    ),
+    S3_ACCESS_KEY_ID: s3AccessKeyId,
+    S3_SECRET_ACCESS_KEY: s3SecretAccessKey,
+    S3_FORCE_PATH_STYLE: boolean("S3_FORCE_PATH_STYLE", !isProduction),
   };
 }

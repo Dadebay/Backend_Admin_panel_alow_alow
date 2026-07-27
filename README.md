@@ -36,7 +36,7 @@
 
 ```bash
 cp api/.env.example api/.env
-docker compose up -d postgres
+docker compose up -d postgres minio minio-init
 npm install
 npm --prefix api install
 npm --prefix api run prisma:generate
@@ -49,6 +49,7 @@ npm run stack:dev
 - API: `http://localhost:4000/api/v1`
 - Swagger: `http://localhost:4000/docs`
 - OpenAPI JSON: `http://localhost:4000/docs-json`
+- MinIO Console: `http://localhost:9001` (`alofood` / `alofood-local-secret`)
 
 В development ответ `POST /api/v1/auth/otp/request` содержит `devCode`.
 В production код в ответ никогда не попадает — вместо этого в
@@ -85,10 +86,15 @@ npm run api:test
 - оптимистическая блокировка заказа через поле `version`;
 - расчёт цены и скидки выполняется только сервером;
 - DTO whitelist, запрет неизвестных полей, Helmet и ограниченный CORS;
-- изображения проверяются, перекодируются в WebP и получают случайное имя;
+- изображения проверяются, перекодируются в WebP и сохраняются под случайным
+  именем в приватном S3 bucket;
 - все переходы заказа и критичные действия сохраняются в журнале.
 
-Перед production необходимо задать случайные
-`JWT_ACCESS_SECRET` и `OTP_PEPPER` длиной не менее 32 символов, подключить
-SMS-провайдера, вынести изображения в S3-совместимое хранилище и добавить
+Локально S3 API предоставляет MinIO. Для AWS S3 в production задайте
+`S3_REGION` и `S3_BUCKET`, оставьте `S3_ENDPOINT` пустым и
+`S3_FORCE_PATH_STYLE=false`. `S3_ACCESS_KEY_ID` и
+`S3_SECRET_ACCESS_KEY` можно не задавать при использовании IAM-роли.
+
+Перед production также необходимо задать случайные `JWT_ACCESS_SECRET` и
+`OTP_PEPPER` длиной не менее 32 символов, подключить SMS-провайдера и
 провайдера маршрутов/карт для расчёта реального ETA.

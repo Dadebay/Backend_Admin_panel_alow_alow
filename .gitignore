@@ -44,5 +44,4 @@ next-env.d.ts
 /work/
 /api/node_modules/
 /api/dist/
-/api/uploads/
 /api/src/generated/

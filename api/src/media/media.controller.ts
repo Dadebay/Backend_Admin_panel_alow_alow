@@ -1,8 +1,10 @@
 import {
   BadRequestException,
   Controller,
+  Delete,
   Get,
-  NotFoundException,
+  HttpCode,
+  HttpStatus,
   Param,
   Post,
   Res,
@@ -10,7 +12,6 @@ import {
   UploadedFile,
   UseInterceptors,
 } from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
 import { FileInterceptor } from "@nestjs/platform-express";
 import {
   ApiBearerAuth,
@@ -19,19 +20,14 @@ import {
   ApiTags,
 } from "@nestjs/swagger";
 import type { Response } from "express";
-import { createReadStream } from "node:fs";
-import { access, mkdir, writeFile } from "node:fs/promises";
-import { resolve } from "node:path";
-import { randomUUID } from "node:crypto";
-import sharp from "sharp";
-import type { AppEnv } from "../config/env";
 import { Public, Roles } from "../common/auth.decorators";
 import { Role } from "../generated/prisma/client";
+import { MediaService } from "./media.service";
 
 @ApiTags("media")
 @Controller("media")
 export class MediaController {
-  constructor(private readonly config: ConfigService<AppEnv, true>) {}
+  constructor(private readonly media: MediaService) {}
 
   @Post("images")
   @ApiBearerAuth()
@@ -59,29 +55,7 @@ export class MediaController {
   )
   async upload(@UploadedFile() file?: Express.Multer.File) {
     if (!file) throw new BadRequestException("Image file is required");
-    let output: Buffer;
-    try {
-      output = await sharp(file.buffer)
-        .rotate()
-        .resize(1800, 1800, { fit: "inside", withoutEnlargement: true })
-        .webp({ quality: 84 })
-        .toBuffer();
-    } catch {
-      throw new BadRequestException("Image content is invalid");
-    }
-    const directory = resolve(
-      process.cwd(),
-      this.config.get("UPLOAD_DIR", { infer: true }),
-    );
-    await mkdir(directory, { recursive: true });
-    const filename = `${randomUUID()}.webp`;
-    await writeFile(resolve(directory, filename), output, { flag: "wx" });
-    return {
-      filename,
-      url: `/api/v1/media/${filename}`,
-      contentType: "image/webp",
-      bytes: output.length,
-    };
+    return this.media.uploadImage(file);
   }
 
   @Get(":filename")
@@ -90,21 +64,20 @@ export class MediaController {
     @Param("filename") filename: string,
     @Res({ passthrough: true }) response: Response,
   ) {
-    if (!/^[0-9a-f-]{36}\.webp$/i.test(filename)) {
-      throw new NotFoundException();
+    const image = await this.media.readImage(filename);
+    response.setHeader("Content-Type", image.contentType);
+    response.setHeader("Cache-Control", image.cacheControl);
+    if (image.contentLength !== undefined) {
+      response.setHeader("Content-Length", image.contentLength);
     }
-    const path = resolve(
-      process.cwd(),
-      this.config.get("UPLOAD_DIR", { infer: true }),
-      filename,
-    );
-    try {
-      await access(path);
-    } catch {
-      throw new NotFoundException();
-    }
-    response.setHeader("Content-Type", "image/webp");
-    response.setHeader("Cache-Control", "public, max-age=31536000, immutable");
-    return new StreamableFile(createReadStream(path));
+    return new StreamableFile(image.body);
+  }
+
+  @Delete("images/:filename")
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiBearerAuth()
+  @Roles(Role.ADMIN)
+  async remove(@Param("filename") filename: string) {
+    await this.media.deleteImage(filename);
   }
 }

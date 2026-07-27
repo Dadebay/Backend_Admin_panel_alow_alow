@@ -9,6 +9,7 @@ import * as argon2 from "argon2";
 import { randomInt, randomUUID, randomBytes } from "node:crypto";
 import { parsePhoneNumberFromString } from "libphonenumber-js";
 import { PrismaService } from "../prisma/prisma.service";
+import { Prisma } from "../generated/prisma/client";
 import type { AppEnv } from "../config/env";
 import { RequestOtpDto, VerifyOtpDto } from "./auth.dto";
 
@@ -68,7 +69,7 @@ export class AuthService {
       throw new UnauthorizedException("Code is expired or unavailable");
     }
 
-    const valid = await argon2.verify(
+    const valid = await this.verifyHash(
       otp.codeHash,
       `${dto.code}:${this.config.get("OTP_PEPPER", { infer: true })}`,
     );
@@ -81,10 +82,18 @@ export class AuthService {
     }
 
     const user = await this.prisma.$transaction(async (tx) => {
-      await tx.phoneOtp.update({
-        where: { id: otp.id },
+      const consumed = await tx.phoneOtp.updateMany({
+        where: {
+          id: otp.id,
+          consumedAt: null,
+          attempts: { lt: 5 },
+          expiresAt: { gt: new Date() },
+        },
         data: { consumedAt: new Date() },
       });
+      if (consumed.count !== 1) {
+        throw new UnauthorizedException("Code is expired or unavailable");
+      }
       return tx.user.upsert({
         where: { phone },
         create: {
@@ -116,36 +125,58 @@ export class AuthService {
       stored.revokedAt ||
       stored.expiresAt < new Date() ||
       !stored.user.isActive ||
-      !(await argon2.verify(stored.secretHash, secret))
+      !(await this.verifyHash(stored.secretHash, secret))
     ) {
       throw new UnauthorizedException("Refresh token is invalid or expired");
     }
 
-    await this.prisma.refreshToken.update({
-      where: { id: stored.id },
-      data: { revokedAt: new Date() },
+    return this.prisma.$transaction(async (tx) => {
+      const revoked = await tx.refreshToken.updateMany({
+        where: {
+          id: stored.id,
+          revokedAt: null,
+          expiresAt: { gt: new Date() },
+        },
+        data: { revokedAt: new Date() },
+      });
+      if (revoked.count !== 1) {
+        throw new UnauthorizedException("Refresh token is invalid or expired");
+      }
+      return this.issueSession(stored.user, tx);
     });
-    return this.issueSession(stored.user);
   }
 
   async logout(rawToken: string) {
-    const [tokenId] = rawToken.split(".");
-    if (tokenId) {
-      await this.prisma.refreshToken.updateMany({
-        where: { id: tokenId, revokedAt: null },
-        data: { revokedAt: new Date() },
+    const [tokenId, secret, extra] = rawToken.split(".");
+    if (tokenId && secret && !extra) {
+      const stored = await this.prisma.refreshToken.findUnique({
+        where: { id: tokenId },
+        select: { secretHash: true, revokedAt: true },
       });
+      if (
+        stored &&
+        !stored.revokedAt &&
+        (await this.verifyHash(stored.secretHash, secret))
+      ) {
+        await this.prisma.refreshToken.updateMany({
+          where: { id: tokenId, revokedAt: null },
+          data: { revokedAt: new Date() },
+        });
+      }
     }
     return { success: true };
   }
 
-  private async issueSession(user: {
-    id: string;
-    phone: string;
-    role: string;
-    firstName: string | null;
-    lastName: string | null;
-  }) {
+  private async issueSession(
+    user: {
+      id: string;
+      phone: string;
+      role: string;
+      firstName: string | null;
+      lastName: string | null;
+    },
+    store: PrismaService | Prisma.TransactionClient = this.prisma,
+  ) {
     const accessToken = await this.jwt.signAsync({
       sub: user.id,
       phone: user.phone,
@@ -155,7 +186,7 @@ export class AuthService {
     const secret = randomBytes(48).toString("base64url");
     const refreshToken = `${id}.${secret}`;
     const days = this.config.get("REFRESH_TOKEN_TTL_DAYS", { infer: true });
-    await this.prisma.refreshToken.create({
+    await store.refreshToken.create({
       data: {
         id,
         userId: user.id,
@@ -176,5 +207,13 @@ export class AuthService {
         role: user.role,
       },
     };
+  }
+
+  private async verifyHash(hash: string, value: string) {
+    try {
+      return await argon2.verify(hash, value);
+    } catch {
+      return false;
+    }
   }
 }

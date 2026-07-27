@@ -8,6 +8,7 @@ import {
 import {
   CashSettlementStatus,
   OrderStatus,
+  Prisma,
   PromoType,
   Role,
 } from "../generated/prisma/client";
@@ -399,14 +400,17 @@ export class OrdersService {
           "Cancellation is allowed only before the order reaches the kitchen",
         );
       }
-      await tx.order.update({
-        where: { id },
+      const cancelled = await tx.order.updateMany({
+        where: { id, version: dto.version, status: order.status },
         data: {
           status: OrderStatus.CANCELLED,
           cancellationReason: dto.reason,
           version: { increment: 1 },
         },
       });
+      if (cancelled.count !== 1) {
+        throw new ConflictException("Order changed; reload and try again");
+      }
       await tx.orderTransition.create({
         data: {
           orderId: id,
@@ -438,14 +442,24 @@ export class OrdersService {
     if (!deliveredStatuses.includes(order.status)) {
       throw new ConflictException("Order has not been delivered yet");
     }
-    return this.prisma.rating.create({
-      data: {
-        orderId: id,
-        customerId: user.id,
-        score: dto.score,
-        comment: dto.comment,
-      },
-    });
+    try {
+      return await this.prisma.rating.create({
+        data: {
+          orderId: id,
+          customerId: user.id,
+          score: dto.score,
+          comment: dto.comment,
+        },
+      });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2002"
+      ) {
+        throw new ConflictException("Order has already been rated");
+      }
+      throw error;
+    }
   }
 
   async courierRoute(user: AuthUser) {

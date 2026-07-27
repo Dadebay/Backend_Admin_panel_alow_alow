@@ -4,6 +4,7 @@ import {
   IsPhoneNumber,
   IsString,
   Length,
+  Matches,
   MaxLength,
 } from "class-validator";
 
@@ -17,6 +18,7 @@ export class VerifyOtpDto extends RequestOtpDto {
   @ApiProperty({ example: "123456" })
   @IsString()
   @Length(6, 6)
+  @Matches(/^\d{6}$/)
   code: string;
 
   @ApiPropertyOptional({ example: "Aman" })

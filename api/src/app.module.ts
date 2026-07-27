@@ -35,12 +35,12 @@ import { HealthController } from "./health/health.controller";
           expiresIn: config.get("ACCESS_TOKEN_TTL", {
             infer: true,
           }),
-          issuer: "alo-food-api",
-          audience: "alo-food-clients",
+          issuer: "alowalow-api",
+          audience: "alowalow-clients",
         },
         verifyOptions: {
-          issuer: "alo-food-api",
-          audience: "alo-food-clients",
+          issuer: "alowalow-api",
+          audience: "alowalow-clients",
         },
       }),
     }),

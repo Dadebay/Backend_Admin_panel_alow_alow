@@ -14,12 +14,12 @@ async function render() {
   );
 }
 
-test("server-renders the ALO Food operations dashboard", async () => {
+test("server-renders the AlowAlow operations dashboard", async () => {
   const response = await render();
   assert.equal(response.status, 200);
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
   const html = await response.text();
-  assert.match(html, /ALO Food — центр управления доставкой/);
+  assert.match(html, /AlowAlow — центр управления доставкой/);
   assert.match(html, /Центр заказов/);
   assert.match(html, /Живая очередь/);
   assert.match(html, /Курьеры на карте/);

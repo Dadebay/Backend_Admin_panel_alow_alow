@@ -81,7 +81,7 @@ export function validateEnv(source: Record<string, unknown>): AppEnv {
     ),
     MAX_IMAGE_BYTES: number("MAX_IMAGE_BYTES", 5_242_880),
     S3_REGION: text("S3_REGION", "us-east-1"),
-    S3_BUCKET: text("S3_BUCKET", "alo-food-media"),
+    S3_BUCKET: text("S3_BUCKET", "alowalow-media"),
     S3_ENDPOINT: text(
       "S3_ENDPOINT",
       isProduction ? "" : "http://localhost:9000",

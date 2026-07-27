@@ -40,7 +40,7 @@ services:
       - -c
       - >
         mc alias set local http://minio:9000 alofood alofood-local-secret &&
-        mc mb --ignore-existing local/alo-food-media
+        mc mb --ignore-existing local/alowalow-media
 
 volumes:
   alofood_postgres:

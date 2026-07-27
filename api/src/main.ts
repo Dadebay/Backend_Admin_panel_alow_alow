@@ -12,7 +12,7 @@ async function bootstrap() {
   const document = createOpenApiDocument(app);
   SwaggerModule.setup("docs", app, document, {
     jsonDocumentUrl: "docs-json",
-    customSiteTitle: "ALO Food API",
+    customSiteTitle: "AlowAlow API",
   });
   const config = app.get(ConfigService<AppEnv, true>);
   const port = config.get("PORT", { infer: true });

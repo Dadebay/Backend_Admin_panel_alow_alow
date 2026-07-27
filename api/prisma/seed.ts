@@ -75,17 +75,22 @@ async function main() {
   update: { name: "Пицца", isActive: true },
   });
 
-  await prisma.product.upsert({
+  await prisma.product.updateMany({
   where: { slug: "alo-burger" },
+  data: { name: "AlowAlow Burger", slug: "alowalow-burger" },
+  });
+  await prisma.product.upsert({
+  where: { slug: "alowalow-burger" },
   create: {
     categoryId: burgers.id,
-    name: "ALO Burger",
-    slug: "alo-burger",
+    name: "AlowAlow Burger",
+    slug: "alowalow-burger",
     description: "Говяжья котлета, чеддер, свежие овощи и фирменный соус.",
     price: 48,
   },
   update: {
     categoryId: burgers.id,
+    name: "AlowAlow Burger",
     description: "Говяжья котлета, чеддер, свежие овощи и фирменный соус.",
     price: 48,
     isActive: true,

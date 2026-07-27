@@ -41,7 +41,7 @@ const initialOrders: DemoOrder[] = [
     id: 1048,
     customer: "Aýlar B.",
     phone: "+993 65 42 18 90",
-    items: "ALO Burger ×2, фри, Cola",
+    items: "AlowAlow Burger ×2, фри, Cola",
     total: 126,
     status: "NEW",
     time: "2 мин",
@@ -183,7 +183,7 @@ export default function AdminDashboard() {
   const [toast, setToast] = useState("Система работает штатно");
   const [modal, setModal] = useState<"product" | "promo" | null>(null);
   const [products, setProducts] = useState([
-    { name: "ALO Burger", category: "Бургеры", price: 48, active: true, color: "coral" },
+    { name: "AlowAlow Burger", category: "Бургеры", price: 48, active: true, color: "coral" },
     { name: "Маргарита", category: "Пицца", price: 65, active: true, color: "yellow" },
     { name: "Chicken Box", category: "Комбо", price: 74, active: true, color: "green" },
     { name: "Цезарь", category: "Салаты", price: 47, active: false, color: "purple" },
@@ -246,11 +246,11 @@ export default function AdminDashboard() {
   return (
     <div className="app-shell">
       <aside className="sidebar">
-        <button className="brand" onClick={() => setNav("orders")} aria-label="ALO Food">
+        <button className="brand" onClick={() => setNav("orders")} aria-label="AlowAlow">
           <span className="brand-mark">A</span>
           <span>
-            <strong>ALO</strong>
-            <small>food operations</small>
+            <strong>AlowAlow</strong>
+            <small>delivery operations</small>
           </span>
         </button>
 
@@ -604,7 +604,7 @@ function CatalogView({
             <div className="product-copy">
               <small>{product.category}</small>
               <h3>{product.name}</h3>
-              <p>{product.category === "Пицца" ? "Томаты, моцарелла и базилик на тонком тесте." : "Свежие ингредиенты и фирменный соус ALO."}</p>
+              <p>{product.category === "Пицца" ? "Томаты, моцарелла и базилик на тонком тесте." : "Свежие ингредиенты и фирменный соус AlowAlow."}</p>
               <div><strong>{product.price} TMT</strong><button>Редактировать</button></div>
             </div>
             <label className="switch">
@@ -629,7 +629,7 @@ function MarketingView({ openModal }: { openModal: () => void }) {
       <section className="content-card">
         <div className="page-intro"><div><span className="section-kicker">Главная клиента</span><h2>Активные баннеры</h2></div><button className="secondary-button">＋ Баннер</button></div>
         <div className="banner-preview">
-          <div><span>ТОЛЬКО СЕГОДНЯ</span><h3>Вечер вкуснее<br />с ALO</h3><p>−20% на семейные комбо</p></div>
+          <div><span>ТОЛЬКО СЕГОДНЯ</span><h3>Вечер вкуснее<br />с AlowAlow</h3><p>−20% на семейные комбо</p></div>
           <strong>20<small>%</small></strong>
         </div>
         <div className="list-row"><span className="drag">⁝⁝</span><span className="thumb coral" /><div><strong>Семейный вечер</strong><small>До 27 июля, 23:59</small></div><StatusPill status="READY" /><button>•••</button></div>
@@ -704,7 +704,7 @@ function CreateModal({
     <div className="modal-backdrop" onMouseDown={onClose}>
       <div className="modal" onMouseDown={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-label={type === "product" ? "Новое блюдо" : "Новый промокод"}>
         <div className="modal-head"><div><span className="section-kicker">{type === "product" ? "Каталог" : "Маркетинг"}</span><h2>{type === "product" ? "Новое блюдо" : "Создать промокод"}</h2></div><button onClick={onClose}>×</button></div>
-        <label><span>{type === "product" ? "Название" : "Код"}</span><input autoFocus value={name} onChange={(event) => setName(event.target.value)} placeholder={type === "product" ? "Например, ALO Cheeseburger" : "Например, SUMMER20"} /></label>
+        <label><span>{type === "product" ? "Название" : "Код"}</span><input autoFocus value={name} onChange={(event) => setName(event.target.value)} placeholder={type === "product" ? "Например, AlowAlow Cheeseburger" : "Например, SUMMER20"} /></label>
         <div className="modal-grid">
           <label><span>{type === "product" ? "Категория" : "Тип скидки"}</span><select><option>{type === "product" ? "Бургеры" : "Процент"}</option><option>{type === "product" ? "Пицца" : "Фиксированная сумма"}</option></select></label>
           <label><span>{type === "product" ? "Цена, TMT" : "Значение"}</span><input type="number" defaultValue={type === "product" ? 55 : 15} /></label>

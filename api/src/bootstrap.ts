@@ -50,7 +50,7 @@ export function configureApp(app: INestApplication) {
 
 export function createOpenApiDocument(app: INestApplication): OpenAPIObject {
   const options = new DocumentBuilder()
-    .setTitle("ALO Food Delivery API")
+    .setTitle("AlowAlow Delivery API")
     .setDescription(
       "Phone-authenticated food delivery API with catalog, marketing, role-gated order workflow, courier routes, cash handover and reconciliation.",
     )

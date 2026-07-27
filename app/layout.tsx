@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
   subsets: ["latin", "cyrillic"],
 });
 
-const title = "ALO Food — центр управления доставкой";
+const title = "AlowAlow — центр управления доставкой";
 const description =
   "Администрирование заказов, кухни, курьеров, каталога, промокодов и наличных.";
 

@@ -15,6 +15,7 @@ enum Role {
   COURIER
   ACCOUNTANT
   ADMIN
+  SUPER_ADMIN
 }
 
 enum OrderStatus {

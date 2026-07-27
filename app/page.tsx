@@ -7,7 +7,8 @@ type Role =
   | "COOK"
   | "COURIER"
   | "ACCOUNTANT"
-  | "ADMIN";
+  | "ADMIN"
+  | "SUPER_ADMIN";
 type Status =
   | "NEW"
   | "CONFIRMED"
@@ -125,6 +126,7 @@ const roleLabels: Record<Role, string> = {
   COURIER: "Курьер",
   ACCOUNTANT: "Бухгалтер",
   ADMIN: "Администратор",
+  SUPER_ADMIN: "Главный администратор",
 };
 
 const nextByRole: Record<Role, Partial<Record<Status, Status>>> = {
@@ -145,6 +147,18 @@ const nextByRole: Record<Role, Partial<Record<Status, Status>>> = {
   },
   ACCOUNTANT: { COMPLETED: "RECONCILED" },
   ADMIN: {
+    NEW: "CONFIRMED",
+    CONFIRMED: "SENT_TO_KITCHEN",
+    SENT_TO_KITCHEN: "COOKING",
+    COOKING: "READY",
+    READY: "ASSIGNED_TO_COURIER",
+    ASSIGNED_TO_COURIER: "OUT_FOR_DELIVERY",
+    OUT_FOR_DELIVERY: "DELIVERED",
+    DELIVERED: "CASH_RETURNED",
+    CASH_RETURNED: "COMPLETED",
+    COMPLETED: "RECONCILED",
+  },
+  SUPER_ADMIN: {
     NEW: "CONFIRMED",
     CONFIRMED: "SENT_TO_KITCHEN",
     SENT_TO_KITCHEN: "COOKING",
@@ -232,7 +246,7 @@ export default function AdminDashboard() {
         item.id === id ? { ...item, status: "CANCELLED" } : item,
       ),
     );
-    setToast(`Заказ #${id} отменён до передачи повару`);
+    setToast(`Заказ #${id} отменён до начала приготовления`);
   }
 
   const navItems: Array<{ key: NavKey; icon: string; label: string; count?: number }> = [
@@ -473,8 +487,8 @@ function OrdersView({
                 {visibleOrders.map((order) => {
                   const next = nextByRole[role][order.status];
                   const cancellable =
-                    ["OPERATOR", "ADMIN"].includes(role) &&
-                    ["NEW", "CONFIRMED"].includes(order.status);
+                    ["OPERATOR", "ADMIN", "SUPER_ADMIN"].includes(role) &&
+                    ["NEW", "CONFIRMED", "SENT_TO_KITCHEN"].includes(order.status);
                   return (
                     <tr
                       key={order.id}
@@ -503,7 +517,7 @@ function OrdersView({
                           {cancellable && (
                             <button
                               className="row-more"
-                              title="Отменить до кухни"
+                              title="Отменить до начала приготовления"
                               onClick={(event) => {
                                 event.stopPropagation();
                                 cancelOrder(order.id);

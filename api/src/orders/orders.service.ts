@@ -397,7 +397,7 @@ export class OrdersService {
       }
       if (!canCancelOrder(order.status, user.role, order.customerId === user.id)) {
         throw new ForbiddenException(
-          "Cancellation is allowed only before the order reaches the kitchen",
+          "Cancellation is allowed only for authorized staff before cooking starts",
         );
       }
       const cancelled = await tx.order.updateMany({

@@ -1,14 +1,18 @@
 import {
+  BadRequestException,
   Body,
   Controller,
+  ForbiddenException,
   Get,
+  NotFoundException,
   Param,
   ParseUUIDPipe,
   Patch,
   Query,
 } from "@nestjs/common";
 import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
-import { Roles } from "../common/auth.decorators";
+import { CurrentUser, Roles } from "../common/auth.decorators";
+import type { AuthUser } from "../common/auth.types";
 import { Role } from "../generated/prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { UpdateStaffDto } from "./users.dto";
@@ -68,10 +72,54 @@ export class UsersController {
 
   @Patch(":id")
   @Roles(Role.ADMIN)
-  update(
+  async update(
+    @CurrentUser() actor: AuthUser,
     @Param("id", ParseUUIDPipe) id: string,
     @Body() dto: UpdateStaffDto,
   ) {
-    return this.prisma.user.update({ where: { id }, data: dto });
+    return this.prisma.$transaction(async (tx) => {
+      const target = await tx.user.findUnique({ where: { id } });
+      if (!target) throw new NotFoundException("Staff member not found");
+
+      const touchesSuperAdmin =
+        target.role === Role.SUPER_ADMIN || dto.role === Role.SUPER_ADMIN;
+      if (touchesSuperAdmin && actor.role !== Role.SUPER_ADMIN) {
+        throw new ForbiddenException(
+          "Only a super administrator can manage the SUPER_ADMIN role",
+        );
+      }
+
+      const removesActiveSuperAdmin =
+        target.role === Role.SUPER_ADMIN &&
+        target.isActive &&
+        (dto.role !== Role.SUPER_ADMIN || dto.isActive === false);
+      if (removesActiveSuperAdmin) {
+        const activeSuperAdmins = await tx.user.count({
+          where: { role: Role.SUPER_ADMIN, isActive: true },
+        });
+        if (activeSuperAdmins <= 1) {
+          throw new BadRequestException(
+            "At least one active super administrator is required",
+          );
+        }
+      }
+
+      const updated = await tx.user.update({ where: { id }, data: dto });
+      await tx.auditLog.create({
+        data: {
+          actorId: actor.id,
+          action: "staff.updated",
+          entityType: "User",
+          entityId: updated.id,
+          metadata: {
+            previousRole: target.role,
+            role: updated.role,
+            previousIsActive: target.isActive,
+            isActive: updated.isActive,
+          },
+        },
+      });
+      return updated;
+    });
   }
 }

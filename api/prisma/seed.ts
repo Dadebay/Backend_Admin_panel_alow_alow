@@ -11,6 +11,12 @@ const prisma = new PrismaClient({ adapter });
 
 const staff = [
   {
+    phone: "+99365000000",
+    firstName: "AlowAlow",
+    lastName: "Owner",
+    role: Role.SUPER_ADMIN,
+  },
+  {
     phone: "+99365000001",
     firstName: "Merdan",
     lastName: "Admin",

@@ -89,7 +89,8 @@ export class OrdersController {
   @Patch(":id/cancel")
   @Roles(Role.CUSTOMER, Role.OPERATOR, Role.ADMIN)
   @ApiOperation({
-    summary: "Cancel before kitchen handoff, subject to role and ownership",
+    summary:
+      "Cancel before cooking starts; SENT_TO_KITCHEN requires trusted staff",
   })
   cancel(
     @CurrentUser() user: AuthUser,

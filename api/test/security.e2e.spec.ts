@@ -20,6 +20,7 @@ type TestUsers = Record<
   | "otherCourier"
   | "accountant"
   | "admin"
+  | "superAdmin"
   | "inactive",
   User
 >;
@@ -106,6 +107,7 @@ describe("backend security and critical workflow", () => {
       otherCourier: { phone: "+99365000107", role: Role.COURIER },
       accountant: { phone: "+99365000108", role: Role.ACCOUNTANT },
       admin: { phone: "+99365000109", role: Role.ADMIN },
+      superAdmin: { phone: "+99365000111", role: Role.SUPER_ADMIN },
       inactive: {
         phone: "+99365000110",
         role: Role.CUSTOMER,
@@ -306,6 +308,37 @@ describe("backend security and critical workflow", () => {
       .expect(201);
   });
 
+  it("reserves SUPER_ADMIN role management for a super administrator", async () => {
+    const candidate = await prisma.user.create({
+      data: {
+        phone: "+99365000112",
+        firstName: "Promotion candidate",
+        role: Role.OPERATOR,
+      },
+    });
+
+    await request(server)
+      .patch(`/api/v1/staff/${candidate.id}`)
+      .set(bearer(tokens.admin))
+      .send({ role: Role.SUPER_ADMIN })
+      .expect(403);
+
+    const promoted = await request(server)
+      .patch(`/api/v1/staff/${candidate.id}`)
+      .set(bearer(tokens.superAdmin))
+      .send({ role: Role.SUPER_ADMIN })
+      .expect(200);
+    expect((promoted.body as User).role).toBe(Role.SUPER_ADMIN);
+
+    await prisma.user.delete({ where: { id: candidate.id } });
+
+    await request(server)
+      .patch(`/api/v1/staff/${users.superAdmin.id}`)
+      .set(bearer(tokens.superAdmin))
+      .send({ role: Role.ADMIN })
+      .expect(400);
+  });
+
   it("isolates saved addresses by owner and activates the latest order address", async () => {
     const firstResponse = await request(server)
       .post("/api/v1/users/me/addresses")
@@ -469,20 +502,49 @@ describe("backend security and critical workflow", () => {
     expect(order.cashSettlement?.status).toBe("RECONCILED");
   });
 
-  it("rejects cancellation after kitchen handoff", async () => {
-    let order = await createOrder(tokens.customer, {});
-    order = await transition(tokens.operator, order, OrderStatus.CONFIRMED);
-    order = await transition(
+  it("lets only trusted staff cancel SENT_TO_KITCHEN and blocks cancellation once cooking starts", async () => {
+    for (const role of ["operator", "admin", "superAdmin"] as const) {
+      let order = await createOrder(tokens.customer, {});
+      order = await transition(tokens.operator, order, OrderStatus.CONFIRMED);
+      order = await transition(
+        tokens.operator,
+        order,
+        OrderStatus.SENT_TO_KITCHEN,
+      );
+
+      await request(server)
+        .patch(`/api/v1/orders/${order.id}/cancel`)
+        .set(bearer(tokens.customer))
+        .send({ reason: "Customer cannot stop kitchen handoff", version: order.version })
+        .expect(403);
+
+      await request(server)
+        .patch(`/api/v1/orders/${order.id}/cancel`)
+        .set(bearer(tokens[role]))
+        .send({ reason: `Cancelled by ${role}`, version: order.version })
+        .expect(200);
+    }
+
+    let cooking = await createOrder(tokens.customer, {});
+    cooking = await transition(
       tokens.operator,
-      order,
+      cooking,
+      OrderStatus.CONFIRMED,
+    );
+    cooking = await transition(
+      tokens.operator,
+      cooking,
       OrderStatus.SENT_TO_KITCHEN,
     );
+    cooking = await transition(tokens.cook, cooking, OrderStatus.COOKING);
 
-    await request(server)
-      .patch(`/api/v1/orders/${order.id}/cancel`)
-      .set(bearer(tokens.operator))
-      .send({ reason: "Too late", version: order.version })
-      .expect(403);
+    for (const role of ["operator", "admin", "superAdmin"] as const) {
+      await request(server)
+        .patch(`/api/v1/orders/${cooking.id}/cancel`)
+        .set(bearer(tokens[role]))
+        .send({ reason: "Cooking already started", version: cooking.version })
+        .expect(403);
+    }
   });
 
   it("validates image contents, restricts deletion and stores safe WebP objects", async () => {

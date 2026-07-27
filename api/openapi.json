@@ -629,7 +629,7 @@
             "bearer": []
           }
         ],
-        "summary": "Cancel before kitchen handoff, subject to role and ownership",
+        "summary": "Cancel before cooking starts; SENT_TO_KITCHEN requires trusted staff",
         "tags": [
           "orders"
         ]
@@ -1576,7 +1576,8 @@
               "COOK",
               "COURIER",
               "ACCOUNTANT",
-              "ADMIN"
+              "ADMIN",
+              "SUPER_ADMIN"
             ]
           },
           "firstName": {

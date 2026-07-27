@@ -303,7 +303,7 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** Cancel before kitchen handoff, subject to role and ownership */
+        /** Cancel before cooking starts; SENT_TO_KITCHEN requires trusted staff */
         patch: operations["OrdersController_cancel_v1"];
         trace?: never;
     };
@@ -677,7 +677,7 @@ export interface components {
         };
         UpdateStaffDto: {
             /** @enum {string} */
-            role: "CUSTOMER" | "OPERATOR" | "COOK" | "COURIER" | "ACCOUNTANT" | "ADMIN";
+            role: "CUSTOMER" | "OPERATOR" | "COOK" | "COURIER" | "ACCOUNTANT" | "ADMIN" | "SUPER_ADMIN";
             firstName?: string;
             lastName?: string;
             isActive?: boolean;

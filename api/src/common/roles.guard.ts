@@ -6,7 +6,7 @@ import {
 } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import type { Request } from "express";
-import type { Role } from "../generated/prisma/client";
+import { Role } from "../generated/prisma/client";
 import { ROLES_KEY } from "./auth.decorators";
 
 @Injectable()
@@ -21,6 +21,7 @@ export class RolesGuard implements CanActivate {
     if (!roles?.length) return true;
 
     const user = context.switchToHttp().getRequest<Request>().user;
+    if (user?.role === Role.SUPER_ADMIN) return true;
     if (!user || !roles.includes(user.role)) {
       throw new ForbiddenException("Your role cannot perform this action");
     }

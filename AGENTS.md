@@ -93,6 +93,9 @@ migration against local PostgreSQL plus the isolated test database.
 - Authorization is deny-by-default and tested for allowed and forbidden roles.
 - Swagger and generated TypeScript types match the backend.
 - Business context documentation matches the implementation.
+- Frontend runtime changes satisfy the performance contract in
+  `app/AGENTS.md`, with measurement for order-board, table, map, provider, or
+  data-cache changes.
 - The worktree contains no accidental files or unrelated edits.
 - Local development processes and Docker services are stopped at handoff unless
   the user asks to keep them running.

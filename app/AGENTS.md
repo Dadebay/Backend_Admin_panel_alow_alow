@@ -34,6 +34,9 @@ files thin: route composition, metadata, and provider wiring only.
 
 ## Server state and API
 
+- Before installing TanStack packages, verify the latest stable releases that
+  are compatible with the current React/Next.js stack, then pin exact versions.
+  Do not copy the older TanStack Query v4 versions from NEM.
 - Use TanStack Query for all backend state: orders, couriers, catalog, banners,
   promos, staff, addresses, authentication mutations, and media metadata.
 - Use a single `QueryClient` provider and centralized query-key factories.
@@ -44,6 +47,13 @@ files thin: route composition, metadata, and provider wiring only.
 - The live order board may poll with a documented interval until a real-time
   transport is introduced. Do not create multiple competing polling loops.
 - Never copy server data into component state just to filter or render it.
+- Pass TanStack Query's `AbortSignal` into every cancellable HTTP request.
+- Set `staleTime`, `gcTime`, retry behavior, polling, and focus refetching from
+  each domain's freshness needs instead of relying on global defaults.
+- Poll the live order queue only while the relevant view is mounted and
+  visible; never poll completed/history data at the live-queue rate.
+- Use `select` for stable query projections and prefetch predictable detail
+  views when it improves a measured navigation path.
 - Use the Swagger-generated TypeScript contract. Do not hand-write duplicate
   API response types or silently cast responses to `any`.
 - Keep one HTTP client responsible for base URL, bearer token attachment,
@@ -54,7 +64,13 @@ files thin: route composition, metadata, and provider wiring only.
 - Use TanStack Table for orders, staff, products, promos, and cash settlement
   lists.
 - Prefer server-side pagination, filtering, and sorting for growing datasets.
+- Configure `manualPagination`, `manualFiltering`, and `manualSorting` when the
+  API owns those operations; do not load an entire dataset to imitate them.
 - Keep column definitions in the owning entity/widget, not inside a route.
+- Keep table data and column definitions referentially stable. Memoize them
+  when TanStack Table or a measured render path requires stable references.
+- Add row virtualization only for a measured large-list bottleneck; prefer
+  server pagination first and TanStack Virtual when virtualization is needed.
 - Derive visible actions from the authenticated role for usability, but always
   treat backend authorization as final.
 - Preserve accessible table headers, keyboard actions, loading/empty/error
@@ -84,6 +100,51 @@ files thin: route composition, metadata, and provider wiring only.
 - Do not expose development OTP codes, tokens, or provider details in
   production UI.
 
+## React performance contract
+
+- Prefer React Server Components for static shell, metadata, and
+  server-renderable composition. Add `"use client"` at the smallest interactive
+  feature/widget boundary, never automatically at the route root.
+- Do not fetch server data from `useEffect`. Use Server Components for
+  server-owned rendering or TanStack Query for interactive client-owned server
+  state.
+- Split heavy maps, charts, editors, and rarely opened management flows with
+  dynamic imports. Do not put them in the initial order-board bundle.
+- Keep fast-changing state close to the component that owns it. Avoid a context
+  provider whose value changes on every keystroke or order update.
+- Use stable row keys from backend IDs. Never use array indexes for mutable
+  orders, products, staff, or courier stops.
+- Do not add `useMemo`, `useCallback`, or `React.memo` everywhere. Use them when
+  required for stable library inputs or when profiling shows avoided expensive
+  work.
+- Use `useTransition`/`startTransition` for non-urgent table and filter updates,
+  and `useDeferredValue` only for expensive local projections. Debounce remote
+  search at the query/URL boundary.
+- Avoid maintaining the same optimistic state in both React
+  `useOptimistic` and TanStack Query. The query cache is the source of truth for
+  server mutations.
+- Use route/widget-level Suspense and error boundaries so one slow query does
+  not block or crash the entire dashboard.
+- Use optimized image dimensions and lazy loading for catalog/banner media.
+  Prevent layout shifts by reserving the rendered dimensions.
+- Do not perform route planning, large sorting, image processing, or other
+  heavy computation during React render. Move it to the backend or an isolated
+  worker when client execution is genuinely required.
+
+## Performance verification
+
+- Treat performance as a tested non-functional requirement, not a subjective
+  code-style claim.
+- Target production p75 Core Web Vitals of LCP under 2.5 seconds, INP under
+  200 milliseconds, and CLS under 0.1 on supported admin devices.
+- Profile the production build after changes to providers, the order board,
+  tables, maps, or generated-client plumbing.
+- Check that updating one order does not rerender every unrelated table row.
+- Check for duplicate HTTP requests, duplicated polling loops, cache-key
+  collisions, and request waterfalls.
+- Record and explain any meaningful initial-JavaScript or interaction
+  regression. Prefer removing work over adding memoization blindly.
+
 ## Frontend completion checklist
 
 - The screen reads and writes through the real API.
@@ -92,4 +153,6 @@ files thin: route composition, metadata, and provider wiring only.
 - Role-sensitive actions are hidden or disabled appropriately, and forbidden
   backend responses are handled.
 - OpenAPI types are current.
+- The production path meets the performance contract or documents a measured
+  blocker and follow-up.
 - Lint, production build, UI tests, and dependency audit pass.

@@ -198,10 +198,24 @@ Accepted target:
 - TanStack Table owns admin list/table behavior;
 - generated OpenAPI types are the API contract;
 - route files remain thin and business behavior moves into entities, features,
-  and widgets.
+  and widgets;
+- React Server Components are the default for static composition, with small
+  client boundaries for interactive features;
+- tables use server pagination/filtering/sorting, and large lists are
+  virtualized only after measurement;
+- maps, charts, and rarely used management flows are loaded outside the initial
+  order-board bundle;
+- query freshness, polling, retry, cancellation, and invalidation are defined
+  per domain rather than hidden in global defaults.
 
 Never report the admin as fully backend-connected until demo arrays have been
 removed and critical workflows pass integration tests against NestJS.
+
+Performance is a release requirement. Production p75 targets are LCP below
+2.5 seconds, INP below 200 milliseconds, and CLS below 0.1. Changes to the live
+order board, tables, maps, global providers, or API cache must be profiled for
+unnecessary rerenders, duplicate requests, waterfalls, polling duplication,
+and initial-bundle regression.
 
 ## Decision log
 
@@ -215,3 +229,6 @@ removed and critical workflows pass integration tests against NestJS.
 - 2026-07-27: frontend target set to FSD + TanStack Query + TanStack Table,
   based on lessons from the NEM app without copying its older dependency
   versions or mobile-only persistence.
+- 2026-07-27: frontend performance became an explicit release contract;
+  optimize with measured React/TanStack techniques instead of blanket
+  memoization.

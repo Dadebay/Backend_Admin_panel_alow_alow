@@ -19,6 +19,7 @@ import { MediaModule } from "./media/media.module";
 import { UsersModule } from "./users/users.module";
 import { HealthController } from "./health/health.controller";
 import { RedisModule } from "./redis/redis.module";
+import { TrackingModule } from "./tracking/tracking.module";
 
 @Module({
   imports: [
@@ -60,6 +61,7 @@ import { RedisModule } from "./redis/redis.module";
     MarketingModule,
     MediaModule,
     UsersModule,
+    TrackingModule,
   ],
   controllers: [HealthController],
   providers: [

@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { CourierMapPanel } from "@/src/widgets/courier-map";
 
 type Role =
   | "OPERATOR"
@@ -215,9 +216,6 @@ export default function AdminDashboard() {
     );
   }, [filter, orders, query]);
 
-  const selectedOrder =
-    orders.find((order) => order.id === selected) ?? orders[0];
-
   function advance(order: DemoOrder) {
     const target = nextByRole[role][order.status];
     if (!target) return;
@@ -338,7 +336,6 @@ export default function AdminDashboard() {
           <OrdersView
             orders={orders}
             visibleOrders={visibleOrders}
-            selectedOrder={selectedOrder}
             selected={selected}
             setSelected={setSelected}
             filter={filter}
@@ -381,7 +378,6 @@ export default function AdminDashboard() {
 function OrdersView({
   orders,
   visibleOrders,
-  selectedOrder,
   selected,
   setSelected,
   filter,
@@ -394,7 +390,6 @@ function OrdersView({
 }: {
   orders: DemoOrder[];
   visibleOrders: DemoOrder[];
-  selectedOrder: DemoOrder;
   selected: number;
   setSelected: (id: number) => void;
   filter: "ALL" | Status;
@@ -536,41 +531,7 @@ function OrdersView({
           </div>
         </div>
 
-        <aside className="dispatch-card">
-          <div className="section-head compact">
-            <div><h2>Курьеры на карте</h2><p>Ашхабад · сейчас</p></div>
-            <button className="square-button">↗</button>
-          </div>
-          <div className="map">
-            <div className="road road-one" />
-            <div className="road road-two" />
-            <div className="road road-three" />
-            <div className="block b1" /><div className="block b2" /><div className="block b3" />
-            <span className="map-label l1">Magtymguly</span>
-            <span className="map-label l2">Bitarap</span>
-            <span className="map-pin restaurant">A</span>
-            <span className="map-pin courier c1">M</span>
-            <span className="map-pin courier c2">B</span>
-            <span className="map-pin order-pin">#{selectedOrder.id}</span>
-          </div>
-
-          <div className="selected-stop">
-            <div className="stop-top">
-              <span className="route-index">1</span>
-              <div><strong>Заказ #{selectedOrder.id}</strong><small>{selectedOrder.address}</small></div>
-              {selectedOrder.eta && <em>{selectedOrder.eta}</em>}
-            </div>
-            <div className="route-line">
-              <span />
-              <p>{selectedOrder.courier ? `Курьер ${selectedOrder.courier}` : "Курьер ещё не назначен"}</p>
-            </div>
-          </div>
-
-          <div className="courier-list">
-            <div><span className="avatar peach">MK</span><p><strong>Maksat K.</strong><small>2 заказа · 4.9 ★</small></p><b className="online">На линии</b></div>
-            <div><span className="avatar mint">BR</span><p><strong>Batyr R.</strong><small>1 заказ · 4.8 ★</small></p><b className="online">На линии</b></div>
-          </div>
-        </aside>
+        <CourierMapPanel />
       </section>
 
       <section className="cash-strip">

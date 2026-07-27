@@ -547,6 +547,185 @@ describe("backend security and critical workflow", () => {
     }
   });
 
+  it("tracks only the authenticated courier and exposes dispatch data only to trusted staff", async () => {
+    const location = {
+      latitude: 37.9601,
+      longitude: 58.3261,
+      accuracy: 14,
+      recordedAt: new Date().toISOString(),
+    };
+
+    await request(server)
+      .put("/api/v1/tracking/me/location")
+      .set(bearer(tokens.customer))
+      .send(location)
+      .expect(403);
+    await request(server)
+      .put("/api/v1/tracking/me/location")
+      .set(bearer(tokens.operator))
+      .send(location)
+      .expect(403);
+    await request(server)
+      .put("/api/v1/tracking/me/location")
+      .set(bearer(tokens.courier))
+      .send({ ...location, courierId: users.otherCourier.id })
+      .expect(400);
+    await request(server)
+      .put("/api/v1/tracking/me/location")
+      .set(bearer(tokens.courier))
+      .send({ ...location, latitude: 91 })
+      .expect(400);
+    await request(server)
+      .put("/api/v1/tracking/me/location")
+      .set(bearer(tokens.courier))
+      .send({
+        ...location,
+        recordedAt: new Date(Date.now() + 120_000).toISOString(),
+      })
+      .expect(422);
+
+    const published = await request(server)
+      .put("/api/v1/tracking/me/location")
+      .set(bearer(tokens.courier))
+      .send(location)
+      .expect(200);
+    expect(published.body).toMatchObject({
+      accepted: true,
+      nextUpdateInSeconds: 120,
+      location: {
+        latitude: location.latitude,
+        longitude: location.longitude,
+      },
+    });
+
+    await request(server)
+      .put("/api/v1/tracking/me/location")
+      .set(bearer(tokens.courier))
+      .send({
+        ...location,
+        recordedAt: new Date(
+          Date.parse(location.recordedAt) - 1_000,
+        ).toISOString(),
+      })
+      .expect(409);
+
+    const assignedOrders: OrderResponse[] = [];
+    for (let index = 0; index < 2; index += 1) {
+      let order = await createOrder(tokens.customer, {});
+      order = await transition(tokens.operator, order, OrderStatus.CONFIRMED);
+      order = await transition(
+        tokens.operator,
+        order,
+        OrderStatus.SENT_TO_KITCHEN,
+      );
+      order = await transition(tokens.cook, order, OrderStatus.COOKING);
+      order = await transition(tokens.cook, order, OrderStatus.READY);
+      const assigned = await request(server)
+        .patch(`/api/v1/orders/${order.id}/assign-courier`)
+        .set(bearer(tokens.operator))
+        .send({
+          courierId: users.courier.id,
+          version: order.version,
+        })
+        .expect(200);
+      assignedOrders.push(assigned.body as OrderResponse);
+    }
+
+    await request(server)
+      .get("/api/v1/tracking/dispatch")
+      .set(bearer(tokens.courier))
+      .expect(403);
+    await request(server)
+      .get("/api/v1/tracking/dispatch")
+      .set(bearer(tokens.customer))
+      .expect(403);
+
+    const dispatch = await request(server)
+      .get("/api/v1/tracking/dispatch")
+      .set(bearer(tokens.operator))
+      .expect(200);
+    const tracked = (
+      dispatch.body as {
+        courierUpdateIntervalSeconds: number;
+        couriers: Array<{
+          id: string;
+          presence: string;
+          location: { latitude: number; longitude: number } | null;
+          activeOrders: Array<{
+            id: string;
+            customer: { phone: string };
+            items: Array<{ productName: string; quantity: number }>;
+          }>;
+        }>;
+      }
+    ).couriers.find(({ id }) => id === users.courier.id);
+    expect(dispatch.body).toMatchObject({
+      courierUpdateIntervalSeconds: 120,
+    });
+    expect(tracked).toMatchObject({
+      presence: "ONLINE",
+      location: {
+        latitude: location.latitude,
+        longitude: location.longitude,
+      },
+    });
+    expect(tracked?.activeOrders.map(({ id }) => id)).toEqual(
+      expect.arrayContaining(assignedOrders.map(({ id }) => id)),
+    );
+    expect(tracked?.activeOrders[0]?.customer.phone).toBe(
+      users.customer.phone,
+    );
+    expect(tracked?.activeOrders[0]?.items[0]).toMatchObject({
+      productName: "Security test meal",
+      quantity: 2,
+    });
+
+    await request(server)
+      .get("/api/v1/tracking/dispatch")
+      .set(bearer(tokens.admin))
+      .expect(200);
+    await request(server)
+      .get("/api/v1/tracking/dispatch")
+      .set(bearer(tokens.superAdmin))
+      .expect(200);
+
+    await request(server)
+      .delete("/api/v1/tracking/me/location")
+      .set(bearer(tokens.otherCourier))
+      .expect(200);
+    const stillTracked = await request(server)
+      .get("/api/v1/tracking/dispatch")
+      .set(bearer(tokens.operator))
+      .expect(200);
+    expect(
+      (
+        stillTracked.body as {
+          couriers: Array<{ id: string; presence: string }>;
+        }
+      ).couriers.find(({ id }) => id === users.courier.id)?.presence,
+    ).toBe("ONLINE");
+
+    await request(server)
+      .delete("/api/v1/tracking/me/location")
+      .set(bearer(tokens.courier))
+      .expect(200);
+    const stopped = await request(server)
+      .get("/api/v1/tracking/dispatch")
+      .set(bearer(tokens.operator))
+      .expect(200);
+    expect(
+      (
+        stopped.body as {
+          couriers: Array<{
+            id: string;
+            presence: string;
+            location: unknown;
+          }>;
+        }
+      ).couriers.find(({ id }) => id === users.courier.id),
+    ).toMatchObject({ presence: "OFFLINE", location: null });
+  });
+
   it("validates image contents, restricts deletion and stores safe WebP objects", async () => {
     const png = Buffer.from(
       "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",

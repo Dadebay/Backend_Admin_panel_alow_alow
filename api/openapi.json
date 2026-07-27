@@ -32,7 +32,14 @@
         },
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RequestOtpResponseDto"
+                }
+              }
+            }
           }
         },
         "summary": "Send a one-time login code to the phone by SMS",
@@ -57,7 +64,14 @@
         },
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthSessionResponseDto"
+                }
+              }
+            }
           }
         },
         "summary": "Verify code and create or sign in a user",
@@ -82,7 +96,14 @@
         },
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthSessionResponseDto"
+                }
+              }
+            }
           }
         },
         "summary": "Rotate refresh token and issue a new session",
@@ -107,7 +128,14 @@
         },
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LogoutResponseDto"
+                }
+              }
+            }
           }
         },
         "summary": "Revoke a refresh token",
@@ -1173,11 +1201,100 @@
           "media"
         ]
       }
+    },
+    "/api/v1/tracking/me/location": {
+      "put": {
+        "operationId": "TrackingController_updateLocation_v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCourierLocationDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateCourierLocationResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Publish the authenticated courier location; clients should update every 120 seconds",
+        "tags": [
+          "tracking"
+        ]
+      },
+      "delete": {
+        "operationId": "TrackingController_stopSharing_v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StopCourierLocationResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Stop sharing the authenticated courier location",
+        "tags": [
+          "tracking"
+        ]
+      }
+    },
+    "/api/v1/tracking/dispatch": {
+      "get": {
+        "operationId": "TrackingController_dispatch_v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DispatchSnapshotDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Get active couriers, their latest locations, delivery stops and customer details",
+        "tags": [
+          "tracking"
+        ]
+      }
     }
   },
   "info": {
     "title": "AlowAlow Delivery API",
-    "description": "SMS phone authentication backed by Redis, food catalog, marketing, role-gated order workflow, courier routes, cash handover and reconciliation.",
+    "description": "SMS phone authentication backed by Redis, food catalog, marketing, role-gated order workflow, courier tracking and routes, cash handover and reconciliation.",
     "version": "1.0",
     "contact": {}
   },
@@ -1209,6 +1326,10 @@
     {
       "name": "staff",
       "description": ""
+    },
+    {
+      "name": "tracking",
+      "description": ""
     }
   ],
   "servers": [],
@@ -1231,6 +1352,23 @@
         },
         "required": [
           "phone"
+        ]
+      },
+      "RequestOtpResponseDto": {
+        "type": "object",
+        "properties": {
+          "expiresInSeconds": {
+            "type": "number",
+            "example": 300
+          },
+          "devCode": {
+            "type": "string",
+            "description": "Development-only console SMS code",
+            "example": "123456"
+          }
+        },
+        "required": [
+          "expiresInSeconds"
         ]
       },
       "VerifyOtpDto": {
@@ -1258,6 +1396,76 @@
           "code"
         ]
       },
+      "Role": {
+        "type": "string",
+        "enum": [
+          "CUSTOMER",
+          "OPERATOR",
+          "COOK",
+          "COURIER",
+          "ACCOUNTANT",
+          "ADMIN",
+          "SUPER_ADMIN"
+        ]
+      },
+      "AuthSessionUserDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "phone": {
+            "type": "string"
+          },
+          "firstName": {
+            "type": "string",
+            "nullable": true
+          },
+          "lastName": {
+            "type": "string",
+            "nullable": true
+          },
+          "role": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Role"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "phone",
+          "firstName",
+          "lastName",
+          "role"
+        ]
+      },
+      "AuthSessionResponseDto": {
+        "type": "object",
+        "properties": {
+          "accessToken": {
+            "type": "string"
+          },
+          "refreshToken": {
+            "type": "string"
+          },
+          "expiresInSeconds": {
+            "type": "number",
+            "example": 900
+          },
+          "user": {
+            "$ref": "#/components/schemas/AuthSessionUserDto"
+          }
+        },
+        "required": [
+          "accessToken",
+          "refreshToken",
+          "expiresInSeconds",
+          "user"
+        ]
+      },
       "RefreshTokenDto": {
         "type": "object",
         "properties": {
@@ -1268,6 +1476,18 @@
         },
         "required": [
           "refreshToken"
+        ]
+      },
+      "LogoutResponseDto": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "example": true
+          }
+        },
+        "required": [
+          "success"
         ]
       },
       "CreateCategoryDto": {
@@ -1807,6 +2027,332 @@
             "type": "string"
           }
         }
+      },
+      "UpdateCourierLocationDto": {
+        "type": "object",
+        "properties": {
+          "latitude": {
+            "type": "number",
+            "example": 37.9601
+          },
+          "longitude": {
+            "type": "number",
+            "example": 58.3261
+          },
+          "accuracy": {
+            "type": "number",
+            "description": "Estimated horizontal accuracy in metres",
+            "example": 18
+          },
+          "heading": {
+            "type": "number",
+            "description": "Direction of travel in degrees from true north",
+            "example": 125
+          },
+          "speed": {
+            "type": "number",
+            "description": "Ground speed in metres per second",
+            "example": 8.5
+          },
+          "recordedAt": {
+            "type": "string",
+            "description": "Timestamp supplied by the device GPS reading",
+            "example": "2026-07-27T12:30:00.000Z"
+          }
+        },
+        "required": [
+          "latitude",
+          "longitude",
+          "recordedAt"
+        ]
+      },
+      "CourierLocationDto": {
+        "type": "object",
+        "properties": {
+          "latitude": {
+            "type": "number"
+          },
+          "longitude": {
+            "type": "number"
+          },
+          "accuracy": {
+            "type": "number"
+          },
+          "heading": {
+            "type": "number"
+          },
+          "speed": {
+            "type": "number"
+          },
+          "recordedAt": {
+            "type": "string"
+          },
+          "receivedAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "latitude",
+          "longitude",
+          "recordedAt",
+          "receivedAt"
+        ]
+      },
+      "UpdateCourierLocationResponseDto": {
+        "type": "object",
+        "properties": {
+          "accepted": {
+            "type": "boolean",
+            "example": true
+          },
+          "location": {
+            "$ref": "#/components/schemas/CourierLocationDto"
+          },
+          "nextUpdateInSeconds": {
+            "type": "number",
+            "example": 120
+          }
+        },
+        "required": [
+          "accepted",
+          "location",
+          "nextUpdateInSeconds"
+        ]
+      },
+      "StopCourierLocationResponseDto": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "example": true
+          }
+        },
+        "required": [
+          "success"
+        ]
+      },
+      "DispatchPickupDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "AlowAlow"
+          },
+          "address": {
+            "type": "string",
+            "nullable": true
+          },
+          "latitude": {
+            "type": "number",
+            "nullable": true
+          },
+          "longitude": {
+            "type": "number",
+            "nullable": true
+          }
+        },
+        "required": [
+          "name",
+          "address",
+          "latitude",
+          "longitude"
+        ]
+      },
+      "DispatchCustomerDto": {
+        "type": "object",
+        "properties": {
+          "firstName": {
+            "type": "string",
+            "nullable": true
+          },
+          "lastName": {
+            "type": "string",
+            "nullable": true
+          },
+          "phone": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "firstName",
+          "lastName",
+          "phone"
+        ]
+      },
+      "DispatchOrderItemDto": {
+        "type": "object",
+        "properties": {
+          "productName": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "productName",
+          "quantity"
+        ]
+      },
+      "DispatchOrderDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "number": {
+            "type": "number"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ASSIGNED_TO_COURIER",
+              "OUT_FOR_DELIVERY"
+            ]
+          },
+          "address": {
+            "type": "string"
+          },
+          "latitude": {
+            "type": "number"
+          },
+          "longitude": {
+            "type": "number"
+          },
+          "entrance": {
+            "type": "string",
+            "nullable": true
+          },
+          "floor": {
+            "type": "string",
+            "nullable": true
+          },
+          "apartment": {
+            "type": "string",
+            "nullable": true
+          },
+          "customerNote": {
+            "type": "string",
+            "nullable": true
+          },
+          "cashToCollect": {
+            "type": "number"
+          },
+          "assignedAt": {
+            "type": "string",
+            "nullable": true
+          },
+          "customer": {
+            "$ref": "#/components/schemas/DispatchCustomerDto"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DispatchOrderItemDto"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "number",
+          "status",
+          "address",
+          "latitude",
+          "longitude",
+          "entrance",
+          "floor",
+          "apartment",
+          "customerNote",
+          "cashToCollect",
+          "assignedAt",
+          "customer",
+          "items"
+        ]
+      },
+      "DispatchCourierDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "firstName": {
+            "type": "string",
+            "nullable": true
+          },
+          "lastName": {
+            "type": "string",
+            "nullable": true
+          },
+          "phone": {
+            "type": "string"
+          },
+          "presence": {
+            "type": "string",
+            "enum": [
+              "ONLINE",
+              "STALE",
+              "OFFLINE"
+            ]
+          },
+          "location": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CourierLocationDto"
+              }
+            ]
+          },
+          "rating": {
+            "type": "number",
+            "nullable": true
+          },
+          "activeOrders": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DispatchOrderDto"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "firstName",
+          "lastName",
+          "phone",
+          "presence",
+          "location",
+          "rating",
+          "activeOrders"
+        ]
+      },
+      "DispatchSnapshotDto": {
+        "type": "object",
+        "properties": {
+          "generatedAt": {
+            "type": "string"
+          },
+          "courierUpdateIntervalSeconds": {
+            "type": "number",
+            "example": 120
+          },
+          "pickup": {
+            "$ref": "#/components/schemas/DispatchPickupDto"
+          },
+          "couriers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DispatchCourierDto"
+            }
+          }
+        },
+        "required": [
+          "generatedAt",
+          "courierUpdateIntervalSeconds",
+          "pickup",
+          "couriers"
+        ]
       }
     }
   }

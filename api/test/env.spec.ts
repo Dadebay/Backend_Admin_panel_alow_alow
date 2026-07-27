@@ -100,4 +100,29 @@ describe("security environment configuration", () => {
       "MAX_IMAGE_BYTES",
     );
   });
+
+  it("validates the configured dispatch pickup coordinates as a pair", () => {
+    expect(() =>
+      validateEnv({ DISPATCH_PICKUP_LATITUDE: "37.96" }),
+    ).toThrow("must be provided together");
+    expect(() =>
+      validateEnv({
+        DISPATCH_PICKUP_LATITUDE: "91",
+        DISPATCH_PICKUP_LONGITUDE: "58.32",
+      }),
+    ).toThrow("between -90 and 90");
+    expect(
+      validateEnv({
+        DISPATCH_PICKUP_NAME: "Central kitchen",
+        DISPATCH_PICKUP_ADDRESS: "Ashgabat",
+        DISPATCH_PICKUP_LATITUDE: "37.96",
+        DISPATCH_PICKUP_LONGITUDE: "58.32",
+      }),
+    ).toMatchObject({
+      DISPATCH_PICKUP_NAME: "Central kitchen",
+      DISPATCH_PICKUP_ADDRESS: "Ashgabat",
+      DISPATCH_PICKUP_LATITUDE: 37.96,
+      DISPATCH_PICKUP_LONGITUDE: 58.32,
+    });
+  });
 });

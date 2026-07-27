@@ -42,4 +42,13 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     });
     return Number(result);
   }
+
+  async getMany(keys: string[]) {
+    if (!keys.length) return [];
+    return this.client.mGet(keys);
+  }
+
+  async delete(key: string) {
+    return this.client.del(key);
+  }
 }

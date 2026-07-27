@@ -19,6 +19,10 @@ export type AppEnv = {
   S3_ACCESS_KEY_ID: string;
   S3_SECRET_ACCESS_KEY: string;
   S3_FORCE_PATH_STYLE: boolean;
+  DISPATCH_PICKUP_NAME: string;
+  DISPATCH_PICKUP_ADDRESS: string;
+  DISPATCH_PICKUP_LATITUDE: number | null;
+  DISPATCH_PICKUP_LONGITUDE: number | null;
 };
 
 export function validateEnv(source: Record<string, unknown>): AppEnv {
@@ -40,6 +44,15 @@ export function validateEnv(source: Record<string, unknown>): AppEnv {
     if (typeof value === "boolean") return value;
     if (typeof value === "string") return value.toLowerCase() === "true";
     return fallback;
+  };
+  const optionalNumber = (key: string) => {
+    const value = source[key];
+    if (value === undefined || value === null || value === "") return null;
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed)) {
+      throw new Error(`${key} must be a finite number`);
+    }
+    return parsed;
   };
   const nodeEnv = text("NODE_ENV", "development");
   if (!["development", "test", "production"].includes(nodeEnv)) {
@@ -183,6 +196,25 @@ export function validateEnv(source: Record<string, unknown>): AppEnv {
   }
   const s3Bucket = text("S3_BUCKET", "alowalow-media");
   if (!s3Bucket) throw new Error("S3_BUCKET is required");
+  const pickupLatitude = optionalNumber("DISPATCH_PICKUP_LATITUDE");
+  const pickupLongitude = optionalNumber("DISPATCH_PICKUP_LONGITUDE");
+  if ((pickupLatitude === null) !== (pickupLongitude === null)) {
+    throw new Error(
+      "DISPATCH_PICKUP_LATITUDE and DISPATCH_PICKUP_LONGITUDE must be provided together",
+    );
+  }
+  if (
+    pickupLatitude !== null &&
+    (pickupLatitude < -90 || pickupLatitude > 90)
+  ) {
+    throw new Error("DISPATCH_PICKUP_LATITUDE must be between -90 and 90");
+  }
+  if (
+    pickupLongitude !== null &&
+    (pickupLongitude < -180 || pickupLongitude > 180)
+  ) {
+    throw new Error("DISPATCH_PICKUP_LONGITUDE must be between -180 and 180");
+  }
 
   return {
     NODE_ENV: nodeEnv as AppEnv["NODE_ENV"],
@@ -208,5 +240,9 @@ export function validateEnv(source: Record<string, unknown>): AppEnv {
     S3_ACCESS_KEY_ID: s3AccessKeyId,
     S3_SECRET_ACCESS_KEY: s3SecretAccessKey,
     S3_FORCE_PATH_STYLE: boolean("S3_FORCE_PATH_STYLE", !isProduction),
+    DISPATCH_PICKUP_NAME: text("DISPATCH_PICKUP_NAME", "AlowAlow"),
+    DISPATCH_PICKUP_ADDRESS: text("DISPATCH_PICKUP_ADDRESS", ""),
+    DISPATCH_PICKUP_LATITUDE: pickupLatitude,
+    DISPATCH_PICKUP_LONGITUDE: pickupLongitude,
   };
 }

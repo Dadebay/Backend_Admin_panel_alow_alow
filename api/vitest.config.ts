@@ -40,6 +40,7 @@ export default defineConfig({
         "src/users/**/*.ts",
         "src/media/**/*.ts",
         "src/redis/**/*.ts",
+        "src/tracking/**/*.ts",
       ],
       exclude: ["src/common/auth.types.ts"],
       thresholds: {

@@ -53,6 +53,7 @@ alowalow/
 │   │   ├── marketing/     # banners and promo codes
 │   │   ├── media/         # S3-compatible image storage
 │   │   ├── orders/        # workflow, assignment, route, rating, cash
+│   │   ├── tracking/      # courier GPS ingestion and dispatch map snapshot
 │   │   ├── common/        # guards, decorators, shared HTTP types
 │   │   ├── config/        # validated environment configuration
 │   │   ├── prisma/        # Prisma service/module
@@ -160,6 +161,21 @@ one-active-order rule. The courier route contains every assigned active stop
 with address, coordinates, customer, item count, and cash amount. Individual
 orders progress independently.
 
+The courier web client publishes its own GPS reading immediately after the
+courier starts sharing and then every 120 seconds. Only the authenticated
+`COURIER` may publish or delete their own current point. The latest point is
+ephemeral operational data in Redis with a 15-minute TTL; it is `ONLINE` for
+five minutes, then `STALE` until expiry. The dispatch snapshot is restricted to
+`OPERATOR`, `ADMIN`, and `SUPER_ADMIN` and includes each active courier, latest
+location, all active assigned orders, delivery coordinates, customer contact
+details, items, and cash to collect.
+
+The pickup point is deployment configuration
+(`DISPATCH_PICKUP_NAME`, address, latitude, and longitude). Both pickup
+coordinates must be configured together. Until a production maps/tile provider
+is selected, the frontend uses a configurable Leaflet tile URL with
+OpenStreetMap tiles as the local-development default.
+
 ## Customer and payment behavior
 
 - Login/registration is by phone OTP. First and last name are optional.
@@ -189,7 +205,9 @@ Current status:
 - Swagger schema and a basic fetch client exist;
 - the main dashboard still uses local demo arrays and is not fully connected to
   backend queries;
-- TanStack Query and TanStack Table are not installed yet.
+- the dispatch courier map and courier GPS-sharing screen use the real tracking
+  API through TanStack Query;
+- TanStack Query is installed; TanStack Table is not installed yet.
 
 Accepted target:
 
@@ -217,6 +235,10 @@ order board, tables, maps, global providers, or API cache must be profiled for
 unnecessary rerenders, duplicate requests, waterfalls, polling duplication,
 and initial-bundle regression.
 
+The 2026-07-27 tracking build measured the dashboard page chunk at 42.3 KB raw
+/ 12.4 KB gzip and the dynamically imported Leaflet map chunk at 156.4 KB raw
+/ 45.7 KB gzip. The map chunk was absent from the initial module-preload list.
+
 ## Decision log
 
 - 2026-07-27: media moved to private S3-compatible storage.
@@ -232,3 +254,7 @@ and initial-bundle regression.
 - 2026-07-27: frontend performance became an explicit release contract;
   optimize with measured React/TanStack techniques instead of blanket
   memoization.
+- 2026-07-27: courier GPS updates were set to a two-minute client interval;
+  latest points live in Redis, dispatch access is limited to trusted operations
+  roles, and the first real FSD/TanStack frontend slices were introduced for
+  courier tracking and the map.

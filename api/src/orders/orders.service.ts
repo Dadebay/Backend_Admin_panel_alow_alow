@@ -13,6 +13,7 @@ import {
 } from "../generated/prisma/client";
 import type { AuthUser } from "../common/auth.types";
 import { PrismaService } from "../prisma/prisma.service";
+import { AddressesService } from "../users/addresses.service";
 import {
   AssignCourierDto,
   CancelOrderDto,
@@ -37,6 +38,7 @@ const detailInclude = {
   items: true,
   rating: true,
   cashSettlement: true,
+  savedAddress: true,
   transitions: {
     orderBy: { createdAt: "asc" as const },
     include: {
@@ -49,7 +51,10 @@ const detailInclude = {
 
 @Injectable()
 export class OrdersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly addresses: AddressesService,
+  ) {}
 
   async create(user: AuthUser, dto: CreateOrderDto) {
     const quantityByProduct = new Map<string, number>();
@@ -118,6 +123,12 @@ export class OrdersService {
     const total = Math.max(0, subtotal - discount + deliveryFee);
 
     return this.prisma.$transaction(async (tx) => {
+      const selectedAddress = await this.addresses.selectForOrder(
+        tx,
+        user.id,
+        dto,
+      );
+
       if (promo) {
         const incremented = await tx.promoCode.updateMany({
           where: {
@@ -138,16 +149,17 @@ export class OrdersService {
         data: {
           customerId: user.id,
           promoCodeId: promo?.id,
+          addressId: selectedAddress.id,
           subtotal,
           discount,
           deliveryFee,
           total,
-          address: dto.address,
-          latitude: dto.latitude,
-          longitude: dto.longitude,
-          entrance: dto.entrance,
-          floor: dto.floor,
-          apartment: dto.apartment,
+          address: selectedAddress.address,
+          latitude: selectedAddress.latitude,
+          longitude: selectedAddress.longitude,
+          entrance: selectedAddress.entrance,
+          floor: selectedAddress.floor,
+          apartment: selectedAddress.apartment,
           customerNote: dto.customerNote,
           items: {
             create: products.map((product) => {

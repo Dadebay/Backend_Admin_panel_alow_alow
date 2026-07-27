@@ -64,6 +64,7 @@ export function createOpenApiDocument(app: INestApplication): OpenAPIObject {
       "bearer",
     )
     .addTag("auth")
+    .addTag("addresses")
     .addTag("catalog")
     .addTag("orders")
     .addTag("marketing")

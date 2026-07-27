@@ -674,6 +674,234 @@
         ]
       }
     },
+    "/api/v1/staff": {
+      "get": {
+        "operationId": "UsersController_list_v1",
+        "parameters": [
+          {
+            "name": "role",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "staff"
+        ]
+      }
+    },
+    "/api/v1/staff/couriers": {
+      "get": {
+        "operationId": "UsersController_couriers_v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "staff"
+        ]
+      }
+    },
+    "/api/v1/staff/{id}": {
+      "patch": {
+        "operationId": "UsersController_update_v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateStaffDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "staff"
+        ]
+      }
+    },
+    "/api/v1/users/me/addresses": {
+      "get": {
+        "operationId": "AddressesController_list_v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "List saved addresses; active address comes first",
+        "tags": [
+          "addresses"
+        ]
+      },
+      "post": {
+        "operationId": "AddressesController_create_v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAddressDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Save a new address and make it active",
+        "tags": [
+          "addresses"
+        ]
+      }
+    },
+    "/api/v1/users/me/addresses/{id}": {
+      "patch": {
+        "operationId": "AddressesController_update_v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateAddressDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Update one of the current user's addresses",
+        "tags": [
+          "addresses"
+        ]
+      },
+      "delete": {
+        "operationId": "AddressesController_remove_v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Delete one of the current user's addresses",
+        "tags": [
+          "addresses"
+        ]
+      }
+    },
+    "/api/v1/users/me/addresses/{id}/activate": {
+      "post": {
+        "operationId": "AddressesController_activate_v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Make a saved address active",
+        "tags": [
+          "addresses"
+        ]
+      }
+    },
     "/api/v1/marketing/banners": {
       "get": {
         "operationId": "MarketingController_banners_v1",
@@ -945,91 +1173,6 @@
           "media"
         ]
       }
-    },
-    "/api/v1/staff": {
-      "get": {
-        "operationId": "UsersController_list_v1",
-        "parameters": [
-          {
-            "name": "role",
-            "required": true,
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "tags": [
-          "staff"
-        ]
-      }
-    },
-    "/api/v1/staff/couriers": {
-      "get": {
-        "operationId": "UsersController_couriers_v1",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "tags": [
-          "staff"
-        ]
-      }
-    },
-    "/api/v1/staff/{id}": {
-      "patch": {
-        "operationId": "UsersController_update_v1",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdateStaffDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "tags": [
-          "staff"
-        ]
-      }
     }
   },
   "info": {
@@ -1041,6 +1184,10 @@
   "tags": [
     {
       "name": "auth",
+      "description": ""
+    },
+    {
+      "name": "addresses",
       "description": ""
     },
     {
@@ -1292,9 +1439,19 @@
               "$ref": "#/components/schemas/CreateOrderItemDto"
             }
           },
+          "addressId": {
+            "type": "string",
+            "description": "Saved address owned by the current user"
+          },
+          "addressLabel": {
+            "type": "string",
+            "example": "Дом",
+            "description": "Label used when an inline address is saved"
+          },
           "address": {
             "type": "string",
-            "example": "Magtymguly şaýoly, 72"
+            "example": "Magtymguly şaýoly, 72",
+            "description": "New address; omitted fields use the active saved address"
           },
           "latitude": {
             "type": "number",
@@ -1322,10 +1479,7 @@
           }
         },
         "required": [
-          "items",
-          "address",
-          "latitude",
-          "longitude"
+          "items"
         ]
       },
       "Object": {
@@ -1410,6 +1564,99 @@
         "required": [
           "score"
         ]
+      },
+      "UpdateStaffDto": {
+        "type": "object",
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": [
+              "CUSTOMER",
+              "OPERATOR",
+              "COOK",
+              "COURIER",
+              "ACCOUNTANT",
+              "ADMIN"
+            ]
+          },
+          "firstName": {
+            "type": "string"
+          },
+          "lastName": {
+            "type": "string"
+          },
+          "isActive": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "role"
+        ]
+      },
+      "CreateAddressDto": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string",
+            "example": "Дом"
+          },
+          "address": {
+            "type": "string",
+            "example": "Magtymguly şaýoly, 72"
+          },
+          "latitude": {
+            "type": "number",
+            "example": 37.9601
+          },
+          "longitude": {
+            "type": "number",
+            "example": 58.3261
+          },
+          "entrance": {
+            "type": "string"
+          },
+          "floor": {
+            "type": "string"
+          },
+          "apartment": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "address",
+          "latitude",
+          "longitude"
+        ]
+      },
+      "UpdateAddressDto": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string",
+            "example": "Дом"
+          },
+          "address": {
+            "type": "string",
+            "example": "Magtymguly şaýoly, 72"
+          },
+          "latitude": {
+            "type": "number",
+            "example": 37.9601
+          },
+          "longitude": {
+            "type": "number",
+            "example": 58.3261
+          },
+          "entrance": {
+            "type": "string"
+          },
+          "floor": {
+            "type": "string"
+          },
+          "apartment": {
+            "type": "string"
+          }
+        }
       },
       "CreateBannerDto": {
         "type": "object",
@@ -1559,34 +1806,6 @@
             "type": "string"
           }
         }
-      },
-      "UpdateStaffDto": {
-        "type": "object",
-        "properties": {
-          "role": {
-            "type": "string",
-            "enum": [
-              "CUSTOMER",
-              "OPERATOR",
-              "COOK",
-              "COURIER",
-              "ACCOUNTANT",
-              "ADMIN"
-            ]
-          },
-          "firstName": {
-            "type": "string"
-          },
-          "lastName": {
-            "type": "string"
-          },
-          "isActive": {
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "role"
-        ]
       }
     }
   }

@@ -39,18 +39,40 @@ export class CreateOrderDto {
   @Type(() => CreateOrderItemDto)
   items: CreateOrderItemDto[];
 
-  @ApiProperty({ example: "Magtymguly şaýoly, 72" })
+  @ApiPropertyOptional({
+    description: "Saved address owned by the current user",
+  })
+  @IsOptional()
+  @IsUUID()
+  addressId?: string;
+
+  @ApiPropertyOptional({
+    example: "Дом",
+    description: "Label used when an inline address is saved",
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(60)
+  addressLabel?: string;
+
+  @ApiPropertyOptional({
+    example: "Magtymguly şaýoly, 72",
+    description: "New address; omitted fields use the active saved address",
+  })
+  @IsOptional()
   @IsString()
   @MaxLength(500)
-  address: string;
+  address?: string;
 
-  @ApiProperty({ example: 37.9601 })
+  @ApiPropertyOptional({ example: 37.9601 })
+  @IsOptional()
   @IsLatitude()
-  latitude: number;
+  latitude?: number;
 
-  @ApiProperty({ example: 58.3261 })
+  @ApiPropertyOptional({ example: 58.3261 })
+  @IsOptional()
   @IsLongitude()
-  longitude: number;
+  longitude?: number;
 
   @ApiPropertyOptional()
   @IsOptional()

@@ -14,6 +14,25 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+  redis:
+    image: redis:8.8.0-alpine
+    command:
+      - redis-server
+      - --save
+      - ""
+      - --appendonly
+      - "no"
+      - --maxmemory
+      - 128mb
+      - --maxmemory-policy
+      - volatile-ttl
+    ports:
+      - "127.0.0.1:6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
   minio:
     image: minio/minio:latest
     command: server /data --console-address ":9001"

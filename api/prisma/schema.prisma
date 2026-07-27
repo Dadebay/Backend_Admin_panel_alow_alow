@@ -92,19 +92,6 @@ model UserAddress {
   @@index([userId, lastUsedAt, createdAt])
 }
 
-model PhoneOtp {
-  id          String    @id @default(uuid()) @db.Uuid
-  phone       String    @db.VarChar(24)
-  codeHash    String
-  attempts    Int       @default(0)
-  expiresAt   DateTime
-  consumedAt  DateTime?
-  requestedIp String?   @db.VarChar(64)
-  createdAt   DateTime  @default(now())
-
-  @@index([phone, createdAt])
-}
-
 model RefreshToken {
   id         String    @id @default(uuid()) @db.Uuid
   userId     String    @db.Uuid

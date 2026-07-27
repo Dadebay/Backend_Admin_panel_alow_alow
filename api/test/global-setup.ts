@@ -1,5 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { Client } from "pg";
+import { createClient } from "redis";
 
 const TEST_DATABASE = "alofood_test";
 const ADMIN_DATABASE_URL =
@@ -8,6 +9,18 @@ const ADMIN_DATABASE_URL =
 const TEST_DATABASE_URL =
   process.env.TEST_DATABASE_URL ??
   `postgresql://alofood:alofood@localhost:5432/${TEST_DATABASE}`;
+const TEST_REDIS_URL =
+  process.env.TEST_REDIS_URL ?? "redis://localhost:6379/15";
+
+async function flushTestRedis() {
+  const client = createClient({ url: TEST_REDIS_URL });
+  await client.connect();
+  try {
+    await client.flushDb();
+  } finally {
+    client.destroy();
+  }
+}
 
 async function recreateTestDatabase() {
   const client = new Client({ connectionString: ADMIN_DATABASE_URL });
@@ -39,6 +52,7 @@ async function dropTestDatabase() {
 }
 
 export async function setup() {
+  await flushTestRedis();
   await recreateTestDatabase();
   execFileSync("npm", ["exec", "prisma", "migrate", "deploy"], {
     cwd: process.cwd(),
@@ -50,6 +64,7 @@ export async function setup() {
   });
 
   return async () => {
+    await flushTestRedis();
     await dropTestDatabase();
   };
 }

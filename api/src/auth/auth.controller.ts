@@ -1,4 +1,4 @@
-import { Body, Controller, HttpCode, Ip, Post } from "@nestjs/common";
+import { Body, Controller, HttpCode, Post } from "@nestjs/common";
 import { ApiOperation, ApiTags } from "@nestjs/swagger";
 import { Throttle } from "@nestjs/throttler";
 import { Public } from "../common/auth.decorators";
@@ -14,9 +14,11 @@ export class AuthController {
   @Public()
   @HttpCode(200)
   @Throttle({ default: { limit: 3, ttl: 60_000 } })
-  @ApiOperation({ summary: "Request a one-time login code by phone" })
-  request(@Body() dto: RequestOtpDto, @Ip() ip: string) {
-    return this.auth.requestOtp(dto, ip);
+  @ApiOperation({
+    summary: "Send a one-time login code to the phone by SMS",
+  })
+  request(@Body() dto: RequestOtpDto) {
+    return this.auth.requestOtp(dto);
   }
 
   @Post("otp/verify")

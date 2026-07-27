@@ -35,7 +35,7 @@
             "description": ""
           }
         },
-        "summary": "Request a one-time login code by phone",
+        "summary": "Send a one-time login code to the phone by SMS",
         "tags": [
           "auth"
         ]
@@ -1177,7 +1177,7 @@
   },
   "info": {
     "title": "AlowAlow Delivery API",
-    "description": "Phone-authenticated food delivery API with catalog, marketing, role-gated order workflow, courier routes, cash handover and reconciliation.",
+    "description": "SMS phone authentication backed by Redis, food catalog, marketing, role-gated order workflow, courier routes, cash handover and reconciliation.",
     "version": "1.0",
     "contact": {}
   },

@@ -40,9 +40,11 @@
     "helmet": "8.1.0",
     "libphonenumber-js": "1.12.28",
     "pg": "8.16.3",
+    "redis": "6.1.0",
     "reflect-metadata": "0.2.2",
     "rxjs": "7.8.2",
-    "sharp": "0.35.3"
+    "sharp": "0.35.3",
+    "twilio": "6.0.2"
   },
   "devDependencies": {
     "@nestjs/cli": "11.0.24",

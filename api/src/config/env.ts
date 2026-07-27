@@ -2,8 +2,13 @@ export type AppEnv = {
   NODE_ENV: "development" | "test" | "production";
   PORT: number;
   DATABASE_URL: string;
+  REDIS_URL: string;
   JWT_ACCESS_SECRET: string;
   OTP_PEPPER: string;
+  SMS_PROVIDER: "console" | "twilio";
+  TWILIO_ACCOUNT_SID: string;
+  TWILIO_AUTH_TOKEN: string;
+  TWILIO_FROM: string;
   ACCESS_TOKEN_TTL: string;
   REFRESH_TOKEN_TTL_DAYS: number;
   CORS_ORIGINS: string;
@@ -55,13 +60,27 @@ export function validateEnv(source: Record<string, unknown>): AppEnv {
     "OTP_PEPPER",
     isProduction ? "" : "dev-only-otp-pepper-change-before-production",
   );
+  const redisUrl = text(
+    "REDIS_URL",
+    isProduction ? "" : "redis://localhost:6379/0",
+  );
+  const smsProvider = text(
+    "SMS_PROVIDER",
+    isProduction ? "" : "console",
+  );
+  const twilioAccountSid = text("TWILIO_ACCOUNT_SID", "");
+  const twilioAuthToken = text("TWILIO_AUTH_TOKEN", "");
+  const twilioFrom = text("TWILIO_FROM", "");
 
   if (
     isProduction &&
-    (!databaseUrl || jwtSecret.length < 32 || otpPepper.length < 32)
+    (!databaseUrl ||
+      !redisUrl ||
+      jwtSecret.length < 32 ||
+      otpPepper.length < 32)
   ) {
     throw new Error(
-      "DATABASE_URL is required and JWT_ACCESS_SECRET and OTP_PEPPER must each contain at least 32 characters",
+      "DATABASE_URL and REDIS_URL are required and JWT_ACCESS_SECRET and OTP_PEPPER must each contain at least 32 characters",
     );
   }
   if (
@@ -69,6 +88,36 @@ export function validateEnv(source: Record<string, unknown>): AppEnv {
     !databaseUrl.startsWith("postgres://")
   ) {
     throw new Error("DATABASE_URL must be a PostgreSQL URL");
+  }
+  let parsedRedisUrl: URL;
+  try {
+    parsedRedisUrl = new URL(redisUrl);
+  } catch {
+    throw new Error("REDIS_URL must be a valid Redis URL");
+  }
+  if (
+    !["redis:", "rediss:"].includes(parsedRedisUrl.protocol) ||
+    (isProduction && parsedRedisUrl.protocol !== "rediss:")
+  ) {
+    throw new Error(
+      "REDIS_URL must use redis:// locally and rediss:// in production",
+    );
+  }
+  if (!["console", "twilio"].includes(smsProvider)) {
+    throw new Error("SMS_PROVIDER must be console or twilio");
+  }
+  if (isProduction && smsProvider !== "twilio") {
+    throw new Error("SMS_PROVIDER must be twilio in production");
+  }
+  if (
+    smsProvider === "twilio" &&
+    (!/^AC[0-9a-fA-F]{32}$/.test(twilioAccountSid) ||
+      twilioAuthToken.length < 32 ||
+      !twilioFrom)
+  ) {
+    throw new Error(
+      "TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN and TWILIO_FROM are required for Twilio SMS",
+    );
   }
 
   const port = number("PORT", 4000);
@@ -139,8 +188,13 @@ export function validateEnv(source: Record<string, unknown>): AppEnv {
     NODE_ENV: nodeEnv as AppEnv["NODE_ENV"],
     PORT: port,
     DATABASE_URL: databaseUrl,
+    REDIS_URL: redisUrl,
     JWT_ACCESS_SECRET: jwtSecret,
     OTP_PEPPER: otpPepper,
+    SMS_PROVIDER: smsProvider as AppEnv["SMS_PROVIDER"],
+    TWILIO_ACCOUNT_SID: twilioAccountSid,
+    TWILIO_AUTH_TOKEN: twilioAuthToken,
+    TWILIO_FROM: twilioFrom,
     ACCESS_TOKEN_TTL: text("ACCESS_TOKEN_TTL", "15m"),
     REFRESH_TOKEN_TTL_DAYS: refreshTokenTtlDays,
     CORS_ORIGINS: origins.join(","),

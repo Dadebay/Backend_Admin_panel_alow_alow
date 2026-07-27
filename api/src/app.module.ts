@@ -18,6 +18,7 @@ import { MarketingModule } from "./marketing/marketing.module";
 import { MediaModule } from "./media/media.module";
 import { UsersModule } from "./users/users.module";
 import { HealthController } from "./health/health.controller";
+import { RedisModule } from "./redis/redis.module";
 
 @Module({
   imports: [
@@ -52,6 +53,7 @@ import { HealthController } from "./health/health.controller";
       },
     ]),
     PrismaModule,
+    RedisModule,
     AuthModule,
     CatalogModule,
     OrdersModule,

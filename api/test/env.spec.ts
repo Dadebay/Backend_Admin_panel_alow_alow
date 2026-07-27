@@ -4,8 +4,13 @@ import { validateEnv } from "../src/config/env";
 const productionSecrets = {
   NODE_ENV: "production",
   DATABASE_URL: "postgresql://app:secret@db.example/alowalow",
+  REDIS_URL: "rediss://default:secret@redis.example:6379/0",
   JWT_ACCESS_SECRET: "j".repeat(32),
   OTP_PEPPER: "o".repeat(32),
+  SMS_PROVIDER: "twilio",
+  TWILIO_ACCOUNT_SID: `AC${"a".repeat(32)}`,
+  TWILIO_AUTH_TOKEN: "t".repeat(32),
+  TWILIO_FROM: "+12025550123",
   CORS_ORIGINS: "https://admin.example.com,https://app.example.com",
 };
 
@@ -47,6 +52,27 @@ describe("security environment configuration", () => {
         DATABASE_URL: "",
       }),
     ).toThrow("DATABASE_URL");
+  });
+
+  it("requires TLS Redis and a real SMS provider in production", () => {
+    expect(() =>
+      validateEnv({
+        ...productionSecrets,
+        REDIS_URL: "redis://redis.example:6379/0",
+      }),
+    ).toThrow("rediss://");
+    expect(() =>
+      validateEnv({
+        ...productionSecrets,
+        SMS_PROVIDER: "console",
+      }),
+    ).toThrow("must be twilio");
+    expect(() =>
+      validateEnv({
+        ...productionSecrets,
+        TWILIO_AUTH_TOKEN: "",
+      }),
+    ).toThrow("TWILIO_AUTH_TOKEN");
   });
 
   it("rejects wildcard and insecure production CORS origins", () => {

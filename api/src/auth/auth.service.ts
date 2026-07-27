@@ -1,17 +1,20 @@
 import {
   BadRequestException,
   Injectable,
+  ServiceUnavailableException,
   UnauthorizedException,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { JwtService } from "@nestjs/jwt";
 import * as argon2 from "argon2";
-import { randomInt, randomUUID, randomBytes } from "node:crypto";
+import { randomUUID, randomBytes } from "node:crypto";
 import { parsePhoneNumberFromString } from "libphonenumber-js";
 import { PrismaService } from "../prisma/prisma.service";
 import { Prisma } from "../generated/prisma/client";
 import type { AppEnv } from "../config/env";
 import { RequestOtpDto, VerifyOtpDto } from "./auth.dto";
+import { OtpService } from "./otp.service";
+import { SmsService } from "./sms.service";
 
 @Injectable()
 export class AuthService {
@@ -19,6 +22,8 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
     private readonly config: ConfigService<AppEnv, true>,
+    private readonly otp: OtpService,
+    private readonly sms: SmsService,
   ) {}
 
   normalizePhone(value: string) {
@@ -29,83 +34,47 @@ export class AuthService {
     return parsed.number;
   }
 
-  async requestOtp(dto: RequestOtpDto, requestedIp?: string) {
+  async requestOtp(dto: RequestOtpDto) {
     const phone = this.normalizePhone(dto.phone);
-    const code = String(randomInt(100_000, 1_000_000));
-    const codeHash = await argon2.hash(
-      `${code}:${this.config.get("OTP_PEPPER", { infer: true })}`,
-    );
-
-    await this.prisma.$transaction([
-      this.prisma.phoneOtp.updateMany({
-        where: { phone, consumedAt: null },
-        data: { consumedAt: new Date() },
-      }),
-      this.prisma.phoneOtp.create({
-        data: {
-          phone,
-          codeHash,
-          requestedIp,
-          expiresAt: new Date(Date.now() + 5 * 60_000),
-        },
-      }),
-    ]);
+    const challenge = await this.otp.issue(phone);
+    try {
+      await this.sms.sendOtp(phone, challenge.code);
+    } catch {
+      await this.otp.cancel(phone, challenge.requestId);
+      throw new ServiceUnavailableException(
+        "The verification code could not be sent",
+      );
+    }
 
     return {
-      expiresInSeconds: 300,
+      expiresInSeconds: challenge.expiresInSeconds,
       ...(this.config.get("NODE_ENV", { infer: true }) === "development"
-        ? { devCode: code }
+        ? { devCode: challenge.code }
         : {}),
     };
   }
 
   async verifyOtp(dto: VerifyOtpDto) {
     const phone = this.normalizePhone(dto.phone);
-    const otp = await this.prisma.phoneOtp.findFirst({
-      where: { phone, consumedAt: null },
-      orderBy: { createdAt: "desc" },
-    });
-    if (!otp || otp.expiresAt < new Date() || otp.attempts >= 5) {
+    const verification = await this.otp.verify(phone, dto.code);
+    if (verification === "unavailable") {
       throw new UnauthorizedException("Code is expired or unavailable");
     }
-
-    const valid = await this.verifyHash(
-      otp.codeHash,
-      `${dto.code}:${this.config.get("OTP_PEPPER", { infer: true })}`,
-    );
-    if (!valid) {
-      await this.prisma.phoneOtp.update({
-        where: { id: otp.id },
-        data: { attempts: { increment: 1 } },
-      });
+    if (verification === "incorrect") {
       throw new UnauthorizedException("Code is incorrect");
     }
 
-    const user = await this.prisma.$transaction(async (tx) => {
-      const consumed = await tx.phoneOtp.updateMany({
-        where: {
-          id: otp.id,
-          consumedAt: null,
-          attempts: { lt: 5 },
-          expiresAt: { gt: new Date() },
-        },
-        data: { consumedAt: new Date() },
-      });
-      if (consumed.count !== 1) {
-        throw new UnauthorizedException("Code is expired or unavailable");
-      }
-      return tx.user.upsert({
-        where: { phone },
-        create: {
-          phone,
-          firstName: dto.firstName,
-          lastName: dto.lastName,
-        },
-        update: {
-          ...(dto.firstName ? { firstName: dto.firstName } : {}),
-          ...(dto.lastName ? { lastName: dto.lastName } : {}),
-        },
-      });
+    const user = await this.prisma.user.upsert({
+      where: { phone },
+      create: {
+        phone,
+        firstName: dto.firstName,
+        lastName: dto.lastName,
+      },
+      update: {
+        ...(dto.firstName ? { firstName: dto.firstName } : {}),
+        ...(dto.lastName ? { lastName: dto.lastName } : {}),
+      },
     });
 
     return this.issueSession(user);

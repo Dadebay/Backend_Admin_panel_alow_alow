@@ -30,7 +30,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Request a one-time login code by phone */
+        /** Send a one-time login code to the phone by SMS */
         post: operations["AuthController_request_v1"];
         delete?: never;
         options?: never;

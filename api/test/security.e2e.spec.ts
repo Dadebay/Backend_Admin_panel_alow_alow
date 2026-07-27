@@ -2,13 +2,13 @@ import "reflect-metadata";
 import type { INestApplication } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 import { Test } from "@nestjs/testing";
-import * as argon2 from "argon2";
 import request from "supertest";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { AppModule } from "../src/app.module";
 import { configureApp } from "../src/bootstrap";
 import { OrderStatus, Role, type User } from "../src/generated/prisma/client";
 import { PrismaService } from "../src/prisma/prisma.service";
+import { OtpService } from "../src/auth/otp.service";
 
 type TestUsers = Record<
   | "customer"
@@ -47,6 +47,7 @@ describe("backend security and critical workflow", () => {
   let app: INestApplication;
   let prisma: PrismaService;
   let jwt: JwtService;
+  let otp: OtpService;
   let server: Parameters<typeof request>[0];
   let users: TestUsers;
   let tokens: Record<keyof TestUsers, string>;
@@ -92,6 +93,7 @@ describe("backend security and critical workflow", () => {
 
     prisma = app.get(PrismaService);
     jwt = app.get(JwtService);
+    otp = app.get(OtpService);
     server = app.getHttpServer() as Parameters<typeof request>[0];
 
     const userData = {
@@ -228,18 +230,15 @@ describe("backend security and critical workflow", () => {
 
   it("consumes an OTP once even under concurrent verification", async () => {
     const phone = "+99365000201";
-    const code = "582941";
-    await prisma.phoneOtp.create({
-      data: {
-        phone,
-        codeHash: await argon2.hash(`${code}:${process.env.OTP_PEPPER ?? ""}`),
-        expiresAt: new Date(Date.now() + 60_000),
-      },
-    });
+    const challenge = await otp.issue(phone);
 
     const attempts = await Promise.all([
-      request(server).post("/api/v1/auth/otp/verify").send({ phone, code }),
-      request(server).post("/api/v1/auth/otp/verify").send({ phone, code }),
+      request(server)
+        .post("/api/v1/auth/otp/verify")
+        .send({ phone, code: challenge.code }),
+      request(server)
+        .post("/api/v1/auth/otp/verify")
+        .send({ phone, code: challenge.code }),
     ]);
     expect(attempts.map(({ status }) => status).sort()).toEqual([200, 401]);
 
@@ -270,6 +269,17 @@ describe("backend security and critical workflow", () => {
         .send({ refreshToken: rotated.refreshToken }),
     ]);
     expect(rotations.map(({ status }) => status).sort()).toEqual([200, 401]);
+  });
+
+  it("locks an OTP after five incorrect attempts", async () => {
+    const phone = "+99365000202";
+    const challenge = await otp.issue(phone);
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      await expect(otp.verify(phone, "000000")).resolves.toBe("incorrect");
+    }
+    await expect(otp.verify(phone, challenge.code)).resolves.toBe(
+      "unavailable",
+    );
   });
 
   it("enforces admin-only catalog mutations", async () => {
@@ -524,12 +534,18 @@ describe("backend security and critical workflow", () => {
       responses.push(
         await request(server)
           .post("/api/v1/auth/otp/request")
-          .send({ phone: "+99365000301" }),
+          .send({ phone: `+9936500030${index + 1}` }),
       );
     }
     expect(responses.map(({ status }) => status)).toEqual([200, 200, 200, 429]);
     for (const response of responses.slice(0, 3)) {
       expect(response.body).not.toHaveProperty("devCode");
     }
+  });
+
+  it("enforces a per-phone resend cooldown in Redis", async () => {
+    const phone = "+99365000310";
+    await otp.issue(phone);
+    await expect(otp.issue(phone)).rejects.toMatchObject({ status: 429 });
   });
 });

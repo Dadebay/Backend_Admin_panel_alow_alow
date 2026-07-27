@@ -3,6 +3,8 @@ import { defineConfig } from "vitest/config";
 const testDatabaseUrl =
   process.env.TEST_DATABASE_URL ??
   "postgresql://alofood:alofood@localhost:5432/alofood_test";
+const testRedisUrl =
+  process.env.TEST_REDIS_URL ?? "redis://localhost:6379/15";
 
 export default defineConfig({
   test: {
@@ -16,8 +18,10 @@ export default defineConfig({
     env: {
       NODE_ENV: "test",
       DATABASE_URL: testDatabaseUrl,
+      REDIS_URL: testRedisUrl,
       JWT_ACCESS_SECRET: "test-jwt-secret-with-at-least-32-characters",
       OTP_PEPPER: "test-otp-pepper-with-at-least-32-characters",
+      SMS_PROVIDER: "console",
       CORS_ORIGINS: "http://localhost:3000",
       S3_ENDPOINT: "http://localhost:9000",
       S3_ACCESS_KEY_ID: "alofood",
@@ -35,6 +39,7 @@ export default defineConfig({
         "src/orders/**/*.ts",
         "src/users/**/*.ts",
         "src/media/**/*.ts",
+        "src/redis/**/*.ts",
       ],
       exclude: ["src/common/auth.types.ts"],
       thresholds: {

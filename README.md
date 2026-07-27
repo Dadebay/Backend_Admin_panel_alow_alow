@@ -3,6 +3,7 @@
 Первая рабочая версия платформы доставки еды:
 
 - NestJS 11 API с PostgreSQL и Prisma 7;
+- Redis 8 для одноразовых кодов и защиты от повторной отправки;
 - React 19 админка для оператора, кухни, курьера, бухгалтера и администратора;
 - Swagger/OpenAPI и генерируемый TypeScript-клиент;
 - авторизация по телефону через одноразовый код;
@@ -38,7 +39,7 @@
 
 ```bash
 cp api/.env.example api/.env
-docker compose up -d postgres minio minio-init
+docker compose up -d postgres redis minio minio-init
 npm install
 npm --prefix api install
 npm --prefix api run prisma:generate
@@ -53,9 +54,25 @@ npm run stack:dev
 - OpenAPI JSON: `http://localhost:4000/docs-json`
 - MinIO Console: `http://localhost:9001` (`alofood` / `alofood-local-secret`)
 
-В development ответ `POST /api/v1/auth/otp/request` содержит `devCode`.
-В production код в ответ никогда не попадает — вместо этого в
-`AuthService.requestOtp` подключается SMS-провайдер.
+В development при `SMS_PROVIDER=console` ответ
+`POST /api/v1/auth/otp/request` содержит `devCode`. В production код в ответ
+никогда не попадает: он хранится в Redis 5 минут и отправляется через Twilio.
+Повторная отправка на номер доступна через 60 секунд, действует лимит 5 SMS в
+час и 5 попыток ввода. Успешно использованный код атомарно удаляется.
+
+Для реальной отправки SMS задайте:
+
+```dotenv
+REDIS_URL=rediss://user:password@redis.example.com:6379/0
+SMS_PROVIDER=twilio
+TWILIO_ACCOUNT_SID=AC...
+TWILIO_AUTH_TOKEN=...
+TWILIO_FROM=+12025550123
+```
+
+`TWILIO_FROM` должен быть разрешённым Twilio-номером или Sender ID. Для
+Туркменистана доступна исходящая отправка, но местный оператор может заменить
+отображаемого отправителя.
 
 Адреса клиента доступны через `/api/v1/users/me/addresses`. Новый адрес
 становится активным автоматически. Если заказ создаётся с `addressId`, этот
@@ -85,18 +102,20 @@ npm run api:build
 npm run api:test
 ```
 
-`npm run api:test` создаёт отдельную базу `alofood_test`, накатывает на неё
-все миграции, выполняет unit- и HTTP e2e-тесты с отчётом покрытия, а затем
-удаляет тестовую базу. PostgreSQL и MinIO должны быть запущены через Docker;
-рабочая база `alofood` тестами не изменяется. В CI действуют минимальные
-пороги покрытия: 75% statements, 60% branches, 80% functions и 78% lines.
+`npm run api:test` создаёт отдельную базу `alofood_test`, использует Redis DB
+15, накатывает все миграции, выполняет unit- и HTTP e2e-тесты с отчётом
+покрытия, а затем очищает тестовые хранилища. PostgreSQL, Redis и MinIO должны
+быть запущены через Docker; рабочая база `alofood` и Redis DB 0 тестами не
+изменяются. В CI действуют минимальные пороги покрытия: 75% statements,
+60% branches, 80% functions и 78% lines.
 
 ## Безопасность
 
 - короткоживущий JWT access token и ротируемый refresh token;
 - OTP и refresh token защищены от повторного и параллельного использования;
 - refresh token хранится в базе только как Argon2-хеш;
-- OTP имеет срок 5 минут, лимит попыток и rate limit;
+- OTP хранится в Redis как HMAC, имеет TTL 5 минут, лимит попыток, cooldown,
+  почасовой лимит и атомарное одноразовое потребление;
 - RBAC и проверка владельца/назначенного сотрудника на каждом переходе;
 - оптимистическая блокировка заказа через поле `version`;
 - production не запускается с dev-секретами, wildcard CORS или без базы;
@@ -112,5 +131,5 @@ npm run api:test
 `S3_SECRET_ACCESS_KEY` можно не задавать при использовании IAM-роли.
 
 Перед production также необходимо задать случайные `JWT_ACCESS_SECRET` и
-`OTP_PEPPER` длиной не менее 32 символов, подключить SMS-провайдера и
-провайдера маршрутов/карт для расчёта реального ETA.
+`OTP_PEPPER` длиной не менее 32 символов, TLS-адрес `REDIS_URL`, параметры
+Twilio и провайдера маршрутов/карт для расчёта реального ETA.

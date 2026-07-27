@@ -52,7 +52,7 @@ export function createOpenApiDocument(app: INestApplication): OpenAPIObject {
   const options = new DocumentBuilder()
     .setTitle("AlowAlow Delivery API")
     .setDescription(
-      "Phone-authenticated food delivery API with catalog, marketing, role-gated order workflow, courier routes, cash handover and reconciliation.",
+      "SMS phone authentication backed by Redis, food catalog, marketing, role-gated order workflow, courier routes, cash handover and reconciliation.",
     )
     .setVersion("1.0")
     .addBearerAuth(

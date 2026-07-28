@@ -8,6 +8,7 @@ import type { AppEnv } from "./config/env";
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  app.enableShutdownHooks();
   configureApp(app);
   const document = createOpenApiDocument(app);
   SwaggerModule.setup("docs", app, document, {

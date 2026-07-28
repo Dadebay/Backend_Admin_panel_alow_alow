@@ -15,8 +15,9 @@ AlowAlow is a cash-on-delivery food ordering platform for Ashgabat with:
   accounting.
 
 The private Sites URL publishes the admin frontend only. The NestJS backend is
-currently a local/deployable service and still needs a production runtime,
-managed PostgreSQL, TLS Redis, S3, SMS credentials, and a maps provider.
+currently a local/deployable service. CI/CD now produces immutable runtime and
+migration images, but a production host plus managed PostgreSQL, TLS Redis, S3,
+SMS credentials, and a maps provider still need to be configured.
 
 ## Stack and storage
 
@@ -26,6 +27,8 @@ managed PostgreSQL, TLS Redis, S3, SMS credentials, and a maps provider.
 - Private S3-compatible object storage; MinIO locally.
 - React 19, Next.js 16/vinext, Swagger/OpenAPI-generated TypeScript schema.
 - Local Docker services: PostgreSQL, Redis, MinIO.
+- GitHub Actions CI/CD with GHCR runtime and migration images; optional
+  protected-environment deployment to a Linux Docker host.
 
 Durable business data belongs in PostgreSQL. Temporary OTP data belongs in
 Redis. Images belong in S3-compatible storage.
@@ -38,10 +41,19 @@ moves a major module, update this tree in the same change.
 ```text
 alowalow/
 ├── AGENTS.md
+├── .github/
+│   ├── dependabot.yml
+│   └── workflows/
+│       └── ci-cd.yml
 ├── docs/
 │   └── PROJECT_CONTEXT.md
+├── deploy/
+│   ├── compose.production.yml
+│   ├── deploy-production.sh
+│   └── production.env.example
 ├── api/
 │   ├── AGENTS.md
+│   ├── Dockerfile
 │   ├── prisma/
 │   │   ├── schema.prisma
 │   │   ├── migrations/
@@ -303,3 +315,7 @@ uploads start only when an administrator saves the dish.
 - 2026-07-28: product media was formalized as an ordered set of up to 10 private
   S3-backed WebP images, with the first image acting as the primary catalog
   image and matching validation in the API and admin.
+- 2026-07-28: CI/CD was defined as deny-on-failure GitHub Actions checks,
+  Swagger contract drift detection, immutable GHCR API/migration images with
+  provenance and SBOM, and an optional protected-environment Linux deployment.
+  The existing private Sites project remains the only admin hosting target.

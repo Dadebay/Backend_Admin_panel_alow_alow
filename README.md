@@ -113,6 +113,68 @@ npm run api:test
 изменяются. В CI действуют минимальные пороги покрытия: 75% statements,
 60% branches, 80% functions и 78% lines.
 
+## CI/CD
+
+Workflow `.github/workflows/ci-cd.yml` запускается для pull request, push в
+`main` и вручную. До публикации он обязательно:
+
+- проверяет lint, production build, тесты и coverage backend;
+- проверяет lint, production build и тесты админки;
+- выполняет полный и production-only `npm audit` для обоих приложений;
+- заново генерирует Swagger/TypeScript-контракт и отклоняет незакоммиченный
+  diff;
+- собирает непривилегированный runtime-контейнер и отдельный контейнер
+  миграций;
+- проверяет production Compose.
+
+После успешного push в `main` workflow публикует в GHCR два образа:
+
+```text
+ghcr.io/<owner>/<repository>-api:sha-<commit>
+ghcr.io/<owner>/<repository>-migration:sha-<commit>
+```
+
+Образы также получают `latest`, но production-деплой использует только digest,
+а не изменяемый тег. BuildKit добавляет provenance и SBOM. Проверенная сборка
+админки сохраняется как workflow artifact; действующий приватный frontend
+публикуется в существующий Sites-проект, а не во второй hosting.
+
+Репозиторий пока не имеет GitHub remote, поэтому workflow начнёт выполняться
+после push этого проекта в GitHub.
+
+### Автоматический production-деплой API
+
+По умолчанию CD заканчивается безопасной доставкой образов в GHCR. Для
+автоматического обновления Linux-сервера:
+
+1. Создайте GitHub Environment `production` и включите обязательное ручное
+   подтверждение.
+2. Добавьте repository variable
+   `PRODUCTION_DEPLOY_ENABLED=true`.
+3. Добавьте environment secrets:
+   `PRODUCTION_SSH_HOST`, `PRODUCTION_SSH_USER`,
+   `PRODUCTION_SSH_PRIVATE_KEY`, `PRODUCTION_SSH_KNOWN_HOSTS`.
+4. На сервере создайте `~/alowalow/.env.production` по образцу
+   `deploy/production.env.example`. Настоящие значения не должны попадать в
+   Git.
+5. Если GHCR package приватный, один раз выполните на сервере
+   `docker login ghcr.io` с токеном, имеющим только `read:packages`.
+
+При деплое сначала выполняется `prisma migrate deploy`. Новый API запускается
+только после успешной миграции и healthcheck. Если обновление не стало healthy,
+deployment-скрипт возвращает предыдущие digest-ссылки и поднимает прошлый API:
+
+```bash
+ALOWALOW_API_IMAGE=ghcr.io/owner/repository-api@sha256:... \
+ALOWALOW_MIGRATION_IMAGE=ghcr.io/owner/repository-migration@sha256:... \
+docker compose --file deploy/compose.production.yml up -d --wait
+```
+
+На production-сервере контейнер слушает только `127.0.0.1:4000`. Публичный TLS
+и проксирование `/api` должны выполнять Caddy, Nginx или управляемый ingress.
+PostgreSQL, TLS Redis, S3 и Twilio передаются приложению только через
+`.env.production`.
+
 ## Безопасность
 
 - короткоживущий JWT access token и ротируемый refresh token;

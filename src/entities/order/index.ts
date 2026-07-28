@@ -2,6 +2,7 @@ export {
   canCancel,
   nextOrderStatus,
   orderStatuses,
+  ratingStars,
   roleLabels,
   statusLabels,
 } from "./model/types";
@@ -15,5 +16,6 @@ export type {
 export {
   orderQueryKeys,
   useCouriers,
+  useOrder,
   useOrders,
 } from "./api/order-queries";

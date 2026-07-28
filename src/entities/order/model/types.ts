@@ -92,3 +92,8 @@ export function canCancel(role: Role, status: OrderStatus) {
     ["NEW", "CONFIRMED", "SENT_TO_KITCHEN"].includes(status)
   );
 }
+
+export function ratingStars(score: number) {
+  const filled = Math.max(0, Math.min(5, Math.round(score)));
+  return `${"★".repeat(filled)}${"☆".repeat(5 - filled)}`;
+}

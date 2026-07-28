@@ -2,7 +2,12 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { useSession } from "@/src/shared/auth";
-import type { Courier, OrderList, OrderStatus } from "../model/types";
+import type {
+  Courier,
+  Order,
+  OrderList,
+  OrderStatus,
+} from "../model/types";
 
 export const orderQueryKeys = {
   all: ["orders"] as const,
@@ -10,6 +15,8 @@ export const orderQueryKeys = {
     userId: string,
     params: { status?: OrderStatus; search?: string; page: number; limit: number },
   ) => [...orderQueryKeys.all, "list", userId, params] as const,
+  detail: (userId: string, orderId: string) =>
+    [...orderQueryKeys.all, "detail", userId, orderId] as const,
   couriers: (userId: string) =>
     [...orderQueryKeys.all, "couriers", userId] as const,
 };
@@ -45,6 +52,21 @@ export function useOrders(params: {
         ? 12_000
         : false,
     refetchIntervalInBackground: false,
+  });
+}
+
+export function useOrder(orderId: string | null) {
+  const { session, authorizedRequest } = useSession();
+  const normalizedId = orderId ?? "";
+  return useQuery({
+    queryKey: orderQueryKeys.detail(
+      session?.user.id ?? "anonymous",
+      normalizedId,
+    ),
+    queryFn: ({ signal }) =>
+      authorizedRequest<Order>(`/orders/${normalizedId}`, { signal }),
+    enabled: Boolean(session && orderId),
+    staleTime: 10_000,
   });
 }
 

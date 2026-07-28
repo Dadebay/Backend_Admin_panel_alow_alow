@@ -6,6 +6,7 @@ import {
   canCancel,
   nextOrderStatus,
   orderStatuses,
+  ratingStars,
   statusLabels,
   useCouriers,
   useOrders,
@@ -16,6 +17,7 @@ import { useOrderActions } from "@/src/features/order-management";
 import { ApiError } from "@/src/shared/api/api-client";
 import { useSession } from "@/src/shared/auth";
 import { AsyncPanel, DataTable } from "@/src/shared/ui";
+import { OrderDetailDialog } from "./order-detail-dialog";
 
 function personName(person: {
   firstName: string | null;
@@ -53,6 +55,7 @@ export function OrderBoard({
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [courierByOrder, setCourierByOrder] = useState<Record<string, string>>(
     {},
   );
@@ -139,6 +142,27 @@ export function OrderBoard({
         ),
       },
       {
+        header: "Отзыв",
+        cell: ({ row }) =>
+          row.original.rating ? (
+            <button
+              type="button"
+              className="review-preview"
+              aria-label={`Открыть отзыв к заказу ${row.original.number}`}
+              onClick={() => setSelectedOrderId(row.original.id)}
+            >
+              <span aria-hidden="true">
+                {ratingStars(row.original.rating.score)}
+              </span>
+              <small>
+                {row.original.rating.comment?.trim() || "Без комментария"}
+              </small>
+            </button>
+          ) : (
+            <span className="muted">Нет отзыва</span>
+          ),
+      },
+      {
         header: "Курьер",
         cell: ({ row }) =>
           row.original.status === "READY" &&
@@ -178,6 +202,13 @@ export function OrderBoard({
           const courierId = courierByOrder[order.id];
           return (
             <div className="row-actions">
+              <button
+                type="button"
+                className="secondary-button compact"
+                onClick={() => setSelectedOrderId(order.id)}
+              >
+                Подробнее
+              </button>
               {order.status === "READY" &&
                 ["OPERATOR", "ADMIN", "SUPER_ADMIN"].includes(role) && (
                   <button
@@ -325,6 +356,12 @@ export function OrderBoard({
           </footer>
         </div>
       </AsyncPanel>
+      {selectedOrderId && (
+        <OrderDetailDialog
+          orderId={selectedOrderId}
+          onClose={() => setSelectedOrderId(null)}
+        />
+      )}
     </section>
   );
 }

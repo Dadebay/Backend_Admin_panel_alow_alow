@@ -42,6 +42,8 @@ type OrderResponse = {
   version: number;
   address: string;
   cashSettlement?: { status: string } | null;
+  rating?: { score: number; comment: string | null } | null;
+  transitions?: Array<{ toStatus: OrderStatus }>;
 };
 
 describe("backend security and critical workflow", () => {
@@ -545,6 +547,28 @@ describe("backend security and critical workflow", () => {
     expect(order.cashSettlement?.status).toBe("CONFIRMED");
     order = await transition(tokens.accountant, order, OrderStatus.RECONCILED);
     expect(order.cashSettlement?.status).toBe("RECONCILED");
+
+    const historyResponse = await request(server)
+      .get(`/api/v1/orders/${order.id}`)
+      .set(bearer(tokens.customer))
+      .expect(200);
+    const history = historyResponse.body as OrderResponse;
+    expect(history.rating).toMatchObject({
+      score: 5,
+      comment: "Delivered safely",
+    });
+    expect(history.transitions?.map(({ toStatus }) => toStatus)).toEqual([
+      OrderStatus.CONFIRMED,
+      OrderStatus.SENT_TO_KITCHEN,
+      OrderStatus.COOKING,
+      OrderStatus.READY,
+      OrderStatus.ASSIGNED_TO_COURIER,
+      OrderStatus.OUT_FOR_DELIVERY,
+      OrderStatus.DELIVERED,
+      OrderStatus.CASH_RETURNED,
+      OrderStatus.COMPLETED,
+      OrderStatus.RECONCILED,
+    ]);
   });
 
   it("lets only trusted staff cancel SENT_TO_KITCHEN and blocks cancellation once cooking starts", async () => {

@@ -4,6 +4,7 @@ import {
   canCancel,
   nextOrderStatus,
   orderStatuses,
+  ratingStars,
   statusLabels,
 } from "../src/entities/order/model/types.ts";
 
@@ -33,4 +34,10 @@ test("frontend hides cancellation once cooking starts", () => {
   assert.equal(canCancel("SUPER_ADMIN", "NEW"), true);
   assert.equal(canCancel("OPERATOR", "COOKING"), false);
   assert.equal(canCancel("COOK", "NEW"), false);
+});
+
+test("frontend renders a complete five-star review scale", () => {
+  assert.equal(ratingStars(5), "★★★★★");
+  assert.equal(ratingStars(4), "★★★★☆");
+  assert.equal(ratingStars(1), "★☆☆☆☆");
 });

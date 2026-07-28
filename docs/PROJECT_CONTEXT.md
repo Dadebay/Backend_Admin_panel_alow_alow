@@ -211,6 +211,8 @@ Current status:
 - the protected admin dashboard has no local demo arrays;
 - orders, kitchen workflow, courier assignment, cash workflow, catalog,
   banners, promos, and staff read/write through the NestJS API;
+- order details show the real status timeline plus the customer's five-star
+  rating and comment returned by the API;
 - the dispatch map and courier GPS-sharing screen use Redis-backed tracking;
 - media forms upload validated WebP images to S3-compatible storage;
 - Swagger response DTOs generate the TypeScript contract used by the frontend;
@@ -254,6 +256,11 @@ dispatch view (7.2 KB / 2.5 KB). The Leaflet canvas remains a separate
 156.4 KB / 45.7 KB chunk and is absent from the initial module-preload list.
 The complete initial preload set, including React/vinext framework runtime, is
 335.7 KB raw / 107.5 KB gzip.
+
+The 2026-07-28 order-history/review build keeps the detail request disabled
+until an order is opened and adds no dependency or polling loop. The dynamically
+loaded order-board chunk is 11.6 KB raw / 3.7 KB gzip; its shared order-domain
+chunk is 2.9 KB / 1.3 KB. The Leaflet map remains isolated from both chunks.
 
 ## Decision log
 

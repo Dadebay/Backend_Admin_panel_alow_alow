@@ -11,7 +11,7 @@ import {
   type ReactNode,
 } from "react";
 import type { components } from "@/app/lib/api-schema";
-import { apiRequest } from "@/src/shared/api/api-client";
+import { ApiError, apiRequest } from "@/src/shared/api/api-client";
 
 type SessionResponse = components["schemas"]["AuthSessionResponseDto"];
 type SessionUser = components["schemas"]["AuthSessionUserDto"];
@@ -26,6 +26,10 @@ type SessionContextValue = {
   ready: boolean;
   requestOtp: (phone: string) => Promise<RequestOtpResponse>;
   verifyOtp: (phone: string, code: string) => Promise<SessionUser>;
+  authorizedRequest: <T>(
+    path: string,
+    init?: RequestInit,
+  ) => Promise<T>;
   logout: () => Promise<void>;
 };
 
@@ -149,9 +153,47 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     }).catch(() => undefined);
   }, [persist, session?.refreshToken]);
 
+  const authorizedRequest = useCallback(
+    async function authorizedRequest<T>(
+      path: string,
+      init: RequestInit = {},
+    ): Promise<T> {
+      if (!session) throw new ApiError("Требуется вход", 401);
+      const active =
+        session.accessExpiresAt > Date.now() + 15_000
+          ? session
+          : await refresh(session.refreshToken);
+      if (!active) throw new ApiError("Сессия истекла. Войдите снова.", 401);
+      try {
+        return await apiRequest<T>(path, {
+          ...init,
+          accessToken: active.accessToken,
+        });
+      } catch (error) {
+        if (!(error instanceof ApiError) || error.status !== 401) throw error;
+        const renewed = await refresh(active.refreshToken);
+        if (!renewed) {
+          throw new ApiError("Сессия истекла. Войдите снова.", 401);
+        }
+        return apiRequest<T>(path, {
+          ...init,
+          accessToken: renewed.accessToken,
+        });
+      }
+    },
+    [refresh, session],
+  );
+
   const value = useMemo(
-    () => ({ session, ready, requestOtp, verifyOtp, logout }),
-    [logout, ready, requestOtp, session, verifyOtp],
+    () => ({
+      session,
+      ready,
+      requestOtp,
+      verifyOtp,
+      authorizedRequest,
+      logout,
+    }),
+    [authorizedRequest, logout, ready, requestOtp, session, verifyOtp],
   );
 
   return (

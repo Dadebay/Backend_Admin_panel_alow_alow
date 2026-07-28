@@ -46,12 +46,17 @@ export class MediaService {
 
   async uploadImage(file: Express.Multer.File) {
     let body: Buffer;
+    let width: number;
+    let height: number;
     try {
-      body = await sharp(file.buffer)
+      const transformed = await sharp(file.buffer)
         .rotate()
         .resize(1800, 1800, { fit: "inside", withoutEnlargement: true })
         .webp({ quality: 84 })
-        .toBuffer();
+        .toBuffer({ resolveWithObject: true });
+      body = transformed.data;
+      width = transformed.info.width;
+      height = transformed.info.height;
     } catch {
       throw new BadRequestException("Image content is invalid");
     }
@@ -75,6 +80,8 @@ export class MediaService {
       filename,
       url: `/api/v1/media/${filename}`,
       contentType: "image/webp",
+      width,
+      height,
       bytes: body.length,
     };
   }

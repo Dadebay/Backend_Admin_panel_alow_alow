@@ -8,7 +8,13 @@ import {
   Post,
   Query,
 } from "@nestjs/common";
-import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
+import {
+  ApiBearerAuth,
+  ApiCreatedResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiTags,
+} from "@nestjs/swagger";
 import { CurrentUser, Roles } from "../common/auth.decorators";
 import type { AuthUser } from "../common/auth.types";
 import { Role } from "../generated/prisma/client";
@@ -21,6 +27,12 @@ import {
   TransitionOrderDto,
 } from "./orders.dto";
 import { OrdersService } from "./orders.service";
+import {
+  CourierRouteResponseDto,
+  OrderListResponseDto,
+  OrderRatingResponseDto,
+  OrderResponseDto,
+} from "./orders-response.dto";
 
 @ApiTags("orders")
 @ApiBearerAuth()
@@ -31,12 +43,14 @@ export class OrdersController {
   @Post()
   @Roles(Role.CUSTOMER, Role.ADMIN)
   @ApiOperation({ summary: "Create a cash-on-delivery order" })
+  @ApiCreatedResponse({ type: OrderResponseDto })
   create(@CurrentUser() user: AuthUser, @Body() dto: CreateOrderDto) {
     return this.orders.create(user, dto);
   }
 
   @Get()
   @ApiOperation({ summary: "List orders visible to the current role" })
+  @ApiOkResponse({ type: OrderListResponseDto })
   list(
     @CurrentUser() user: AuthUser,
     @Query() query: ListOrdersQueryDto,
@@ -49,12 +63,14 @@ export class OrdersController {
   @ApiOperation({
     summary: "Get all active courier stops for map and route planning",
   })
+  @ApiOkResponse({ type: CourierRouteResponseDto })
   route(@CurrentUser() user: AuthUser) {
     return this.orders.courierRoute(user);
   }
 
   @Get(":id")
   @ApiOperation({ summary: "Get order details and transition history" })
+  @ApiOkResponse({ type: OrderResponseDto })
   get(
     @CurrentUser() user: AuthUser,
     @Param("id", ParseUUIDPipe) id: string,
@@ -65,6 +81,7 @@ export class OrdersController {
   @Patch(":id/transition")
   @Roles(Role.OPERATOR, Role.COOK, Role.COURIER, Role.ACCOUNTANT, Role.ADMIN)
   @ApiOperation({ summary: "Move an order through a role-gated workflow" })
+  @ApiOkResponse({ type: OrderResponseDto })
   transition(
     @CurrentUser() user: AuthUser,
     @Param("id", ParseUUIDPipe) id: string,
@@ -78,6 +95,7 @@ export class OrdersController {
   @ApiOperation({
     summary: "Assign a ready order to a courier; couriers may hold many orders",
   })
+  @ApiOkResponse({ type: OrderResponseDto })
   assign(
     @CurrentUser() user: AuthUser,
     @Param("id", ParseUUIDPipe) id: string,
@@ -92,6 +110,7 @@ export class OrdersController {
     summary:
       "Cancel before cooking starts; SENT_TO_KITCHEN requires trusted staff",
   })
+  @ApiOkResponse({ type: OrderResponseDto })
   cancel(
     @CurrentUser() user: AuthUser,
     @Param("id", ParseUUIDPipe) id: string,
@@ -103,6 +122,7 @@ export class OrdersController {
   @Post(":id/rating")
   @Roles(Role.CUSTOMER)
   @ApiOperation({ summary: "Rate and comment on a delivered order" })
+  @ApiCreatedResponse({ type: OrderRatingResponseDto })
   rate(
     @CurrentUser() user: AuthUser,
     @Param("id", ParseUUIDPipe) id: string,

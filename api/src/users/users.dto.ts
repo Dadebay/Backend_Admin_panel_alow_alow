@@ -3,6 +3,7 @@ import {
   IsBoolean,
   IsEnum,
   IsOptional,
+  IsPhoneNumber,
   IsString,
   MaxLength,
 } from "class-validator";
@@ -29,4 +30,26 @@ export class UpdateStaffDto {
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
+}
+
+export class CreateStaffDto {
+  @ApiProperty({ example: "+99365123456" })
+  @IsPhoneNumber()
+  phone: string;
+
+  @ApiProperty({ enum: Role })
+  @IsEnum(Role)
+  role: Role;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  firstName?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  lastName?: string;
 }

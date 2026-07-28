@@ -1,7 +1,6 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { apiRequest } from "@/src/shared/api/api-client";
 import { useSession } from "@/src/shared/auth";
 import type { DispatchSnapshot } from "../model/types";
 
@@ -12,7 +11,7 @@ export const courierQueryKeys = {
 };
 
 export function useDispatchSnapshot() {
-  const { session } = useSession();
+  const { session, authorizedRequest } = useSession();
   const userId = session?.user.id ?? "anonymous";
   const canViewDispatch = Boolean(
     session &&
@@ -21,8 +20,7 @@ export function useDispatchSnapshot() {
   return useQuery({
     queryKey: courierQueryKeys.dispatch(userId),
     queryFn: ({ signal }) =>
-      apiRequest<DispatchSnapshot>("/tracking/dispatch", {
-        accessToken: session?.accessToken,
+      authorizedRequest<DispatchSnapshot>("/tracking/dispatch", {
         signal,
       }),
     enabled: canViewDispatch,

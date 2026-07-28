@@ -8,8 +8,16 @@ export class ApiError extends Error {
   }
 }
 
-const API_BASE_URL =
+export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api/v1";
+
+export function resolveApiUrl(path: string) {
+  if (/^https?:\/\//.test(path)) return path;
+  if (path.startsWith("/api/v1/")) {
+    return `${API_BASE_URL.replace(/\/api\/v1$/, "")}${path}`;
+  }
+  return `${API_BASE_URL}${path}`;
+}
 
 export async function apiRequest<T>(
   path: string,
@@ -17,10 +25,12 @@ export async function apiRequest<T>(
 ): Promise<T> {
   const { accessToken, headers, ...requestInit } = init;
   const hasBody = requestInit.body !== undefined;
-  const response = await fetch(`${API_BASE_URL}${path}`, {
+  const isFormData =
+    typeof FormData !== "undefined" && requestInit.body instanceof FormData;
+  const response = await fetch(resolveApiUrl(path), {
     ...requestInit,
     headers: {
-      ...(hasBody ? { "Content-Type": "application/json" } : {}),
+      ...(hasBody && !isFormData ? { "Content-Type": "application/json" } : {}),
       ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
       ...headers,
     },

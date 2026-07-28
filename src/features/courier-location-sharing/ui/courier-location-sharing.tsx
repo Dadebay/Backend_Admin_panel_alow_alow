@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import type { components } from "@/app/lib/api-schema";
-import { apiRequest } from "@/src/shared/api/api-client";
 import { useSession } from "@/src/shared/auth";
 
 type LocationInput = components["schemas"]["UpdateCourierLocationDto"];
@@ -31,7 +30,7 @@ function toLocationInput(position: GeolocationPosition): LocationInput {
 }
 
 export function CourierLocationSharing() {
-  const { session } = useSession();
+  const { authorizedRequest } = useSession();
   const [sharing, setSharing] = useState(false);
   const [geoError, setGeoError] = useState("");
   const [lastSentAt, setLastSentAt] = useState<string | null>(null);
@@ -43,9 +42,8 @@ export function CourierLocationSharing() {
     error: publishError,
   } = useMutation({
     mutationFn: (location: LocationInput) =>
-      apiRequest<LocationResponse>("/tracking/me/location", {
+      authorizedRequest<LocationResponse>("/tracking/me/location", {
         method: "PUT",
-        accessToken: session?.accessToken,
         body: JSON.stringify(location),
       }),
     onSuccess: (response) => {
@@ -117,9 +115,8 @@ export function CourierLocationSharing() {
   async function stopSharing() {
     setSharing(false);
     latestPosition.current = null;
-    await apiRequest("/tracking/me/location", {
+    await authorizedRequest("/tracking/me/location", {
       method: "DELETE",
-      accessToken: session?.accessToken,
     }).catch(() => undefined);
   }
 

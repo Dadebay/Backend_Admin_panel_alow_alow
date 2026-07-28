@@ -16,15 +16,17 @@ async function render(pathname = "/") {
   );
 }
 
-test("server-renders the AlowAlow operations dashboard", async () => {
+test("server-renders the protected AlowAlow operations shell", async () => {
   const response = await render();
   assert.equal(response.status, 200);
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
   const html = await response.text();
   assert.match(html, /AlowAlow — центр управления доставкой/);
-  assert.match(html, /Центр заказов/);
-  assert.match(html, /Живая очередь/);
-  assert.match(html, /Курьеры на карте/);
+  assert.match(html, /Проверяем защищённую сессию/);
+  assert.match(
+    html,
+    /Администрирование заказов, кухни, курьеров, каталога, промокодов и наличных/,
+  );
   assert.doesNotMatch(html, /codex-preview|Your site is taking shape/);
 });
 

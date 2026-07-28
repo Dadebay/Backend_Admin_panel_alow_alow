@@ -13,6 +13,7 @@ import {
   Role,
 } from "../generated/prisma/client";
 import type { AuthUser } from "../common/auth.types";
+import { toApiResponse } from "../common/api-response";
 import { PrismaService } from "../prisma/prisma.service";
 import { AddressesService } from "../users/addresses.service";
 import {
@@ -196,7 +197,7 @@ export class OrdersService {
           metadata: { number: order.number, total },
         },
       });
-      return order;
+      return toApiResponse(order);
     });
   }
 
@@ -214,9 +215,38 @@ export class OrdersService {
                 ],
               }
             : {};
+    const search = query.search?.trim();
+    const orderNumber = search && /^\d+$/.test(search) ? Number(search) : null;
     const where = {
       ...roleFilter,
       ...(query.status ? { status: query.status } : {}),
+      ...(search
+        ? {
+            OR: [
+              ...(orderNumber ? [{ number: orderNumber }] : []),
+              { address: { contains: search, mode: "insensitive" as const } },
+              {
+                customer: {
+                  OR: [
+                    { phone: { contains: search } },
+                    {
+                      firstName: {
+                        contains: search,
+                        mode: "insensitive" as const,
+                      },
+                    },
+                    {
+                      lastName: {
+                        contains: search,
+                        mode: "insensitive" as const,
+                      },
+                    },
+                  ],
+                },
+              },
+            ],
+          }
+        : {}),
     };
     const [items, total] = await this.prisma.$transaction([
       this.prisma.order.findMany({
@@ -228,13 +258,13 @@ export class OrdersService {
       }),
       this.prisma.order.count({ where }),
     ]);
-    return {
+    return toApiResponse({
       items,
       page: query.page,
       limit: query.limit,
       total,
       pages: Math.ceil(total / query.limit),
-    };
+    });
   }
 
   async getById(user: AuthUser, id: string) {
@@ -244,7 +274,7 @@ export class OrdersService {
     });
     if (!order) throw new NotFoundException("Order not found");
     this.assertCanRead(user, order);
-    return order;
+    return toApiResponse(order);
   }
 
   async transition(user: AuthUser, id: string, dto: TransitionOrderDto) {
@@ -337,10 +367,20 @@ export class OrdersService {
           note: dto.note,
         },
       });
-      return tx.order.findUniqueOrThrow({
+      await tx.auditLog.create({
+        data: {
+          actorId: user.id,
+          action: "order.transitioned",
+          entityType: "Order",
+          entityId: id,
+          metadata: { fromStatus: order.status, toStatus: dto.status },
+        },
+      });
+      const result = await tx.order.findUniqueOrThrow({
         where: { id },
         include: detailInclude,
       });
+      return toApiResponse(result);
     });
   }
 
@@ -381,10 +421,20 @@ export class OrdersService {
           note: `Assigned to courier ${courier.id}`,
         },
       });
-      return tx.order.findUniqueOrThrow({
+      await tx.auditLog.create({
+        data: {
+          actorId: user.id,
+          action: "order.courier-assigned",
+          entityType: "Order",
+          entityId: id,
+          metadata: { courierId: courier.id },
+        },
+      });
+      const result = await tx.order.findUniqueOrThrow({
         where: { id },
         include: detailInclude,
       });
+      return toApiResponse(result);
     });
   }
 
@@ -420,10 +470,20 @@ export class OrdersService {
           note: dto.reason,
         },
       });
-      return tx.order.findUniqueOrThrow({
+      await tx.auditLog.create({
+        data: {
+          actorId: user.id,
+          action: "order.cancelled",
+          entityType: "Order",
+          entityId: id,
+          metadata: { fromStatus: order.status, reason: dto.reason },
+        },
+      });
+      const result = await tx.order.findUniqueOrThrow({
         where: { id },
         include: detailInclude,
       });
+      return toApiResponse(result);
     });
   }
 
@@ -443,13 +503,25 @@ export class OrdersService {
       throw new ConflictException("Order has not been delivered yet");
     }
     try {
-      return await this.prisma.rating.create({
-        data: {
-          orderId: id,
-          customerId: user.id,
-          score: dto.score,
-          comment: dto.comment,
-        },
+      return await this.prisma.$transaction(async (tx) => {
+        const rating = await tx.rating.create({
+          data: {
+            orderId: id,
+            customerId: user.id,
+            score: dto.score,
+            comment: dto.comment,
+          },
+        });
+        await tx.auditLog.create({
+          data: {
+            actorId: user.id,
+            action: "order.rated",
+            entityType: "Order",
+            entityId: id,
+            metadata: { score: dto.score },
+          },
+        });
+        return toApiResponse(rating);
       });
     } catch (error) {
       if (
@@ -481,7 +553,7 @@ export class OrdersService {
       },
       orderBy: [{ assignedAt: "asc" }, { createdAt: "asc" }],
     });
-    return {
+    return toApiResponse({
       courierId: user.id,
       stops: orders.map((order, index) => ({
         sequence: index + 1,
@@ -495,7 +567,7 @@ export class OrdersService {
         itemCount: order.items.reduce((sum, item) => sum + item.quantity, 0),
         cashToCollect: order.total,
       })),
-    };
+    });
   }
 
   private assertCanRead(

@@ -333,7 +333,7 @@ export interface paths {
         };
         get: operations["UsersController_list_v1"];
         put?: never;
-        post?: never;
+        post: operations["UsersController_create_v1"];
         delete?: never;
         options?: never;
         head?: never;
@@ -641,6 +641,62 @@ export interface components {
             /** @example true */
             success: boolean;
         };
+        CatalogProductImageResponseDto: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            productId: string;
+            url: string;
+            alt: string | null;
+            sortOrder: number;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        CatalogCategorySummaryResponseDto: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            slug: string;
+            imageUrl: string | null;
+            sortOrder: number;
+            isActive: boolean;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        CatalogProductResponseDto: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            categoryId: string;
+            name: string;
+            slug: string;
+            description: string;
+            price: number;
+            isActive: boolean;
+            sortOrder: number;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+            images: components["schemas"]["CatalogProductImageResponseDto"][];
+            category?: components["schemas"]["CatalogCategorySummaryResponseDto"];
+        };
+        CatalogCategoryResponseDto: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            slug: string;
+            imageUrl: string | null;
+            sortOrder: number;
+            isActive: boolean;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+            products: components["schemas"]["CatalogProductResponseDto"][];
+        };
         CreateCategoryDto: {
             name: string;
             slug: string;
@@ -720,7 +776,195 @@ export interface components {
             /** @example WELCOME15 */
             promoCode?: string;
         };
+        OrderCustomerResponseDto: {
+            /** Format: uuid */
+            id: string;
+            phone: string;
+            firstName: string | null;
+            lastName: string | null;
+        };
+        OrderStaffResponseDto: {
+            /** Format: uuid */
+            id: string;
+            firstName: string | null;
+            lastName: string | null;
+        };
+        OrderCourierResponseDto: {
+            /** Format: uuid */
+            id: string;
+            firstName: string | null;
+            lastName: string | null;
+            phone: string;
+        };
+        OrderItemResponseDto: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            orderId: string;
+            /** Format: uuid */
+            productId: string;
+            productName: string;
+            unitPrice: number;
+            quantity: number;
+            lineTotal: number;
+        };
+        OrderRatingResponseDto: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            orderId: string;
+            /** Format: uuid */
+            customerId: string;
+            score: number;
+            comment: string | null;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        OrderCashSettlementResponseDto: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            orderId: string;
+            /** Format: uuid */
+            courierId: string;
+            /** Format: uuid */
+            operatorId: string | null;
+            /** Format: uuid */
+            accountantId: string | null;
+            amount: number;
+            /** @enum {string} */
+            status: "RECORDED" | "CONFIRMED" | "RECONCILED";
+            /** Format: date-time */
+            courierGivenAt: string;
+            /** Format: date-time */
+            operatorTakenAt: string | null;
+            /** Format: date-time */
+            reconciledAt: string | null;
+        };
+        OrderSavedAddressResponseDto: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            userId: string;
+            label: string;
+            address: string;
+            latitude: number;
+            longitude: number;
+            entrance: string | null;
+            floor: string | null;
+            apartment: string | null;
+            isActive: boolean;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        OrderTransitionActorResponseDto: {
+            /** Format: uuid */
+            id: string;
+            firstName: string | null;
+            lastName: string | null;
+            /** @enum {string} */
+            role: "CUSTOMER" | "OPERATOR" | "COOK" | "COURIER" | "ACCOUNTANT" | "ADMIN" | "SUPER_ADMIN";
+        };
+        OrderTransitionResponseDto: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            orderId: string;
+            /** Format: uuid */
+            actorId: string;
+            /** @enum {string} */
+            fromStatus: "NEW" | "CONFIRMED" | "SENT_TO_KITCHEN" | "COOKING" | "READY" | "ASSIGNED_TO_COURIER" | "OUT_FOR_DELIVERY" | "DELIVERED" | "CASH_RETURNED" | "COMPLETED" | "RECONCILED" | "CANCELLED";
+            /** @enum {string} */
+            toStatus: "NEW" | "CONFIRMED" | "SENT_TO_KITCHEN" | "COOKING" | "READY" | "ASSIGNED_TO_COURIER" | "OUT_FOR_DELIVERY" | "DELIVERED" | "CASH_RETURNED" | "COMPLETED" | "RECONCILED" | "CANCELLED";
+            note: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            actor: components["schemas"]["OrderTransitionActorResponseDto"];
+        };
+        OrderResponseDto: {
+            /** Format: uuid */
+            id: string;
+            number: number;
+            /** Format: uuid */
+            customerId: string;
+            /** Format: uuid */
+            addressId: string | null;
+            /** Format: uuid */
+            cookId: string | null;
+            /** Format: uuid */
+            courierId: string | null;
+            /** Format: uuid */
+            promoCodeId: string | null;
+            /** @enum {string} */
+            status: "NEW" | "CONFIRMED" | "SENT_TO_KITCHEN" | "COOKING" | "READY" | "ASSIGNED_TO_COURIER" | "OUT_FOR_DELIVERY" | "DELIVERED" | "CASH_RETURNED" | "COMPLETED" | "RECONCILED" | "CANCELLED";
+            /** @enum {string} */
+            paymentMethod: "CASH";
+            subtotal: number;
+            discount: number;
+            deliveryFee: number;
+            total: number;
+            address: string;
+            latitude: number;
+            longitude: number;
+            entrance: string | null;
+            floor: string | null;
+            apartment: string | null;
+            customerNote: string | null;
+            cancellationReason: string | null;
+            version: number;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+            /** Format: date-time */
+            assignedAt: string | null;
+            /** Format: date-time */
+            deliveredAt: string | null;
+            /** Format: date-time */
+            completedAt: string | null;
+            customer: components["schemas"]["OrderCustomerResponseDto"];
+            cook: components["schemas"]["OrderStaffResponseDto"] | null;
+            courier: components["schemas"]["OrderCourierResponseDto"] | null;
+            items: components["schemas"]["OrderItemResponseDto"][];
+            rating: components["schemas"]["OrderRatingResponseDto"] | null;
+            cashSettlement: components["schemas"]["OrderCashSettlementResponseDto"] | null;
+            savedAddress: components["schemas"]["OrderSavedAddressResponseDto"] | null;
+            transitions: components["schemas"]["OrderTransitionResponseDto"][];
+        };
         Object: Record<string, never>;
+        OrderListResponseDto: {
+            items: components["schemas"]["OrderResponseDto"][];
+            page: number;
+            limit: number;
+            total: number;
+            pages: number;
+        };
+        CourierRouteCustomerResponseDto: {
+            phone: string;
+            firstName: string | null;
+            lastName: string | null;
+        };
+        CourierRouteStopResponseDto: {
+            sequence: number;
+            /** Format: uuid */
+            orderId: string;
+            orderNumber: number;
+            /** @enum {string} */
+            status: "NEW" | "CONFIRMED" | "SENT_TO_KITCHEN" | "COOKING" | "READY" | "ASSIGNED_TO_COURIER" | "OUT_FOR_DELIVERY" | "DELIVERED" | "CASH_RETURNED" | "COMPLETED" | "RECONCILED" | "CANCELLED";
+            address: string;
+            latitude: number;
+            longitude: number;
+            customer: components["schemas"]["CourierRouteCustomerResponseDto"];
+            itemCount: number;
+            cashToCollect: number;
+        };
+        CourierRouteResponseDto: {
+            /** Format: uuid */
+            courierId: string;
+            stops: components["schemas"]["CourierRouteStopResponseDto"][];
+        };
         TransitionOrderDto: {
             /** @enum {string} */
             status: "NEW" | "CONFIRMED" | "SENT_TO_KITCHEN" | "COOKING" | "READY" | "ASSIGNED_TO_COURIER" | "OUT_FOR_DELIVERY" | "DELIVERED" | "CASH_RETURNED" | "COMPLETED" | "RECONCILED" | "CANCELLED";
@@ -739,6 +983,60 @@ export interface components {
         RateOrderDto: {
             score: number;
             comment?: string;
+        };
+        StaffWorkCountResponseDto: {
+            courierOrders: number;
+            cookedOrders: number;
+        };
+        StaffResponseDto: {
+            /** Format: uuid */
+            id: string;
+            phone: string;
+            firstName: string | null;
+            lastName: string | null;
+            /** @enum {string} */
+            role: "CUSTOMER" | "OPERATOR" | "COOK" | "COURIER" | "ACCOUNTANT" | "ADMIN" | "SUPER_ADMIN";
+            isActive: boolean;
+            /** Format: date-time */
+            createdAt: string;
+            _count: components["schemas"]["StaffWorkCountResponseDto"];
+        };
+        CourierOrderSummaryResponseDto: {
+            /** Format: uuid */
+            id: string;
+            number: number;
+            /** @enum {string} */
+            status: "NEW" | "CONFIRMED" | "SENT_TO_KITCHEN" | "COOKING" | "READY" | "ASSIGNED_TO_COURIER" | "OUT_FOR_DELIVERY" | "DELIVERED" | "CASH_RETURNED" | "COMPLETED" | "RECONCILED" | "CANCELLED";
+        };
+        CourierSummaryResponseDto: {
+            /** Format: uuid */
+            id: string;
+            phone: string;
+            firstName: string | null;
+            lastName: string | null;
+            courierOrders: components["schemas"]["CourierOrderSummaryResponseDto"][];
+        };
+        CreateStaffDto: {
+            /** @example +99365123456 */
+            phone: string;
+            /** @enum {string} */
+            role: "CUSTOMER" | "OPERATOR" | "COOK" | "COURIER" | "ACCOUNTANT" | "ADMIN" | "SUPER_ADMIN";
+            firstName?: string;
+            lastName?: string;
+        };
+        StaffMutationResponseDto: {
+            /** Format: uuid */
+            id: string;
+            phone: string;
+            firstName: string | null;
+            lastName: string | null;
+            /** @enum {string} */
+            role: "CUSTOMER" | "OPERATOR" | "COOK" | "COURIER" | "ACCOUNTANT" | "ADMIN" | "SUPER_ADMIN";
+            isActive: boolean;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
         };
         UpdateStaffDto: {
             /** @enum {string} */
@@ -773,6 +1071,24 @@ export interface components {
             floor?: string;
             apartment?: string;
         };
+        BannerResponseDto: {
+            /** Format: uuid */
+            id: string;
+            title: string;
+            subtitle: string | null;
+            imageUrl: string;
+            link: string | null;
+            sortOrder: number;
+            isActive: boolean;
+            /** Format: date-time */
+            startsAt: string | null;
+            /** Format: date-time */
+            endsAt: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
         CreateBannerDto: {
             title: string;
             subtitle?: string;
@@ -792,6 +1108,28 @@ export interface components {
             isActive?: boolean;
             startsAt?: string;
             endsAt?: string;
+        };
+        PromoCodeResponseDto: {
+            /** Format: uuid */
+            id: string;
+            code: string;
+            /** @enum {string} */
+            type: "PERCENT" | "FIXED";
+            value: number;
+            minOrderAmount: number | null;
+            maxDiscountAmount: number | null;
+            totalUsageLimit: number | null;
+            perUserLimit: number;
+            usedCount: number;
+            isActive: boolean;
+            /** Format: date-time */
+            startsAt: string | null;
+            /** Format: date-time */
+            endsAt: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
         };
         CreatePromoCodeDto: {
             /** @example WELCOME15 */
@@ -822,6 +1160,14 @@ export interface components {
             isActive?: boolean;
             startsAt?: string;
             endsAt?: string;
+        };
+        MediaUploadResponseDto: {
+            filename: string;
+            url: string;
+            contentType: string;
+            width: number;
+            height: number;
+            bytes: number;
         };
         UpdateCourierLocationDto: {
             /** @example 37.9601 */
@@ -1053,7 +1399,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["CatalogCategoryResponseDto"][];
+                };
             };
         };
     };
@@ -1074,7 +1422,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["CatalogCategorySummaryResponseDto"];
+                };
             };
         };
     };
@@ -1093,7 +1443,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["CatalogProductResponseDto"][];
+                };
             };
         };
     };
@@ -1114,7 +1466,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["CatalogProductResponseDto"];
+                };
             };
         };
     };
@@ -1131,7 +1485,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["CatalogCategoryResponseDto"][];
+                };
             };
         };
     };
@@ -1154,7 +1510,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["CatalogCategorySummaryResponseDto"];
+                };
             };
         };
     };
@@ -1173,7 +1531,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["CatalogProductResponseDto"][];
+                };
             };
         };
     };
@@ -1196,7 +1556,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["CatalogProductResponseDto"];
+                };
             };
         };
     };
@@ -1219,7 +1581,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["CatalogProductImageResponseDto"];
+                };
             };
         };
     };
@@ -1227,6 +1591,8 @@ export interface operations {
         parameters: {
             query?: {
                 status?: "NEW" | "CONFIRMED" | "SENT_TO_KITCHEN" | "COOKING" | "READY" | "ASSIGNED_TO_COURIER" | "OUT_FOR_DELIVERY" | "DELIVERED" | "CASH_RETURNED" | "COMPLETED" | "RECONCILED" | "CANCELLED";
+                /** @description Order number, customer phone/name, or delivery address */
+                search?: string;
                 page?: components["schemas"]["Object"];
                 limit?: components["schemas"]["Object"];
             };
@@ -1240,7 +1606,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["OrderListResponseDto"];
+                };
             };
         };
     };
@@ -1261,7 +1629,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["OrderResponseDto"];
+                };
             };
         };
     };
@@ -1278,7 +1648,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["CourierRouteResponseDto"];
+                };
             };
         };
     };
@@ -1297,7 +1669,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["OrderResponseDto"];
+                };
             };
         };
     };
@@ -1320,7 +1694,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["OrderResponseDto"];
+                };
             };
         };
     };
@@ -1343,7 +1719,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["OrderResponseDto"];
+                };
             };
         };
     };
@@ -1366,7 +1744,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["OrderResponseDto"];
+                };
             };
         };
     };
@@ -1389,7 +1769,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["OrderRatingResponseDto"];
+                };
             };
         };
     };
@@ -1408,7 +1790,32 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["StaffResponseDto"][];
+                };
+            };
+        };
+    };
+    UsersController_create_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateStaffDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffMutationResponseDto"];
+                };
             };
         };
     };
@@ -1425,7 +1832,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["CourierSummaryResponseDto"][];
+                };
             };
         };
     };
@@ -1448,7 +1857,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["StaffMutationResponseDto"];
+                };
             };
         };
     };
@@ -1564,7 +1975,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["BannerResponseDto"][];
+                };
             };
         };
     };
@@ -1585,7 +1998,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["BannerResponseDto"];
+                };
             };
         };
     };
@@ -1602,7 +2017,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["BannerResponseDto"][];
+                };
             };
         };
     };
@@ -1625,7 +2042,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["BannerResponseDto"];
+                };
             };
         };
     };
@@ -1642,7 +2061,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["PromoCodeResponseDto"][];
+                };
             };
         };
     };
@@ -1663,7 +2084,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["PromoCodeResponseDto"];
+                };
             };
         };
     };
@@ -1686,7 +2109,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["PromoCodeResponseDto"];
+                };
             };
         };
     };
@@ -1710,7 +2135,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["MediaUploadResponseDto"];
+                };
             };
         };
     };

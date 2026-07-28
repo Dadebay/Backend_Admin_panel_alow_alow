@@ -1,125 +1,68 @@
 import {
-  BadRequestException,
   Body,
   Controller,
-  ForbiddenException,
   Get,
-  NotFoundException,
   Param,
   ParseUUIDPipe,
   Patch,
+  Post,
   Query,
 } from "@nestjs/common";
-import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
+import {
+  ApiBearerAuth,
+  ApiCreatedResponse,
+  ApiOkResponse,
+  ApiTags,
+} from "@nestjs/swagger";
 import { CurrentUser, Roles } from "../common/auth.decorators";
 import type { AuthUser } from "../common/auth.types";
 import { Role } from "../generated/prisma/client";
-import { PrismaService } from "../prisma/prisma.service";
-import { UpdateStaffDto } from "./users.dto";
+import { CreateStaffDto, UpdateStaffDto } from "./users.dto";
+import {
+  CourierSummaryResponseDto,
+  StaffMutationResponseDto,
+  StaffResponseDto,
+} from "./users-response.dto";
+import { UsersService } from "./users.service";
 
 @ApiTags("staff")
 @ApiBearerAuth()
 @Controller("staff")
 export class UsersController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly users: UsersService) {}
 
   @Get()
   @Roles(Role.ADMIN, Role.OPERATOR, Role.ACCOUNTANT)
+  @ApiOkResponse({ type: [StaffResponseDto] })
   list(@Query("role") role?: Role) {
-    return this.prisma.user.findMany({
-      where: {
-        ...(role ? { role } : { role: { not: Role.CUSTOMER } }),
-      },
-      select: {
-        id: true,
-        phone: true,
-        firstName: true,
-        lastName: true,
-        role: true,
-        isActive: true,
-        createdAt: true,
-        _count: { select: { courierOrders: true, cookedOrders: true } },
-      },
-      orderBy: [{ role: "asc" }, { firstName: "asc" }],
-    });
+    return this.users.list(role);
   }
 
   @Get("couriers")
   @Roles(Role.ADMIN, Role.OPERATOR)
+  @ApiOkResponse({ type: [CourierSummaryResponseDto] })
   couriers() {
-    return this.prisma.user.findMany({
-      where: { role: Role.COURIER, isActive: true },
-      select: {
-        id: true,
-        phone: true,
-        firstName: true,
-        lastName: true,
-        courierOrders: {
-          where: {
-            status: {
-              in: [
-                "ASSIGNED_TO_COURIER",
-                "OUT_FOR_DELIVERY",
-              ],
-            },
-          },
-          select: { id: true, number: true, status: true },
-        },
-      },
-      orderBy: { firstName: "asc" },
-    });
+    return this.users.couriers();
+  }
+
+  @Post()
+  @Roles(Role.ADMIN)
+  @ApiCreatedResponse({ type: StaffMutationResponseDto })
+  create(
+    @CurrentUser() actor: AuthUser,
+    @Body() dto: CreateStaffDto,
+  ) {
+    return this.users.create(actor, dto);
   }
 
   @Patch(":id")
   @Roles(Role.ADMIN)
-  async update(
+  @ApiOkResponse({ type: StaffMutationResponseDto })
+  update(
     @CurrentUser() actor: AuthUser,
     @Param("id", ParseUUIDPipe) id: string,
     @Body() dto: UpdateStaffDto,
   ) {
-    return this.prisma.$transaction(async (tx) => {
-      const target = await tx.user.findUnique({ where: { id } });
-      if (!target) throw new NotFoundException("Staff member not found");
-
-      const touchesSuperAdmin =
-        target.role === Role.SUPER_ADMIN || dto.role === Role.SUPER_ADMIN;
-      if (touchesSuperAdmin && actor.role !== Role.SUPER_ADMIN) {
-        throw new ForbiddenException(
-          "Only a super administrator can manage the SUPER_ADMIN role",
-        );
-      }
-
-      const removesActiveSuperAdmin =
-        target.role === Role.SUPER_ADMIN &&
-        target.isActive &&
-        (dto.role !== Role.SUPER_ADMIN || dto.isActive === false);
-      if (removesActiveSuperAdmin) {
-        const activeSuperAdmins = await tx.user.count({
-          where: { role: Role.SUPER_ADMIN, isActive: true },
-        });
-        if (activeSuperAdmins <= 1) {
-          throw new BadRequestException(
-            "At least one active super administrator is required",
-          );
-        }
-      }
-
-      const updated = await tx.user.update({ where: { id }, data: dto });
-      await tx.auditLog.create({
-        data: {
-          actorId: actor.id,
-          action: "staff.updated",
-          entityType: "User",
-          entityId: updated.id,
-          metadata: {
-            previousRole: target.role,
-            role: updated.role,
-            previousIsActive: target.isActive,
-            isActive: updated.isActive,
-          },
-        },
-      });
-      return updated;
-    });
+    return this.users.update(actor, id, dto);
   }
 }

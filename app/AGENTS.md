@@ -3,12 +3,12 @@
 These rules apply to the Next.js admin under `app/` and define the target
 frontend architecture for the accompanying `src/` layers.
 
-## Current-state warning
+## Current integrated state
 
-The current `app/page.tsx` is a visual prototype with local demo arrays and
-`useState`. It is not proof that the backend integration is complete. Do not
-add more server-backed behavior to this monolith. Extract the touched domain
-into the architecture below and connect it to the real API.
+`app/page.tsx` is a thin route that composes the FSD admin dashboard. Remote
+orders, catalog, marketing, staff, cash workflow, and courier tracking live in
+`src/` and use the real API through TanStack Query. Do not move domain behavior
+back into route files or reintroduce local demo arrays.
 
 ## Target FSD structure
 

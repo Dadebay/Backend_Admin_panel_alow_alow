@@ -17,12 +17,14 @@ import {
   ApiBearerAuth,
   ApiBody,
   ApiConsumes,
+  ApiCreatedResponse,
   ApiTags,
 } from "@nestjs/swagger";
 import type { Response } from "express";
 import { Public, Roles } from "../common/auth.decorators";
 import { Role } from "../generated/prisma/client";
 import { MediaService } from "./media.service";
+import { MediaUploadResponseDto } from "./media.dto";
 
 @ApiTags("media")
 @Controller("media")
@@ -33,6 +35,7 @@ export class MediaController {
   @ApiBearerAuth()
   @Roles(Role.ADMIN, Role.OPERATOR)
   @ApiConsumes("multipart/form-data")
+  @ApiCreatedResponse({ type: MediaUploadResponseDto })
   @ApiBody({
     schema: {
       type: "object",

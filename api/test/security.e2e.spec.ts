@@ -179,6 +179,15 @@ describe("backend security and critical workflow", () => {
       .set("Origin", "https://evil.example")
       .expect(200);
     expect(denied.headers["access-control-allow-origin"]).toBeUndefined();
+
+    const locationPreflight = await request(server)
+      .options("/api/v1/tracking/me/location")
+      .set("Origin", "http://localhost:3000")
+      .set("Access-Control-Request-Method", "PUT")
+      .expect(204);
+    expect(locationPreflight.headers["access-control-allow-methods"]).toContain(
+      "PUT",
+    );
   });
 
   it("rejects missing, malformed, wrong-audience and inactive-user tokens", async () => {
@@ -337,6 +346,42 @@ describe("backend security and critical workflow", () => {
       .set(bearer(tokens.superAdmin))
       .send({ role: Role.ADMIN })
       .expect(400);
+  });
+
+  it("creates staff through the admin API without allowing role escalation", async () => {
+    await request(server)
+      .post("/api/v1/staff")
+      .set(bearer(tokens.operator))
+      .send({ phone: "+99365000113", role: Role.COURIER })
+      .expect(403);
+
+    await request(server)
+      .post("/api/v1/staff")
+      .set(bearer(tokens.admin))
+      .send({ phone: "+99365000113", role: Role.SUPER_ADMIN })
+      .expect(403);
+
+    const created = await request(server)
+      .post("/api/v1/staff")
+      .set(bearer(tokens.admin))
+      .send({
+        phone: "+99365000113",
+        firstName: "New",
+        lastName: "Courier",
+        role: Role.COURIER,
+      })
+      .expect(201);
+    expect(created.body).toMatchObject({
+      phone: "+99365000113",
+      role: Role.COURIER,
+      isActive: true,
+    });
+
+    await request(server)
+      .post("/api/v1/staff")
+      .set(bearer(tokens.admin))
+      .send({ phone: "+99365000113", role: Role.COOK })
+      .expect(409);
   });
 
   it("isolates saved addresses by owner and activates the latest order address", async () => {

@@ -7,8 +7,15 @@ import {
   Patch,
   Post,
 } from "@nestjs/common";
-import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
-import { Public, Roles } from "../common/auth.decorators";
+import {
+  ApiBearerAuth,
+  ApiCreatedResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiTags,
+} from "@nestjs/swagger";
+import { CurrentUser, Public, Roles } from "../common/auth.decorators";
+import type { AuthUser } from "../common/auth.types";
 import { Role } from "../generated/prisma/client";
 import {
   CreateBannerDto,
@@ -17,6 +24,10 @@ import {
   UpdatePromoCodeDto,
 } from "./marketing.dto";
 import { MarketingService } from "./marketing.service";
+import {
+  BannerResponseDto,
+  PromoCodeResponseDto,
+} from "./marketing-response.dto";
 
 @ApiTags("marketing")
 @Controller("marketing")
@@ -26,6 +37,7 @@ export class MarketingController {
   @Get("banners")
   @Public()
   @ApiOperation({ summary: "List currently active customer banners" })
+  @ApiOkResponse({ type: [BannerResponseDto] })
   banners() {
     return this.marketing.activeBanners();
   }
@@ -33,6 +45,7 @@ export class MarketingController {
   @Get("admin/banners")
   @ApiBearerAuth()
   @Roles(Role.ADMIN, Role.OPERATOR)
+  @ApiOkResponse({ type: [BannerResponseDto] })
   allBanners() {
     return this.marketing.allBanners();
   }
@@ -40,23 +53,30 @@ export class MarketingController {
   @Post("banners")
   @ApiBearerAuth()
   @Roles(Role.ADMIN)
-  createBanner(@Body() dto: CreateBannerDto) {
-    return this.marketing.createBanner(dto);
+  @ApiCreatedResponse({ type: BannerResponseDto })
+  createBanner(
+    @CurrentUser() actor: AuthUser,
+    @Body() dto: CreateBannerDto,
+  ) {
+    return this.marketing.createBanner(actor, dto);
   }
 
   @Patch("banners/:id")
   @ApiBearerAuth()
   @Roles(Role.ADMIN)
+  @ApiOkResponse({ type: BannerResponseDto })
   updateBanner(
+    @CurrentUser() actor: AuthUser,
     @Param("id", ParseUUIDPipe) id: string,
     @Body() dto: UpdateBannerDto,
   ) {
-    return this.marketing.updateBanner(id, dto);
+    return this.marketing.updateBanner(actor, id, dto);
   }
 
   @Get("promos")
   @ApiBearerAuth()
   @Roles(Role.ADMIN, Role.OPERATOR, Role.ACCOUNTANT)
+  @ApiOkResponse({ type: [PromoCodeResponseDto] })
   promos() {
     return this.marketing.promoCodes();
   }
@@ -64,17 +84,23 @@ export class MarketingController {
   @Post("promos")
   @ApiBearerAuth()
   @Roles(Role.ADMIN)
-  createPromo(@Body() dto: CreatePromoCodeDto) {
-    return this.marketing.createPromoCode(dto);
+  @ApiCreatedResponse({ type: PromoCodeResponseDto })
+  createPromo(
+    @CurrentUser() actor: AuthUser,
+    @Body() dto: CreatePromoCodeDto,
+  ) {
+    return this.marketing.createPromoCode(actor, dto);
   }
 
   @Patch("promos/:id")
   @ApiBearerAuth()
   @Roles(Role.ADMIN)
+  @ApiOkResponse({ type: PromoCodeResponseDto })
   updatePromo(
+    @CurrentUser() actor: AuthUser,
     @Param("id", ParseUUIDPipe) id: string,
     @Body() dto: UpdatePromoCodeDto,
   ) {
-    return this.marketing.updatePromoCode(id, dto);
+    return this.marketing.updatePromoCode(actor, id, dto);
   }
 }

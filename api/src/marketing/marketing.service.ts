@@ -1,4 +1,6 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, NotFoundException } from "@nestjs/common";
+import { toApiResponse } from "../common/api-response";
+import type { AuthUser } from "../common/auth.types";
 import { PrismaService } from "../prisma/prisma.service";
 import {
   CreateBannerDto,
@@ -11,9 +13,9 @@ import {
 export class MarketingService {
   constructor(private readonly prisma: PrismaService) {}
 
-  activeBanners() {
+  async activeBanners() {
     const now = new Date();
-    return this.prisma.banner.findMany({
+    const banners = await this.prisma.banner.findMany({
       where: {
         isActive: true,
         AND: [
@@ -23,61 +25,116 @@ export class MarketingService {
       },
       orderBy: { sortOrder: "asc" },
     });
+    return toApiResponse(banners);
   }
 
-  allBanners() {
-    return this.prisma.banner.findMany({
+  async allBanners() {
+    const banners = await this.prisma.banner.findMany({
       orderBy: [{ sortOrder: "asc" }, { createdAt: "desc" }],
     });
+    return toApiResponse(banners);
   }
 
-  createBanner(dto: CreateBannerDto) {
-    return this.prisma.banner.create({
-      data: {
-        ...dto,
-        startsAt: dto.startsAt ? new Date(dto.startsAt) : undefined,
-        endsAt: dto.endsAt ? new Date(dto.endsAt) : undefined,
-      },
+  createBanner(actor: AuthUser, dto: CreateBannerDto) {
+    return this.prisma.$transaction(async (tx) => {
+      const banner = await tx.banner.create({
+        data: {
+          ...dto,
+          startsAt: dto.startsAt ? new Date(dto.startsAt) : undefined,
+          endsAt: dto.endsAt ? new Date(dto.endsAt) : undefined,
+        },
+      });
+      await tx.auditLog.create({
+        data: {
+          actorId: actor.id,
+          action: "marketing.banner.created",
+          entityType: "Banner",
+          entityId: banner.id,
+          metadata: { title: banner.title },
+        },
+      });
+      return toApiResponse(banner);
     });
   }
 
-  updateBanner(id: string, dto: UpdateBannerDto) {
-    return this.prisma.banner.update({
-      where: { id },
-      data: {
-        ...dto,
-        startsAt: dto.startsAt ? new Date(dto.startsAt) : undefined,
-        endsAt: dto.endsAt ? new Date(dto.endsAt) : undefined,
-      },
+  updateBanner(actor: AuthUser, id: string, dto: UpdateBannerDto) {
+    return this.prisma.$transaction(async (tx) => {
+      const exists = await tx.banner.findUnique({ where: { id } });
+      if (!exists) throw new NotFoundException("Banner not found");
+      const banner = await tx.banner.update({
+        where: { id },
+        data: {
+          ...dto,
+          startsAt: dto.startsAt ? new Date(dto.startsAt) : undefined,
+          endsAt: dto.endsAt ? new Date(dto.endsAt) : undefined,
+        },
+      });
+      await tx.auditLog.create({
+        data: {
+          actorId: actor.id,
+          action: "marketing.banner.updated",
+          entityType: "Banner",
+          entityId: id,
+          metadata: { title: banner.title, isActive: banner.isActive },
+        },
+      });
+      return toApiResponse(banner);
     });
   }
 
-  promoCodes() {
-    return this.prisma.promoCode.findMany({
+  async promoCodes() {
+    const promos = await this.prisma.promoCode.findMany({
       orderBy: { createdAt: "desc" },
     });
+    return toApiResponse(promos);
   }
 
-  createPromoCode(dto: CreatePromoCodeDto) {
-    return this.prisma.promoCode.create({
-      data: {
-        ...dto,
-        code: dto.code.trim().toUpperCase(),
-        startsAt: dto.startsAt ? new Date(dto.startsAt) : undefined,
-        endsAt: dto.endsAt ? new Date(dto.endsAt) : undefined,
-      },
+  createPromoCode(actor: AuthUser, dto: CreatePromoCodeDto) {
+    return this.prisma.$transaction(async (tx) => {
+      const promo = await tx.promoCode.create({
+        data: {
+          ...dto,
+          code: dto.code.trim().toUpperCase(),
+          startsAt: dto.startsAt ? new Date(dto.startsAt) : undefined,
+          endsAt: dto.endsAt ? new Date(dto.endsAt) : undefined,
+        },
+      });
+      await tx.auditLog.create({
+        data: {
+          actorId: actor.id,
+          action: "marketing.promo.created",
+          entityType: "PromoCode",
+          entityId: promo.id,
+          metadata: { code: promo.code },
+        },
+      });
+      return toApiResponse(promo);
     });
   }
 
-  updatePromoCode(id: string, dto: UpdatePromoCodeDto) {
-    return this.prisma.promoCode.update({
-      where: { id },
-      data: {
-        ...dto,
-        code: dto.code?.trim().toUpperCase(),
-        startsAt: dto.startsAt ? new Date(dto.startsAt) : undefined,
-        endsAt: dto.endsAt ? new Date(dto.endsAt) : undefined,
-      },
+  updatePromoCode(actor: AuthUser, id: string, dto: UpdatePromoCodeDto) {
+    return this.prisma.$transaction(async (tx) => {
+      const exists = await tx.promoCode.findUnique({ where: { id } });
+      if (!exists) throw new NotFoundException("Promo code not found");
+      const promo = await tx.promoCode.update({
+        where: { id },
+        data: {
+          ...dto,
+          code: dto.code?.trim().toUpperCase(),
+          startsAt: dto.startsAt ? new Date(dto.startsAt) : undefined,
+          endsAt: dto.endsAt ? new Date(dto.endsAt) : undefined,
+        },
+      });
+      await tx.auditLog.create({
+        data: {
+          actorId: actor.id,
+          action: "marketing.promo.updated",
+          entityType: "PromoCode",
+          entityId: id,
+          metadata: { code: promo.code, isActive: promo.isActive },
+        },
+      });
+      return toApiResponse(promo);
     });
   }
 }

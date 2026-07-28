@@ -65,8 +65,15 @@ alowalow/
 │   └── lib/               # temporary generated schema/client location
 ├── src/                   # target React/FSD product layers
 │   ├── widgets/           # composed admin sections
-│   ├── features/          # user actions and mutations
-│   ├── entities/          # domain UI, types, queries, table columns
+│   │   ├── admin-dashboard/
+│   │   ├── order-board/
+│   │   ├── dispatch-map/
+│   │   ├── catalog-manager/
+│   │   ├── marketing-manager/
+│   │   ├── staff-manager/
+│   │   └── cash-board/
+│   ├── features/          # order/catalog/marketing/staff mutations
+│   ├── entities/          # order, courier, catalog, marketing, staff queries
 │   └── shared/
 │       ├── api/           # generated contract, HTTP/query clients, keys
 │       ├── ui/            # reusable primitives
@@ -201,13 +208,14 @@ limits, discount, delivery fee, and final total are validated by the backend.
 
 Current status:
 
-- the admin visual prototype exists;
-- Swagger schema and a basic fetch client exist;
-- the main dashboard still uses local demo arrays and is not fully connected to
-  backend queries;
-- the dispatch courier map and courier GPS-sharing screen use the real tracking
-  API through TanStack Query;
-- TanStack Query is installed; TanStack Table is not installed yet.
+- the protected admin dashboard has no local demo arrays;
+- orders, kitchen workflow, courier assignment, cash workflow, catalog,
+  banners, promos, and staff read/write through the NestJS API;
+- the dispatch map and courier GPS-sharing screen use Redis-backed tracking;
+- media forms upload validated WebP images to S3-compatible storage;
+- Swagger response DTOs generate the TypeScript contract used by the frontend;
+- TanStack Query owns server state and TanStack Table renders admin lists;
+- heavy management sections and the Leaflet map are dynamically split.
 
 Accepted target:
 
@@ -239,6 +247,14 @@ The 2026-07-27 tracking build measured the dashboard page chunk at 42.3 KB raw
 / 12.4 KB gzip and the dynamically imported Leaflet map chunk at 156.4 KB raw
 / 45.7 KB gzip. The map chunk was absent from the initial module-preload list.
 
+The 2026-07-28 integrated build keeps the authenticated dashboard shell at
+6.9 KB raw / 2.3 KB gzip and splits the order board (6.6 KB / 2.6 KB), catalog
+(9.6 KB / 2.5 KB), marketing (11.6 KB / 3.1 KB), staff (5.2 KB / 2.1 KB), and
+dispatch view (7.2 KB / 2.5 KB). The Leaflet canvas remains a separate
+156.4 KB / 45.7 KB chunk and is absent from the initial module-preload list.
+The complete initial preload set, including React/vinext framework runtime, is
+335.7 KB raw / 107.5 KB gzip.
+
 ## Decision log
 
 - 2026-07-27: media moved to private S3-compatible storage.
@@ -258,3 +274,8 @@ The 2026-07-27 tracking build measured the dashboard page chunk at 42.3 KB raw
   latest points live in Redis, dispatch access is limited to trusted operations
   roles, and the first real FSD/TanStack frontend slices were introduced for
   courier tracking and the map.
+- 2026-07-28: the demo admin was replaced with a protected, backend-integrated
+  FSD dashboard for orders, kitchen, dispatch map, catalog/S3 media, banners,
+  promos, staff, and cash reconciliation. A secured staff-creation endpoint was
+  added, Swagger response contracts became explicit, and browser CORS now
+  permits courier GPS `PUT` requests.

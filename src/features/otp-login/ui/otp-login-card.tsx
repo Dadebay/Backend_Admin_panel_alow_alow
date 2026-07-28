@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import { useMutation } from "@tanstack/react-query";
 import { useSession } from "@/src/shared/auth";
 
 export function OtpLoginCard({
@@ -14,26 +15,28 @@ export function OtpLoginCard({
   const [phone, setPhone] = useState("");
   const [code, setCode] = useState("");
   const [codeRequested, setCodeRequested] = useState(false);
-  const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
   const [devCode, setDevCode] = useState("");
+  const otpRequest = useMutation({ mutationFn: requestOtp });
+  const otpVerify = useMutation({
+    mutationFn: ({ phone, code }: { phone: string; code: string }) =>
+      verifyOtp(phone, code),
+  });
+  const pending = otpRequest.isPending || otpVerify.isPending;
 
   async function submit(event: FormEvent) {
     event.preventDefault();
-    setPending(true);
     setError("");
     try {
       if (!codeRequested) {
-        const response = await requestOtp(phone);
+        const response = await otpRequest.mutateAsync(phone);
         setCodeRequested(true);
         setDevCode(response.devCode ?? "");
       } else {
-        await verifyOtp(phone, code);
+        await otpVerify.mutateAsync({ phone, code });
       }
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Не удалось войти");
-    } finally {
-      setPending(false);
     }
   }
 

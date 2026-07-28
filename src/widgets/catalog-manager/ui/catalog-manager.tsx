@@ -3,6 +3,8 @@
 import { useMemo, useState, type FormEvent } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import {
+  canAddProductImages,
+  MAX_PRODUCT_IMAGES,
   useAdminCategories,
   useAdminProducts,
   type Category,
@@ -34,6 +36,11 @@ export function CatalogManager() {
   const [productEdit, setProductEdit] = useState<Product | null>(null);
   const [showCategoryForm, setShowCategoryForm] = useState(false);
   const [showProductForm, setShowProductForm] = useState(false);
+  const [storedProductImages, setStoredProductImages] = useState<
+    Product["images"]
+  >([]);
+  const [selectedProductFiles, setSelectedProductFiles] = useState<File[]>([]);
+  const [productImageError, setProductImageError] = useState("");
   const canEdit = Boolean(
     session &&
       ["ADMIN", "SUPER_ADMIN"].includes(session.user.role),
@@ -120,15 +127,26 @@ export function CatalogManager() {
         header: "Товар",
         cell: ({ row }) => (
           <div className="media-cell">
-            {row.original.images[0] ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={resolveApiUrl(row.original.images[0].url)}
-                alt={row.original.images[0].alt ?? ""}
-                loading="lazy"
-                width={48}
-                height={48}
-              />
+            {row.original.images.length ? (
+              <div
+                className="product-image-stack"
+                aria-label={`Изображений: ${row.original.images.length}`}
+              >
+                {row.original.images.slice(0, 3).map((image) => (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    key={image.id}
+                    src={resolveApiUrl(image.url)}
+                    alt={image.alt ?? ""}
+                    loading="lazy"
+                    width={48}
+                    height={48}
+                  />
+                ))}
+                {row.original.images.length > 3 && (
+                  <span>+{row.original.images.length - 3}</span>
+                )}
+              </div>
             ) : (
               <span className="media-placeholder">◫</span>
             )}
@@ -165,6 +183,9 @@ export function CatalogManager() {
                 className="secondary-button compact"
                 onClick={() => {
                   setProductEdit(row.original);
+                  setStoredProductImages(row.original.images);
+                  setSelectedProductFiles([]);
+                  setProductImageError("");
                   setShowProductForm(true);
                 }}
               >
@@ -221,12 +242,26 @@ export function CatalogManager() {
 
   async function submitProduct(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    const file = form.get("image");
-    let imageUrls: string[] | undefined;
-    if (file instanceof File && file.size) {
-      imageUrls = [(await actions.uploadImage.mutateAsync(file)).url];
+    setProductImageError("");
+    if (
+      !canAddProductImages(
+        storedProductImages.length,
+        selectedProductFiles.length,
+      )
+    ) {
+      setProductImageError(
+        `У блюда может быть не больше ${MAX_PRODUCT_IMAGES} изображений.`,
+      );
+      return;
     }
+    const form = new FormData(event.currentTarget);
+    const uploadedImages = selectedProductFiles.length
+      ? await actions.uploadImages.mutateAsync(selectedProductFiles)
+      : [];
+    const imageUrls = [
+      ...storedProductImages.map(({ url }) => url),
+      ...uploadedImages.map(({ url }) => url),
+    ];
     const body = {
       categoryId: String(form.get("categoryId")),
       name: String(form.get("name")).trim(),
@@ -235,7 +270,7 @@ export function CatalogManager() {
       price: Number(form.get("price")),
       sortOrder: Number(form.get("sortOrder")),
       isActive: form.get("isActive") === "on",
-      ...(imageUrls ? { imageUrls } : {}),
+      imageUrls,
     };
     if (productEdit) {
       await actions.updateProduct.mutateAsync({
@@ -246,15 +281,21 @@ export function CatalogManager() {
       await actions.createProduct.mutateAsync(body);
     }
     setProductEdit(null);
+    setStoredProductImages([]);
+    setSelectedProductFiles([]);
     setShowProductForm(false);
   }
 
-  const mutationError =
-    actions.uploadImage.error ||
-    actions.createCategory.error ||
-    actions.updateCategory.error ||
-    actions.createProduct.error ||
-    actions.updateProduct.error;
+  const mutationMessage =
+    productImageError ||
+    errorMessage(
+      actions.uploadImage.error ||
+        actions.uploadImages.error ||
+        actions.createCategory.error ||
+        actions.updateCategory.error ||
+        actions.createProduct.error ||
+        actions.updateProduct.error,
+    );
 
   return (
     <section className="admin-section">
@@ -279,6 +320,9 @@ export function CatalogManager() {
               className="primary-button"
               onClick={() => {
                 setProductEdit(null);
+                setStoredProductImages([]);
+                setSelectedProductFiles([]);
+                setProductImageError("");
                 setShowProductForm((value) => !value);
               }}
             >
@@ -288,8 +332,8 @@ export function CatalogManager() {
         )}
       </header>
 
-      {mutationError && (
-        <div className="inline-alert">{errorMessage(mutationError)}</div>
+      {mutationMessage && (
+        <div className="inline-alert">{mutationMessage}</div>
       )}
 
       {showCategoryForm && (
@@ -372,7 +416,13 @@ export function CatalogManager() {
             <button
               className="text-button"
               type="button"
-              onClick={() => setShowProductForm(false)}
+              onClick={() => {
+                setShowProductForm(false);
+                setProductEdit(null);
+                setStoredProductImages([]);
+                setSelectedProductFiles([]);
+                setProductImageError("");
+              }}
             >
               Закрыть
             </button>
@@ -438,10 +488,99 @@ export function CatalogManager() {
                 defaultValue={productEdit?.sortOrder ?? 0}
               />
             </label>
-            <label>
-              <span>Изображение</span>
-              <input name="image" type="file" accept="image/*" />
-            </label>
+            <div className="wide-field product-image-editor">
+              <div className="product-image-heading">
+                <span>Изображения блюда</span>
+                <small>
+                  {storedProductImages.length + selectedProductFiles.length}/
+                  {MAX_PRODUCT_IMAGES}. Первое изображение будет главным.
+                </small>
+              </div>
+              {storedProductImages.length > 0 && (
+                <div className="product-image-grid">
+                  {storedProductImages.map((image, index) => (
+                    <article className="product-image-card" key={image.id}>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={resolveApiUrl(image.url)}
+                        alt={image.alt ?? ""}
+                        loading="lazy"
+                        width={160}
+                        height={110}
+                      />
+                      <div>
+                        <small>
+                          {index === 0 ? "Главное" : `Фото ${index + 1}`}
+                        </small>
+                        <button
+                          className="text-button"
+                          type="button"
+                          aria-label={`Убрать изображение ${index + 1}`}
+                          onClick={() =>
+                            setStoredProductImages((images) =>
+                              images.filter(({ id }) => id !== image.id),
+                            )
+                          }
+                        >
+                          Убрать
+                        </button>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              )}
+              <label className="product-file-picker">
+                <span>Добавить файлы до 5 МБ каждый</span>
+                <input
+                  name="images"
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  onChange={(event) => {
+                    const files = Array.from(event.currentTarget.files ?? []);
+                    if (
+                      !canAddProductImages(
+                        storedProductImages.length,
+                        files.length,
+                      )
+                    ) {
+                      setSelectedProductFiles([]);
+                      setProductImageError(
+                        `Можно сохранить не больше ${MAX_PRODUCT_IMAGES} изображений.`,
+                      );
+                      event.currentTarget.value = "";
+                      return;
+                    }
+                    setSelectedProductFiles(files);
+                    setProductImageError("");
+                  }}
+                />
+              </label>
+              {selectedProductFiles.length > 0 && (
+                <div className="selected-product-files" aria-live="polite">
+                  {selectedProductFiles.map((file, index) => (
+                    <span key={`${file.name}-${file.size}-${file.lastModified}`}>
+                      {storedProductImages.length === 0 && index === 0
+                        ? "Главное: "
+                        : ""}
+                      {file.name}
+                      <button
+                        className="text-button"
+                        type="button"
+                        aria-label={`Убрать выбранный файл ${file.name}`}
+                        onClick={() =>
+                          setSelectedProductFiles((files) =>
+                            files.filter((candidate) => candidate !== file),
+                          )
+                        }
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
             <label className="wide-field">
               <span>Описание</span>
               <textarea
@@ -464,7 +603,7 @@ export function CatalogManager() {
           <button
             className="primary-button"
             disabled={
-              actions.uploadImage.isPending ||
+              actions.uploadImages.isPending ||
               actions.createProduct.isPending ||
               actions.updateProduct.isPending
             }

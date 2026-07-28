@@ -2,6 +2,7 @@ import { ApiProperty, ApiPropertyOptional, PartialType } from "@nestjs/swagger";
 import { Type } from "class-transformer";
 import {
   ArrayMaxSize,
+  ArrayUnique,
   IsArray,
   IsBoolean,
   IsInt,
@@ -9,9 +10,13 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  Matches,
   MaxLength,
   Min,
 } from "class-validator";
+
+const MEDIA_IMAGE_PATH =
+  /^\/api\/v1\/media\/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.webp$/i;
 
 export class CreateCategoryDto {
   @ApiProperty()
@@ -79,20 +84,40 @@ export class CreateProductDto {
   @IsInt()
   sortOrder?: number;
 
-  @ApiPropertyOptional({ type: [String] })
+  @ApiPropertyOptional({
+    type: [String],
+    maxItems: 10,
+    example: [
+      "/api/v1/media/2d807991-e99f-4f17-9b9f-cc2fb7478820.webp",
+      "/api/v1/media/c9949db2-cf7c-4f28-8a0f-81776210d2f1.webp",
+    ],
+    description:
+      "Ordered image paths returned by POST /media/images; the first image is primary",
+  })
   @IsOptional()
   @IsArray()
   @ArrayMaxSize(10)
+  @ArrayUnique()
   @IsString({ each: true })
+  @MaxLength(1000, { each: true })
+  @Matches(MEDIA_IMAGE_PATH, {
+    each: true,
+    message: "each image URL must be a WebP path returned by the media API",
+  })
   imageUrls?: string[];
 }
 
 export class UpdateProductDto extends PartialType(CreateProductDto) {}
 
 export class AddProductImageDto {
-  @ApiProperty()
+  @ApiProperty({
+    example: "/api/v1/media/2d807991-e99f-4f17-9b9f-cc2fb7478820.webp",
+  })
   @IsString()
   @MaxLength(1000)
+  @Matches(MEDIA_IMAGE_PATH, {
+    message: "image URL must be a WebP path returned by the media API",
+  })
   url: string;
 
   @ApiPropertyOptional()

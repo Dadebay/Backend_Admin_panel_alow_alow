@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from "@nestjs/common";
 import { toApiResponse } from "../common/api-response";
 import type { AuthUser } from "../common/auth.types";
 import { PrismaService } from "../prisma/prisma.service";
@@ -9,6 +13,12 @@ import {
   UpdateCategoryDto,
   UpdateProductDto,
 } from "./catalog.dto";
+
+const MAX_PRODUCT_IMAGES = 10;
+const productRelations = {
+  images: { orderBy: { sortOrder: "asc" as const } },
+  category: true,
+};
 
 @Injectable()
 export class CatalogService {
@@ -91,7 +101,7 @@ export class CatalogService {
             })),
           },
         },
-        include: { images: true, category: true },
+        include: productRelations,
       });
       await tx.auditLog.create({
         data: {
@@ -99,7 +109,11 @@ export class CatalogService {
           action: "catalog.product.created",
           entityType: "Product",
           entityId: created.id,
-          metadata: { name: created.name, categoryId: created.categoryId },
+          metadata: {
+            name: created.name,
+            categoryId: created.categoryId,
+            imageCount: created.images.length,
+          },
         },
       });
       return toApiResponse(created);
@@ -129,7 +143,7 @@ export class CatalogService {
               }
             : {}),
         },
-        include: { images: true, category: true },
+        include: productRelations,
       });
       await tx.auditLog.create({
         data: {
@@ -137,7 +151,10 @@ export class CatalogService {
           action: "catalog.product.updated",
           entityType: "Product",
           entityId: id,
-          metadata: product,
+          metadata: {
+            changedFields: Object.keys(dto),
+            imageCount: updated.images.length,
+          },
         },
       });
       return toApiResponse(updated);
@@ -148,8 +165,18 @@ export class CatalogService {
     return this.prisma.$transaction(async (tx) => {
       const product = await tx.product.findUnique({ where: { id: productId } });
       if (!product) throw new NotFoundException("Product not found");
+      const imageCount = await tx.productImage.count({ where: { productId } });
+      if (imageCount >= MAX_PRODUCT_IMAGES) {
+        throw new ConflictException(
+          `A product can have at most ${MAX_PRODUCT_IMAGES} images`,
+        );
+      }
       const image = await tx.productImage.create({
-        data: { productId, ...dto },
+        data: {
+          productId,
+          ...dto,
+          sortOrder: dto.sortOrder ?? imageCount,
+        },
       });
       await tx.auditLog.create({
         data: {

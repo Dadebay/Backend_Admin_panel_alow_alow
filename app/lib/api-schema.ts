@@ -726,6 +726,13 @@ export interface components {
             isActive: boolean;
             /** @default 0 */
             sortOrder: number;
+            /**
+             * @description Ordered image paths returned by POST /media/images; the first image is primary
+             * @example [
+             *       "/api/v1/media/2d807991-e99f-4f17-9b9f-cc2fb7478820.webp",
+             *       "/api/v1/media/c9949db2-cf7c-4f28-8a0f-81776210d2f1.webp"
+             *     ]
+             */
             imageUrls?: string[];
         };
         UpdateProductDto: {
@@ -739,9 +746,17 @@ export interface components {
             isActive: boolean;
             /** @default 0 */
             sortOrder: number;
+            /**
+             * @description Ordered image paths returned by POST /media/images; the first image is primary
+             * @example [
+             *       "/api/v1/media/2d807991-e99f-4f17-9b9f-cc2fb7478820.webp",
+             *       "/api/v1/media/c9949db2-cf7c-4f28-8a0f-81776210d2f1.webp"
+             *     ]
+             */
             imageUrls?: string[];
         };
         AddProductImageDto: {
+            /** @example /api/v1/media/2d807991-e99f-4f17-9b9f-cc2fb7478820.webp */
             url: string;
             alt?: string;
             /** @default 0 */

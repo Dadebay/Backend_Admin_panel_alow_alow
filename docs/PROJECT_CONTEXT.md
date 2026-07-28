@@ -204,6 +204,12 @@ banners, and promo codes. Images are validated, converted to WebP, and stored
 privately in S3-compatible storage. Product availability, current price, promo
 limits, discount, delivery fee, and final total are validated by the backend.
 
+A product may have up to 10 ordered images. Product image references must be
+WebP paths returned by the media API, and the first image is the primary
+catalog image. Admin product create/update may replace the ordered image set;
+the backend enforces the same limit for the single-image compatibility
+endpoint.
+
 ## Frontend status and target
 
 Current status:
@@ -215,6 +221,8 @@ Current status:
   rating and comment returned by the API;
 - the dispatch map and courier GPS-sharing screen use Redis-backed tracking;
 - media forms upload validated WebP images to S3-compatible storage;
+- the catalog editor creates and updates a dish with category, name, slug,
+  description, price, availability, ordering, and up to 10 S3 images;
 - Swagger response DTOs generate the TypeScript contract used by the frontend;
 - TanStack Query owns server state and TanStack Table renders admin lists;
 - heavy management sections and the Leaflet map are dynamically split.
@@ -262,6 +270,12 @@ until an order is opened and adds no dependency or polling loop. The dynamically
 loaded order-board chunk is 11.6 KB raw / 3.7 KB gzip; its shared order-domain
 chunk is 2.9 KB / 1.3 KB. The Leaflet map remains isolated from both chunks.
 
+The 2026-07-28 multi-image catalog build keeps the authenticated dashboard
+shell at 6.9 KB raw / 2.3 KB gzip. The dynamically loaded catalog editor is
+11.7 KB / 3.2 KB, plus its existing catalog-mutation chunk at 1.5 KB / 0.6 KB.
+The added local form state creates no polling or background request; media
+uploads start only when an administrator saves the dish.
+
 ## Decision log
 
 - 2026-07-27: media moved to private S3-compatible storage.
@@ -286,3 +300,6 @@ chunk is 2.9 KB / 1.3 KB. The Leaflet map remains isolated from both chunks.
   promos, staff, and cash reconciliation. A secured staff-creation endpoint was
   added, Swagger response contracts became explicit, and browser CORS now
   permits courier GPS `PUT` requests.
+- 2026-07-28: product media was formalized as an ordered set of up to 10 private
+  S3-backed WebP images, with the first image acting as the primary catalog
+  image and matching validation in the API and admin.

@@ -46,6 +46,16 @@ type OrderResponse = {
   transitions?: Array<{ toStatus: OrderStatus }>;
 };
 
+type CatalogProductResponse = {
+  id: string;
+  categoryId: string;
+  name: string;
+  slug: string;
+  description: string;
+  price: number;
+  images: Array<{ url: string; sortOrder: number }>;
+};
+
 describe("backend security and critical workflow", () => {
   let app: INestApplication;
   let prisma: PrismaService;
@@ -57,6 +67,8 @@ describe("backend security and critical workflow", () => {
   let productId: string;
 
   const bearer = (token: string) => ({ Authorization: `Bearer ${token}` });
+  const mediaUrl = (sequence: number) =>
+    `/api/v1/media/00000000-0000-4000-8000-${String(sequence).padStart(12, "0")}.webp`;
 
   async function createOrder(
     token: string,
@@ -312,11 +324,120 @@ describe("backend security and critical workflow", () => {
       })
       .expect(400);
 
-    await request(server)
+    const categoryResponse = await request(server)
       .post("/api/v1/catalog/categories")
       .set(bearer(tokens.admin))
       .send({ name: "Admin category", slug: "admin-category" })
       .expect(201);
+    const categoryId = (categoryResponse.body as { id: string }).id;
+
+    await request(server)
+      .post("/api/v1/catalog/products")
+      .set(bearer(tokens.operator))
+      .send({
+        categoryId,
+        name: "Operator product",
+        slug: "operator-product",
+        description: "Must not be created",
+        price: 10,
+      })
+      .expect(403);
+
+    await request(server)
+      .post("/api/v1/catalog/products")
+      .set(bearer(tokens.admin))
+      .send({
+        categoryId,
+        name: "External image product",
+        slug: "external-image-product",
+        description: "External image URLs are forbidden",
+        price: 12,
+        imageUrls: ["https://example.com/not-private-storage.jpg"],
+      })
+      .expect(400);
+
+    await request(server)
+      .post("/api/v1/catalog/products")
+      .set(bearer(tokens.admin))
+      .send({
+        categoryId,
+        name: "Too many images",
+        slug: "too-many-images",
+        description: "The DTO enforces the product image limit",
+        price: 15,
+        imageUrls: Array.from({ length: 11 }, (_, index) =>
+          mediaUrl(index + 1),
+        ),
+      })
+      .expect(400);
+
+    const imageUrls = [mediaUrl(1), mediaUrl(2), mediaUrl(3)];
+    const createdProductResponse = await request(server)
+      .post("/api/v1/catalog/products")
+      .set(bearer(tokens.admin))
+      .send({
+        categoryId,
+        name: "Three image meal",
+        slug: "three-image-meal",
+        description: "A complete menu item with several ordered images",
+        price: 49.9,
+        imageUrls,
+      })
+      .expect(201);
+    const createdProduct =
+      createdProductResponse.body as CatalogProductResponse;
+    expect(createdProduct).toMatchObject({
+      categoryId,
+      description: "A complete menu item with several ordered images",
+      price: 49.9,
+    });
+    expect(createdProduct.images.map(({ url }) => url)).toEqual(imageUrls);
+    expect(createdProduct.images.map(({ sortOrder }) => sortOrder)).toEqual([
+      0, 1, 2,
+    ]);
+
+    const replacementUrls = [mediaUrl(3), mediaUrl(1)];
+    const updatedProductResponse = await request(server)
+      .patch(`/api/v1/catalog/products/${createdProduct.id}`)
+      .set(bearer(tokens.admin))
+      .send({ imageUrls: replacementUrls })
+      .expect(200);
+    const updatedProduct =
+      updatedProductResponse.body as CatalogProductResponse;
+    expect(updatedProduct.images.map(({ url }) => url)).toEqual(
+      replacementUrls,
+    );
+
+    const publicProducts = await request(server)
+      .get(`/api/v1/catalog/products?categoryId=${categoryId}`)
+      .expect(200);
+    expect(
+      (publicProducts.body as CatalogProductResponse[])[0].images.map(
+        ({ url }) => url,
+      ),
+    ).toEqual(replacementUrls);
+
+    const fullProductResponse = await request(server)
+      .post("/api/v1/catalog/products")
+      .set(bearer(tokens.admin))
+      .send({
+        categoryId,
+        name: "Full image meal",
+        slug: "full-image-meal",
+        description: "Already contains the maximum image count",
+        price: 55,
+        imageUrls: Array.from({ length: 10 }, (_, index) =>
+          mediaUrl(index + 20),
+        ),
+      })
+      .expect(201);
+    const fullProduct = fullProductResponse.body as CatalogProductResponse;
+
+    await request(server)
+      .post(`/api/v1/catalog/products/${fullProduct.id}/images`)
+      .set(bearer(tokens.admin))
+      .send({ url: mediaUrl(99) })
+      .expect(409);
   });
 
   it("reserves SUPER_ADMIN role management for a super administrator", async () => {

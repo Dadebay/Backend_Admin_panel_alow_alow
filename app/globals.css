@@ -2790,6 +2790,135 @@ button:disabled {
   width: 72px;
 }
 
+.product-image-stack {
+  position: relative;
+  width: 86px;
+  height: 48px;
+  flex: 0 0 86px;
+}
+
+.product-image-stack img {
+  position: absolute;
+  top: 0;
+  border: 2px solid white;
+}
+
+.product-image-stack img:nth-child(1) {
+  left: 0;
+  z-index: 3;
+}
+
+.product-image-stack img:nth-child(2) {
+  left: 20px;
+  z-index: 2;
+}
+
+.product-image-stack img:nth-child(3) {
+  left: 40px;
+  z-index: 1;
+}
+
+.product-image-stack > span {
+  position: absolute;
+  right: -2px;
+  bottom: -4px;
+  z-index: 4;
+  padding: 2px 5px;
+  border: 1px solid white;
+  border-radius: 999px;
+  color: white;
+  background: var(--orange);
+  font-size: 9px;
+  font-weight: 750;
+}
+
+.product-image-editor {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid #e6e9eb;
+  border-radius: 12px;
+  background: #fbfcfc;
+}
+
+.product-image-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  color: #596570;
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.product-image-heading small {
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.product-image-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 10px;
+}
+
+.product-image-card {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid #e5e8ea;
+  border-radius: 10px;
+  background: white;
+}
+
+.product-image-card > img {
+  width: 100%;
+  height: 110px;
+  display: block;
+  object-fit: cover;
+  background: #f1f2f2;
+}
+
+.product-image-card > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 7px 9px;
+}
+
+.product-image-card small {
+  color: var(--green);
+  font-weight: 700;
+}
+
+.product-file-picker {
+  display: grid;
+  gap: 7px;
+}
+
+.selected-product-files {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.selected-product-files > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 100%;
+  padding: 5px 8px;
+  border-radius: 8px;
+  color: #596570;
+  background: #eef2f3;
+  font-size: 10px;
+}
+
+.selected-product-files .text-button {
+  min-width: 20px;
+  padding: 0;
+}
+
 .media-placeholder {
   display: grid;
   place-items: center;

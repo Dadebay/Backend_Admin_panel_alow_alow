@@ -2021,6 +2021,12 @@
             "default": 0
           },
           "imageUrls": {
+            "maxItems": 10,
+            "example": [
+              "/api/v1/media/2d807991-e99f-4f17-9b9f-cc2fb7478820.webp",
+              "/api/v1/media/c9949db2-cf7c-4f28-8a0f-81776210d2f1.webp"
+            ],
+            "description": "Ordered image paths returned by POST /media/images; the first image is primary",
             "type": "array",
             "items": {
               "type": "string"
@@ -2063,6 +2069,12 @@
             "default": 0
           },
           "imageUrls": {
+            "maxItems": 10,
+            "example": [
+              "/api/v1/media/2d807991-e99f-4f17-9b9f-cc2fb7478820.webp",
+              "/api/v1/media/c9949db2-cf7c-4f28-8a0f-81776210d2f1.webp"
+            ],
+            "description": "Ordered image paths returned by POST /media/images; the first image is primary",
             "type": "array",
             "items": {
               "type": "string"
@@ -2074,7 +2086,8 @@
         "type": "object",
         "properties": {
           "url": {
-            "type": "string"
+            "type": "string",
+            "example": "/api/v1/media/2d807991-e99f-4f17-9b9f-cc2fb7478820.webp"
           },
           "alt": {
             "type": "string"

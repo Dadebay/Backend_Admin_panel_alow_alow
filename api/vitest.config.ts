@@ -34,6 +34,7 @@ export default defineConfig({
       reportsDirectory: "./coverage",
       include: [
         "src/auth/**/*.ts",
+        "src/catalog/**/*.ts",
         "src/common/**/*.ts",
         "src/config/**/*.ts",
         "src/orders/**/*.ts",

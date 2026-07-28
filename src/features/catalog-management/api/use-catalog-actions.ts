@@ -18,16 +18,21 @@ export function useCatalogActions() {
   const queryClient = useQueryClient();
   const refresh = () =>
     queryClient.invalidateQueries({ queryKey: catalogQueryKeys.all });
+  const uploadImageFile = (file: File) => {
+    const body = new FormData();
+    body.append("file", file);
+    return authorizedRequest<MediaUpload>("/media/images", {
+      method: "POST",
+      body,
+    });
+  };
 
   const uploadImage = useMutation({
-    mutationFn: (file: File) => {
-      const body = new FormData();
-      body.append("file", file);
-      return authorizedRequest<MediaUpload>("/media/images", {
-        method: "POST",
-        body,
-      });
-    },
+    mutationFn: uploadImageFile,
+  });
+  const uploadImages = useMutation({
+    mutationFn: (files: File[]) =>
+      Promise.all(files.map((file) => uploadImageFile(file))),
   });
   const createCategory = useMutation({
     mutationFn: (body: CreateCategory) =>
@@ -63,6 +68,7 @@ export function useCatalogActions() {
   });
   return {
     uploadImage,
+    uploadImages,
     createCategory,
     updateCategory,
     createProduct,

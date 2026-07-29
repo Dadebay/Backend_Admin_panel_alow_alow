@@ -1,9 +1,22 @@
 # AlowAlow
 
+Единый Git-монорепозиторий: NestJS API, React/Next.js админка,
+сгенерированный Swagger-контракт, Docker и CI/CD изменяются одним pull request.
+API и admin имеют независимые npm lockfile, чтобы их security overrides и
+production dependency trees проверялись отдельно.
+
+```text
+apps/api                 NestJS, Prisma, Redis, S3 и SMS gateway
+apps/admin               React/Next.js operations admin
+packages/api-contract    генерируемые TypeScript-типы OpenAPI
+deploy                   DEV/PROD Compose и deployment script
+```
+
 Первая рабочая версия платформы доставки еды:
 
 - NestJS 11 API с PostgreSQL и Prisma 7;
-- Redis 8 для одноразовых кодов и защиты от повторной отправки;
+- Redis 8 для одноразовых кодов, защиты от повторной отправки и зашифрованной
+  очереди Android SMS-шлюза;
 - React 19 админка для оператора, кухни, курьера, бухгалтера, администратора
   и главного администратора;
 - Swagger/OpenAPI и генерируемый TypeScript-клиент;
@@ -16,15 +29,15 @@
 
 ## Жизненный цикл заказа
 
-| Этап | Кто выполняет |
-| --- | --- |
-| `NEW → CONFIRMED → SENT_TO_KITCHEN` | оператор, администратор или главный администратор |
-| `SENT_TO_KITCHEN → COOKING → READY` | повар |
-| назначение готового заказа курьеру | оператор или администратор |
-| `ASSIGNED_TO_COURIER → OUT_FOR_DELIVERY → DELIVERED` | назначенный курьер |
-| `DELIVERED → CASH_RETURNED` | курьер после передачи наличных оператору |
-| `CASH_RETURNED → COMPLETED` | оператор подтверждает сумму |
-| `COMPLETED → RECONCILED` | бухгалтер |
+| Этап                                                 | Кто выполняет                                     |
+| ---------------------------------------------------- | ------------------------------------------------- |
+| `NEW → CONFIRMED → SENT_TO_KITCHEN`                  | оператор, администратор или главный администратор |
+| `SENT_TO_KITCHEN → COOKING → READY`                  | повар                                             |
+| назначение готового заказа курьеру                   | оператор или администратор                        |
+| `ASSIGNED_TO_COURIER → OUT_FOR_DELIVERY → DELIVERED` | назначенный курьер                                |
+| `DELIVERED → CASH_RETURNED`                          | курьер после передачи наличных оператору          |
+| `CASH_RETURNED → COMPLETED`                          | оператор подтверждает сумму                       |
+| `COMPLETED → RECONCILED`                             | бухгалтер                                         |
 
 Клиент может отменить собственный заказ только в статусе `NEW`. Оператор,
 администратор или главный администратор может отменить `NEW`, `CONFIRMED`
@@ -41,14 +54,15 @@
 Требуется Node.js 22.13+ LTS (или 24+) и Docker.
 
 ```bash
-cp api/.env.example api/.env
+cp apps/api/.env.example apps/api/.env
 docker compose up -d postgres redis minio minio-init
 npm install
-npm --prefix api install
-npm --prefix api run prisma:generate
-npm --prefix api run db:migrate -- --name init
-npm --prefix api run db:seed
-npm run stack:dev
+npm --prefix apps/admin install
+npm --prefix apps/api install
+npm --prefix apps/api run prisma:generate
+npm --prefix apps/api run db:migrate -- --name init
+npm --prefix apps/api run db:seed
+npm run dev
 ```
 
 - Админка: `http://localhost:3000` (или следующий свободный порт)
@@ -59,23 +73,32 @@ npm run stack:dev
 
 В development при `SMS_PROVIDER=console` ответ
 `POST /api/v1/auth/otp/request` содержит `devCode`. В production код в ответ
-никогда не попадает: он хранится в Redis 5 минут и отправляется через Twilio.
+никогда не попадает: его HMAC хранится в Redis 5 минут, а SMS отправляет
+выделенный Android-телефон с SIM-картой.
 Повторная отправка на номер доступна через 60 секунд, действует лимит 5 SMS в
 час и 5 попыток ввода. Успешно использованный код атомарно удаляется.
 
-Для реальной отправки SMS задайте:
+Телефон выполняет pull каждые 3 секунды:
 
-```dotenv
-REDIS_URL=rediss://user:password@redis.example.com:6379/0
-SMS_PROVIDER=twilio
-TWILIO_ACCOUNT_SID=AC...
-TWILIO_AUTH_TOKEN=...
-TWILIO_FROM=+12025550123
+```http
+GET /api/v1/internal/sms-gateway/pull
+Authorization: Bearer <SMS_GATEWAY_DEVICE_TOKEN>
 ```
 
-`TWILIO_FROM` должен быть разрешённым Twilio-номером или Sender ID. Для
-Туркменистана доступна исходящая отправка, но местный оператор может заменить
-отображаемого отправителя.
+При отсутствии задания API отвечает `204 No Content`. Полученное задание
+содержит `id`, `phone`, `message`, `expiresAt` и одноразовый lease `receipt`.
+После попытки отправки Android подтверждает результат через
+`POST /api/v1/internal/sms-gateway/jobs/<id>/status` со статусом `SENT`,
+`DELIVERED` или `FAILED`.
+
+Pull-задания AES-256-GCM-зашифрованы в Redis. Для production задайте
+`SMS_PROVIDER=android_pull`, независимый случайный
+`SMS_GATEWAY_DEVICE_TOKEN` и ключ из `openssl rand -base64 32`. Первый pull
+или `POST /api/v1/internal/sms-gateway/heartbeat` отмечает телефон онлайн.
+Twilio остаётся опциональной альтернативой через `SMS_PROVIDER=twilio`.
+Полная инструкция для готовой Android-программы, включая JSON-контракт,
+heartbeat, подтверждения и обработку ошибок:
+[`docs/ANDROID_SMS_GATEWAY.md`](docs/ANDROID_SMS_GATEWAY.md).
 
 Адреса клиента доступны через `/api/v1/users/me/addresses`. Новый адрес
 становится активным автоматически. Если заказ создаётся с `addressId`, этот
@@ -85,28 +108,29 @@ TWILIO_FROM=+12025550123
 
 Тестовые сотрудники после `db:seed`:
 
-| Телефон | Роль |
-| --- | --- |
+| Телефон        | Роль                  |
+| -------------- | --------------------- |
 | `+99365000000` | главный администратор |
-| `+99365000001` | администратор |
-| `+99365000002` | оператор |
-| `+99365000003` | повар |
-| `+99365000004` | курьер |
-| `+99365000005` | бухгалтер |
+| `+99365000001` | администратор         |
+| `+99365000002` | оператор              |
+| `+99365000003` | повар                 |
+| `+99365000004` | курьер                |
+| `+99365000005` | бухгалтер             |
 
 ## Основные команды
 
 ```bash
-npm run dev                 # React-админка
-npm run api:dev             # NestJS API
-npm run stack:dev           # оба приложения
-npm run api:client          # Swagger JSON → app/lib/api-schema.ts
-npm test                    # production build + UI smoke test
-npm run api:build
-npm run api:test
+npm run dev:admin           # только React-админка
+npm run dev:api             # только NestJS API
+npm run dev                 # оба приложения
+npm run api:client          # Swagger → packages/api-contract/src/schema.ts
+npm test                    # admin production build + UI smoke tests
+npm run test:api            # backend unit/e2e/security tests
+npm run test:all            # backend и admin
+npm run build               # контракт и production builds обоих приложений
 ```
 
-`npm run api:test` создаёт отдельную базу `alofood_test`, использует Redis DB
+`npm run test:api` создаёт отдельную базу `alofood_test`, использует Redis DB
 15, накатывает все миграции, выполняет unit- и HTTP e2e-тесты с отчётом
 покрытия, а затем очищает тестовые хранилища. PostgreSQL, Redis и MinIO должны
 быть запущены через Docker; рабочая база `alofood` и Redis DB 0 тестами не
@@ -115,8 +139,8 @@ npm run api:test
 
 ## CI/CD
 
-Workflow `.github/workflows/ci-cd.yml` запускается для pull request, push в
-`main` и вручную. До публикации он обязательно:
+Workflow `.github/workflows/ci-cd.yml` запускается для pull request в
+`develop`/`main`, push в эти ветки и вручную. До публикации он обязательно:
 
 - проверяет lint, production build, тесты и coverage backend;
 - проверяет lint, production build и тесты админки;
@@ -127,38 +151,33 @@ Workflow `.github/workflows/ci-cd.yml` запускается для pull reques
   миграций;
 - проверяет production Compose.
 
-После успешного push в `main` workflow публикует в GHCR два образа:
+После успешного push в `develop` или `main` workflow публикует в GHCR два
+образа:
 
 ```text
 ghcr.io/<owner>/<repository>-api:sha-<commit>
 ghcr.io/<owner>/<repository>-migration:sha-<commit>
 ```
 
-Образы также получают `latest`, но production-деплой использует только digest,
-а не изменяемый тег. BuildKit добавляет provenance и SBOM. Проверенная сборка
-админки сохраняется как workflow artifact; действующий приватный frontend
-публикуется в существующий Sites-проект, а не во второй hosting.
+Образы `develop` получают тег `development`, образы `main` — `production` и
+`latest`, но deployment использует только immutable digest. BuildKit добавляет
+provenance и SBOM. Проверенная сборка админки сохраняется как отдельный artifact
+для каждой ветки.
 
-Репозиторий пока не имеет GitHub remote, поэтому workflow начнёт выполняться
-после push этого проекта в GitHub.
+Веточная схема автодеплоя API:
 
-### Автоматический production-деплой API
+```text
+feature/* → PR → develop → DEV
+                    ↓ PR
+                   main → PROD
+```
 
-По умолчанию CD заканчивается безопасной доставкой образов в GHCR. Для
-автоматического обновления Linux-сервера:
+DEV и PROD изолированы разными GitHub Environments, server-каталогами, Compose
+projects, портами, PostgreSQL, Redis, S3 и секретами. Production Environment
+рекомендуется защитить обязательным ручным подтверждением.
 
-1. Создайте GitHub Environment `production` и включите обязательное ручное
-   подтверждение.
-2. Добавьте repository variable
-   `PRODUCTION_DEPLOY_ENABLED=true`.
-3. Добавьте environment secrets:
-   `PRODUCTION_SSH_HOST`, `PRODUCTION_SSH_USER`,
-   `PRODUCTION_SSH_PRIVATE_KEY`, `PRODUCTION_SSH_KNOWN_HOSTS`.
-4. На сервере создайте `~/alowalow/.env.production` по образцу
-   `deploy/production.env.example`. Настоящие значения не должны попадать в
-   Git.
-5. Если GHCR package приватный, один раз выполните на сервере
-   `docker login ghcr.io` с токеном, имеющим только `read:packages`.
+Полная настройка веток, GitHub secrets/variables, сервера и reverse proxy:
+[`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
 
 При деплое сначала выполняется `prisma migrate deploy`. Новый API запускается
 только после успешной миграции и healthcheck. Если обновление не стало healthy,
@@ -170,10 +189,10 @@ ALOWALOW_MIGRATION_IMAGE=ghcr.io/owner/repository-migration@sha256:... \
 docker compose --file deploy/compose.production.yml up -d --wait
 ```
 
-На production-сервере контейнер слушает только `127.0.0.1:4000`. Публичный TLS
+На сервере PROD слушает `127.0.0.1:4000`, DEV — `127.0.0.1:4001`. Публичный TLS
 и проксирование `/api` должны выполнять Caddy, Nginx или управляемый ingress.
-PostgreSQL, TLS Redis, S3 и Twilio передаются приложению только через
-`.env.production`.
+PostgreSQL, TLS Redis, S3 и секреты SMS-шлюза передаются приложению только через
+отдельные `.env.production` и `.env.development`.
 
 ## Безопасность
 
@@ -197,5 +216,5 @@ PostgreSQL, TLS Redis, S3 и Twilio передаются приложению т
 `S3_SECRET_ACCESS_KEY` можно не задавать при использовании IAM-роли.
 
 Перед production также необходимо задать случайные `JWT_ACCESS_SECRET` и
-`OTP_PEPPER` длиной не менее 32 символов, TLS-адрес `REDIS_URL`, параметры
-Twilio и провайдера маршрутов/карт для расчёта реального ETA.
+`OTP_PEPPER` длиной не менее 32 символов, TLS-адрес `REDIS_URL`, секреты
+Android SMS-шлюза и провайдера маршрутов/карт для расчёта реального ETA.

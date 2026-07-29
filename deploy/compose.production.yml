@@ -1,4 +1,4 @@
-name: alowalow
+name: ${ALOWALOW_COMPOSE_PROJECT:-alowalow-production}
 
 services:
   migrate:

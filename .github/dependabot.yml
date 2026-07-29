@@ -9,16 +9,29 @@ updates:
       timezone: Asia/Ashgabat
     open-pull-requests-limit: 5
     groups:
+      root-tooling:
+        patterns:
+          - "*"
+
+  - package-ecosystem: npm
+    directory: /apps/admin
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:10"
+      timezone: Asia/Ashgabat
+    open-pull-requests-limit: 5
+    groups:
       admin-dependencies:
         patterns:
           - "*"
 
   - package-ecosystem: npm
-    directory: /api
+    directory: /apps/api
     schedule:
       interval: weekly
       day: monday
-      time: "06:15"
+      time: "06:20"
       timezone: Asia/Ashgabat
     open-pull-requests-limit: 5
     groups:
@@ -40,15 +53,15 @@ updates:
     schedule:
       interval: weekly
       day: monday
-      time: "06:45"
+      time: "06:40"
       timezone: Asia/Ashgabat
     open-pull-requests-limit: 5
 
   - package-ecosystem: docker
-    directory: /api
+    directory: /apps/api
     schedule:
       interval: weekly
       day: monday
-      time: "07:00"
+      time: "06:50"
       timezone: Asia/Ashgabat
     open-pull-requests-limit: 5

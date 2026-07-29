@@ -14,6 +14,12 @@ AlowAlow is a cash-on-delivery food ordering platform for Ashgabat with:
 - role-specific operations for kitchen, dispatch, courier, cash receipt, and
   accounting.
 
+The NestJS API, React admin, generated OpenAPI contract, deployment manifests,
+and CI/CD live in one GitHub monorepo and are changed through the same pull
+requests. Separate backend/admin repositories are not parallel sources of
+truth. Android applications remain separate because they have an independent
+toolchain and release lifecycle.
+
 The private Sites URL publishes the admin frontend only. The NestJS backend is
 currently a local/deployable service. CI/CD now produces immutable runtime and
 migration images, but a production host plus managed PostgreSQL, TLS Redis, S3,
@@ -21,14 +27,18 @@ SMS credentials, and a maps provider still need to be configured.
 
 ## Stack and storage
 
-- NestJS 11, Prisma 7, PostgreSQL 18.
+- Node.js 24 LTS with npm 11.6.2, NestJS 11, Prisma 7, PostgreSQL 18.
 - Redis 8 for temporary OTP challenges and rate controls.
-- Twilio adapter for production SMS; console provider in development.
+- A dedicated Android phone with its own SIM is the primary production SMS
+  gateway. It pulls encrypted, short-lived OTP jobs from the API over HTTPS and
+  acknowledges delivery. Twilio remains an optional provider; console is
+  development-only.
 - Private S3-compatible object storage; MinIO locally.
 - React 19, Next.js 16/vinext, Swagger/OpenAPI-generated TypeScript schema.
 - Local Docker services: PostgreSQL, Redis, MinIO.
-- GitHub Actions CI/CD with GHCR runtime and migration images; optional
-  protected-environment deployment to a Linux Docker host.
+- GitHub Actions CI/CD with GHCR runtime and migration images; `develop`
+  deploys to the isolated `development` environment and `main` deploys to the
+  protected `production` environment on a Linux Docker host.
 
 Durable business data belongs in PostgreSQL. Temporary OTP data belongs in
 Redis. Images belong in S3-compatible storage.
@@ -41,58 +51,61 @@ moves a major module, update this tree in the same change.
 ```text
 alowalow/
 ├── AGENTS.md
+├── package.json            # cross-project commands and contract tooling
+├── package-lock.json       # root tooling lock
 ├── .github/
 │   ├── dependabot.yml
 │   └── workflows/
 │       └── ci-cd.yml
 ├── docs/
+│   ├── ANDROID_SMS_GATEWAY.md
+│   ├── DEPLOYMENT.md
 │   └── PROJECT_CONTEXT.md
 ├── deploy/
 │   ├── compose.production.yml
+│   ├── development.env.example
 │   ├── deploy-production.sh
 │   └── production.env.example
-├── api/
-│   ├── AGENTS.md
-│   ├── Dockerfile
-│   ├── prisma/
-│   │   ├── schema.prisma
-│   │   ├── migrations/
-│   │   └── seed.ts
-│   ├── src/
-│   │   ├── auth/          # OTP, JWT, refresh sessions, SMS
-│   │   ├── users/         # staff and customer addresses
-│   │   ├── catalog/       # categories and products
-│   │   ├── marketing/     # banners and promo codes
-│   │   ├── media/         # S3-compatible image storage
-│   │   ├── orders/        # workflow, assignment, route, rating, cash
-│   │   ├── tracking/      # courier GPS ingestion and dispatch map snapshot
-│   │   ├── common/        # guards, decorators, shared HTTP types
-│   │   ├── config/        # validated environment configuration
-│   │   ├── prisma/        # Prisma service/module
-│   │   ├── redis/         # Redis infrastructure adapter
-│   │   └── generated/     # generated Prisma client; never edit manually
-│   └── test/              # unit and isolated HTTP e2e tests
-├── app/                   # Next.js routes, layouts, and provider composition
-│   ├── AGENTS.md
-│   └── lib/               # temporary generated schema/client location
-├── src/                   # target React/FSD product layers
-│   ├── widgets/           # composed admin sections
-│   │   ├── admin-dashboard/
-│   │   ├── order-board/
-│   │   ├── dispatch-map/
-│   │   ├── catalog-manager/
-│   │   ├── marketing-manager/
-│   │   ├── staff-manager/
-│   │   └── cash-board/
-│   ├── features/          # order/catalog/marketing/staff mutations
-│   ├── entities/          # order, courier, catalog, marketing, staff queries
-│   └── shared/
-│       ├── api/           # generated contract, HTTP/query clients, keys
-│       ├── ui/            # reusable primitives
-│       ├── config/
-│       └── lib/
-├── docker-compose.yml     # PostgreSQL, Redis, MinIO for local development
-└── .openai/hosting.json   # existing private admin frontend deployment
+├── apps/
+│   ├── api/
+│   │   ├── AGENTS.md
+│   │   ├── Dockerfile
+│   │   ├── package-lock.json # isolated backend dependency/security tree
+│   │   ├── prisma/
+│   │   │   ├── schema.prisma
+│   │   │   ├── migrations/
+│   │   │   └── seed.ts
+│   │   ├── src/
+│   │   │   ├── auth/      # OTP, JWT, refresh, Android pull SMS gateway
+│   │   │   ├── users/     # staff and customer addresses
+│   │   │   ├── catalog/   # categories and products
+│   │   │   ├── marketing/ # banners and promo codes
+│   │   │   ├── media/     # S3-compatible image storage
+│   │   │   ├── orders/    # workflow, assignment, route, rating, cash
+│   │   │   ├── tracking/  # courier GPS and dispatch map snapshot
+│   │   │   ├── common/    # guards, decorators, shared HTTP types
+│   │   │   ├── config/    # validated environment configuration
+│   │   │   ├── prisma/    # Prisma service/module
+│   │   │   ├── redis/     # Redis infrastructure adapter
+│   │   │   └── generated/ # generated Prisma client; never edit manually
+│   │   └── test/          # unit and isolated HTTP e2e tests
+│   └── admin/
+│       ├── AGENTS.md
+│       ├── package-lock.json # isolated frontend dependency/security tree
+│       ├── .openai/hosting.json # existing private Sites project
+│       ├── app/            # Next.js routes, layouts, providers
+│       ├── src/            # FSD product layers
+│       │   ├── widgets/    # dashboards, boards, maps, management screens
+│       │   ├── features/   # order/catalog/marketing/staff mutations
+│       │   ├── entities/   # typed domain queries and models
+│       │   └── shared/     # HTTP/query clients, auth, UI primitives
+│       ├── public/
+│       ├── tests/
+│       └── worker/         # Sites/Cloudflare worker entrypoint
+├── packages/
+│   └── api-contract/
+│       └── src/schema.ts   # generated from apps/api/openapi.json
+└── docker-compose.yml      # PostgreSQL, Redis, MinIO for local development
 ```
 
 Backend modules normally contain a module, controller, service, DTOs, and a
@@ -191,15 +204,23 @@ details, items, and cash to collect.
 
 The pickup point is deployment configuration
 (`DISPATCH_PICKUP_NAME`, address, latitude, and longitude). Both pickup
-coordinates must be configured together. Until a production maps/tile provider
-is selected, the frontend uses a configurable Leaflet tile URL with
-OpenStreetMap tiles as the local-development default.
+coordinates must be configured together. Ayterek (`map.ayterek.com`) is the
+selected production map provider. Its verified tile/style endpoint, attribution
+terms, and credentials must be configured before replacing the existing
+configurable Leaflet/OpenStreetMap development fallback.
 
 ## Customer and payment behavior
 
 - Login/registration is by phone OTP. First and last name are optional.
+- Production OTP SMS is sent by a dedicated Android device. The device polls
+  `GET /api/v1/internal/sms-gateway/pull` with its bearer device token and
+  acknowledges `SENT`, `DELIVERED`, or `FAILED` using the returned lease
+  receipt. Pulling itself refreshes the device heartbeat.
 - OTP TTL is 5 minutes, resend cooldown 60 seconds, maximum 5 sends/hour and
   5 verification attempts. Successful verification is atomic and one-time.
+- Outbound SMS jobs are AES-256-GCM encrypted in Redis, expire after the OTP,
+  are claimed atomically, and are retried at most three times after missing
+  acknowledgements. A final failure cancels only the matching OTP request.
 - A user may store up to 20 addresses.
 - A newly created or selected address becomes active.
 - The address used by the latest order becomes the active/default address.
@@ -319,3 +340,22 @@ uploads start only when an administrator saves the dish.
   Swagger contract drift detection, immutable GHCR API/migration images with
   provenance and SBOM, and an optional protected-environment Linux deployment.
   The existing private Sites project remains the only admin hosting target.
+- 2026-07-28: production OTP delivery moved to a dedicated Android SIM gateway
+  using authenticated HTTPS pull, encrypted Redis jobs, atomic leases,
+  delivery receipts, heartbeat/offline rejection, bounded retry, and
+  request-specific OTP cancellation. Twilio remains an optional fallback.
+- 2026-07-29: branch-based backend delivery was defined as
+  `develop → development` and `main → production`, using isolated server
+  directories, Compose projects, ports, databases, Redis, S3, secrets, GitHub
+  Environments, pre-deploy migrations, health checks, and digest rollback.
+- 2026-07-29: Ayterek (`map.ayterek.com`) was selected as the production map
+  provider. Integration remains fail-closed until its official raster tile or
+  MapLibre style contract, attribution requirements, and credentials are
+  available; the public page URL is not treated as a tile endpoint.
+- 2026-07-29: API and admin were physically consolidated under `apps/`, with
+  generated Swagger types in `packages/api-contract`, one Docker/CI/CD flow,
+  and one GitHub pull-request lifecycle. API and admin intentionally retain
+  independent npm lockfiles so security overrides, audits, and Docker builds
+  stay isolated and reproducible.
+  The canonical repository is `Guvanch99/alowalow`; the old admin repository
+  is archived after the monorepo push is verified. Android stays separate.

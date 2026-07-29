@@ -3,8 +3,17 @@ set -eu
 
 cd "$(dirname "$0")"
 
-test -s .env.production
 test -s .release.next.env
+
+runtime_env_file=$(sed -n 's/^ALOWALOW_ENV_FILE=//p' .release.next.env | tail -n 1)
+runtime_env_file=${runtime_env_file:-.env.production}
+case "$runtime_env_file" in
+  /*|*..*)
+    echo "ALOWALOW_ENV_FILE must stay inside the deployment directory" >&2
+    exit 1
+    ;;
+esac
+test -s "$runtime_env_file"
 
 docker compose \
   --env-file .release.next.env \

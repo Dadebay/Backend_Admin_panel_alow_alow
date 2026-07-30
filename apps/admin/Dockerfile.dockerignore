@@ -1,0 +1,16 @@
+**
+!apps/
+!apps/admin/
+!apps/admin/**
+!packages/
+!packages/api-contract/
+!packages/api-contract/**
+
+apps/admin/.env*
+apps/admin/.idea
+apps/admin/.next
+apps/admin/.vinext
+apps/admin/.wrangler
+apps/admin/coverage
+apps/admin/dist
+apps/admin/node_modules

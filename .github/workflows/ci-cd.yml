@@ -161,9 +161,10 @@ jobs:
         run: git diff --exit-code -- apps/api/openapi.json packages/api-contract/src/schema.ts
 
   container:
-    name: Production containers
+    name: Runtime containers
     needs:
       - backend
+      - frontend
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -176,28 +177,33 @@ jobs:
       - name: Build migration image
         run: docker build --file apps/api/Dockerfile --target migration --tag alowalow-migration:ci apps/api
 
+      - name: Build admin SSR image
+        run: docker build --file apps/admin/Dockerfile --tag alowalow-admin:ci .
+
       - name: Verify hardened runtime metadata
         run: |
           test "$(docker image inspect alowalow-api:ci --format '{{.Config.User}}')" = "node"
           test -n "$(docker image inspect alowalow-api:ci --format '{{json .Config.Healthcheck}}')"
+          test "$(docker image inspect alowalow-admin:ci --format '{{.Config.User}}')" = "node"
+          test -n "$(docker image inspect alowalow-admin:ci --format '{{json .Config.Healthcheck}}')"
 
-      - name: Validate production Compose
+      - name: Validate DEV Compose
         run: |
           ALOWALOW_API_IMAGE=alowalow-api:ci \
           ALOWALOW_MIGRATION_IMAGE=alowalow-migration:ci \
+          ALOWALOW_ADMIN_IMAGE=alowalow-admin:ci \
           ALOWALOW_COMPOSE_PROJECT=alowalow-development \
           ALOWALOW_ENV_FILE=development.env.example \
+          ALOWALOW_COMPOSE_OVERRIDE=compose.development.yml \
           ALOWALOW_API_PORT=4001 \
-            docker compose --file deploy/compose.production.yml config --quiet
-          ALOWALOW_API_IMAGE=alowalow-api:ci \
-          ALOWALOW_MIGRATION_IMAGE=alowalow-migration:ci \
-          ALOWALOW_COMPOSE_PROJECT=alowalow-production \
-          ALOWALOW_ENV_FILE=production.env.example \
-          ALOWALOW_API_PORT=4000 \
-            docker compose --file deploy/compose.production.yml config --quiet
+          ALOWALOW_ADMIN_PORT=3001 \
+            docker compose \
+              --file deploy/compose.production.yml \
+              --file deploy/compose.development.yml \
+              config --quiet
 
-  publish_api:
-    name: Publish API images
+  publish_images:
+    name: Publish runtime images
     needs:
       - backend
       - frontend
@@ -205,17 +211,19 @@ jobs:
       - container
     if: >-
       (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
-      && (github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main')
+      && github.ref == 'refs/heads/develop'
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 35
     permissions:
       contents: read
       packages: write
     outputs:
       api_image: ${{ steps.names.outputs.api_image }}
       migration_image: ${{ steps.names.outputs.migration_image }}
+      admin_image: ${{ steps.names.outputs.admin_image }}
       api_digest: ${{ steps.publish.outputs.api_digest }}
       migration_digest: ${{ steps.publish.outputs.migration_digest }}
+      admin_digest: ${{ steps.publish.outputs.admin_digest }}
       deployment_channel: ${{ steps.names.outputs.deployment_channel }}
     steps:
       - name: Check out repository
@@ -226,13 +234,11 @@ jobs:
         shell: bash
         run: |
           repository="ghcr.io/${GITHUB_REPOSITORY,,}"
-          case "$GITHUB_REF" in
-            refs/heads/develop) deployment_channel="development" ;;
-            refs/heads/main) deployment_channel="production" ;;
-            *) echo "Unsupported deployment branch: $GITHUB_REF" >&2; exit 1 ;;
-          esac
+          test "$GITHUB_REF" = "refs/heads/develop"
+          deployment_channel="development"
           echo "api_image=${repository}-api" >> "$GITHUB_OUTPUT"
           echo "migration_image=${repository}-migration" >> "$GITHUB_OUTPUT"
+          echo "admin_image=${repository}-admin" >> "$GITHUB_OUTPUT"
           echo "deployment_channel=${deployment_channel}" >> "$GITHUB_OUTPUT"
 
       - name: Authenticate to GitHub Container Registry
@@ -250,6 +256,7 @@ jobs:
         env:
           API_IMAGE: ${{ steps.names.outputs.api_image }}
           MIGRATION_IMAGE: ${{ steps.names.outputs.migration_image }}
+          ADMIN_IMAGE: ${{ steps.names.outputs.admin_image }}
           DEPLOYMENT_CHANNEL: ${{ steps.names.outputs.deployment_channel }}
         run: |
           api_tags=(
@@ -260,10 +267,10 @@ jobs:
             --tag "${MIGRATION_IMAGE}:sha-${GITHUB_SHA}"
             --tag "${MIGRATION_IMAGE}:${DEPLOYMENT_CHANNEL}"
           )
-          if [ "$DEPLOYMENT_CHANNEL" = "production" ]; then
-            api_tags+=(--tag "${API_IMAGE}:latest")
-            migration_tags+=(--tag "${MIGRATION_IMAGE}:latest")
-          fi
+          admin_tags=(
+            --tag "${ADMIN_IMAGE}:sha-${GITHUB_SHA}"
+            --tag "${ADMIN_IMAGE}:${DEPLOYMENT_CHANNEL}"
+          )
           docker buildx build \
             --file apps/api/Dockerfile \
             --target runtime \
@@ -288,20 +295,32 @@ jobs:
             --metadata-file /tmp/migration-metadata.json \
             --push \
             apps/api
+          docker buildx build \
+            --file apps/admin/Dockerfile \
+            --platform linux/amd64 \
+            --provenance=mode=max \
+            --sbom=true \
+            --label "org.opencontainers.image.source=${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}" \
+            --label "org.opencontainers.image.revision=${GITHUB_SHA}" \
+            "${admin_tags[@]}" \
+            --metadata-file /tmp/admin-metadata.json \
+            --push \
+            .
           echo "api_digest=$(jq -r '."containerimage.digest"' /tmp/api-metadata.json)" >> "$GITHUB_OUTPUT"
           echo "migration_digest=$(jq -r '."containerimage.digest"' /tmp/migration-metadata.json)" >> "$GITHUB_OUTPUT"
+          echo "admin_digest=$(jq -r '."containerimage.digest"' /tmp/admin-metadata.json)" >> "$GITHUB_OUTPUT"
 
       - name: Log out of registry
         if: always()
         run: docker logout ghcr.io
 
   deploy_development:
-    name: Deploy development API
+    name: Deploy development stack
     needs:
-      - publish_api
+      - publish_images
     if: >-
-      needs.publish_api.result == 'success'
-      && needs.publish_api.outputs.deployment_channel == 'development'
+      needs.publish_images.result == 'success'
+      && needs.publish_images.outputs.deployment_channel == 'development'
       && vars.DEVELOPMENT_DEPLOY_ENABLED == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -328,24 +347,41 @@ jobs:
 
       - name: Prepare immutable release references
         env:
-          API_IMAGE: ${{ needs.publish_api.outputs.api_image }}
-          API_DIGEST: ${{ needs.publish_api.outputs.api_digest }}
-          MIGRATION_IMAGE: ${{ needs.publish_api.outputs.migration_image }}
-          MIGRATION_DIGEST: ${{ needs.publish_api.outputs.migration_digest }}
+          API_IMAGE: ${{ needs.publish_images.outputs.api_image }}
+          API_DIGEST: ${{ needs.publish_images.outputs.api_digest }}
+          MIGRATION_IMAGE: ${{ needs.publish_images.outputs.migration_image }}
+          MIGRATION_DIGEST: ${{ needs.publish_images.outputs.migration_digest }}
+          ADMIN_IMAGE: ${{ needs.publish_images.outputs.admin_image }}
+          ADMIN_DIGEST: ${{ needs.publish_images.outputs.admin_digest }}
           API_PORT: ${{ vars.API_PORT || '4001' }}
+          ADMIN_PORT: ${{ vars.ADMIN_PORT || '3001' }}
         run: |
           case "$API_PORT" in
             ''|*[!0-9]*) echo "API_PORT must be numeric" >&2; exit 1 ;;
+          esac
+          case "$ADMIN_PORT" in
+            ''|*[!0-9]*) echo "ADMIN_PORT must be numeric" >&2; exit 1 ;;
           esac
           if [ "$API_PORT" -lt 1 ] || [ "$API_PORT" -gt 65535 ]; then
             echo "API_PORT must be between 1 and 65535" >&2
             exit 1
           fi
+          if [ "$ADMIN_PORT" -lt 1 ] || [ "$ADMIN_PORT" -gt 65535 ]; then
+            echo "ADMIN_PORT must be between 1 and 65535" >&2
+            exit 1
+          fi
+          if [ "$API_PORT" = "$ADMIN_PORT" ]; then
+            echo "API_PORT and ADMIN_PORT must be different" >&2
+            exit 1
+          fi
           printf 'ALOWALOW_API_IMAGE=%s@%s\n' "$API_IMAGE" "$API_DIGEST" > /tmp/alowalow-release.env
           printf 'ALOWALOW_MIGRATION_IMAGE=%s@%s\n' "$MIGRATION_IMAGE" "$MIGRATION_DIGEST" >> /tmp/alowalow-release.env
+          printf 'ALOWALOW_ADMIN_IMAGE=%s@%s\n' "$ADMIN_IMAGE" "$ADMIN_DIGEST" >> /tmp/alowalow-release.env
           printf 'ALOWALOW_COMPOSE_PROJECT=alowalow-development\n' >> /tmp/alowalow-release.env
           printf 'ALOWALOW_ENV_FILE=.env.development\n' >> /tmp/alowalow-release.env
+          printf 'ALOWALOW_COMPOSE_OVERRIDE=docker-compose.development.yml\n' >> /tmp/alowalow-release.env
           printf 'ALOWALOW_API_PORT=%s\n' "$API_PORT" >> /tmp/alowalow-release.env
+          printf 'ALOWALOW_ADMIN_PORT=%s\n' "$ADMIN_PORT" >> /tmp/alowalow-release.env
 
       - name: Deploy after successful migration
         env:
@@ -354,73 +390,9 @@ jobs:
         run: |
           test -n "$SSH_HOST"
           test -n "$SSH_USER"
-          ssh "${SSH_USER}@${SSH_HOST}" 'mkdir -p ~/alowalow-development'
-          scp deploy/compose.production.yml "${SSH_USER}@${SSH_HOST}:alowalow-development/docker-compose.production.yml"
-          scp deploy/deploy-production.sh "${SSH_USER}@${SSH_HOST}:alowalow-development/deploy-production.sh"
-          scp /tmp/alowalow-release.env "${SSH_USER}@${SSH_HOST}:alowalow-development/.release.next.env"
-          ssh "${SSH_USER}@${SSH_HOST}" 'sh ~/alowalow-development/deploy-production.sh'
-
-  deploy_production:
-    name: Deploy production API
-    needs:
-      - publish_api
-    if: >-
-      needs.publish_api.result == 'success'
-      && needs.publish_api.outputs.deployment_channel == 'production'
-      && vars.PRODUCTION_DEPLOY_ENABLED == 'true'
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    environment:
-      name: production
-    permissions:
-      contents: read
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-
-      - name: Configure verified SSH access
-        env:
-          SSH_PRIVATE_KEY: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY || secrets.PRODUCTION_SSH_PRIVATE_KEY }}
-          SSH_KNOWN_HOSTS: ${{ secrets.DEPLOY_SSH_KNOWN_HOSTS || secrets.PRODUCTION_SSH_KNOWN_HOSTS }}
-        run: |
-          test -n "$SSH_PRIVATE_KEY"
-          test -n "$SSH_KNOWN_HOSTS"
-          install -d -m 700 "$HOME/.ssh"
-          printf '%s\n' "$SSH_PRIVATE_KEY" > "$HOME/.ssh/id_ed25519"
-          chmod 600 "$HOME/.ssh/id_ed25519"
-          printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
-          chmod 600 "$HOME/.ssh/known_hosts"
-
-      - name: Prepare immutable release references
-        env:
-          API_IMAGE: ${{ needs.publish_api.outputs.api_image }}
-          API_DIGEST: ${{ needs.publish_api.outputs.api_digest }}
-          MIGRATION_IMAGE: ${{ needs.publish_api.outputs.migration_image }}
-          MIGRATION_DIGEST: ${{ needs.publish_api.outputs.migration_digest }}
-          API_PORT: ${{ vars.API_PORT || '4000' }}
-        run: |
-          case "$API_PORT" in
-            ''|*[!0-9]*) echo "API_PORT must be numeric" >&2; exit 1 ;;
-          esac
-          if [ "$API_PORT" -lt 1 ] || [ "$API_PORT" -gt 65535 ]; then
-            echo "API_PORT must be between 1 and 65535" >&2
-            exit 1
-          fi
-          printf 'ALOWALOW_API_IMAGE=%s@%s\n' "$API_IMAGE" "$API_DIGEST" > /tmp/alowalow-release.env
-          printf 'ALOWALOW_MIGRATION_IMAGE=%s@%s\n' "$MIGRATION_IMAGE" "$MIGRATION_DIGEST" >> /tmp/alowalow-release.env
-          printf 'ALOWALOW_COMPOSE_PROJECT=alowalow-production\n' >> /tmp/alowalow-release.env
-          printf 'ALOWALOW_ENV_FILE=.env.production\n' >> /tmp/alowalow-release.env
-          printf 'ALOWALOW_API_PORT=%s\n' "$API_PORT" >> /tmp/alowalow-release.env
-
-      - name: Deploy after successful migration
-        env:
-          SSH_HOST: ${{ secrets.DEPLOY_SSH_HOST || secrets.PRODUCTION_SSH_HOST }}
-          SSH_USER: ${{ secrets.DEPLOY_SSH_USER || secrets.PRODUCTION_SSH_USER }}
-        run: |
-          test -n "$SSH_HOST"
-          test -n "$SSH_USER"
-          ssh "${SSH_USER}@${SSH_HOST}" 'mkdir -p ~/alowalow'
-          scp deploy/compose.production.yml "${SSH_USER}@${SSH_HOST}:alowalow/docker-compose.production.yml"
-          scp deploy/deploy-production.sh "${SSH_USER}@${SSH_HOST}:alowalow/deploy-production.sh"
-          scp /tmp/alowalow-release.env "${SSH_USER}@${SSH_HOST}:alowalow/.release.next.env"
-          ssh "${SSH_USER}@${SSH_HOST}" 'sh ~/alowalow/deploy-production.sh'
+          ssh "${SSH_USER}@${SSH_HOST}" 'sudo install -d -m 750 -o "$USER" -g "$USER" /opt/alowalow/development'
+          scp deploy/compose.production.yml "${SSH_USER}@${SSH_HOST}:/opt/alowalow/development/docker-compose.production.yml"
+          scp deploy/compose.development.yml "${SSH_USER}@${SSH_HOST}:/opt/alowalow/development/docker-compose.development.yml"
+          scp deploy/deploy-production.sh "${SSH_USER}@${SSH_HOST}:/opt/alowalow/development/deploy-production.sh"
+          scp /tmp/alowalow-release.env "${SSH_USER}@${SSH_HOST}:/opt/alowalow/development/.release.next.env"
+          ssh "${SSH_USER}@${SSH_HOST}" 'sh /opt/alowalow/development/deploy-production.sh'

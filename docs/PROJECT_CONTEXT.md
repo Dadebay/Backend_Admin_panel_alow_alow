@@ -21,9 +21,10 @@ truth. Android applications remain separate because they have an independent
 toolchain and release lifecycle.
 
 The private Sites URL publishes the admin frontend only. The NestJS backend is
-currently a local/deployable service. CI/CD now produces immutable runtime and
-migration images, but a production host plus managed PostgreSQL, TLS Redis, S3,
-SMS credentials, and a maps provider still need to be configured.
+currently a local/deployable service. CI/CD produces immutable API, migration
+and Next.js standalone SSR images. The accepted server target currently hosts
+DEV only; production remains disabled until it receives adequate capacity or a
+separate host.
 
 ## Stack and storage
 
@@ -36,9 +37,9 @@ SMS credentials, and a maps provider still need to be configured.
 - Private S3-compatible object storage; MinIO locally.
 - React 19, Next.js 16/vinext, Swagger/OpenAPI-generated TypeScript schema.
 - Local Docker services: PostgreSQL, Redis, MinIO.
-- GitHub Actions CI/CD with GHCR runtime and migration images; `develop`
-  deploys to the isolated `development` environment and `main` deploys to the
-  protected `production` environment on a Linux Docker host.
+- GitHub Actions CI/CD with GHCR API, migration and admin SSR images. `develop`
+  may deploy to the isolated `development` environment. Production automation
+  remains deny-by-default and disabled.
 
 Durable business data belongs in PostgreSQL. Temporary OTP data belongs in
 Redis. Images belong in S3-compatible storage.
@@ -62,9 +63,14 @@ alowalow/
 │   ├── DEPLOYMENT.md
 │   └── PROJECT_CONTEXT.md
 ├── deploy/
+│   ├── nginx/
+│   │   ├── alowalow-acme-location.conf
+│   │   └── alowalow-development.conf
+│   ├── compose.development.yml
 │   ├── compose.production.yml
 │   ├── development.env.example
 │   ├── deploy-production.sh
+│   ├── prepare-development-host.sh
 │   └── production.env.example
 ├── apps/
 │   ├── api/
@@ -91,6 +97,7 @@ alowalow/
 │   │   └── test/          # unit and isolated HTTP e2e tests
 │   └── admin/
 │       ├── AGENTS.md
+│       ├── Dockerfile     # Node standalone SSR image for server deployment
 │       ├── package-lock.json # isolated frontend dependency/security tree
 │       ├── .openai/hosting.json # existing private Sites project
 │       ├── app/            # Next.js routes, layouts, providers
@@ -359,3 +366,10 @@ uploads start only when an administrator saves the dish.
   stay isolated and reproducible.
   The canonical repository is `Guvanch99/alowalow`; the old admin repository
   is archived after the monorepo push is verified. Android stays separate.
+- 2026-07-30: the accepted shared Ubuntu host was audited before mutation.
+  AlowAlow is limited to DEV in `/opt/alowalow/development`, HTTPS port `8443`,
+  and loopback ports `3001`/`4001`; the existing project and ports `80`/`443`
+  remain owned by that project. DEV uses isolated, non-public PostgreSQL,
+  TLS-Redis and MinIO containers with memory limits, plus Next.js standalone
+  SSR. Because the host has 2 GB RAM and no swap, at least 2 GB swap is required
+  before DEV starts. Production stays disabled.

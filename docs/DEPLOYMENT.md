@@ -1,92 +1,137 @@
-# CI/CD и автоматический DEV/PROD-деплой
+# DEV-деплой AlowAlow на общем сервере
+
+Сейчас на сервер разворачивается только DEV из ветки `develop`. Production
+остаётся выключенным и не занимает каталог, порты, память или базы данных.
+
+## Граница безопасности
+
+На `216.250.11.77` уже работает другой проект. AlowAlow не использует и не
+изменяет его каталоги, базы и стандартные публичные порты:
+
+| Ресурс | Другой проект | AlowAlow DEV |
+| --- | --- | --- |
+| Каталог | существующие `/srv`, `/var/www`, home-каталоги | `/opt/alowalow/development` |
+| HTTP/HTTPS | `80`, `443` | HTTPS `8443` |
+| Admin SSR | — | `127.0.0.1:3001` |
+| NestJS API | — | `127.0.0.1:4001` |
+| PostgreSQL | существующая host-служба | отдельный Docker volume, без host-порта |
+| Redis | — | отдельный TLS-контейнер, без host-порта |
+| MinIO | — | отдельный Docker volume, без host-порта |
+| Compose project | — | `alowalow-development` |
+
+Nginx на `8443` проксирует `/api/v1/*`, `/docs` и `/docs-json` в NestJS, а
+остальные запросы — в Next.js SSR. Admin собран с
+`NEXT_PUBLIC_API_URL=/api/v1`, поэтому браузер обращается к API через тот же
+HTTPS origin.
 
 ## Веточная схема
 
 ```text
-feature/* ──pull request──> develop ──автодеплой──> DEV
-                              │
-                              └──pull request──> main ──подтверждение──> PROD
+feature/* ── pull request ──> develop ── CI ──> GHCR ──> DEV
+main ----------------------------------------------------X
+                                                        PROD выключен
 ```
 
-- Pull request в `develop` или `main` запускает только CI-проверки.
-- Push/merge в `develop` после успешного CI публикует immutable Docker images
-  и автоматически обновляет DEV.
-- Push/merge в `main` после успешного CI публикует те же типы images и обновляет
-  PROD через защищённый GitHub Environment `production`.
-- `workflow_dispatch` позволяет повторить деплой вручную. Для DEV workflow
-  запускается с ветки `develop`, для PROD — с ветки `main`.
-- Feature-ветка никогда напрямую не деплоится.
+- Pull request в `develop` или `main` запускает проверки без деплоя.
+- Merge/push в `develop` публикует три immutable image: API, migration и admin.
+- DEV меняется только если repository variable
+  `DEVELOPMENT_DEPLOY_ENABLED=true`.
+- `PRODUCTION_DEPLOY_ENABLED` остаётся `false`.
 
-Не нужно переносить один и тот же commit вручную на сервер. Источником релиза
-является merge commit в соответствующей ветке.
+Deployment всегда использует image digest, а не moving tag. Миграция должна
+успешно завершиться до переключения API. При неуспешном healthcheck скрипт
+возвращает предыдущие digest.
 
 ## Что проверяет CI
 
-Перед любым деплоем workflow обязан успешно выполнить:
+1. Backend lint, build, тесты, coverage и два dependency audit.
+2. Admin lint, Sites build/tests и два dependency audit.
+3. Swagger → TypeScript contract без незакоммиченного diff.
+4. Сборку API, migration и Next.js standalone SSR images.
+5. Запуск контейнеров от непривилегированного пользователя и healthcheck.
+6. Полную валидацию DEV Compose.
 
-1. Backend lint, build, 34+ unit/e2e/security tests и coverage.
-2. Полный и production dependency audit backend.
-3. Admin lint, production build, tests и dependency audit.
-4. Перегенерацию Swagger и TypeScript-контракта без незакоммиченного diff.
-5. Сборку runtime- и migration-контейнеров.
-6. Проверку непривилегированного пользователя и Docker healthcheck.
-7. Валидацию Compose отдельно для DEV и PROD.
+## Ресурсы сервера
 
-Если хотя бы один шаг упал, image не публикуется и сервер не меняется.
-
-## Изоляция окружений
-
-DEV и PROD могут работать на одном Linux-сервере, но используют разные:
-
-| Ресурс              | DEV                      | PROD                    |
-| ------------------- | ------------------------ | ----------------------- |
-| Ветка               | `develop`                | `main`                  |
-| GitHub Environment  | `development`            | `production`            |
-| Каталог сервера     | `~/alowalow-development` | `~/alowalow`            |
-| Compose project     | `alowalow-development`   | `alowalow-production`   |
-| Локальный API-порт  | `4001`                   | `4000`                  |
-| Runtime env         | `.env.development`       | `.env.production`       |
-| PostgreSQL          | отдельная DEV-база       | отдельная PROD-база     |
-| Redis               | отдельная база/instance  | отдельная база/instance |
-| S3                  | отдельный bucket         | отдельный bucket        |
-| JWT/OTP/SMS secrets | отдельные                | отдельные               |
-
-DEV и PROD никогда не должны использовать одну PostgreSQL-базу, один S3 bucket
-или одинаковые секреты. Deployed DEV по умолчанию также использует
-`NODE_ENV=production`, чтобы не возвращать `devCode` через публичный API.
-
-## Настройка GitHub
-
-### 1. Ветки
-
-Создайте `develop` от текущего `main`:
+На сервере 2 ГБ RAM, нет swap и уже работают Nginx, PostgreSQL, MySQL, PHP и
+Gunicorn. Перед запуском DEV обязателен swap минимум 2 ГБ:
 
 ```bash
-git switch main
-git pull --ff-only
-git switch -c develop
-git push -u origin develop
+sudo fallocate -l 2G /swapfile-alowalow
+sudo chmod 600 /swapfile-alowalow
+sudo mkswap /swapfile-alowalow
+sudo swapon /swapfile-alowalow
+echo '/swapfile-alowalow none swap sw 0 0' | sudo tee -a /etc/fstab
 ```
 
-В GitHub Branch protection/rulesets рекомендуется:
+Перед добавлением строки следует проверить, что её ещё нет:
 
-- запретить прямой push в `main`;
-- разрешить изменения `main` только через pull request из `develop`/hotfix;
-- требовать успешные jobs `Backend quality`, `Admin quality`,
-  `Swagger contract` и `Production containers`;
-- запретить merge при устаревшей ветке;
-- запретить force push и удаление `main`/`develop`.
+```bash
+sudo swapon --show
+grep -F '/swapfile-alowalow' /etc/fstab
+```
 
-### 2. GitHub Environments
+DEV-контейнеры имеют жёсткие memory limits. PostgreSQL, Redis и MinIO не
+публикуют порты на сервер. Это снижает риск для существующего проекта, но
+использование памяти всё равно нужно наблюдать через `docker stats`.
 
-Создайте Environments:
+## Одноразовая подготовка DEV
 
-- `development` — без ручного подтверждения;
-- `production` — с required reviewer и, по возможности, deployment branch
-  только `main`.
+### 1. Docker
 
-В каждом Environment добавьте одинаково названные, но разные по значению
-secrets:
+Нужны Docker Engine и Compose plugin. После установки:
+
+```bash
+sudo usermod -aG docker ubuntu
+docker version
+docker compose version
+```
+
+Новый group membership применяется после повторного SSH-входа.
+
+### 2. Каталог и внутренний TLS Redis
+
+Скопируйте и один раз выполните:
+
+```bash
+sudo sh /opt/alowalow/prepare-development-host.sh
+```
+
+Скрипт создаёт только `/opt/alowalow/development` и внутренний CA/certificate
+для DNS-имени `redis`. Он не читает и не меняет чужие каталоги.
+
+### 3. Runtime secrets
+
+Создайте `/opt/alowalow/development/.env.development` на основе
+`deploy/development.env.example`. Права:
+
+```bash
+sudo chown ubuntu:ubuntu /opt/alowalow/development/.env.development
+sudo chmod 600 /opt/alowalow/development/.env.development
+```
+
+Для URL-safe секретов подходят отдельные значения:
+
+```bash
+openssl rand -hex 32
+openssl rand -hex 32
+openssl rand -hex 32
+openssl rand -base64 32
+```
+
+Нельзя повторно использовать один секрет для PostgreSQL, Redis, JWT,
+`OTP_PEPPER`, Android device token или MinIO. Настоящие значения не попадают в
+Git и GitHub Actions.
+
+`CORS_ORIGINS` должен быть ровно:
+
+```text
+https://216.250.11.77:8443
+```
+
+### 4. GitHub Environment
+
+В Environment `development` нужны:
 
 ```text
 DEPLOY_SSH_HOST
@@ -95,101 +140,96 @@ DEPLOY_SSH_PRIVATE_KEY
 DEPLOY_SSH_KNOWN_HOSTS
 ```
 
-`DEPLOY_SSH_KNOWN_HOSTS` должен содержать заранее проверенный host key сервера,
-а не результат слепого доверия во время workflow.
-
-Environment variable:
+Environment variables:
 
 ```text
-API_PORT=4001  # development
-API_PORT=4000  # production
+API_PORT=4001
+ADMIN_PORT=3001
 ```
 
-Repository variables, включающие фактический автодеплой:
+Используется отдельный deploy SSH key. Пароль Ubuntu не сохраняется в GitHub.
+Host key должен быть проверен заранее и сохранён целиком в
+`DEPLOY_SSH_KNOWN_HOSTS`.
 
-```text
-DEVELOPMENT_DEPLOY_ENABLED=true
-PRODUCTION_DEPLOY_ENABLED=true
-```
-
-Пока сервер не подготовлен, оставьте соответствующую переменную выключенной.
-CI и публикация images продолжат работать без SSH-деплоя.
-
-## Подготовка сервера
-
-На сервере должны быть Docker Engine и Docker Compose plugin. Для deploy-user:
-
-```bash
-mkdir -p ~/alowalow-development ~/alowalow
-chmod 700 ~/alowalow-development ~/alowalow
-```
-
-Создайте runtime-конфигурации из примеров:
-
-```text
-~/alowalow-development/.env.development
-~/alowalow/.env.production
-```
-
-- DEV-шаблон: `deploy/development.env.example`.
-- PROD-шаблон: `deploy/production.env.example`.
-
-Файлы должны принадлежать deploy-user и иметь права `600`:
-
-```bash
-chmod 600 ~/alowalow-development/.env.development
-chmod 600 ~/alowalow/.env.production
-```
-
-Настоящие значения секретов никогда не копируются в GitHub workflow и Git.
-Они постоянно хранятся только на сервере.
-
-Если GHCR package приватный, один раз авторизуйте сервер с отдельным GitHub PAT,
-имеющим только `read:packages`:
+Если GHCR images приватные, сервер один раз авторизуется отдельным GitHub token
+только с правом `read:packages`:
 
 ```bash
 docker login ghcr.io
 ```
 
-## Reverse proxy и домены
+## HTTPS по IP без домена
 
-Контейнеры публикуются только на loopback-интерфейсе:
+Геолокация в браузере требует безопасный HTTPS context. DEV поэтому доступен
+по `https://216.250.11.77:8443`, а не по открытому HTTP-порту.
+
+Let’s Encrypt выдаёт short-lived IP certificates. Нужен Certbot 5.4 или новее,
+webroot challenge и автоматическое продление.
+
+1. Создать отдельный webroot:
+
+   ```bash
+   sudo install -d -m 755 /var/lib/alowalow-acme/.well-known/acme-challenge
+   ```
+
+2. Положить `deploy/nginx/alowalow-acme-location.conf` в
+   `/etc/nginx/snippets/` и добавить один `include` внутрь уже существующего
+   raw-IP server block на порту 80. До reload обязательно:
+
+   ```bash
+   sudo nginx -t
+   ```
+
+3. Сначала проверить staging:
+
+   ```bash
+   sudo certbot certonly \
+     --staging \
+     --preferred-profile shortlived \
+     --webroot \
+     --webroot-path /var/lib/alowalow-acme \
+     --ip-address 216.250.11.77
+   ```
+
+4. После успешного staging повторить без `--staging`, затем установить
+   `deploy/nginx/alowalow-development.conf` как отдельный site и снова выполнить
+   `sudo nginx -t`.
+
+5. Настроить renewal deploy hook с `systemctl reload nginx` и проверить
+   `certbot renew --dry-run`. IP certificate живёт шесть дней, поэтому
+   автоматическое продление обязательно.
+
+Nginx-конфигурация AlowAlow слушает только `8443`. HSTS намеренно не включён:
+IP общий, и политика не должна повлиять на чужой HTTP virtual host.
+
+## Автодеплой
+
+После подготовки сервера и успешной ручной проверки DEV:
 
 ```text
-127.0.0.1:4001 → DEV API
-127.0.0.1:4000 → PROD API
+DEVELOPMENT_DEPLOY_ENABLED=true
 ```
 
-Caddy/Nginx должен завершать HTTPS и проксировать разные домены, например:
+Merge в `develop`:
 
-```text
-api-dev.example.com → 127.0.0.1:4001
-api.example.com     → 127.0.0.1:4000
+1. прогоняет все проверки;
+2. публикует API, migration и admin images в GHCR;
+3. передаёт серверу только Compose-файлы и immutable digest-ссылки;
+4. запускает `/opt/alowalow/development/deploy-production.sh`;
+5. ожидает healthcheck API и SSR.
+
+Проверка:
+
+```bash
+curl --fail https://216.250.11.77:8443/api/v1/health
+curl --fail https://216.250.11.77:8443/
+curl --fail https://216.250.11.77:8443/docs-json
+docker compose \
+  --env-file /opt/alowalow/development/.release.env \
+  --file /opt/alowalow/development/docker-compose.production.yml \
+  --file /opt/alowalow/development/docker-compose.development.yml \
+  ps
 ```
 
-Эти frontend-домены нужно отдельно указать в `CORS_ORIGINS` соответствующего
-runtime env-файла.
-
-## Как проходит релиз
-
-1. GitHub Actions собирает два образа:
-   `api` и `migration`.
-2. Оба публикуются в GHCR с `sha-<commit>` и environment-тегом.
-3. На сервер передаются только digest-ссылки на проверенные images.
-4. `prisma migrate deploy` выполняется до запуска нового API.
-5. Новый API должен пройти Docker healthcheck.
-6. Только после этого deployment считается успешным.
-7. При неуспешном запуске скрипт возвращает предыдущие image digest и снова
-   поднимает прошлую версию API.
-
-Moving-теги `development`, `production` и `latest` существуют для удобства,
-но deployment всегда использует immutable digest.
-
-## Админка
-
-CI собирает проверенный artifact админки отдельно для `develop` и `main`.
-Существующий приватный frontend размещён в Sites и не получает SSH-деплой
-backend workflow. Для полностью автоматических DEV/PROD-preview админки нужны
-два отдельных hosting target либо провайдер с branch deployments. Backend URL
-для каждой сборки задаётся через `NEXT_PUBLIC_API_URL` соответствующего hosting
-окружения.
+Production на этом сервере не запускается. К ней можно вернуться после
+выделения дополнительных ресурсов или отдельного production host.

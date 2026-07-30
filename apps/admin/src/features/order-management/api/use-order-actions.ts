@@ -1,5 +1,3 @@
-"use client";
-
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { components } from "@alowalow/api-contract";
 import { courierQueryKeys } from "@/src/entities/courier";

@@ -1,6 +1,3 @@
-"use client";
-
-import Link from "next/link";
 import { CourierLocationSharing } from "@/src/features/courier-location-sharing";
 import { OtpLoginCard } from "@/src/features/otp-login";
 import { useSession } from "@/src/shared/auth";
@@ -9,19 +6,23 @@ export function CourierTrackingScreen() {
   const { session, ready, logout } = useSession();
 
   if (!ready) {
-    return <main className="courier-screen">Проверяем сессию…</main>;
+    return (
+      <main className="courier-screen" data-testid="courier-session-loading">
+        Проверяем сессию…
+      </main>
+    );
   }
 
   return (
-    <main className="courier-screen">
+    <main className="courier-screen" data-testid="courier-screen">
       <header className="courier-screen-head">
-        <Link className="brand" href="/">
+        <a className="brand" data-testid="courier-home-link" href="/">
           <span className="brand-mark">A</span>
           <span>
             <strong>AlowAlow</strong>
             <small>courier</small>
           </span>
-        </Link>
+        </a>
         {session && (
           <button className="text-button" onClick={() => void logout()}>
             Выйти
@@ -40,9 +41,13 @@ export function CourierTrackingScreen() {
             Текущая роль — {session.user.role}. Передавать GPS может только
             сотрудник с ролью COURIER.
           </p>
-          <Link className="secondary-button" href="/">
+          <a
+            className="secondary-button"
+            data-testid="courier-back-admin"
+            href="/"
+          >
             Вернуться в админку
-          </Link>
+          </a>
         </section>
       ) : (
         <>

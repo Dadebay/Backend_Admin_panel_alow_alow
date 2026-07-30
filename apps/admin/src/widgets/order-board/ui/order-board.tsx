@@ -1,5 +1,3 @@
-"use client";
-
 import { useMemo, useState, type FormEvent } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import {

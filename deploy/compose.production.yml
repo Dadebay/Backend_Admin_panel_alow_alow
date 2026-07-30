@@ -52,13 +52,12 @@ services:
     read_only: true
     tmpfs:
       - /tmp:size=32m,mode=1777
-      - /app/apps/admin/.next/cache:size=64m,uid=1000,gid=1000,mode=0750
     security_opt:
       - no-new-privileges:true
     cap_drop:
       - ALL
     ports:
-      - "127.0.0.1:${ALOWALOW_ADMIN_PORT:-3000}:3000"
+      - "127.0.0.1:${ALOWALOW_ADMIN_PORT:-3000}:8080"
     stop_grace_period: 30s
     logging:
       driver: json-file

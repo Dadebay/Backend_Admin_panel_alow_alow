@@ -1,13 +1,13 @@
 # AlowAlow
 
-Единый Git-монорепозиторий: NestJS API, React/Next.js админка,
+Единый Git-монорепозиторий: NestJS API, React/Vite SPA-админка,
 сгенерированный Swagger-контракт, Docker и CI/CD изменяются одним pull request.
 API и admin имеют независимые npm lockfile, чтобы их security overrides и
 production dependency trees проверялись отдельно.
 
 ```text
 apps/api                 NestJS, Prisma, Redis, S3 и SMS gateway
-apps/admin               React/Next.js operations admin
+apps/admin               React/Vite operations admin
 packages/api-contract    генерируемые TypeScript-типы OpenAPI
 deploy                   DEV/PROD Compose и deployment script
 ```
@@ -147,34 +147,33 @@ Workflow `.github/workflows/ci-cd.yml` запускается для pull reques
 - выполняет полный и production-only `npm audit` для обоих приложений;
 - заново генерирует Swagger/TypeScript-контракт и отклоняет незакоммиченный
   diff;
-- собирает непривилегированный runtime-контейнер и отдельный контейнер
-  миграций;
+- собирает непривилегированные API и статический React/Nginx admin
+  runtime-контейнеры, а также отдельный контейнер миграций;
 - проверяет production Compose.
 
-После успешного push в `develop` или `main` workflow публикует в GHCR два
-образа:
+После успешного push в `develop` workflow публикует в GHCR три образа:
 
 ```text
 ghcr.io/<owner>/<repository>-api:sha-<commit>
 ghcr.io/<owner>/<repository>-migration:sha-<commit>
+ghcr.io/<owner>/<repository>-admin:sha-<commit>
 ```
 
-Образы `develop` получают тег `development`, образы `main` — `production` и
-`latest`, но deployment использует только immutable digest. BuildKit добавляет
-provenance и SBOM. Проверенная сборка админки сохраняется как отдельный artifact
-для каждой ветки.
+Образы получают тег `development`, но deployment использует только immutable
+digest. BuildKit добавляет provenance и SBOM. Проверенная статическая сборка
+админки также сохраняется как отдельный artifact. Push в `main` пока выполняет
+проверки, но production images и deployment не создаёт.
 
 Веточная схема автодеплоя API:
 
 ```text
 feature/* → PR → develop → DEV
                     ↓ PR
-                   main → PROD
+                   main → только проверки
 ```
 
-DEV и PROD изолированы разными GitHub Environments, server-каталогами, Compose
-projects, портами, PostgreSQL, Redis, S3 и секретами. Production Environment
-рекомендуется защитить обязательным ручным подтверждением.
+DEV изолирован отдельными server-каталогом, Compose project, портами,
+PostgreSQL, Redis, S3 и секретами. Production automation отключена.
 
 Полная настройка веток, GitHub secrets/variables, сервера и reverse proxy:
 [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).

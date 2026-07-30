@@ -1,44 +1,37 @@
-"use client";
-
-import dynamic from "next/dynamic";
-import Link from "next/link";
-import { useState } from "react";
+import { lazy, Suspense, useState } from "react";
 import { roleLabels, type Role } from "@/src/entities/order";
 import { OtpLoginCard } from "@/src/features/otp-login";
 import { useSession } from "@/src/shared/auth";
 
-const OrderBoard = dynamic(
-  () => import("@/src/widgets/order-board").then((module) => module.OrderBoard),
-  { loading: () => <div className="async-state">Загружаем заказы…</div> },
+const OrderBoard = lazy(() =>
+  import("@/src/widgets/order-board").then((module) => ({
+    default: module.OrderBoard,
+  })),
 );
-const DispatchMap = dynamic(
-  () => import("@/src/widgets/dispatch-map").then((module) => module.DispatchMap),
-  { loading: () => <div className="async-state">Загружаем карту…</div> },
+const DispatchMap = lazy(() =>
+  import("@/src/widgets/dispatch-map").then((module) => ({
+    default: module.DispatchMap,
+  })),
 );
-const CatalogManager = dynamic(
-  () =>
-    import("@/src/widgets/catalog-manager").then(
-      (module) => module.CatalogManager,
-    ),
-  { loading: () => <div className="async-state">Загружаем каталог…</div> },
+const CatalogManager = lazy(() =>
+  import("@/src/widgets/catalog-manager").then((module) => ({
+    default: module.CatalogManager,
+  })),
 );
-const MarketingManager = dynamic(
-  () =>
-    import("@/src/widgets/marketing-manager").then(
-      (module) => module.MarketingManager,
-    ),
-  { loading: () => <div className="async-state">Загружаем маркетинг…</div> },
+const MarketingManager = lazy(() =>
+  import("@/src/widgets/marketing-manager").then((module) => ({
+    default: module.MarketingManager,
+  })),
 );
-const StaffManager = dynamic(
-  () =>
-    import("@/src/widgets/staff-manager").then(
-      (module) => module.StaffManager,
-    ),
-  { loading: () => <div className="async-state">Загружаем команду…</div> },
+const StaffManager = lazy(() =>
+  import("@/src/widgets/staff-manager").then((module) => ({
+    default: module.StaffManager,
+  })),
 );
-const CashBoard = dynamic(
-  () => import("@/src/widgets/cash-board").then((module) => module.CashBoard),
-  { loading: () => <div className="async-state">Загружаем кассу…</div> },
+const CashBoard = lazy(() =>
+  import("@/src/widgets/cash-board").then((module) => ({
+    default: module.CashBoard,
+  })),
 );
 
 type View =
@@ -110,12 +103,16 @@ export function AdminDashboard() {
   const [view, setView] = useState<View>("orders");
 
   if (!ready) {
-    return <main className="login-page">Проверяем защищённую сессию…</main>;
+    return (
+      <main className="login-page" data-testid="admin-session-loading">
+        Проверяем защищённую сессию…
+      </main>
+    );
   }
 
   if (!session) {
     return (
-      <main className="login-page">
+      <main className="login-page" data-testid="admin-login">
         <div className="login-brand">
           <span className="brand-mark">A</span>
           <div>
@@ -133,7 +130,7 @@ export function AdminDashboard() {
 
   if (session.user.role === "CUSTOMER") {
     return (
-      <main className="login-page">
+      <main className="login-page" data-testid="admin-access-denied">
         <div className="access-card">
           <h1>Нет доступа к админке</h1>
           <p>
@@ -150,15 +147,19 @@ export function AdminDashboard() {
 
   if (session.user.role === "COURIER") {
     return (
-      <main className="login-page">
+      <main className="login-page" data-testid="admin-courier-entry">
         <div className="access-card">
           <h1>Экран курьера</h1>
           <p>
             Включите передачу GPS и работайте со всеми назначенными заказами.
           </p>
-          <Link className="primary-button link-button" href="/courier">
+          <a
+            className="primary-button link-button"
+            data-testid="admin-open-courier"
+            href="/courier"
+          >
             Открыть приложение курьера
-          </Link>
+          </a>
           <button className="text-button" onClick={() => void logout()}>
             Выйти
           </button>
@@ -178,7 +179,10 @@ export function AdminDashboard() {
     session.user.phone;
 
   return (
-    <div className="app-shell integrated-shell">
+    <div
+      className="app-shell integrated-shell"
+      data-testid="admin-dashboard"
+    >
       <aside className="sidebar">
         <button className="brand" onClick={() => setView("orders")}>
           <span className="brand-mark">A</span>
@@ -222,18 +226,22 @@ export function AdminDashboard() {
         </div>
       </aside>
       <main className="admin-main">
-        {activeView === "orders" && <OrderBoard />}
-        {activeView === "kitchen" && (
-          <OrderBoard
-            title="Кухня"
-            description="Повар принимает переданные заказы, начинает готовить и отмечает готовность."
-          />
-        )}
-        {activeView === "map" && <DispatchMap />}
-        {activeView === "catalog" && <CatalogManager />}
-        {activeView === "marketing" && <MarketingManager />}
-        {activeView === "staff" && <StaffManager />}
-        {activeView === "cash" && <CashBoard />}
+        <Suspense
+          fallback={<div className="async-state">Загружаем раздел…</div>}
+        >
+          {activeView === "orders" && <OrderBoard />}
+          {activeView === "kitchen" && (
+            <OrderBoard
+              title="Кухня"
+              description="Повар принимает переданные заказы, начинает готовить и отмечает готовность."
+            />
+          )}
+          {activeView === "map" && <DispatchMap />}
+          {activeView === "catalog" && <CatalogManager />}
+          {activeView === "marketing" && <MarketingManager />}
+          {activeView === "staff" && <StaffManager />}
+          {activeView === "cash" && <CashBoard />}
+        </Suspense>
       </main>
     </div>
   );

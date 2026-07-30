@@ -1,5 +1,3 @@
-"use client";
-
 import { useState } from "react";
 import { statusLabels, type OrderStatus } from "@/src/entities/order";
 import { OrderBoard } from "@/src/widgets/order-board";

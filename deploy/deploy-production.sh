@@ -3,9 +3,9 @@ set -eu
 
 cd "$(dirname "$0")"
 
-test -s .release.next.env
+test -s .release.pending.env
 
-runtime_env_file=$(sed -n 's/^ALOWALOW_ENV_FILE=//p' .release.next.env | tail -n 1)
+runtime_env_file=$(sed -n 's/^ALOWALOW_ENV_FILE=//p' .release.pending.env | tail -n 1)
 runtime_env_file=${runtime_env_file:-.env.production}
 case "$runtime_env_file" in
   /*|*..*)
@@ -15,7 +15,7 @@ case "$runtime_env_file" in
 esac
 test -s "$runtime_env_file"
 
-compose_override=$(sed -n 's/^ALOWALOW_COMPOSE_OVERRIDE=//p' .release.next.env | tail -n 1)
+compose_override=$(sed -n 's/^ALOWALOW_COMPOSE_OVERRIDE=//p' .release.pending.env | tail -n 1)
 case "$compose_override" in
   /*|*..*)
     echo "ALOWALOW_COMPOSE_OVERRIDE must stay inside the deployment directory" >&2
@@ -26,7 +26,7 @@ if [ -n "$compose_override" ]; then
   test -s "$compose_override"
 fi
 
-set -- --env-file .release.next.env --file docker-compose.production.yml
+set -- --env-file .release.pending.env --file docker-compose.production.yml
 if [ -n "$compose_override" ]; then
   set -- "$@" --file "$compose_override"
 fi
@@ -35,7 +35,7 @@ docker compose "$@" pull
 if [ -s .release.env ]; then
   cp .release.env .release.previous.env
 fi
-mv .release.next.env .release.env
+mv .release.pending.env .release.env
 
 set -- --env-file .release.env --file docker-compose.production.yml
 if [ -n "$compose_override" ]; then

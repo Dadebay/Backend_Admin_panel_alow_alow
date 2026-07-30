@@ -1,5 +1,3 @@
-"use client";
-
 import { useState, type FormEvent } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { useSession } from "@/src/shared/auth";

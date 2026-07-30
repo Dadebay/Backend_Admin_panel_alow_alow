@@ -177,14 +177,14 @@ jobs:
       - name: Build migration image
         run: docker build --file apps/api/Dockerfile --target migration --tag alowalow-migration:ci apps/api
 
-      - name: Build admin SSR image
+      - name: Build static admin image
         run: docker build --file apps/admin/Dockerfile --tag alowalow-admin:ci .
 
       - name: Verify hardened runtime metadata
         run: |
           test "$(docker image inspect alowalow-api:ci --format '{{.Config.User}}')" = "node"
           test -n "$(docker image inspect alowalow-api:ci --format '{{json .Config.Healthcheck}}')"
-          test "$(docker image inspect alowalow-admin:ci --format '{{.Config.User}}')" = "node"
+          test "$(docker image inspect alowalow-admin:ci --format '{{.Config.User}}')" = "101"
           test -n "$(docker image inspect alowalow-admin:ci --format '{{json .Config.Healthcheck}}')"
 
       - name: Validate DEV Compose
@@ -394,5 +394,5 @@ jobs:
           scp deploy/compose.production.yml "${SSH_USER}@${SSH_HOST}:/opt/alowalow/development/docker-compose.production.yml"
           scp deploy/compose.development.yml "${SSH_USER}@${SSH_HOST}:/opt/alowalow/development/docker-compose.development.yml"
           scp deploy/deploy-production.sh "${SSH_USER}@${SSH_HOST}:/opt/alowalow/development/deploy-production.sh"
-          scp /tmp/alowalow-release.env "${SSH_USER}@${SSH_HOST}:/opt/alowalow/development/.release.next.env"
+          scp /tmp/alowalow-release.env "${SSH_USER}@${SSH_HOST}:/opt/alowalow/development/.release.pending.env"
           ssh "${SSH_USER}@${SSH_HOST}" 'sh /opt/alowalow/development/deploy-production.sh'

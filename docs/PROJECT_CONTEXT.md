@@ -8,7 +8,7 @@ changes. It is intentionally concise and should be read before every task.
 AlowAlow is a cash-on-delivery food ordering platform for Ashgabat with:
 
 - a NestJS API;
-- a React/Next.js operations admin;
+- a pure React/Vite SPA operations admin;
 - customer-facing API capabilities for phone login, addresses, catalog,
   ordering, promos, and ratings;
 - role-specific operations for kitchen, dispatch, courier, cash receipt, and
@@ -20,11 +20,11 @@ requests. Separate backend/admin repositories are not parallel sources of
 truth. Android applications remain separate because they have an independent
 toolchain and release lifecycle.
 
-The private Sites URL publishes the admin frontend only. The NestJS backend is
-currently a local/deployable service. CI/CD produces immutable API, migration
-and Next.js standalone SSR images. The accepted server target currently hosts
-DEV only; production remains disabled until it receives adequate capacity or a
-separate host.
+The private Sites URL publishes the static admin frontend only. The NestJS
+backend is currently a local/deployable service. CI/CD produces immutable API,
+migration and static Nginx admin images. The accepted server target currently
+hosts DEV only; production remains disabled until it receives adequate
+capacity or a separate host.
 
 ## Stack and storage
 
@@ -35,11 +35,11 @@ separate host.
   acknowledges delivery. Twilio remains an optional provider; console is
   development-only.
 - Private S3-compatible object storage; MinIO locally.
-- React 19, Next.js 16/vinext, Swagger/OpenAPI-generated TypeScript schema.
+- React 19, Vite 8, Swagger/OpenAPI-generated TypeScript schema.
 - Local Docker services: PostgreSQL, Redis, MinIO.
-- GitHub Actions CI/CD with GHCR API, migration and admin SSR images. `develop`
-  may deploy to the isolated `development` environment. Production automation
-  remains deny-by-default and disabled.
+- GitHub Actions CI/CD with GHCR API, migration and static admin images.
+  `develop` may deploy to the isolated `development` environment. Production
+  automation remains deny-by-default and disabled.
 
 Durable business data belongs in PostgreSQL. Temporary OTP data belongs in
 Redis. Images belong in S3-compatible storage.
@@ -97,18 +97,20 @@ alowalow/
 │   │   └── test/          # unit and isolated HTTP e2e tests
 │   └── admin/
 │       ├── AGENTS.md
-│       ├── Dockerfile     # Node standalone SSR image for server deployment
+│       ├── Dockerfile     # static SPA image served by unprivileged Nginx
+│       ├── index.html     # Vite browser entry document
+│       ├── nginx.conf     # static assets, cache policy, SPA route fallback
 │       ├── package-lock.json # isolated frontend dependency/security tree
 │       ├── .openai/hosting.json # existing private Sites project
-│       ├── app/            # Next.js routes, layouts, providers
 │       ├── src/            # FSD product layers
+│       │   ├── app/        # SPA bootstrap, routes, providers, global styles
 │       │   ├── widgets/    # dashboards, boards, maps, management screens
 │       │   ├── features/   # order/catalog/marketing/staff mutations
 │       │   ├── entities/   # typed domain queries and models
 │       │   └── shared/     # HTTP/query clients, auth, UI primitives
 │       ├── public/
 │       ├── tests/
-│       └── worker/         # Sites/Cloudflare worker entrypoint
+│       └── worker/         # static Sites asset adapter; never renders UI
 ├── packages/
 │   └── api-contract/
 │       └── src/schema.ts   # generated from apps/api/openapi.json
@@ -275,8 +277,8 @@ Accepted target:
 - generated OpenAPI types are the API contract;
 - route files remain thin and business behavior moves into entities, features,
   and widgets;
-- React Server Components are the default for static composition, with small
-  client boundaries for interactive features;
+- the admin remains a client-rendered React/Vite SPA with no SSR, hydration,
+  React Server Components, or continuously running Node frontend process;
 - tables use server pagination/filtering/sorting, and large lists are
   virtualized only after measurement;
 - maps, charts, and rarely used management flows are loaded outside the initial
@@ -302,8 +304,8 @@ The 2026-07-28 integrated build keeps the authenticated dashboard shell at
 (9.6 KB / 2.5 KB), marketing (11.6 KB / 3.1 KB), staff (5.2 KB / 2.1 KB), and
 dispatch view (7.2 KB / 2.5 KB). The Leaflet canvas remains a separate
 156.4 KB / 45.7 KB chunk and is absent from the initial module-preload list.
-The complete initial preload set, including React/vinext framework runtime, is
-335.7 KB raw / 107.5 KB gzip.
+The complete initial preload set, including the former React/vinext framework
+runtime, was 335.7 KB raw / 107.5 KB gzip.
 
 The 2026-07-28 order-history/review build keeps the detail request disabled
 until an order is opened and adds no dependency or polling loop. The dynamically
@@ -315,6 +317,13 @@ shell at 6.9 KB raw / 2.3 KB gzip. The dynamically loaded catalog editor is
 11.7 KB / 3.2 KB, plus its existing catalog-mutation chunk at 1.5 KB / 0.6 KB.
 The added local form state creates no polling or background request; media
 uploads start only when an administrator saves the dish.
+
+The 2026-07-30 pure React/Vite migration removes Next.js, vinext, RSC,
+hydration, and the Node frontend runtime. The static SPA bootstrap is 199.9 KB
+raw / 63.1 KB gzip, with 60.4 KB / 17.0 KB gzip of CSS. Dashboard sections
+remain split, and the Leaflet canvas remains a separate 156.4 KB / 46.1 KB
+gzip chunk. The server container uses unprivileged Nginx with a 64 MB DEV
+memory limit.
 
 ## Decision log
 
@@ -370,6 +379,10 @@ uploads start only when an administrator saves the dish.
   AlowAlow is limited to DEV in `/opt/alowalow/development`, HTTPS port `8443`,
   and loopback ports `3001`/`4001`; the existing project and ports `80`/`443`
   remain owned by that project. DEV uses isolated, non-public PostgreSQL,
-  TLS-Redis and MinIO containers with memory limits, plus Next.js standalone
-  SSR. Because the host has 2 GB RAM and no swap, at least 2 GB swap is required
-  before DEV starts. Production stays disabled.
+  TLS-Redis and MinIO containers with memory limits, plus a static React SPA
+  served by unprivileged Nginx. Because the host has 2 GB RAM and no swap, at
+  least 2 GB swap is required before DEV starts. Production stays disabled.
+- 2026-07-30: the admin deployment was corrected to pure React/Vite SPA.
+  Next.js, vinext, React Server Components, SSR, hydration, and the Node
+  frontend server were removed. Browser routes use a static index fallback;
+  the Sites Worker only forwards static assets and performs no rendering.

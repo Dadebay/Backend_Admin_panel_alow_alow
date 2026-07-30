@@ -1,21 +1,24 @@
 # React admin instructions
 
-These rules apply to the Next.js admin under `apps/admin/`. Routing lives in
-`app/`, and product code lives in the accompanying `src/` FSD layers.
+These rules apply to the pure React/Vite SPA under `apps/admin/`. Bootstrap,
+route selection, providers, and global styles live in `src/app/`; product code
+lives in the other `src/` FSD layers. The admin has no SSR or React Server
+Components. Its server image is static Nginx only.
 
 ## Current integrated state
 
-`app/page.tsx` is a thin route that composes the FSD admin dashboard. Remote
-orders, catalog, marketing, staff, cash workflow, and courier tracking live in
-`src/` and use the real API through TanStack Query. Do not move domain behavior
-back into route files or reintroduce local demo arrays.
+`src/app/ui/app.tsx` is a thin SPA route composition layer. Remote orders,
+catalog, marketing, staff, cash workflow, and courier tracking live in their
+FSD slices and use the real API through TanStack Query. Do not move domain
+behavior into the bootstrap or reintroduce local demo arrays.
 
 ## Target FSD structure
 
-Keep Next.js routing and provider composition in `app/`. Put product code in:
+Keep SPA bootstrap and provider composition in `src/app/`. Put product code in:
 
 ```text
 src/
+├── app/           # bootstrap, route composition, providers, global styles
 ├── widgets/       # composed admin sections: order board, map, navigation
 ├── features/      # user actions: transition, cancel, assign, edit, upload
 ├── entities/      # order, courier, product, promo, staff domain UI/model
@@ -29,13 +32,13 @@ app → widgets → features → entities → shared
 ```
 
 A lower layer must never import from a higher layer. Cross-slice imports must
-use the slice public API rather than another slice's internal files. Keep route
-files thin: route composition, metadata, and provider wiring only.
+use the slice public API rather than another slice's internal files. Keep the
+SPA bootstrap thin: route composition and provider wiring only.
 
 ## Server state and API
 
 - Before installing TanStack packages, verify the latest stable releases that
-  are compatible with the current React/Next.js stack, then pin exact versions.
+  are compatible with the current React/Vite stack, then pin exact versions.
   Do not copy the older TanStack Query v4 versions from NEM.
 - Use TanStack Query for all backend state: orders, couriers, catalog, banners,
   promos, staff, addresses, authentication mutations, and media metadata.
@@ -104,14 +107,13 @@ files thin: route composition, metadata, and provider wiring only.
 
 ## React performance contract
 
-- Prefer React Server Components for static shell, metadata, and
-  server-renderable composition. Add `"use client"` at the smallest interactive
-  feature/widget boundary, never automatically at the route root.
-- Do not fetch server data from `useEffect`. Use Server Components for
-  server-owned rendering or TanStack Query for interactive client-owned server
-  state.
-- Split heavy maps, charts, editors, and rarely opened management flows with
-  dynamic imports. Do not put them in the initial order-board bundle.
+- Keep the Vite bootstrap and initial route chunk small. There is no SSR,
+  hydration, or React Server Component runtime.
+- Do not fetch server data from `useEffect`. Use TanStack Query for remote
+  server state.
+- Split heavy maps, charts, editors, routes, and rarely opened management
+  flows with `React.lazy` and dynamic imports. Do not put them in the initial
+  order-board bundle.
 - Keep fast-changing state close to the component that owns it. Avoid a context
   provider whose value changes on every keystroke or order update.
 - Use stable row keys from backend IDs. Never use array indexes for mutable

@@ -8,7 +8,7 @@ specific `AGENTS.md` files extend them for their directory.
 1. Read `docs/PROJECT_CONTEXT.md`.
 2. Read the nearest nested `AGENTS.md` for every area being changed:
    - `apps/api/AGENTS.md` for NestJS, Prisma, Redis, S3, auth, or backend tests.
-   - `apps/admin/AGENTS.md` for React, Next.js, admin UI, or frontend architecture.
+   - `apps/admin/AGENTS.md` for React, Vite, admin UI, or frontend architecture.
 3. Inspect `git status` and preserve unrelated user changes.
 4. Confirm the current schema and policies in code instead of relying only on
    chat history.
@@ -40,7 +40,7 @@ transitions, or cancellation. The backend must enforce every rule.
 ## Repository boundaries
 
 - `apps/api/`: NestJS API, Prisma/PostgreSQL, Redis OTP, SMS, and S3 media.
-- `apps/admin/app/`: Next.js route composition for the React admin.
+- `apps/admin/src/app/`: Vite SPA bootstrap, providers, routes, and global styles.
 - `apps/admin/src/`: frontend FSD product layers.
 - `packages/api-contract/`: generated TypeScript contract shared from Swagger.
 - Root, API, and admin keep independent npm lockfiles. This prevents one

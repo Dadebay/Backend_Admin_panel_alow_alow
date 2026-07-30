@@ -8,8 +8,13 @@ export class ApiError extends Error {
   }
 }
 
-export const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api/v1";
+const DEFAULT_API_BASE_URL = import.meta.env.DEV
+  ? "http://localhost:4000/api/v1"
+  : "/api/v1";
+
+export const API_BASE_URL = (
+  import.meta.env.VITE_API_URL ?? DEFAULT_API_BASE_URL
+).replace(/\/+$/, "");
 
 export function resolveApiUrl(path: string) {
   if (/^https?:\/\//.test(path)) return path;

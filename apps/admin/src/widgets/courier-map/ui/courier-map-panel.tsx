@@ -1,16 +1,9 @@
-"use client";
-
-import { useState } from "react";
-import dynamic from "next/dynamic";
-import Link from "next/link";
+import { lazy, Suspense, useState } from "react";
 import { useDispatchSnapshot, type DispatchCourier } from "@/src/entities/courier";
 import { OtpLoginCard } from "@/src/features/otp-login";
 import { useSession } from "@/src/shared/auth";
 
-const CourierMapCanvas = dynamic(() => import("./courier-map-canvas"), {
-  ssr: false,
-  loading: () => <div className="map-loading">Загружаем карту…</div>,
-});
+const CourierMapCanvas = lazy(() => import("./courier-map-canvas"));
 
 const ACCESS_ROLES = new Set(["OPERATOR", "ADMIN", "SUPER_ADMIN"]);
 
@@ -85,7 +78,9 @@ export function CourierMapPanel() {
         <div className="map-message">
           Карта клиентов доступна только оператору и администраторам.
           {session.user.role === "COURIER" && (
-            <Link href="/courier">Открыть экран курьера →</Link>
+            <a data-testid="dispatch-open-courier" href="/courier">
+              Открыть экран курьера →
+            </a>
           )}
           <button className="text-button" onClick={() => void logout()}>
             Выйти
@@ -137,7 +132,10 @@ export function CourierMapPanel() {
     null;
 
   return (
-    <aside className="dispatch-card live-dispatch">
+    <aside
+      className="dispatch-card live-dispatch"
+      data-testid="dispatch-map-panel"
+    >
       <div className="section-head compact">
         <div>
           <h2>Курьеры на карте</h2>
@@ -159,12 +157,14 @@ export function CourierMapPanel() {
         </button>
       </div>
 
-      <CourierMapCanvas
-        couriers={couriers}
-        pickup={pickup}
-        selectedCourierId={selected?.id ?? null}
-        onSelectCourier={setSelectedCourierId}
-      />
+      <Suspense fallback={<div className="map-loading">Загружаем карту…</div>}>
+        <CourierMapCanvas
+          couriers={couriers}
+          pickup={pickup}
+          selectedCourierId={selected?.id ?? null}
+          onSelectCourier={setSelectedCourierId}
+        />
+      </Suspense>
 
       {!couriers.length ? (
         <div className="map-message">

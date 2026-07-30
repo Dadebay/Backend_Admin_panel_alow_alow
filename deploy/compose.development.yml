@@ -131,8 +131,8 @@ services:
     mem_reservation: 192m
 
   admin:
-    mem_limit: 256m
-    mem_reservation: 128m
+    mem_limit: 64m
+    mem_reservation: 32m
 
 volumes:
   postgres_data:

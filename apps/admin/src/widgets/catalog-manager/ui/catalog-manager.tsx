@@ -1,5 +1,3 @@
-"use client";
-
 import { useMemo, useState, type FormEvent } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import {
@@ -53,7 +51,6 @@ export function CatalogManager() {
         cell: ({ row }) => (
           <div className="media-cell">
             {row.original.imageUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={resolveApiUrl(row.original.imageUrl)}
                 alt=""
@@ -133,7 +130,6 @@ export function CatalogManager() {
                 aria-label={`Изображений: ${row.original.images.length}`}
               >
                 {row.original.images.slice(0, 3).map((image) => (
-                  // eslint-disable-next-line @next/next/no-img-element
                   <img
                     key={image.id}
                     src={resolveApiUrl(image.url)}
@@ -500,7 +496,6 @@ export function CatalogManager() {
                 <div className="product-image-grid">
                   {storedProductImages.map((image, index) => (
                     <article className="product-image-card" key={image.id}>
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src={resolveApiUrl(image.url)}
                         alt={image.alt ?? ""}

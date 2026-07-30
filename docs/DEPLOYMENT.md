@@ -12,7 +12,7 @@
 | --- | --- | --- |
 | Каталог | существующие `/srv`, `/var/www`, home-каталоги | `/opt/alowalow/development` |
 | HTTP/HTTPS | `80`, `443` | HTTPS `8443` |
-| Admin SSR | — | `127.0.0.1:3001` |
+| React SPA | — | `127.0.0.1:3001` |
 | NestJS API | — | `127.0.0.1:4001` |
 | PostgreSQL | существующая host-служба | отдельный Docker volume, без host-порта |
 | Redis | — | отдельный TLS-контейнер, без host-порта |
@@ -20,9 +20,10 @@
 | Compose project | — | `alowalow-development` |
 
 Nginx на `8443` проксирует `/api/v1/*`, `/docs` и `/docs-json` в NestJS, а
-остальные запросы — в Next.js SSR. Admin собран с
-`NEXT_PUBLIC_API_URL=/api/v1`, поэтому браузер обращается к API через тот же
-HTTPS origin.
+остальные запросы — в статический React/Vite SPA-контейнер. Admin собран с
+`VITE_API_URL=/api/v1`, поэтому браузер обращается к API через тот же HTTPS
+origin. Внутри admin image нет Node.js frontend server: статические файлы
+раздаёт непривилегированный Nginx.
 
 ## Веточная схема
 
@@ -47,7 +48,7 @@ Deployment всегда использует image digest, а не moving tag. �
 1. Backend lint, build, тесты, coverage и два dependency audit.
 2. Admin lint, Sites build/tests и два dependency audit.
 3. Swagger → TypeScript contract без незакоммиченного diff.
-4. Сборку API, migration и Next.js standalone SSR images.
+4. Сборку API, migration и статического React/Nginx admin image.
 5. Запуск контейнеров от непривилегированного пользователя и healthcheck.
 6. Полную валидацию DEV Compose.
 
@@ -216,7 +217,7 @@ Merge в `develop`:
 2. публикует API, migration и admin images в GHCR;
 3. передаёт серверу только Compose-файлы и immutable digest-ссылки;
 4. запускает `/opt/alowalow/development/deploy-production.sh`;
-5. ожидает healthcheck API и SSR.
+5. ожидает healthcheck API и статической админки.
 
 Проверка:
 

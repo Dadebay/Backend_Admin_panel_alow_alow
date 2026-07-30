@@ -1,5 +1,3 @@
-"use client";
-
 import { useEffect } from "react";
 import {
   CircleMarker,
@@ -18,7 +16,7 @@ import type {
 
 const ASHGABAT_CENTER: LatLngTuple = [37.9601, 58.3261];
 const TILE_URL =
-  process.env.NEXT_PUBLIC_MAP_TILE_URL ??
+  import.meta.env.VITE_MAP_TILE_URL ??
   "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
 
 function FitMap({ points }: { points: LatLngTuple[] }) {

@@ -1,5 +1,3 @@
-"use client";
-
 import { useMemo, useState, type FormEvent } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import {
@@ -39,7 +37,6 @@ export function MarketingManager() {
         header: "Баннер",
         cell: ({ row }) => (
           <div className="media-cell">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={resolveApiUrl(row.original.imageUrl)}
               alt=""

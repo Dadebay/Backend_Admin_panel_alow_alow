@@ -11,6 +11,9 @@ export type AppEnv = {
   SMS_GATEWAY_DEVICE_ID: string;
   SMS_GATEWAY_DEVICE_TOKEN: string;
   SMS_GATEWAY_ENCRYPTION_KEY: string;
+  PUSH_PROVIDER: "fcm" | "console";
+  FCM_SERVICE_ACCOUNT_BASE64: string;
+  PUSH_DISPATCH_INTERVAL_MS: number;
   ACCESS_TOKEN_TTL: string;
   REFRESH_TOKEN_TTL_DAYS: number;
   CORS_ORIGINS: string;
@@ -77,6 +80,8 @@ export function validateEnv(source: Record<string, unknown>): AppEnv {
   ).trim();
   const smsGatewayDeviceToken = text("SMS_GATEWAY_DEVICE_TOKEN", "");
   const smsGatewayEncryptionKey = text("SMS_GATEWAY_ENCRYPTION_KEY", "");
+  const pushProvider = text("PUSH_PROVIDER", isProduction ? "fcm" : "console");
+  const fcmServiceAccountBase64 = text("FCM_SERVICE_ACCOUNT_BASE64", "");
 
   if (
     isProduction &&
@@ -151,6 +156,39 @@ export function validateEnv(source: Record<string, unknown>): AppEnv {
       "SMS_GATEWAY_ENCRYPTION_KEY must be a base64-encoded 32-byte key for Android pull SMS",
     );
   }
+  if (!["fcm", "console"].includes(pushProvider)) {
+    throw new Error("PUSH_PROVIDER must be fcm or console");
+  }
+  if (isProduction && pushProvider === "console") {
+    throw new Error("PUSH_PROVIDER must not be console in production");
+  }
+  if (pushProvider === "fcm") {
+    let serviceAccount: unknown;
+    try {
+      serviceAccount = JSON.parse(
+        Buffer.from(fcmServiceAccountBase64, "base64").toString("utf8"),
+      );
+    } catch {
+      throw new Error(
+        "FCM_SERVICE_ACCOUNT_BASE64 must contain base64-encoded service account JSON",
+      );
+    }
+    const account = serviceAccount as Record<string, unknown> | null;
+    if (
+      !account ||
+      typeof account !== "object" ||
+      typeof account.project_id !== "string" ||
+      !account.project_id.trim() ||
+      typeof account.client_email !== "string" ||
+      !account.client_email.trim() ||
+      typeof account.private_key !== "string" ||
+      !account.private_key.trim()
+    ) {
+      throw new Error(
+        "FCM service account must include project_id, client_email and private_key",
+      );
+    }
+  }
 
   const port = number("PORT", 4000);
   if (!Number.isInteger(port) || port < 1 || port > 65_535) {
@@ -184,6 +222,16 @@ export function validateEnv(source: Record<string, unknown>): AppEnv {
   ) {
     throw new Error(
       "ROUTING_TIMEOUT_MS must be an integer between 500 and 10000",
+    );
+  }
+  const pushDispatchIntervalMs = number("PUSH_DISPATCH_INTERVAL_MS", 5_000);
+  if (
+    !Number.isInteger(pushDispatchIntervalMs) ||
+    pushDispatchIntervalMs < 1_000 ||
+    pushDispatchIntervalMs > 60_000
+  ) {
+    throw new Error(
+      "PUSH_DISPATCH_INTERVAL_MS must be an integer between 1000 and 60000",
     );
   }
 
@@ -238,6 +286,9 @@ export function validateEnv(source: Record<string, unknown>): AppEnv {
     SMS_GATEWAY_DEVICE_ID: smsGatewayDeviceId,
     SMS_GATEWAY_DEVICE_TOKEN: smsGatewayDeviceToken,
     SMS_GATEWAY_ENCRYPTION_KEY: smsGatewayEncryptionKey,
+    PUSH_PROVIDER: pushProvider as AppEnv["PUSH_PROVIDER"],
+    FCM_SERVICE_ACCOUNT_BASE64: fcmServiceAccountBase64,
+    PUSH_DISPATCH_INTERVAL_MS: pushDispatchIntervalMs,
     ACCESS_TOKEN_TTL: text("ACCESS_TOKEN_TTL", "15m"),
     REFRESH_TOKEN_TTL_DAYS: refreshTokenTtlDays,
     CORS_ORIGINS: origins.join(","),

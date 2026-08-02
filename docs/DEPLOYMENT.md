@@ -142,6 +142,12 @@ openssl rand -base64 32
 `OTP_PEPPER`, Android device token или MinIO. Настоящие значения не попадают в
 Git и GitHub Actions.
 
+Для push-уведомлений DEV runtime также получает отдельный Firebase service
+account в `FCM_SERVICE_ACCOUNT_BASE64`. JSON кодируется одной строкой командой
+`base64 < firebase-service-account.json | tr -d '\n'`; исходный JSON и base64
+не коммитятся и не помещаются в frontend/GitHub build variables. В публичном
+DEV/production `PUSH_PROVIDER=fcm`; `console` разрешён только локально.
+
 `CORS_ORIGINS` должен быть ровно:
 
 ```text

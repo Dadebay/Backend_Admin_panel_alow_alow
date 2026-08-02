@@ -23,6 +23,11 @@ const MarketingManager = lazy(() =>
     default: module.MarketingManager,
   })),
 );
+const NotificationManager = lazy(() =>
+  import("@/src/widgets/notification-manager").then((module) => ({
+    default: module.NotificationManager,
+  })),
+);
 const StaffManager = lazy(() =>
   import("@/src/widgets/staff-manager").then((module) => ({
     default: module.StaffManager,
@@ -46,6 +51,7 @@ type View =
   | "branches"
   | "catalog"
   | "marketing"
+  | "notifications"
   | "staff"
   | "cash";
 
@@ -59,7 +65,14 @@ const nav: Array<{
     id: "orders",
     label: "Заказы",
     icon: "▤",
-    roles: ["OPERATOR", "COOK", "COURIER", "ACCOUNTANT", "ADMIN", "SUPER_ADMIN"],
+    roles: [
+      "OPERATOR",
+      "COOK",
+      "COURIER",
+      "ACCOUNTANT",
+      "ADMIN",
+      "SUPER_ADMIN",
+    ],
   },
   {
     id: "kitchen",
@@ -90,6 +103,12 @@ const nav: Array<{
     label: "Маркетинг",
     icon: "◇",
     roles: ["OPERATOR", "ACCOUNTANT", "ADMIN", "SUPER_ADMIN"],
+  },
+  {
+    id: "notifications",
+    label: "Уведомления",
+    icon: "◉",
+    roles: ["ADMIN", "SUPER_ADMIN"],
   },
   {
     id: "staff",
@@ -185,16 +204,13 @@ export function AdminDashboard() {
   );
   const activeView = visibleNav.some((item) => item.id === view)
     ? view
-    : visibleNav[0]?.id ?? "orders";
+    : (visibleNav[0]?.id ?? "orders");
   const userName =
     [session.user.firstName, session.user.lastName].filter(Boolean).join(" ") ||
     session.user.phone;
 
   return (
-    <div
-      className="app-shell integrated-shell"
-      data-testid="admin-dashboard"
-    >
+    <div className="app-shell integrated-shell" data-testid="admin-dashboard">
       <aside className="sidebar">
         <button className="brand" onClick={() => setView("orders")}>
           <span className="brand-mark">A</span>
@@ -210,6 +226,7 @@ export function AdminDashboard() {
               key={item.id}
               className={activeView === item.id ? "active" : ""}
               aria-label={item.label}
+              data-testid={`admin-nav-${item.id}`}
               onClick={() => setView(item.id)}
             >
               <span className="nav-icon">{item.icon}</span>
@@ -252,6 +269,7 @@ export function AdminDashboard() {
           {activeView === "branches" && <BranchManager />}
           {activeView === "catalog" && <CatalogManager />}
           {activeView === "marketing" && <MarketingManager />}
+          {activeView === "notifications" && <NotificationManager />}
           {activeView === "staff" && <StaffManager />}
           {activeView === "cash" && <CashBoard />}
         </Suspense>

@@ -15,6 +15,7 @@ import {
   promoFormSchema,
 } from "../src/widgets/marketing-manager/model/marketing-forms.ts";
 import { orderSearchFormSchema } from "../src/widgets/order-board/model/order-search-form.ts";
+import { notificationFormSchema } from "../src/widgets/notification-manager/model/notification-form.ts";
 import { staffFormSchema } from "../src/widgets/staff-manager/model/staff-form.ts";
 
 test("OTP schemas validate Turkmen phone and six-digit verification code", () => {
@@ -32,8 +33,7 @@ test("OTP schemas validate Turkmen phone and six-digit verification code", () =>
     true,
   );
   assert.equal(
-    otpVerifySchema.safeParse({ phone: "+99365123456", code: "12345" })
-      .success,
+    otpVerifySchema.safeParse({ phone: "+99365123456", code: "12345" }).success,
     false,
   );
 });
@@ -157,6 +157,29 @@ test("order search schema trims query and limits its length", () => {
   );
 });
 
+test("notification schema accepts only internal application deep links", () => {
+  assert.deepEqual(
+    notificationFormSchema.parse({
+      title: "  Заказ уже рядом ",
+      body: " Проверьте статус доставки. ",
+      deepLink: "/orders/current",
+    }),
+    {
+      title: "Заказ уже рядом",
+      body: "Проверьте статус доставки.",
+      deepLink: "/orders/current",
+    },
+  );
+  assert.equal(
+    notificationFormSchema.safeParse({
+      title: "Внешняя ссылка",
+      body: "Такую ссылку отправлять нельзя",
+      deepLink: "https://evil.example",
+    }).success,
+    false,
+  );
+});
+
 test("every admin form uses React Hook Form instead of manual FormData", async () => {
   const formFiles = [
     "../src/features/otp-login/ui/otp-login-card.tsx",
@@ -164,6 +187,7 @@ test("every admin form uses React Hook Form instead of manual FormData", async (
     "../src/widgets/catalog-manager/ui/catalog-manager.tsx",
     "../src/widgets/marketing-manager/ui/marketing-manager.tsx",
     "../src/widgets/order-board/ui/order-board.tsx",
+    "../src/widgets/notification-manager/ui/notification-manager.tsx",
     "../src/widgets/staff-manager/ui/staff-manager.tsx",
   ];
 

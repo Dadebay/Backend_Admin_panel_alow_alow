@@ -1,6 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { validateEnv } from "../src/config/env";
 
+const fcmServiceAccount = Buffer.from(
+  JSON.stringify({
+    project_id: "alowalow-test",
+    client_email: "push@alowalow-test.iam.gserviceaccount.com",
+    private_key:
+      "-----BEGIN PRIVATE KEY-----\ntest-only\n-----END PRIVATE KEY-----\n",
+  }),
+).toString("base64");
+
 const productionSecrets = {
   NODE_ENV: "production",
   DATABASE_URL: "postgresql://app:secret@db.example/alowalow",
@@ -11,6 +20,8 @@ const productionSecrets = {
   SMS_GATEWAY_DEVICE_ID: "android-primary",
   SMS_GATEWAY_DEVICE_TOKEN: "d".repeat(48),
   SMS_GATEWAY_ENCRYPTION_KEY: Buffer.alloc(32, 7).toString("base64"),
+  PUSH_PROVIDER: "fcm",
+  FCM_SERVICE_ACCOUNT_BASE64: fcmServiceAccount,
   CORS_ORIGINS: "https://admin.example.com,https://app.example.com",
 };
 
@@ -103,6 +114,31 @@ describe("security environment configuration", () => {
     ).toThrow("SMS_GATEWAY_ENCRYPTION_KEY");
   });
 
+  it("requires a complete FCM service account in production", () => {
+    expect(validateEnv(productionSecrets).PUSH_PROVIDER).toBe("fcm");
+
+    expect(() =>
+      validateEnv({
+        ...productionSecrets,
+        PUSH_PROVIDER: "console",
+      }),
+    ).toThrow("must not be console");
+    expect(() =>
+      validateEnv({
+        ...productionSecrets,
+        FCM_SERVICE_ACCOUNT_BASE64: "not-json",
+      }),
+    ).toThrow("base64-encoded service account JSON");
+    expect(() =>
+      validateEnv({
+        ...productionSecrets,
+        FCM_SERVICE_ACCOUNT_BASE64: Buffer.from(
+          JSON.stringify({ project_id: "", client_email: "missing-key" }),
+        ).toString("base64"),
+      }),
+    ).toThrow("FCM service account");
+  });
+
   it("rejects wildcard and insecure production CORS origins", () => {
     expect(() =>
       validateEnv({
@@ -130,15 +166,18 @@ describe("security environment configuration", () => {
     expect(() => validateEnv({ ROUTING_TIMEOUT_MS: 100 })).toThrow(
       "ROUTING_TIMEOUT_MS",
     );
+    expect(() => validateEnv({ PUSH_DISPATCH_INTERVAL_MS: 999 })).toThrow(
+      "PUSH_DISPATCH_INTERVAL_MS",
+    );
   });
 
   it("accepts only a credential-free routing service origin", () => {
     expect(validateEnv({}).ROUTING_URL).toBe("http://127.0.0.1:5000");
-    expect(
-      () => validateEnv({ ROUTING_URL: "http://user:secret@routing:5000" }),
+    expect(() =>
+      validateEnv({ ROUTING_URL: "http://user:secret@routing:5000" }),
     ).toThrow("ROUTING_URL");
-    expect(
-      () => validateEnv({ ROUTING_URL: "http://routing:5000/route/v1" }),
+    expect(() =>
+      validateEnv({ ROUTING_URL: "http://routing:5000/route/v1" }),
     ).toThrow("ROUTING_URL");
   });
 });

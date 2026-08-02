@@ -73,6 +73,24 @@ type BranchResponse = {
   phone: string | null;
 };
 
+type NotificationCampaignResponse = {
+  id: string;
+  title: string;
+  status: "PENDING" | "SENDING" | "SENT" | "PARTIAL" | "FAILED";
+  intendedUserCount: number;
+  deviceCount: number;
+  sentCount: number;
+  failedCount: number;
+};
+
+type UserNotificationResponse = {
+  id: string;
+  title: string;
+  body: string;
+  deepLink: string | null;
+  readAt: string | null;
+};
+
 describe("backend security and critical workflow", () => {
   let app: INestApplication;
   let prisma: PrismaService;
@@ -571,6 +589,163 @@ describe("backend security and critical workflow", () => {
       .expect(403);
   });
 
+  it("delivers admin-created notifications only to registered customer devices", async () => {
+    const installationId = "alowalow_customer_installation_0001";
+
+    await request(server)
+      .put("/api/v1/notifications/devices")
+      .set(bearer(tokens.operator))
+      .send({ installationId, platform: "ANDROID" })
+      .expect(403);
+    const registered = await request(server)
+      .put("/api/v1/notifications/devices")
+      .set(bearer(tokens.customer))
+      .send({
+        installationId,
+        platform: "ANDROID",
+        appVersion: "1.0.0",
+        locale: "ru-TM",
+      })
+      .expect(200);
+    expect(registered.body).toMatchObject({
+      installationId,
+      platform: "ANDROID",
+      isActive: true,
+    });
+
+    await request(server)
+      .delete(`/api/v1/notifications/devices/${installationId}`)
+      .set(bearer(tokens.otherCustomer))
+      .expect(404);
+    await request(server)
+      .delete("/api/v1/notifications/devices/not%20safe")
+      .set(bearer(tokens.customer))
+      .expect(400);
+
+    await request(server)
+      .post("/api/v1/notifications/admin/campaigns")
+      .set(bearer(tokens.operator))
+      .send({ title: "Forbidden", body: "Operator cannot send this" })
+      .expect(403);
+    await request(server)
+      .post("/api/v1/notifications/admin/campaigns")
+      .set(bearer(tokens.admin))
+      .send({
+        title: "External link",
+        body: "Must be rejected",
+        deepLink: "https://evil.example",
+      })
+      .expect(400);
+    await request(server)
+      .post("/api/v1/notifications/admin/campaigns")
+      .set(bearer(tokens.admin))
+      .send({
+        title: "Unknown field",
+        body: "Must be rejected",
+        isSuperAdmin: true,
+      })
+      .expect(400);
+
+    const created = await request(server)
+      .post("/api/v1/notifications/admin/campaigns")
+      .set(bearer(tokens.admin))
+      .send({
+        title: "Заказ уже рядом",
+        body: "Проверьте статус доставки в приложении.",
+        deepLink: "/orders/current",
+      })
+      .expect(201);
+    const campaignId = (created.body as NotificationCampaignResponse).id;
+
+    let campaign: NotificationCampaignResponse | undefined;
+    for (let attempt = 0; attempt < 40; attempt += 1) {
+      const list = await request(server)
+        .get("/api/v1/notifications/admin/campaigns?page=1&limit=10")
+        .set(bearer(tokens.admin))
+        .expect(200);
+      campaign = (
+        list.body as { items: NotificationCampaignResponse[] }
+      ).items.find(({ id }) => id === campaignId);
+      if (campaign?.status === "SENT") break;
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+    expect(campaign).toMatchObject({
+      id: campaignId,
+      status: "SENT",
+      deviceCount: 1,
+      sentCount: 1,
+      failedCount: 0,
+    });
+    expect(campaign?.intendedUserCount).toBeGreaterThanOrEqual(2);
+
+    const customerInbox = await request(server)
+      .get("/api/v1/notifications/me")
+      .set(bearer(tokens.customer))
+      .expect(200);
+    const customerInboxBody = customerInbox.body as {
+      items: UserNotificationResponse[];
+      unread: number;
+    };
+    const customerNotification = customerInboxBody.items.find(
+      ({ title }) => title === "Заказ уже рядом",
+    );
+    expect(customerNotification).toMatchObject({
+      body: "Проверьте статус доставки в приложении.",
+      deepLink: "/orders/current",
+      readAt: null,
+    });
+    expect(customerInboxBody.unread).toBeGreaterThanOrEqual(1);
+
+    await request(server)
+      .patch(`/api/v1/notifications/me/${customerNotification?.id}/read`)
+      .set(bearer(tokens.otherCustomer))
+      .expect(404);
+    const marked = await request(server)
+      .patch(`/api/v1/notifications/me/${customerNotification?.id}/read`)
+      .set(bearer(tokens.customer))
+      .expect(200);
+    expect(marked.body).toMatchObject({
+      id: customerNotification?.id,
+      readAt: expect.any(String) as string,
+    });
+
+    const otherInbox = await request(server)
+      .get("/api/v1/notifications/me")
+      .set(bearer(tokens.otherCustomer))
+      .expect(200);
+    expect(
+      (otherInbox.body as { items: UserNotificationResponse[] }).items,
+    ).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ title: "Заказ уже рядом" }),
+      ]),
+    );
+
+    await request(server)
+      .post("/api/v1/notifications/me/read-all")
+      .set(bearer(tokens.customer))
+      .expect(200);
+    await request(server)
+      .get("/api/v1/notifications/me/unread-count")
+      .set(bearer(tokens.customer))
+      .expect(200)
+      .expect({ unread: 0 });
+
+    await request(server)
+      .delete(`/api/v1/notifications/devices/${installationId}`)
+      .set(bearer(tokens.customer))
+      .expect(204);
+    const audit = await prisma.auditLog.findMany({
+      where: { entityType: "NotificationCampaign", entityId: campaignId },
+    });
+    expect(audit.map(({ action }) => action)).toEqual(
+      expect.arrayContaining([
+        "notification.campaign.created",
+        "notification.campaign.finished",
+      ]),
+    );
+  });
+
   it("reserves SUPER_ADMIN role management for a super administrator", async () => {
     const candidate = await prisma.user.create({
       data: {
@@ -1012,9 +1187,7 @@ describe("backend security and critical workflow", () => {
     expect(courierRouteBody.stops.map(({ orderId }) => orderId)).toEqual(
       expect.arrayContaining(assignedOrders.map(({ id }) => id)),
     );
-    expect(["READY", "UNAVAILABLE"]).toContain(
-      courierRouteBody.routingStatus,
-    );
+    expect(["READY", "UNAVAILABLE"]).toContain(courierRouteBody.routingStatus);
 
     await request(server)
       .get(`/api/v1/orders/couriers/${users.courier.id}/route`)
@@ -1034,7 +1207,9 @@ describe("backend security and critical workflow", () => {
       courierRouteBody.stops.map(({ orderId }) => orderId),
     );
     if (courierRouteBody.route && dispatchRouteBody.route) {
-      expect(dispatchRouteBody.route.planId).toBe(courierRouteBody.route.planId);
+      expect(dispatchRouteBody.route.planId).toBe(
+        courierRouteBody.route.planId,
+      );
       expect(dispatchRouteBody.route.geometry).toEqual(
         courierRouteBody.route.geometry,
       );

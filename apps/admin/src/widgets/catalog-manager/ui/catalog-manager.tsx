@@ -723,6 +723,7 @@ export function CatalogManager() {
               data={categories.data ?? []}
               getRowId={(category) => category.id}
               empty="Категорий пока нет"
+              label="Категории каталога"
             />
           </AsyncPanel>
         </article>
@@ -741,6 +742,7 @@ export function CatalogManager() {
               data={products.data ?? []}
               getRowId={(product) => product.id}
               empty="Добавьте первое блюдо"
+              label="Блюда каталога"
             />
           </AsyncPanel>
         </article>

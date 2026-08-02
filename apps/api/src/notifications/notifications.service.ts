@@ -1,0 +1,482 @@
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+  OnModuleDestroy,
+  OnModuleInit,
+} from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import type { AppEnv } from "../config/env";
+import { toApiResponse } from "../common/api-response";
+import type { AuthUser } from "../common/auth.types";
+import {
+  NotificationCampaignStatus,
+  NotificationDeliveryStatus,
+  Role,
+} from "../generated/prisma/client";
+import { PrismaService } from "../prisma/prisma.service";
+import {
+  CreateNotificationCampaignDto,
+  ListMyNotificationsQueryDto,
+  ListNotificationCampaignsQueryDto,
+  PUSH_INSTALLATION_ID_PATTERN,
+  RegisterPushDeviceDto,
+} from "./notifications.dto";
+import { PushGateway } from "./push.gateway";
+
+const campaignInclude = {
+  createdBy: {
+    select: {
+      id: true,
+      phone: true,
+      firstName: true,
+      lastName: true,
+    },
+  },
+} as const;
+
+const STALE_SENDING_MS = 15 * 60 * 1000;
+
+@Injectable()
+export class NotificationsService implements OnModuleInit, OnModuleDestroy {
+  private timer: ReturnType<typeof setInterval> | null = null;
+  private dispatchInProgress = false;
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly push: PushGateway,
+    private readonly config: ConfigService<AppEnv, true>,
+  ) {}
+
+  async onModuleInit() {
+    await this.requeueStaleCampaigns();
+    this.timer = setInterval(
+      () => void this.dispatchPendingCampaigns(),
+      this.config.get("PUSH_DISPATCH_INTERVAL_MS", { infer: true }),
+    );
+    this.timer.unref();
+    void this.dispatchPendingCampaigns();
+  }
+
+  onModuleDestroy() {
+    if (this.timer) clearInterval(this.timer);
+    this.timer = null;
+  }
+
+  async registerDevice(actor: AuthUser, dto: RegisterPushDeviceDto) {
+    const now = new Date();
+    const device = await this.prisma.pushDevice.upsert({
+      where: { installationId: dto.installationId },
+      create: {
+        userId: actor.id,
+        installationId: dto.installationId,
+        platform: dto.platform,
+        appVersion: dto.appVersion?.trim() || null,
+        locale: dto.locale?.trim() || null,
+        lastSeenAt: now,
+      },
+      update: {
+        userId: actor.id,
+        platform: dto.platform,
+        appVersion: dto.appVersion?.trim() || null,
+        locale: dto.locale?.trim() || null,
+        isActive: true,
+        lastSeenAt: now,
+      },
+      select: {
+        id: true,
+        installationId: true,
+        platform: true,
+        appVersion: true,
+        locale: true,
+        isActive: true,
+        lastSeenAt: true,
+      },
+    });
+    return toApiResponse(device);
+  }
+
+  async unregisterDevice(actor: AuthUser, installationId: string) {
+    if (!PUSH_INSTALLATION_ID_PATTERN.test(installationId)) {
+      throw new BadRequestException("Invalid push installation ID");
+    }
+    const updated = await this.prisma.pushDevice.updateMany({
+      where: { userId: actor.id, installationId, isActive: true },
+      data: { isActive: false, lastSeenAt: new Date() },
+    });
+    if (!updated.count) throw new NotFoundException("Push device not found");
+  }
+
+  async myNotifications(actor: AuthUser, query: ListMyNotificationsQueryDto) {
+    const where = { userId: actor.id };
+    const [items, total, unread] = await Promise.all([
+      this.prisma.userNotification.findMany({
+        where,
+        include: {
+          campaign: {
+            select: { title: true, body: true, deepLink: true },
+          },
+        },
+        orderBy: { createdAt: "desc" },
+        skip: (query.page - 1) * query.limit,
+        take: query.limit,
+      }),
+      this.prisma.userNotification.count({ where }),
+      this.prisma.userNotification.count({
+        where: { ...where, readAt: null },
+      }),
+    ]);
+    return toApiResponse({
+      items: items.map(({ campaign, ...item }) => ({
+        ...item,
+        title: campaign.title,
+        body: campaign.body,
+        deepLink: campaign.deepLink,
+      })),
+      total,
+      unread,
+      page: query.page,
+      limit: query.limit,
+      pages: Math.ceil(total / query.limit),
+    });
+  }
+
+  async unreadCount(actor: AuthUser) {
+    return {
+      unread: await this.prisma.userNotification.count({
+        where: { userId: actor.id, readAt: null },
+      }),
+    };
+  }
+
+  async markRead(actor: AuthUser, id: string) {
+    const notification = await this.prisma.userNotification.findFirst({
+      where: { id, userId: actor.id },
+    });
+    if (!notification) {
+      throw new NotFoundException("Notification not found");
+    }
+    if (notification.readAt) {
+      return toApiResponse({
+        id: notification.id,
+        readAt: notification.readAt,
+      });
+    }
+    const updated = await this.prisma.userNotification.update({
+      where: { id },
+      data: { readAt: new Date() },
+    });
+    return toApiResponse({ id: updated.id, readAt: updated.readAt });
+  }
+
+  async markAllRead(actor: AuthUser) {
+    const result = await this.prisma.userNotification.updateMany({
+      where: { userId: actor.id, readAt: null },
+      data: { readAt: new Date() },
+    });
+    return { updated: result.count };
+  }
+
+  async createCampaign(actor: AuthUser, dto: CreateNotificationCampaignDto) {
+    const campaign = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.notificationCampaign.create({
+        data: {
+          createdById: actor.id,
+          title: dto.title.trim(),
+          body: dto.body.trim(),
+          deepLink: dto.deepLink?.trim() || null,
+          audience: dto.audience,
+        },
+        include: campaignInclude,
+      });
+      await tx.auditLog.create({
+        data: {
+          actorId: actor.id,
+          action: "notification.campaign.created",
+          entityType: "NotificationCampaign",
+          entityId: created.id,
+          metadata: {
+            title: created.title,
+            audience: created.audience,
+          },
+        },
+      });
+      return created;
+    });
+    queueMicrotask(() => void this.dispatchPendingCampaigns());
+    return toApiResponse(campaign);
+  }
+
+  async campaigns(query: ListNotificationCampaignsQueryDto) {
+    const [items, total] = await Promise.all([
+      this.prisma.notificationCampaign.findMany({
+        include: campaignInclude,
+        orderBy: { createdAt: "desc" },
+        skip: (query.page - 1) * query.limit,
+        take: query.limit,
+      }),
+      this.prisma.notificationCampaign.count(),
+    ]);
+    return toApiResponse({
+      items,
+      total,
+      page: query.page,
+      limit: query.limit,
+      pages: Math.ceil(total / query.limit),
+    });
+  }
+
+  async retryCampaign(actor: AuthUser, id: string) {
+    const campaign = await this.prisma.notificationCampaign.findUnique({
+      where: { id },
+      include: campaignInclude,
+    });
+    if (!campaign) throw new NotFoundException("Campaign not found");
+    if (
+      campaign.status !== NotificationCampaignStatus.FAILED &&
+      campaign.status !== NotificationCampaignStatus.PARTIAL
+    ) {
+      throw new ConflictException("Only failed campaigns can be retried");
+    }
+    const updated = await this.prisma.$transaction(async (tx) => {
+      await tx.notificationDelivery.updateMany({
+        where: {
+          campaignId: id,
+          status: NotificationDeliveryStatus.FAILED,
+          device: { isActive: true },
+        },
+        data: {
+          status: NotificationDeliveryStatus.PENDING,
+          errorCode: null,
+          providerMessageId: null,
+          attemptedAt: null,
+        },
+      });
+      const next = await tx.notificationCampaign.update({
+        where: { id },
+        data: {
+          status: NotificationCampaignStatus.PENDING,
+          completedAt: null,
+          failedCount: 0,
+        },
+        include: campaignInclude,
+      });
+      await tx.auditLog.create({
+        data: {
+          actorId: actor.id,
+          action: "notification.campaign.retry_requested",
+          entityType: "NotificationCampaign",
+          entityId: id,
+        },
+      });
+      return next;
+    });
+    queueMicrotask(() => void this.dispatchPendingCampaigns());
+    return toApiResponse(updated);
+  }
+
+  private async requeueStaleCampaigns() {
+    await this.prisma.notificationCampaign.updateMany({
+      where: {
+        status: NotificationCampaignStatus.SENDING,
+        updatedAt: { lt: new Date(Date.now() - STALE_SENDING_MS) },
+      },
+      data: {
+        status: NotificationCampaignStatus.PENDING,
+        startedAt: null,
+      },
+    });
+  }
+
+  private async dispatchPendingCampaigns() {
+    if (this.dispatchInProgress) return;
+    this.dispatchInProgress = true;
+    try {
+      await this.requeueStaleCampaigns();
+      const pending = await this.prisma.notificationCampaign.findMany({
+        where: { status: NotificationCampaignStatus.PENDING },
+        orderBy: { createdAt: "asc" },
+        take: 10,
+        select: { id: true },
+      });
+      for (const { id } of pending) await this.dispatchCampaign(id);
+    } finally {
+      this.dispatchInProgress = false;
+    }
+  }
+
+  private async dispatchCampaign(id: string) {
+    const claimed = await this.prisma.notificationCampaign.updateMany({
+      where: { id, status: NotificationCampaignStatus.PENDING },
+      data: {
+        status: NotificationCampaignStatus.SENDING,
+        startedAt: new Date(),
+      },
+    });
+    if (!claimed.count) return;
+
+    const [campaign, users, devices] = await Promise.all([
+      this.prisma.notificationCampaign.findUniqueOrThrow({ where: { id } }),
+      this.prisma.user.findMany({
+        where: { role: Role.CUSTOMER, isActive: true },
+        select: { id: true },
+      }),
+      this.prisma.pushDevice.findMany({
+        where: {
+          isActive: true,
+          user: { role: Role.CUSTOMER, isActive: true },
+        },
+        select: { id: true, userId: true, installationId: true },
+      }),
+    ]);
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.userNotification.createMany({
+        data: users.map(({ id: userId }) => ({ campaignId: id, userId })),
+        skipDuplicates: true,
+      });
+      await tx.notificationDelivery.createMany({
+        data: devices.map(({ id: deviceId }) => ({
+          campaignId: id,
+          deviceId,
+        })),
+        skipDuplicates: true,
+      });
+      await tx.notificationCampaign.update({
+        where: { id },
+        data: {
+          intendedUserCount: users.length,
+          deviceCount: devices.length,
+        },
+      });
+    });
+
+    if (!devices.length) {
+      await this.finishCampaign(id, NotificationCampaignStatus.FAILED, 0, 0);
+      return;
+    }
+
+    const notifications = await this.prisma.userNotification.findMany({
+      where: { campaignId: id },
+      select: { id: true, userId: true },
+    });
+    const notificationByUser = new Map(
+      notifications.map((notification) => [
+        notification.userId,
+        notification.id,
+      ]),
+    );
+    const deliveries = await this.prisma.notificationDelivery.findMany({
+      where: {
+        campaignId: id,
+        status: NotificationDeliveryStatus.PENDING,
+        device: { isActive: true },
+      },
+      include: {
+        device: {
+          select: { id: true, userId: true, installationId: true },
+        },
+      },
+    });
+    const results = await this.push.send(
+      {
+        campaignId: id,
+        title: campaign.title,
+        body: campaign.body,
+        deepLink: campaign.deepLink,
+      },
+      deliveries.flatMap((delivery) => {
+        const notificationId = notificationByUser.get(delivery.device.userId);
+        return notificationId
+          ? [
+              {
+                deliveryId: delivery.id,
+                installationId: delivery.device.installationId,
+                notificationId,
+              },
+            ]
+          : [];
+      }),
+    );
+
+    if (results.length) {
+      await this.prisma.$transaction(
+        results.map((result) =>
+          this.prisma.notificationDelivery.update({
+            where: { id: result.deliveryId },
+            data: {
+              status: result.ok
+                ? NotificationDeliveryStatus.SENT
+                : NotificationDeliveryStatus.FAILED,
+              providerMessageId: result.providerMessageId,
+              errorCode: result.errorCode,
+              attemptedAt: new Date(),
+            },
+          }),
+        ),
+      );
+      const invalidDeliveryIds = results
+        .filter(({ invalidInstallation }) => invalidInstallation)
+        .map(({ deliveryId }) => deliveryId);
+      if (invalidDeliveryIds.length) {
+        const invalid = deliveries
+          .filter(({ id: deliveryId }) =>
+            invalidDeliveryIds.includes(deliveryId),
+          )
+          .map(({ deviceId }) => deviceId);
+        await this.prisma.pushDevice.updateMany({
+          where: { id: { in: invalid } },
+          data: { isActive: false },
+        });
+      }
+    }
+
+    const [sentCount, failedCount, pendingCount] = await Promise.all([
+      this.prisma.notificationDelivery.count({
+        where: { campaignId: id, status: NotificationDeliveryStatus.SENT },
+      }),
+      this.prisma.notificationDelivery.count({
+        where: { campaignId: id, status: NotificationDeliveryStatus.FAILED },
+      }),
+      this.prisma.notificationDelivery.count({
+        where: { campaignId: id, status: NotificationDeliveryStatus.PENDING },
+      }),
+    ]);
+    if (pendingCount) return;
+    const status = failedCount
+      ? sentCount
+        ? NotificationCampaignStatus.PARTIAL
+        : NotificationCampaignStatus.FAILED
+      : NotificationCampaignStatus.SENT;
+    await this.finishCampaign(id, status, sentCount, failedCount);
+  }
+
+  private async finishCampaign(
+    id: string,
+    status: NotificationCampaignStatus,
+    sentCount: number,
+    failedCount: number,
+  ) {
+    await this.prisma.$transaction(async (tx) => {
+      const campaign = await tx.notificationCampaign.update({
+        where: { id },
+        data: {
+          status,
+          sentCount,
+          failedCount,
+          completedAt: new Date(),
+        },
+      });
+      await tx.auditLog.create({
+        data: {
+          actorId: campaign.createdById,
+          action: "notification.campaign.finished",
+          entityType: "NotificationCampaign",
+          entityId: id,
+          metadata: { status, sentCount, failedCount },
+        },
+      });
+    });
+  }
+}

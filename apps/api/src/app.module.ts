@@ -18,6 +18,7 @@ import { HealthController } from "./health/health.controller";
 import { RedisModule } from "./redis/redis.module";
 import { TrackingModule } from "./tracking/tracking.module";
 import { BranchesModule } from "./branches/branches.module";
+import { NotificationsModule } from "./notifications/notifications.module";
 
 @Module({
   imports: [
@@ -61,6 +62,7 @@ import { BranchesModule } from "./branches/branches.module";
     UsersModule,
     TrackingModule,
     BranchesModule,
+    NotificationsModule,
   ],
   controllers: [HealthController],
   providers: [

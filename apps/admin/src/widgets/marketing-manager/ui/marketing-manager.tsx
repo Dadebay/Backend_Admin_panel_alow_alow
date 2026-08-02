@@ -639,6 +639,7 @@ export function MarketingManager() {
               data={banners.data ?? []}
               getRowId={(banner) => banner.id}
               empty="Баннеров пока нет"
+              label="Баннеры"
             />
           </AsyncPanel>
         </article>
@@ -657,6 +658,7 @@ export function MarketingManager() {
               data={promos.data ?? []}
               getRowId={(promo) => promo.id}
               empty="Промокодов пока нет"
+              label="Промокоды"
             />
           </AsyncPanel>
         </article>

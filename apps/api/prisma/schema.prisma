@@ -48,26 +48,52 @@ enum CashSettlementStatus {
   RECONCILED
 }
 
+enum PushDevicePlatform {
+  ANDROID
+  IOS
+}
+
+enum NotificationAudience {
+  ALL_CUSTOMERS
+}
+
+enum NotificationCampaignStatus {
+  PENDING
+  SENDING
+  SENT
+  PARTIAL
+  FAILED
+}
+
+enum NotificationDeliveryStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
 model User {
-  id             String            @id @default(uuid()) @db.Uuid
-  phone          String            @unique @db.VarChar(24)
-  firstName      String?           @db.VarChar(80)
-  lastName       String?           @db.VarChar(80)
-  role           Role              @default(CUSTOMER)
-  isActive       Boolean           @default(true)
-  createdAt      DateTime          @default(now())
-  updatedAt      DateTime          @updatedAt
+  id             String                 @id @default(uuid()) @db.Uuid
+  phone          String                 @unique @db.VarChar(24)
+  firstName      String?                @db.VarChar(80)
+  lastName       String?                @db.VarChar(80)
+  role           Role                   @default(CUSTOMER)
+  isActive       Boolean                @default(true)
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
   addresses      UserAddress[]
-  orders         Order[]           @relation("CustomerOrders")
-  cookedOrders   Order[]           @relation("CookOrders")
-  courierOrders  Order[]           @relation("CourierOrders")
+  orders         Order[]                @relation("CustomerOrders")
+  cookedOrders   Order[]                @relation("CookOrders")
+  courierOrders  Order[]                @relation("CourierOrders")
   refreshTokens  RefreshToken[]
   ratings        Rating[]
   transitions    OrderTransition[]
   auditLogs      AuditLog[]
-  cashGiven      CashSettlement[]  @relation("CourierSettlements")
-  cashReceived   CashSettlement[]  @relation("OperatorSettlements")
-  cashReconciled CashSettlement[]  @relation("AccountantSettlements")
+  cashGiven      CashSettlement[]       @relation("CourierSettlements")
+  cashReceived   CashSettlement[]       @relation("OperatorSettlements")
+  cashReconciled CashSettlement[]       @relation("AccountantSettlements")
+  pushDevices    PushDevice[]
+  notifications  UserNotification[]
+  campaignsMade  NotificationCampaign[] @relation("NotificationCampaignCreator")
 
   @@index([role, isActive])
 }
@@ -340,4 +366,78 @@ model AuditLog {
 
   @@index([entityType, entityId, createdAt])
   @@index([actorId, createdAt])
+}
+
+model PushDevice {
+  id             String                 @id @default(uuid()) @db.Uuid
+  userId         String                 @db.Uuid
+  installationId String                 @unique @db.VarChar(255)
+  platform       PushDevicePlatform
+  appVersion     String?                @db.VarChar(40)
+  locale         String?                @db.VarChar(16)
+  isActive       Boolean                @default(true)
+  lastSeenAt     DateTime               @default(now())
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+  user           User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deliveries     NotificationDelivery[]
+
+  @@index([userId, isActive, lastSeenAt])
+  @@index([isActive, lastSeenAt])
+}
+
+model NotificationCampaign {
+  id                String                     @id @default(uuid()) @db.Uuid
+  createdById       String                     @db.Uuid
+  title             String                     @db.VarChar(160)
+  body              String                     @db.VarChar(1000)
+  deepLink          String?                    @db.VarChar(500)
+  audience          NotificationAudience       @default(ALL_CUSTOMERS)
+  status            NotificationCampaignStatus @default(PENDING)
+  intendedUserCount Int                        @default(0)
+  deviceCount       Int                        @default(0)
+  sentCount         Int                        @default(0)
+  failedCount       Int                        @default(0)
+  startedAt         DateTime?
+  completedAt       DateTime?
+  createdAt         DateTime                   @default(now())
+  updatedAt         DateTime                   @updatedAt
+  createdBy         User                       @relation("NotificationCampaignCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  notifications     UserNotification[]
+  deliveries        NotificationDelivery[]
+
+  @@index([status, createdAt])
+  @@index([createdById, createdAt])
+}
+
+model UserNotification {
+  id         String               @id @default(uuid()) @db.Uuid
+  campaignId String               @db.Uuid
+  userId     String               @db.Uuid
+  readAt     DateTime?
+  createdAt  DateTime             @default(now())
+  campaign   NotificationCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  user       User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, userId])
+  @@index([userId, createdAt])
+  @@index([userId, readAt])
+}
+
+model NotificationDelivery {
+  id                String                     @id @default(uuid()) @db.Uuid
+  campaignId        String                     @db.Uuid
+  deviceId          String                     @db.Uuid
+  status            NotificationDeliveryStatus @default(PENDING)
+  providerMessageId String?                    @db.VarChar(500)
+  errorCode         String?                    @db.VarChar(160)
+  attemptedAt       DateTime?
+  createdAt         DateTime                   @default(now())
+  updatedAt         DateTime                   @updatedAt
+  campaign          NotificationCampaign       @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  device            PushDevice                 @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, deviceId])
+  @@index([campaignId, status])
+  @@index([deviceId, status])
 }

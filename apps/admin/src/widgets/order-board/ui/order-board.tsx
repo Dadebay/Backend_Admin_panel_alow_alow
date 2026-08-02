@@ -393,6 +393,9 @@ export function OrderBoard({
             data={orders.data?.items ?? []}
             getRowId={(order) => order.id}
             empty="Заказов по выбранным условиям нет"
+            label="Список заказов"
+            minWidth={900}
+            variant="orders"
           />
           <footer className="table-pagination">
             <span>

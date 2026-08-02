@@ -6,7 +6,7 @@ API и admin имеют независимые npm lockfile, чтобы их sec
 production dependency trees проверялись отдельно.
 
 ```text
-apps/api                 NestJS, Prisma, Redis, S3 и SMS gateway
+apps/api                 NestJS, Prisma, Redis, S3, SMS gateway и FCM push
 apps/admin               React/Vite operations admin
 packages/api-contract    генерируемые TypeScript-типы OpenAPI
 deploy                   DEV/PROD Compose и deployment script
@@ -26,6 +26,7 @@ routing                  приватный OSRM для маршрутов по 
 - несколько адресов клиента с автоматическим выбором последнего созданного
   или использованного в заказе;
 - каталог, категории, изображения, баннеры и промокоды;
+- push-уведомления из админки с сохранённой историей в приложении;
 - наличная оплата, передача денег курьером и бухгалтерская сверка;
 - рейтинг и комментарий клиента после доставки.
 
@@ -122,6 +123,16 @@ Pull-задания AES-256-GCM-зашифрованы в Redis. Для producti
 Полная инструкция для готовой Android-программы, включая JSON-контракт,
 heartbeat, подтверждения и обработку ошибок:
 [`docs/ANDROID_SMS_GATEWAY.md`](docs/ANDROID_SMS_GATEWAY.md).
+
+Push-уведомления создают только администратор и главный администратор в разделе
+«Уведомления». Backend сохраняет кампанию и inbox каждого активного клиента в
+PostgreSQL, затем отправляет зарегистрированным мобильным устройствам через
+Firebase Cloud Messaging. Firebase используется только для push — OTP/JWT и
+пользователи остаются в AlowAlow. В локальном `PUSH_PROVIDER=console` весь flow
+и история работают без отправки на телефон; для настоящего устройства нужен
+`PUSH_PROVIDER=fcm` и server-only `FCM_SERVICE_ACCOUNT_BASE64`. Инструкция для
+мобильщиков и полный список endpoint:
+[`docs/MOBILE_PUSH_NOTIFICATIONS.md`](docs/MOBILE_PUSH_NOTIFICATIONS.md).
 
 Адреса клиента доступны через `/api/v1/users/me/addresses`. Новый адрес
 становится активным автоматически. Если заказ создаётся с `addressId`, этот
@@ -237,6 +248,8 @@ PostgreSQL, TLS Redis, S3 и секреты SMS-шлюза передаются 
 - изображения проверяются, перекодируются в WebP и сохраняются под случайным
   именем в приватном S3 bucket;
 - все переходы заказа и критичные действия сохраняются в журнале.
+- создание, повтор и завершение push-кампании сохраняются в audit log; FCM
+  service account проверяется при старте production и не передаётся клиентам.
 
 Локально S3 API предоставляет MinIO. Для AWS S3 в production задайте
 `S3_REGION` и `S3_BUCKET`, оставьте `S3_ENDPOINT` пустым и
@@ -245,4 +258,5 @@ PostgreSQL, TLS Redis, S3 и секреты SMS-шлюза передаются 
 
 Перед production также необходимо задать случайные `JWT_ACCESS_SECRET` и
 `OTP_PEPPER` длиной не менее 32 символов, TLS-адрес `REDIS_URL`, секреты
-Android SMS-шлюза и провайдера маршрутов/карт для расчёта реального ETA.
+Android SMS-шлюза, FCM service account и провайдера маршрутов/карт для расчёта
+реального ETA.

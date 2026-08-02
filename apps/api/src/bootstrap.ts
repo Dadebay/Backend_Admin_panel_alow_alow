@@ -80,6 +80,7 @@ export function createOpenApiDocument(app: INestApplication): OpenAPIObject {
     .addTag("media")
     .addTag("staff")
     .addTag("tracking")
+    .addTag("notifications")
     .build();
 
   return SwaggerModule.createDocument(app, options);

@@ -709,6 +709,139 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/notifications/devices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Register or refresh the current mobile FCM FID */
+        put: operations["NotificationsController_registerDevice_v1"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/notifications/devices/{installationId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Deactivate one current-user push installation */
+        delete: operations["NotificationsController_unregisterDevice_v1"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/notifications/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List the current customer's notification inbox */
+        get: operations["NotificationsController_mine_v1"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/notifications/me/unread-count": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["NotificationsController_unread_v1"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/notifications/me/{id}/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["NotificationsController_markRead_v1"];
+        trace?: never;
+    };
+    "/api/v1/notifications/me/read-all": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["NotificationsController_markAllRead_v1"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/notifications/admin/campaigns": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List push campaigns and delivery totals */
+        get: operations["NotificationsController_campaigns_v1"];
+        put?: never;
+        /** Create and queue a customer push campaign */
+        post: operations["NotificationsController_createCampaign_v1"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/notifications/admin/campaigns/{id}/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["NotificationsController_retryCampaign_v1"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1588,6 +1721,115 @@ export interface components {
             width: number;
             height: number;
             bytes: number;
+        };
+        RegisterPushDeviceDto: {
+            /**
+             * @description Firebase Installation ID returned by the mobile FCM SDK
+             * @example c3VwcG9ydGVkLWZpcmViYXNlLWZpZA
+             */
+            installationId: string;
+            /** @enum {string} */
+            platform: "ANDROID" | "IOS";
+            /** @example 1.4.0 */
+            appVersion?: string;
+            /** @example ru-TM */
+            locale?: string;
+        };
+        PushDeviceResponseDto: {
+            /** Format: uuid */
+            id: string;
+            /** @description Firebase Installation ID */
+            installationId: string;
+            /** @enum {string} */
+            platform: "ANDROID" | "IOS";
+            appVersion?: string | null;
+            locale?: string | null;
+            isActive: boolean;
+            /** Format: date-time */
+            lastSeenAt: string;
+        };
+        UserNotificationResponseDto: {
+            /** Format: uuid */
+            id: string;
+            title: string;
+            body: string;
+            deepLink?: string | null;
+            /** Format: date-time */
+            readAt?: string | null;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        UserNotificationListResponseDto: {
+            items: components["schemas"]["UserNotificationResponseDto"][];
+            total: number;
+            unread: number;
+            page: number;
+            limit: number;
+            pages: number;
+        };
+        UnreadNotificationCountResponseDto: {
+            unread: number;
+        };
+        MarkNotificationReadResponseDto: {
+            /** Format: uuid */
+            id: string;
+            /** Format: date-time */
+            readAt: string;
+        };
+        MarkAllNotificationsReadResponseDto: {
+            updated: number;
+        };
+        NotificationCreatorResponseDto: {
+            /** Format: uuid */
+            id: string;
+            phone: string;
+            firstName?: string | null;
+            lastName?: string | null;
+        };
+        NotificationCampaignResponseDto: {
+            /** Format: uuid */
+            id: string;
+            title: string;
+            body: string;
+            deepLink?: string | null;
+            /** @enum {string} */
+            audience: "ALL_CUSTOMERS";
+            /** @enum {string} */
+            status: "PENDING" | "SENDING" | "SENT" | "PARTIAL" | "FAILED";
+            intendedUserCount: number;
+            deviceCount: number;
+            sentCount: number;
+            failedCount: number;
+            /** Format: date-time */
+            startedAt?: string | null;
+            /** Format: date-time */
+            completedAt?: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            createdBy: components["schemas"]["NotificationCreatorResponseDto"];
+        };
+        NotificationCampaignListResponseDto: {
+            items: components["schemas"]["NotificationCampaignResponseDto"][];
+            total: number;
+            page: number;
+            limit: number;
+            pages: number;
+        };
+        CreateNotificationCampaignDto: {
+            /** @example Скидка на ужин */
+            title: string;
+            /** @example Сегодня с 18:00 действует скидка 15%. */
+            body: string;
+            /**
+             * @description Internal application path opened after a notification tap
+             * @example /promotions/WELCOME15
+             */
+            deepLink?: string;
+            /**
+             * @default ALL_CUSTOMERS
+             * @enum {string}
+             */
+            audience: "ALL_CUSTOMERS";
         };
     };
     responses: never;
@@ -2737,6 +2979,195 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    NotificationsController_registerDevice_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RegisterPushDeviceDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PushDeviceResponseDto"];
+                };
+            };
+        };
+    };
+    NotificationsController_unregisterDevice_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                installationId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    NotificationsController_mine_v1: {
+        parameters: {
+            query?: {
+                page?: components["schemas"]["Object"];
+                limit?: components["schemas"]["Object"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserNotificationListResponseDto"];
+                };
+            };
+        };
+    };
+    NotificationsController_unread_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnreadNotificationCountResponseDto"];
+                };
+            };
+        };
+    };
+    NotificationsController_markRead_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MarkNotificationReadResponseDto"];
+                };
+            };
+        };
+    };
+    NotificationsController_markAllRead_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MarkAllNotificationsReadResponseDto"];
+                };
+            };
+        };
+    };
+    NotificationsController_campaigns_v1: {
+        parameters: {
+            query?: {
+                page?: components["schemas"]["Object"];
+                limit?: components["schemas"]["Object"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationCampaignListResponseDto"];
+                };
+            };
+        };
+    };
+    NotificationsController_createCampaign_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateNotificationCampaignDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationCampaignResponseDto"];
+                };
+            };
+        };
+    };
+    NotificationsController_retryCampaign_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationCampaignResponseDto"];
+                };
             };
         };
     };

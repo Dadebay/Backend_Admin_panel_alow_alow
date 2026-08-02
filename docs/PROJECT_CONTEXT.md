@@ -34,6 +34,10 @@ capacity or a separate host.
   gateway. It pulls encrypted, short-lived OTP jobs from the API over HTTPS and
   acknowledges delivery. It is the only production SMS provider; console is
   development-only.
+- Firebase Cloud Messaging is the push transport for customer mobile devices.
+  Firebase never owns AlowAlow authentication, OTP, users, roles, or business
+  data. A PostgreSQL outbox/inbox records campaigns and delivery results;
+  `console` is the non-delivering local provider.
 - Private S3-compatible object storage; MinIO locally.
 - An independently deployable self-hosted OpenStreetMap base-map service for
   Turkmenistan: Geofabrik Shortbread MBTiles, local VersaTiles assets, and an
@@ -70,6 +74,7 @@ alowalow/
 │   ├── ANDROID_SMS_GATEWAY.md
 │   ├── DEPLOYMENT.md
 │   ├── MOBILE_MAP_AND_ROUTING.md
+│   ├── MOBILE_PUSH_NOTIFICATIONS.md
 │   └── PROJECT_CONTEXT.md
 ├── deploy/
 │   ├── nginx/
@@ -106,6 +111,7 @@ alowalow/
 │   │   │   ├── catalog/   # categories and products
 │   │   │   ├── marketing/ # banners and promo codes
 │   │   │   ├── media/     # S3-compatible image storage
+│   │   │   ├── notifications/ # customer inbox and FCM campaign outbox
 │   │   │   ├── orders/    # workflow, assignment, route, rating, cash
 │   │   │   ├── tracking/  # courier GPS and dispatch map snapshot
 │   │   │   ├── routing/   # validated private OSRM adapter
@@ -125,8 +131,8 @@ alowalow/
 │       ├── src/            # FSD product layers
 │       │   ├── app/        # SPA bootstrap, routes, providers, global styles
 │       │   ├── widgets/    # dashboards, boards, maps, management screens
-│       │   ├── features/   # order/branch/catalog/marketing/staff mutations
-│       │   ├── entities/   # typed domain queries and models, incl. branches
+│       │   ├── features/   # domain mutations, incl. notification campaigns
+│       │   ├── entities/   # typed domain queries/models, incl. notifications
 │       │   └── shared/     # HTTP/query clients, auth, Zod form helpers, UI
 │       ├── public/
 │       ├── tests/
@@ -172,6 +178,9 @@ Prisma access in React, or duplicate backend policies in client state.
 - `ADMIN`: operational administration and full order workflow control.
 - `SUPER_ADMIN`: owner-level administrator with all admin access and protected
   authority over the `SUPER_ADMIN` role.
+
+Only `ADMIN` and `SUPER_ADMIN` may create or retry a customer notification
+campaign. `OPERATOR`, `COOK`, `COURIER`, and `ACCOUNTANT` cannot send broadcasts.
 
 Only `SUPER_ADMIN` may manage another `SUPER_ADMIN`, and the system must retain
 at least one active `SUPER_ADMIN`.
@@ -331,13 +340,35 @@ catalog image. Admin product create/update may replace the ordered image set;
 the backend enforces the same limit for the single-image compatibility
 endpoint.
 
+## Customer notifications
+
+- An authenticated `CUSTOMER` registers or refreshes their own Firebase
+  Installation ID (FID). The same installation may move to a new authenticated
+  customer after logout/login, but one customer cannot deactivate another
+  customer's device.
+- `ADMIN` and `SUPER_ADMIN` create immediate broadcasts to all active customers.
+  External URLs are rejected; an optional deep link must be an internal
+  application path.
+- Every campaign and every customer's inbox item is durable PostgreSQL data.
+  Each active device gets a separate delivery record with result/error state.
+- Campaign dispatch is a restart-safe database worker with atomic
+  `PENDING → SENDING` claiming, stale-work recovery, batches of at most 500 and
+  terminal `SENT`, `PARTIAL`, or `FAILED` status. Delivery is at least once;
+  mobile clients deduplicate by `notificationId`.
+- Customers may list only their own inbox, read their unread count, and mark one
+  or all own notifications read. A push permission or network failure does not
+  remove the durable inbox item.
+- Firebase is transport only. AlowAlow phone OTP/JWT stays authoritative, and
+  the FCM service account exists only in the backend runtime environment.
+
 ## Frontend status and target
 
 Current status:
 
 - the protected admin dashboard has no local demo arrays;
 - orders, kitchen workflow, courier assignment, cash workflow, catalog,
-  branches, banners, promos, and staff read/write through the NestJS API;
+  branches, banners, promos, notifications, and staff read/write through the
+  NestJS API;
 - administrators manage branch addresses and choose branch locations only with
   a map marker in a lazy-loaded FSD screen; the order board can filter by branch
   and shows the assigned distance;
@@ -355,6 +386,9 @@ Current status:
   before typed API mutations; multipart FormData exists only in the S3 upload
   transport;
 - heavy management sections and the Leaflet map are dynamically split.
+- the notification manager is a lazy FSD screen; only a pending/sending
+  campaign triggers its three-second TanStack Query refresh, and polling stops
+  when all visible campaigns are terminal.
 
 Accepted target:
 
@@ -447,6 +481,20 @@ view is 8.3 KB / 2.9 KB gzip, its lazy courier-map canvas is 3.7 KB / 1.6 KB
 gzip, and the shared Leaflet chunk remains isolated at 153.4 KB / 44.9 KB gzip.
 GPS SSE invalidates only the selected courier's TanStack route query and adds
 no new polling loop or initial preload.
+
+The 2026-08-02 responsive admin build keeps the static SPA bootstrap at
+200.0 KB raw / 63.1 KB gzip and the isolated Leaflet chunk at 153.4 KB /
+44.9 KB gzip. CSS is 66.8 KB / 18.1 KB gzip, an increase of about 4.5 KB raw /
+0.7 KB gzip for responsive data-card, navigation and overflow rules. The order
+board remains a separate 13.3 KB / 4.3 KB gzip chunk. No dependency, polling
+loop or initial JavaScript was added.
+
+The 2026-08-02 notification build keeps the static SPA bootstrap at 200.0 KB
+raw / 63.1 KB gzip and adds the notification manager only as a lazy 8.0 KB /
+3.1 KB gzip chunk. CSS is 68.6 KB / 18.4 KB gzip. The screen reuses the existing
+form and TanStack chunks, performs no request before an authorized admin opens
+it, and polls every three seconds only while a visible campaign is `PENDING` or
+`SENDING`; terminal history has no background polling.
 
 ## Decision log
 
@@ -561,3 +609,16 @@ no new polling loop or initial preload.
   order lists can filter by branch, and dispatch maps show all branch
   points. The global catalog remains shared across branches. No active branch
   is a fail-closed `409` condition.
+- 2026-08-02: admin data lists gained one shared responsive TanStack Table
+  presentation. Order rows switch to labelled two-column cards on constrained
+  operations screens, all tables switch to one-column cards on phones, and
+  catalogue/marketing tables use full-width sections. Mobile navigation uses
+  a fixed three-column grid and cash-status tabs stack vertically, so neither
+  requires a nested horizontal scrollbar.
+- 2026-08-02: customer push notifications became a durable backend capability.
+  `ADMIN`/`SUPER_ADMIN` create immediate all-customer campaigns, PostgreSQL
+  stores customer inbox and per-device delivery results, and a restart-safe
+  worker sends through FCM in batches. Mobile devices register current Firebase
+  Installation IDs against the existing customer JWT; Firebase Auth is not
+  used. The lazy FSD admin screen uses the generated Swagger contract and polls
+  only while a visible campaign is pending or sending.

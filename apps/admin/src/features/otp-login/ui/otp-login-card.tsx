@@ -1,6 +1,14 @@
-import { useState, type FormEvent } from "react";
+import { useState } from "react";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation } from "@tanstack/react-query";
+import { useForm } from "react-hook-form";
 import { useSession } from "@/src/shared/auth";
+import { FormFieldError } from "@/src/shared/forms";
+import {
+  otpRequestSchema,
+  otpVerifySchema,
+  type OtpLoginFormValues,
+} from "../model/otp-login-form";
 
 export function OtpLoginCard({
   title = "Вход по телефону",
@@ -10,11 +18,20 @@ export function OtpLoginCard({
   description?: string;
 }) {
   const { requestOtp, verifyOtp } = useSession();
-  const [phone, setPhone] = useState("");
-  const [code, setCode] = useState("");
   const [codeRequested, setCodeRequested] = useState(false);
-  const [error, setError] = useState("");
+  const [apiError, setApiError] = useState("");
   const [devCode, setDevCode] = useState("");
+  const {
+    register,
+    handleSubmit,
+    reset,
+    setError,
+    formState: { errors },
+  } = useForm<OtpLoginFormValues>({
+    resolver: zodResolver(otpRequestSchema),
+    mode: "onBlur",
+    defaultValues: { phone: "", code: "" },
+  });
   const otpRequest = useMutation({ mutationFn: requestOtp });
   const otpVerify = useMutation({
     mutationFn: ({ phone, code }: { phone: string; code: string }) =>
@@ -22,24 +39,37 @@ export function OtpLoginCard({
   });
   const pending = otpRequest.isPending || otpVerify.isPending;
 
-  async function submit(event: FormEvent) {
-    event.preventDefault();
-    setError("");
+  async function submit(values: OtpLoginFormValues) {
+    setApiError("");
     try {
       if (!codeRequested) {
-        const response = await otpRequest.mutateAsync(phone);
+        const response = await otpRequest.mutateAsync(values.phone);
         setCodeRequested(true);
         setDevCode(response.devCode ?? "");
       } else {
-        await otpVerify.mutateAsync({ phone, code });
+        const verified = otpVerifySchema.safeParse(values);
+        if (!verified.success) {
+          setError("code", {
+            message: verified.error.issues[0]?.message ?? "Введите код из SMS",
+          });
+          return;
+        }
+        await otpVerify.mutateAsync(verified.data);
       }
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Не удалось войти");
+      setApiError(
+        reason instanceof Error ? reason.message : "Не удалось войти",
+      );
     }
   }
 
   return (
-    <form className="otp-card" onSubmit={submit}>
+    <form
+      className="otp-card"
+      data-testid="otp-login-form"
+      noValidate
+      onSubmit={handleSubmit(submit)}
+    >
       <div>
         <strong>{title}</strong>
         <p>{description}</p>
@@ -47,30 +77,36 @@ export function OtpLoginCard({
       <label>
         <span>Номер телефона</span>
         <input
+          data-testid="otp-login-phone"
+          {...register("phone")}
+          aria-invalid={Boolean(errors.phone)}
           type="tel"
-          value={phone}
-          onChange={(event) => setPhone(event.target.value)}
           placeholder="+993 65 12 34 56"
           autoComplete="tel"
-          disabled={codeRequested || pending}
-          required
+          readOnly={codeRequested || pending}
         />
+        <FormFieldError message={errors.phone?.message} />
       </label>
       {codeRequested && (
         <label>
           <span>Код из SMS</span>
           <input
+            data-testid="otp-login-code"
+            {...register("code", {
+              onChange(event) {
+                event.target.value = String(event.target.value).replace(
+                  /\D/g,
+                  "",
+                );
+              },
+            })}
+            aria-invalid={Boolean(errors.code)}
             inputMode="numeric"
-            pattern="[0-9]{6}"
             maxLength={6}
-            value={code}
-            onChange={(event) =>
-              setCode(event.target.value.replace(/\D/g, ""))
-            }
             placeholder="000000"
             autoComplete="one-time-code"
-            required
           />
+          <FormFieldError message={errors.code?.message} />
         </label>
       )}
       {devCode && (
@@ -78,8 +114,13 @@ export function OtpLoginCard({
           Локальный SMS-код: <strong>{devCode}</strong>
         </p>
       )}
-      {error && <p className="form-error">{error}</p>}
-      <button className="primary-button" type="submit" disabled={pending}>
+      {apiError && <p className="form-error">{apiError}</p>}
+      <button
+        className="primary-button"
+        data-testid="otp-login-submit"
+        type="submit"
+        disabled={pending}
+      >
         {pending
           ? "Подождите…"
           : codeRequested
@@ -89,12 +130,13 @@ export function OtpLoginCard({
       {codeRequested && (
         <button
           className="text-button"
+          data-testid="otp-login-change-phone"
           type="button"
           onClick={() => {
             setCodeRequested(false);
-            setCode("");
             setDevCode("");
-            setError("");
+            setApiError("");
+            reset();
           }}
           disabled={pending}
         >

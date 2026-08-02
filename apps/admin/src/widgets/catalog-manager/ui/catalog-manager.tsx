@@ -1,5 +1,7 @@
-import { useMemo, useState, type FormEvent } from "react";
+import { useMemo, useState } from "react";
+import { zodResolver } from "@hookform/resolvers/zod";
 import type { ColumnDef } from "@tanstack/react-table";
+import { useForm } from "react-hook-form";
 import {
   canAddProductImages,
   MAX_PRODUCT_IMAGES,
@@ -11,15 +13,15 @@ import {
 import { useCatalogActions } from "@/src/features/catalog-management";
 import { resolveApiUrl } from "@/src/shared/api/api-client";
 import { useSession } from "@/src/shared/auth";
+import { FormFieldError } from "@/src/shared/forms";
 import { AsyncPanel, DataTable } from "@/src/shared/ui";
-
-function slugify(value: string) {
-  return value
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9а-яё]+/gi, "-")
-    .replace(/^-|-$/g, "");
-}
+import {
+  categoryFormSchema,
+  productFormSchema,
+  slugify,
+  type CategoryFormValues,
+  type ProductFormValues,
+} from "../model/catalog-forms";
 
 function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : "";
@@ -39,6 +41,44 @@ export function CatalogManager() {
   >([]);
   const [selectedProductFiles, setSelectedProductFiles] = useState<File[]>([]);
   const [productImageError, setProductImageError] = useState("");
+  const {
+    register: registerCategory,
+    handleSubmit: handleCategorySubmit,
+    reset: resetCategory,
+    getValues: getCategoryValues,
+    setValue: setCategoryValue,
+    formState: { errors: categoryErrors },
+  } = useForm<CategoryFormValues>({
+    resolver: zodResolver(categoryFormSchema),
+    mode: "onBlur",
+    defaultValues: {
+      name: "",
+      slug: "",
+      sortOrder: 0,
+      isActive: true,
+      image: undefined,
+    },
+  });
+  const {
+    register: registerProduct,
+    handleSubmit: handleProductSubmit,
+    reset: resetProduct,
+    getValues: getProductValues,
+    setValue: setProductValue,
+    formState: { errors: productErrors },
+  } = useForm<ProductFormValues>({
+    resolver: zodResolver(productFormSchema),
+    mode: "onBlur",
+    defaultValues: {
+      categoryId: "",
+      name: "",
+      slug: "",
+      description: "",
+      price: 0,
+      sortOrder: 0,
+      isActive: true,
+    },
+  });
   const canEdit = Boolean(
     session &&
       ["ADMIN", "SUPER_ADMIN"].includes(session.user.role),
@@ -91,6 +131,13 @@ export function CatalogManager() {
                 className="secondary-button compact"
                 onClick={() => {
                   setCategoryEdit(row.original);
+                  resetCategory({
+                    name: row.original.name,
+                    slug: row.original.slug,
+                    sortOrder: row.original.sortOrder,
+                    isActive: row.original.isActive,
+                    image: undefined,
+                  });
                   setShowCategoryForm(true);
                 }}
               >
@@ -115,7 +162,7 @@ export function CatalogManager() {
           ),
       },
     ],
-    [actions.updateCategory, canEdit],
+    [actions.updateCategory, canEdit, resetCategory],
   );
 
   const productColumns = useMemo<ColumnDef<Product, unknown>[]>(
@@ -182,6 +229,15 @@ export function CatalogManager() {
                   setStoredProductImages(row.original.images);
                   setSelectedProductFiles([]);
                   setProductImageError("");
+                  resetProduct({
+                    categoryId: row.original.categoryId,
+                    name: row.original.name,
+                    slug: row.original.slug,
+                    description: row.original.description,
+                    price: Number(row.original.price),
+                    sortOrder: row.original.sortOrder,
+                    isActive: row.original.isActive,
+                  });
                   setShowProductForm(true);
                 }}
               >
@@ -206,22 +262,20 @@ export function CatalogManager() {
           ),
       },
     ],
-    [actions.updateProduct, canEdit],
+    [actions.updateProduct, canEdit, resetProduct],
   );
 
-  async function submitCategory(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    const file = form.get("image");
+  async function submitCategory(values: CategoryFormValues) {
+    const file = (values.image as FileList | undefined)?.item(0);
     let imageUrl = categoryEdit?.imageUrl ?? undefined;
-    if (file instanceof File && file.size) {
+    if (file?.size) {
       imageUrl = (await actions.uploadImage.mutateAsync(file)).url;
     }
     const body = {
-      name: String(form.get("name")).trim(),
-      slug: String(form.get("slug")).trim(),
-      sortOrder: Number(form.get("sortOrder")),
-      isActive: form.get("isActive") === "on",
+      name: values.name,
+      slug: values.slug,
+      sortOrder: values.sortOrder,
+      isActive: values.isActive,
       ...(imageUrl ? { imageUrl } : {}),
     };
     if (categoryEdit) {
@@ -234,10 +288,10 @@ export function CatalogManager() {
     }
     setCategoryEdit(null);
     setShowCategoryForm(false);
+    resetCategory();
   }
 
-  async function submitProduct(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function submitProduct(values: ProductFormValues) {
     setProductImageError("");
     if (
       !canAddProductImages(
@@ -250,7 +304,6 @@ export function CatalogManager() {
       );
       return;
     }
-    const form = new FormData(event.currentTarget);
     const uploadedImages = selectedProductFiles.length
       ? await actions.uploadImages.mutateAsync(selectedProductFiles)
       : [];
@@ -259,13 +312,7 @@ export function CatalogManager() {
       ...uploadedImages.map(({ url }) => url),
     ];
     const body = {
-      categoryId: String(form.get("categoryId")),
-      name: String(form.get("name")).trim(),
-      slug: String(form.get("slug")).trim(),
-      description: String(form.get("description")).trim(),
-      price: Number(form.get("price")),
-      sortOrder: Number(form.get("sortOrder")),
-      isActive: form.get("isActive") === "on",
+      ...values,
       imageUrls,
     };
     if (productEdit) {
@@ -280,6 +327,7 @@ export function CatalogManager() {
     setStoredProductImages([]);
     setSelectedProductFiles([]);
     setShowProductForm(false);
+    resetProduct();
   }
 
   const mutationMessage =
@@ -305,8 +353,16 @@ export function CatalogManager() {
           <div className="header-actions">
             <button
               className="secondary-button"
+              data-testid="catalog-category-open"
               onClick={() => {
                 setCategoryEdit(null);
+                resetCategory({
+                  name: "",
+                  slug: "",
+                  sortOrder: 0,
+                  isActive: true,
+                  image: undefined,
+                });
                 setShowCategoryForm((value) => !value);
               }}
             >
@@ -314,11 +370,21 @@ export function CatalogManager() {
             </button>
             <button
               className="primary-button"
+              data-testid="catalog-product-open"
               onClick={() => {
                 setProductEdit(null);
                 setStoredProductImages([]);
                 setSelectedProductFiles([]);
                 setProductImageError("");
+                resetProduct({
+                  categoryId: categories.data?.[0]?.id ?? "",
+                  name: "",
+                  slug: "",
+                  description: "",
+                  price: 0,
+                  sortOrder: 0,
+                  isActive: true,
+                });
                 setShowProductForm((value) => !value);
               }}
             >
@@ -333,13 +399,23 @@ export function CatalogManager() {
       )}
 
       {showCategoryForm && (
-        <form className="editor-card" onSubmit={submitCategory}>
+        <form
+          className="editor-card"
+          data-testid="category-form"
+          noValidate
+          onSubmit={handleCategorySubmit(submitCategory)}
+        >
           <div className="editor-title">
             <h2>{categoryEdit ? "Изменить категорию" : "Новая категория"}</h2>
             <button
               className="text-button"
+              data-testid="category-form-close"
               type="button"
-              onClick={() => setShowCategoryForm(false)}
+              onClick={() => {
+                setShowCategoryForm(false);
+                setCategoryEdit(null);
+                resetCategory();
+              }}
             >
               Закрыть
             </button>
@@ -348,52 +424,62 @@ export function CatalogManager() {
             <label>
               <span>Название</span>
               <input
-                name="name"
-                defaultValue={categoryEdit?.name}
-                onBlur={(event) => {
-                  const slug = event.currentTarget.form?.elements.namedItem(
-                    "slug",
-                  );
-                  if (slug instanceof HTMLInputElement && !slug.value) {
-                    slug.value = slugify(event.currentTarget.value);
-                  }
-                }}
-                required
+                data-testid="category-name"
+                {...registerCategory("name", {
+                  onBlur(event) {
+                    if (!getCategoryValues("slug")) {
+                      setCategoryValue("slug", slugify(event.target.value), {
+                        shouldDirty: true,
+                        shouldValidate: true,
+                      });
+                    }
+                  },
+                })}
+                aria-invalid={Boolean(categoryErrors.name)}
                 maxLength={100}
               />
+              <FormFieldError message={categoryErrors.name?.message} />
             </label>
             <label>
               <span>Slug</span>
               <input
-                name="slug"
-                defaultValue={categoryEdit?.slug}
-                pattern="[a-z0-9-]+"
-                required
+                data-testid="category-slug"
+                {...registerCategory("slug")}
+                aria-invalid={Boolean(categoryErrors.slug)}
               />
+              <FormFieldError message={categoryErrors.slug?.message} />
             </label>
             <label>
               <span>Порядок</span>
               <input
-                name="sortOrder"
+                data-testid="category-sort-order"
+                {...registerCategory("sortOrder", { valueAsNumber: true })}
+                aria-invalid={Boolean(categoryErrors.sortOrder)}
                 type="number"
-                defaultValue={categoryEdit?.sortOrder ?? 0}
               />
+              <FormFieldError message={categoryErrors.sortOrder?.message} />
             </label>
             <label>
               <span>Изображение до 5 МБ</span>
-              <input name="image" type="file" accept="image/*" />
+              <input
+                data-testid="category-image"
+                {...registerCategory("image")}
+                type="file"
+                accept="image/*"
+              />
             </label>
             <label className="check-field">
               <input
-                name="isActive"
+                data-testid="category-active"
+                {...registerCategory("isActive")}
                 type="checkbox"
-                defaultChecked={categoryEdit?.isActive ?? true}
               />
               Активна
             </label>
           </div>
           <button
             className="primary-button"
+            data-testid="category-save"
             disabled={
               actions.uploadImage.isPending ||
               actions.createCategory.isPending ||
@@ -406,11 +492,17 @@ export function CatalogManager() {
       )}
 
       {showProductForm && (
-        <form className="editor-card" onSubmit={submitProduct}>
+        <form
+          className="editor-card"
+          data-testid="product-form"
+          noValidate
+          onSubmit={handleProductSubmit(submitProduct)}
+        >
           <div className="editor-title">
             <h2>{productEdit ? "Изменить блюдо" : "Новое блюдо"}</h2>
             <button
               className="text-button"
+              data-testid="product-form-close"
               type="button"
               onClick={() => {
                 setShowProductForm(false);
@@ -418,6 +510,7 @@ export function CatalogManager() {
                 setStoredProductImages([]);
                 setSelectedProductFiles([]);
                 setProductImageError("");
+                resetProduct();
               }}
             >
               Закрыть
@@ -427,11 +520,9 @@ export function CatalogManager() {
             <label>
               <span>Категория</span>
               <select
-                name="categoryId"
-                defaultValue={
-                  productEdit?.categoryId ?? categories.data?.[0]?.id ?? ""
-                }
-                required
+                data-testid="product-category"
+                {...registerProduct("categoryId")}
+                aria-invalid={Boolean(productErrors.categoryId)}
               >
                 {(categories.data ?? []).map((category) => (
                   <option key={category.id} value={category.id}>
@@ -439,50 +530,56 @@ export function CatalogManager() {
                   </option>
                 ))}
               </select>
+              <FormFieldError message={productErrors.categoryId?.message} />
             </label>
             <label>
               <span>Название</span>
               <input
-                name="name"
-                defaultValue={productEdit?.name}
-                onBlur={(event) => {
-                  const slug = event.currentTarget.form?.elements.namedItem(
-                    "slug",
-                  );
-                  if (slug instanceof HTMLInputElement && !slug.value) {
-                    slug.value = slugify(event.currentTarget.value);
-                  }
-                }}
-                required
+                data-testid="product-name"
+                {...registerProduct("name", {
+                  onBlur(event) {
+                    if (!getProductValues("slug")) {
+                      setProductValue("slug", slugify(event.target.value), {
+                        shouldDirty: true,
+                        shouldValidate: true,
+                      });
+                    }
+                  },
+                })}
+                aria-invalid={Boolean(productErrors.name)}
               />
+              <FormFieldError message={productErrors.name?.message} />
             </label>
             <label>
               <span>Slug</span>
               <input
-                name="slug"
-                defaultValue={productEdit?.slug}
-                pattern="[a-z0-9-]+"
-                required
+                data-testid="product-slug"
+                {...registerProduct("slug")}
+                aria-invalid={Boolean(productErrors.slug)}
               />
+              <FormFieldError message={productErrors.slug?.message} />
             </label>
             <label>
               <span>Цена TMT</span>
               <input
-                name="price"
+                data-testid="product-price"
+                {...registerProduct("price", { valueAsNumber: true })}
+                aria-invalid={Boolean(productErrors.price)}
                 type="number"
                 min="0"
                 step="0.01"
-                defaultValue={productEdit?.price}
-                required
               />
+              <FormFieldError message={productErrors.price?.message} />
             </label>
             <label>
               <span>Порядок</span>
               <input
-                name="sortOrder"
+                data-testid="product-sort-order"
+                {...registerProduct("sortOrder", { valueAsNumber: true })}
+                aria-invalid={Boolean(productErrors.sortOrder)}
                 type="number"
-                defaultValue={productEdit?.sortOrder ?? 0}
               />
+              <FormFieldError message={productErrors.sortOrder?.message} />
             </label>
             <div className="wide-field product-image-editor">
               <div className="product-image-heading">
@@ -527,7 +624,7 @@ export function CatalogManager() {
               <label className="product-file-picker">
                 <span>Добавить файлы до 5 МБ каждый</span>
                 <input
-                  name="images"
+                  data-testid="product-images"
                   type="file"
                   accept="image/*"
                   multiple
@@ -579,24 +676,26 @@ export function CatalogManager() {
             <label className="wide-field">
               <span>Описание</span>
               <textarea
-                name="description"
-                defaultValue={productEdit?.description}
+                data-testid="product-description"
+                {...registerProduct("description")}
+                aria-invalid={Boolean(productErrors.description)}
                 rows={3}
-                required
                 maxLength={4000}
               />
+              <FormFieldError message={productErrors.description?.message} />
             </label>
             <label className="check-field">
               <input
-                name="isActive"
+                data-testid="product-active"
+                {...registerProduct("isActive")}
                 type="checkbox"
-                defaultChecked={productEdit?.isActive ?? true}
               />
               В продаже
             </label>
           </div>
           <button
             className="primary-button"
+            data-testid="product-save"
             disabled={
               actions.uploadImages.isPending ||
               actions.createProduct.isPending ||

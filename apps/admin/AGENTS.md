@@ -47,8 +47,12 @@ SPA bootstrap thin: route composition and provider wiring only.
 - After a mutation, update or invalidate the smallest relevant query set.
 - Use optimistic updates only when rollback is deterministic; otherwise wait
   for the server response and show pending state.
-- The live order board may poll with a documented interval until a real-time
-  transport is introduced. Do not create multiple competing polling loops.
+- Courier GPS uses the authenticated dispatch SSE stream to update the existing
+  TanStack Query cache. Its slower snapshot poll is reconnect recovery, not a
+  second live-state owner. Do not create competing polling or event loops.
+- A selected courier route comes from the role-protected dispatcher route API.
+  Invalidate that exact TanStack query on a courier GPS event and render its
+  GeoJSON geometry; never join order markers into a frontend-made route.
 - Never copy server data into component state just to filter or render it.
 - Pass TanStack Query's `AbortSignal` into every cancellable HTTP request.
 - Set `staleTime`, `gcTime`, retry behavior, polling, and focus refetching from
@@ -94,8 +98,15 @@ SPA bootstrap thin: route composition and provider wiring only.
 ## UI and forms
 
 - Break large screens into widgets and feature actions before adding behavior.
-- Use controlled, typed forms with schema validation for catalog, promo, staff,
-  and address mutations.
+- Use React Hook Form with `zodResolver` for every HTML form. Keep each Zod
+  schema in the owning feature/widget `model/`, infer its input/output types,
+  and submit the resolver output to generated OpenAPI mutation types.
+- Use shared helpers from `src/shared/forms`; do not create a second validation
+  library or parse browser `FormData` manually. `FormData` is allowed only in
+  the S3 multipart transport after form validation.
+- Keep local component state only for custom non-native inputs such as map
+  marker coordinates and ordered image previews, and combine it with validated
+  form output at submit time.
 - Every async screen needs loading, empty, error, retry, pending, and success
   feedback.
 - Disable duplicate mutation submissions and surface `409 Conflict` as a

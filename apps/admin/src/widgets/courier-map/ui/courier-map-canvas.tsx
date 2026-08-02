@@ -9,16 +9,14 @@ import {
   useMap,
 } from "react-leaflet";
 import type { LatLngBoundsExpression, LatLngTuple } from "leaflet";
+import { MAP_ATTRIBUTION, MAP_TILE_URL } from "@/src/shared/map";
+import type { CourierRoute } from "@/src/entities/courier";
 import type {
+  DispatchBranchDto,
   DispatchCourier,
-  DispatchPickupDto,
 } from "../model/map-types";
 
 const ASHGABAT_CENTER: LatLngTuple = [37.9601, 58.3261];
-const TILE_URL =
-  import.meta.env.VITE_MAP_TILE_URL ??
-  "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
-
 function FitMap({ points }: { points: LatLngTuple[] }) {
   const map = useMap();
   useEffect(() => {
@@ -44,45 +42,44 @@ function courierName(courier: DispatchCourier) {
 }
 
 export default function CourierMapCanvas({
+  branches,
   couriers,
-  pickup,
   selectedCourierId,
+  route,
   onSelectCourier,
 }: {
+  branches: DispatchBranchDto[];
   couriers: DispatchCourier[];
-  pickup: DispatchPickupDto;
   selectedCourierId: string | null;
+  route: CourierRoute | null;
   onSelectCourier: (courierId: string) => void;
 }) {
   const selected =
     couriers.find(({ id }) => id === selectedCourierId) ?? couriers[0];
-  const points: LatLngTuple[] = [];
-  if (pickup.latitude !== null && pickup.longitude !== null) {
-    points.push([pickup.latitude, pickup.longitude]);
-  }
-  for (const courier of couriers) {
-    if (courier.location) {
-      points.push([courier.location.latitude, courier.location.longitude]);
+  const deliveryStops = route?.stops ?? selected?.activeOrders ?? [];
+  const routeLine: LatLngTuple[] =
+    route?.routingStatus === "READY" && route.route
+      ? route.route.geometry.coordinates.map(([longitude, latitude]) => [
+          latitude,
+          longitude,
+        ])
+      : [];
+  const points: LatLngTuple[] = [...routeLine];
+  if (!points.length) {
+    for (const branch of branches) {
+      points.push([branch.latitude, branch.longitude]);
     }
-  }
-  if (selected) {
-    for (const order of selected.activeOrders) {
+    for (const courier of couriers) {
+      if (courier.location) {
+        points.push([courier.location.latitude, courier.location.longitude]);
+      }
+    }
+    for (const order of deliveryStops) {
+      if (order.branch?.latitude != null && order.branch.longitude != null) {
+        points.push([order.branch.latitude, order.branch.longitude]);
+      }
       points.push([order.latitude, order.longitude]);
     }
-  }
-
-  const route: LatLngTuple[] = [];
-  if (selected?.location) {
-    route.push([selected.location.latitude, selected.location.longitude]);
-  } else if (pickup.latitude !== null && pickup.longitude !== null) {
-    route.push([pickup.latitude, pickup.longitude]);
-  }
-  if (selected) {
-    route.push(
-      ...selected.activeOrders.map(
-        (order) => [order.latitude, order.longitude] as LatLngTuple,
-      ),
-    );
   }
 
   return (
@@ -92,15 +89,29 @@ export default function CourierMapCanvas({
       zoom={13}
       scrollWheelZoom
       zoomControl
+      data-testid="dispatch-courier-map"
     >
       <TileLayer
-        url={TILE_URL}
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+        url={MAP_TILE_URL}
+        attribution={MAP_ATTRIBUTION}
       />
       <FitMap points={points} />
-      {pickup.latitude !== null && pickup.longitude !== null && (
+      {routeLine.length > 1 && (
+        <>
+          <Polyline
+            positions={routeLine}
+            pathOptions={{ color: "#ffffff", weight: 10, opacity: 0.9 }}
+          />
+          <Polyline
+            positions={routeLine}
+            pathOptions={{ color: "#f36b46", weight: 6, opacity: 0.95 }}
+          />
+        </>
+      )}
+      {branches.map((branch) => (
         <CircleMarker
-          center={[pickup.latitude, pickup.longitude]}
+          key={branch.id}
+          center={[branch.latitude, branch.longitude]}
           radius={10}
           pathOptions={{
             color: "#ffffff",
@@ -110,21 +121,15 @@ export default function CourierMapCanvas({
           }}
         >
           <Tooltip permanent direction="top">
-            {pickup.name}
+            {branch.name}
           </Tooltip>
           <Popup>
-            <strong>{pickup.name}</strong>
+            <strong>{branch.name}</strong>
             <br />
-            {pickup.address ?? "Адрес точки выдачи не указан"}
+            {branch.address}
           </Popup>
         </CircleMarker>
-      )}
-      {route.length > 1 && (
-        <Polyline
-          positions={route}
-          pathOptions={{ color: "#f36b46", weight: 4, opacity: 0.78 }}
-        />
-      )}
+      ))}
       {couriers.map((courier) =>
         courier.location ? (
           <CircleMarker
@@ -154,9 +159,9 @@ export default function CourierMapCanvas({
           </CircleMarker>
         ) : null,
       )}
-      {selected?.activeOrders.map((order, index) => (
+      {deliveryStops.map((order, index) => (
         <CircleMarker
-          key={order.id}
+          key={"id" in order ? order.id : order.orderId}
           center={[order.latitude, order.longitude]}
           radius={8}
           pathOptions={{
@@ -167,10 +172,12 @@ export default function CourierMapCanvas({
           }}
         >
           <Tooltip permanent direction="right">
-            {index + 1}. #{order.number}
+            {index + 1}. #{"number" in order ? order.number : order.orderNumber}
           </Tooltip>
           <Popup>
-            <strong>Заказ #{order.number}</strong>
+            <strong>
+              Заказ #{"number" in order ? order.number : order.orderNumber}
+            </strong>
             <br />
             {order.address}
             <br />

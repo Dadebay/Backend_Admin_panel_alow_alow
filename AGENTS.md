@@ -46,6 +46,8 @@ transitions, or cancellation. The backend must enforce every rule.
 - Root, API, and admin keep independent npm lockfiles. This prevents one
   application's security overrides from silently changing another tree.
 - `docker-compose.yml`: local PostgreSQL, Redis, and MinIO only.
+- `maps/`: optional isolated local OpenStreetMap assets and TileServer GL;
+  downloaded map data must remain ignored and separate from application data.
 - `apps/admin/.openai/hosting.json`: existing private Sites project for the admin.
 
 Do not introduce a second API client, a second role enum, or duplicate order
@@ -60,7 +62,7 @@ state machines in unrelated files.
   by hand; regenerate
   them with `npm run api:client`.
 - Do not commit secrets, real OTP codes, production tokens, S3 credentials, or
-  Twilio credentials.
+  Android SMS gateway credentials.
 - Prefer small domain modules over large shared utility files.
 - Keep business terminology consistent with the backend enum names.
 - Any production-impacting mutation must have authorization, validation,

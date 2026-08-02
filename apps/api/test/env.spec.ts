@@ -7,10 +7,10 @@ const productionSecrets = {
   REDIS_URL: "rediss://default:secret@redis.example:6379/0",
   JWT_ACCESS_SECRET: "j".repeat(32),
   OTP_PEPPER: "o".repeat(32),
-  SMS_PROVIDER: "twilio",
-  TWILIO_ACCOUNT_SID: `AC${"a".repeat(32)}`,
-  TWILIO_AUTH_TOKEN: "t".repeat(32),
-  TWILIO_FROM: "+12025550123",
+  SMS_PROVIDER: "android_pull",
+  SMS_GATEWAY_DEVICE_ID: "android-primary",
+  SMS_GATEWAY_DEVICE_TOKEN: "d".repeat(48),
+  SMS_GATEWAY_ENCRYPTION_KEY: Buffer.alloc(32, 7).toString("base64"),
   CORS_ORIGINS: "https://admin.example.com,https://app.example.com",
 };
 
@@ -54,7 +54,7 @@ describe("security environment configuration", () => {
     ).toThrow("DATABASE_URL");
   });
 
-  it("requires TLS Redis and a real SMS provider in production", () => {
+  it("requires TLS Redis and the Android SMS provider in production", () => {
     expect(() =>
       validateEnv({
         ...productionSecrets,
@@ -70,18 +70,15 @@ describe("security environment configuration", () => {
     expect(() =>
       validateEnv({
         ...productionSecrets,
-        TWILIO_AUTH_TOKEN: "",
+        SMS_PROVIDER: "twilio",
       }),
-    ).toThrow("TWILIO_AUTH_TOKEN");
+    ).toThrow("android_pull or console");
   });
 
   it("accepts Android pull SMS only with independent device secrets", () => {
     const android = validateEnv({
       ...productionSecrets,
       SMS_PROVIDER: "android_pull",
-      TWILIO_ACCOUNT_SID: "",
-      TWILIO_AUTH_TOKEN: "",
-      TWILIO_FROM: "",
       SMS_GATEWAY_DEVICE_ID: "android-primary",
       SMS_GATEWAY_DEVICE_TOKEN: "d".repeat(48),
       SMS_GATEWAY_ENCRYPTION_KEY: Buffer.alloc(32, 7).toString("base64"),
@@ -130,30 +127,18 @@ describe("security environment configuration", () => {
     expect(() => validateEnv({ MAX_IMAGE_BYTES: Number.NaN })).toThrow(
       "MAX_IMAGE_BYTES",
     );
+    expect(() => validateEnv({ ROUTING_TIMEOUT_MS: 100 })).toThrow(
+      "ROUTING_TIMEOUT_MS",
+    );
   });
 
-  it("validates the configured dispatch pickup coordinates as a pair", () => {
-    expect(() =>
-      validateEnv({ DISPATCH_PICKUP_LATITUDE: "37.96" }),
-    ).toThrow("must be provided together");
-    expect(() =>
-      validateEnv({
-        DISPATCH_PICKUP_LATITUDE: "91",
-        DISPATCH_PICKUP_LONGITUDE: "58.32",
-      }),
-    ).toThrow("between -90 and 90");
+  it("accepts only a credential-free routing service origin", () => {
+    expect(validateEnv({}).ROUTING_URL).toBe("http://127.0.0.1:5000");
     expect(
-      validateEnv({
-        DISPATCH_PICKUP_NAME: "Central kitchen",
-        DISPATCH_PICKUP_ADDRESS: "Ashgabat",
-        DISPATCH_PICKUP_LATITUDE: "37.96",
-        DISPATCH_PICKUP_LONGITUDE: "58.32",
-      }),
-    ).toMatchObject({
-      DISPATCH_PICKUP_NAME: "Central kitchen",
-      DISPATCH_PICKUP_ADDRESS: "Ashgabat",
-      DISPATCH_PICKUP_LATITUDE: 37.96,
-      DISPATCH_PICKUP_LONGITUDE: 58.32,
-    });
+      () => validateEnv({ ROUTING_URL: "http://user:secret@routing:5000" }),
+    ).toThrow("ROUTING_URL");
+    expect(
+      () => validateEnv({ ROUTING_URL: "http://routing:5000/route/v1" }),
+    ).toThrow("ROUTING_URL");
   });
 });

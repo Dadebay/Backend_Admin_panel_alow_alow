@@ -3,12 +3,11 @@ export type AppEnv = {
   PORT: number;
   DATABASE_URL: string;
   REDIS_URL: string;
+  ROUTING_URL: string;
+  ROUTING_TIMEOUT_MS: number;
   JWT_ACCESS_SECRET: string;
   OTP_PEPPER: string;
-  SMS_PROVIDER: "android_pull" | "console" | "twilio";
-  TWILIO_ACCOUNT_SID: string;
-  TWILIO_AUTH_TOKEN: string;
-  TWILIO_FROM: string;
+  SMS_PROVIDER: "android_pull" | "console";
   SMS_GATEWAY_DEVICE_ID: string;
   SMS_GATEWAY_DEVICE_TOKEN: string;
   SMS_GATEWAY_ENCRYPTION_KEY: string;
@@ -22,10 +21,6 @@ export type AppEnv = {
   S3_ACCESS_KEY_ID: string;
   S3_SECRET_ACCESS_KEY: string;
   S3_FORCE_PATH_STYLE: boolean;
-  DISPATCH_PICKUP_NAME: string;
-  DISPATCH_PICKUP_ADDRESS: string;
-  DISPATCH_PICKUP_LATITUDE: number | null;
-  DISPATCH_PICKUP_LONGITUDE: number | null;
 };
 
 export function validateEnv(source: Record<string, unknown>): AppEnv {
@@ -47,15 +42,6 @@ export function validateEnv(source: Record<string, unknown>): AppEnv {
     if (typeof value === "boolean") return value;
     if (typeof value === "string") return value.toLowerCase() === "true";
     return fallback;
-  };
-  const optionalNumber = (key: string) => {
-    const value = source[key];
-    if (value === undefined || value === null || value === "") return null;
-    const parsed = Number(value);
-    if (!Number.isFinite(parsed)) {
-      throw new Error(`${key} must be a finite number`);
-    }
-    return parsed;
   };
   const nodeEnv = text("NODE_ENV", "development");
   if (!["development", "test", "production"].includes(nodeEnv)) {
@@ -80,13 +66,11 @@ export function validateEnv(source: Record<string, unknown>): AppEnv {
     "REDIS_URL",
     isProduction ? "" : "redis://localhost:6379/0",
   );
-  const smsProvider = text(
-    "SMS_PROVIDER",
-    isProduction ? "" : "console",
+  const routingUrl = text("ROUTING_URL", "http://127.0.0.1:5000").replace(
+    /\/$/,
+    "",
   );
-  const twilioAccountSid = text("TWILIO_ACCOUNT_SID", "");
-  const twilioAuthToken = text("TWILIO_AUTH_TOKEN", "");
-  const twilioFrom = text("TWILIO_FROM", "");
+  const smsProvider = text("SMS_PROVIDER", isProduction ? "" : "console");
   const smsGatewayDeviceId = text(
     "SMS_GATEWAY_DEVICE_ID",
     "android-primary",
@@ -103,6 +87,24 @@ export function validateEnv(source: Record<string, unknown>): AppEnv {
   ) {
     throw new Error(
       "DATABASE_URL and REDIS_URL are required and JWT_ACCESS_SECRET and OTP_PEPPER must each contain at least 32 characters",
+    );
+  }
+  let parsedRoutingUrl: URL;
+  try {
+    parsedRoutingUrl = new URL(routingUrl);
+  } catch {
+    throw new Error("ROUTING_URL must be a valid HTTP URL");
+  }
+  if (
+    !["http:", "https:"].includes(parsedRoutingUrl.protocol) ||
+    parsedRoutingUrl.username ||
+    parsedRoutingUrl.password ||
+    parsedRoutingUrl.search ||
+    parsedRoutingUrl.hash ||
+    (parsedRoutingUrl.pathname !== "/" && parsedRoutingUrl.pathname !== "")
+  ) {
+    throw new Error(
+      "ROUTING_URL must be an HTTP origin without credentials, path, query or fragment",
     );
   }
   if (
@@ -125,35 +127,18 @@ export function validateEnv(source: Record<string, unknown>): AppEnv {
       "REDIS_URL must use redis:// locally and rediss:// in production",
     );
   }
-  if (!["android_pull", "console", "twilio"].includes(smsProvider)) {
-    throw new Error(
-      "SMS_PROVIDER must be android_pull, console or twilio",
-    );
+  if (!["android_pull", "console"].includes(smsProvider)) {
+    throw new Error("SMS_PROVIDER must be android_pull or console");
   }
   if (isProduction && smsProvider === "console") {
     throw new Error("SMS_PROVIDER must not be console in production");
   }
-  if (
-    smsProvider === "twilio" &&
-    (!/^AC[0-9a-fA-F]{32}$/.test(twilioAccountSid) ||
-      twilioAuthToken.length < 32 ||
-      !twilioFrom)
-  ) {
-    throw new Error(
-      "TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN and TWILIO_FROM are required for Twilio SMS",
-    );
-  }
-  if (
-    !/^[A-Za-z0-9][A-Za-z0-9._-]{2,63}$/.test(smsGatewayDeviceId)
-  ) {
+  if (!/^[A-Za-z0-9][A-Za-z0-9._-]{2,63}$/.test(smsGatewayDeviceId)) {
     throw new Error(
       "SMS_GATEWAY_DEVICE_ID must contain 3 to 64 safe characters",
     );
   }
-  if (
-    smsProvider === "android_pull" &&
-    smsGatewayDeviceToken.length < 32
-  ) {
+  if (smsProvider === "android_pull" && smsGatewayDeviceToken.length < 32) {
     throw new Error(
       "SMS_GATEWAY_DEVICE_TOKEN must contain at least 32 characters for Android pull SMS",
     );
@@ -191,10 +176,20 @@ export function validateEnv(source: Record<string, unknown>): AppEnv {
       "MAX_IMAGE_BYTES must be an integer between 1 and 10485760",
     );
   }
+  const routingTimeoutMs = number("ROUTING_TIMEOUT_MS", 3_000);
+  if (
+    !Number.isInteger(routingTimeoutMs) ||
+    routingTimeoutMs < 500 ||
+    routingTimeoutMs > 10_000
+  ) {
+    throw new Error(
+      "ROUTING_TIMEOUT_MS must be an integer between 500 and 10000",
+    );
+  }
 
   const corsOrigins = text(
     "CORS_ORIGINS",
-    isProduction ? "" : "http://localhost:3000,http://localhost:3001",
+    isProduction ? "" : "http://localhost:5173,http://localhost:3000",
   );
   const origins = corsOrigins
     .split(",")
@@ -230,37 +225,16 @@ export function validateEnv(source: Record<string, unknown>): AppEnv {
   }
   const s3Bucket = text("S3_BUCKET", "alowalow-media");
   if (!s3Bucket) throw new Error("S3_BUCKET is required");
-  const pickupLatitude = optionalNumber("DISPATCH_PICKUP_LATITUDE");
-  const pickupLongitude = optionalNumber("DISPATCH_PICKUP_LONGITUDE");
-  if ((pickupLatitude === null) !== (pickupLongitude === null)) {
-    throw new Error(
-      "DISPATCH_PICKUP_LATITUDE and DISPATCH_PICKUP_LONGITUDE must be provided together",
-    );
-  }
-  if (
-    pickupLatitude !== null &&
-    (pickupLatitude < -90 || pickupLatitude > 90)
-  ) {
-    throw new Error("DISPATCH_PICKUP_LATITUDE must be between -90 and 90");
-  }
-  if (
-    pickupLongitude !== null &&
-    (pickupLongitude < -180 || pickupLongitude > 180)
-  ) {
-    throw new Error("DISPATCH_PICKUP_LONGITUDE must be between -180 and 180");
-  }
-
   return {
     NODE_ENV: nodeEnv as AppEnv["NODE_ENV"],
     PORT: port,
     DATABASE_URL: databaseUrl,
     REDIS_URL: redisUrl,
+    ROUTING_URL: routingUrl,
+    ROUTING_TIMEOUT_MS: routingTimeoutMs,
     JWT_ACCESS_SECRET: jwtSecret,
     OTP_PEPPER: otpPepper,
     SMS_PROVIDER: smsProvider as AppEnv["SMS_PROVIDER"],
-    TWILIO_ACCOUNT_SID: twilioAccountSid,
-    TWILIO_AUTH_TOKEN: twilioAuthToken,
-    TWILIO_FROM: twilioFrom,
     SMS_GATEWAY_DEVICE_ID: smsGatewayDeviceId,
     SMS_GATEWAY_DEVICE_TOKEN: smsGatewayDeviceToken,
     SMS_GATEWAY_ENCRYPTION_KEY: smsGatewayEncryptionKey,
@@ -277,9 +251,5 @@ export function validateEnv(source: Record<string, unknown>): AppEnv {
     S3_ACCESS_KEY_ID: s3AccessKeyId,
     S3_SECRET_ACCESS_KEY: s3SecretAccessKey,
     S3_FORCE_PATH_STYLE: boolean("S3_FORCE_PATH_STYLE", !isProduction),
-    DISPATCH_PICKUP_NAME: text("DISPATCH_PICKUP_NAME", "AlowAlow"),
-    DISPATCH_PICKUP_ADDRESS: text("DISPATCH_PICKUP_ADDRESS", ""),
-    DISPATCH_PICKUP_LATITUDE: pickupLatitude,
-    DISPATCH_PICKUP_LONGITUDE: pickupLongitude,
   };
 }

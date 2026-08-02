@@ -1,19 +1,19 @@
-import { useMemo, useState, type FormEvent } from "react";
+import { useMemo, useState } from "react";
+import { zodResolver } from "@hookform/resolvers/zod";
 import type { ColumnDef } from "@tanstack/react-table";
-import { roleLabels, type Role } from "@/src/entities/order";
+import { useForm } from "react-hook-form";
+import { roleLabels } from "@/src/entities/order";
 import { useStaff, type Staff } from "@/src/entities/staff";
 import { useStaffActions } from "@/src/features/staff-management";
 import { useSession } from "@/src/shared/auth";
+import { FormFieldError } from "@/src/shared/forms";
 import { AsyncPanel, DataTable } from "@/src/shared/ui";
-
-const staffRoles: Role[] = [
-  "OPERATOR",
-  "COOK",
-  "COURIER",
-  "ACCOUNTANT",
-  "ADMIN",
-  "SUPER_ADMIN",
-];
+import {
+  staffFormSchema,
+  staffRoles,
+  type StaffFormInput,
+  type StaffFormValues,
+} from "../model/staff-form";
 
 export function StaffManager() {
   const { session } = useSession();
@@ -21,6 +21,22 @@ export function StaffManager() {
   const actions = useStaffActions();
   const [editing, setEditing] = useState<Staff | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = useForm<StaffFormInput, unknown, StaffFormValues>({
+    resolver: zodResolver(staffFormSchema),
+    mode: "onBlur",
+    defaultValues: {
+      phone: "",
+      firstName: "",
+      lastName: "",
+      role: "OPERATOR",
+      isActive: true,
+    },
+  });
   const canEdit = Boolean(
     session && ["ADMIN", "SUPER_ADMIN"].includes(session.user.role),
   );
@@ -71,6 +87,15 @@ export function StaffManager() {
                 className="secondary-button compact"
                 onClick={() => {
                   setEditing(row.original);
+                  reset({
+                    phone: row.original.phone,
+                    firstName: row.original.firstName ?? "",
+                    lastName: row.original.lastName ?? "",
+                    role:
+                      staffRoles.find((role) => role === row.original.role) ??
+                      "OPERATOR",
+                    isActive: row.original.isActive,
+                  });
                   setShowForm(true);
                 }}
               >
@@ -95,31 +120,26 @@ export function StaffManager() {
           ),
       },
     ],
-    [actions.updateStaff, canEdit],
+    [actions.updateStaff, canEdit, reset],
   );
 
-  async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    const role = String(form.get("role")) as Role;
-    const firstName = String(form.get("firstName") ?? "").trim() || undefined;
-    const lastName = String(form.get("lastName") ?? "").trim() || undefined;
+  async function submit(values: StaffFormValues) {
     if (editing) {
       await actions.updateStaff.mutateAsync({
         id: editing.id,
         body: {
-          role,
-          firstName,
-          lastName,
-          isActive: form.get("isActive") === "on",
+          role: values.role,
+          firstName: values.firstName,
+          lastName: values.lastName,
+          isActive: values.isActive,
         },
       });
     } else {
       await actions.createStaff.mutateAsync({
-        phone: String(form.get("phone")).trim(),
-        role,
-        firstName,
-        lastName,
+        phone: values.phone,
+        role: values.role,
+        firstName: values.firstName,
+        lastName: values.lastName,
       });
     }
     setEditing(null);
@@ -143,6 +163,7 @@ export function StaffManager() {
             className="primary-button"
             onClick={() => {
               setEditing(null);
+              reset();
               setShowForm((value) => !value);
             }}
           >
@@ -158,13 +179,23 @@ export function StaffManager() {
       )}
 
       {showForm && (
-        <form className="editor-card" onSubmit={submit}>
+        <form
+          className="editor-card"
+          data-testid="staff-form"
+          noValidate
+          onSubmit={handleSubmit(submit)}
+        >
           <div className="editor-title">
             <h2>{editing ? "Изменить сотрудника" : "Новый сотрудник"}</h2>
             <button
               className="text-button"
               type="button"
-              onClick={() => setShowForm(false)}
+              data-testid="staff-form-close"
+              onClick={() => {
+                setShowForm(false);
+                setEditing(null);
+                reset();
+              }}
             >
               Закрыть
             </button>
@@ -174,24 +205,40 @@ export function StaffManager() {
               <label>
                 <span>Телефон</span>
                 <input
-                  name="phone"
+                  data-testid="staff-phone"
+                  {...register("phone")}
+                  aria-invalid={Boolean(errors.phone)}
                   type="tel"
                   placeholder="+99365123456"
-                  required
                 />
+                <FormFieldError message={errors.phone?.message} />
               </label>
             )}
             <label>
               <span>Имя</span>
-              <input name="firstName" defaultValue={editing?.firstName ?? ""} />
+              <input
+                data-testid="staff-first-name"
+                {...register("firstName")}
+                aria-invalid={Boolean(errors.firstName)}
+              />
+              <FormFieldError message={errors.firstName?.message} />
             </label>
             <label>
               <span>Фамилия</span>
-              <input name="lastName" defaultValue={editing?.lastName ?? ""} />
+              <input
+                data-testid="staff-last-name"
+                {...register("lastName")}
+                aria-invalid={Boolean(errors.lastName)}
+              />
+              <FormFieldError message={errors.lastName?.message} />
             </label>
             <label>
               <span>Роль</span>
-              <select name="role" defaultValue={editing?.role ?? "OPERATOR"}>
+              <select
+                data-testid="staff-role"
+                {...register("role")}
+                aria-invalid={Boolean(errors.role)}
+              >
                 {staffRoles
                   .filter(
                     (role) =>
@@ -204,13 +251,14 @@ export function StaffManager() {
                     </option>
                   ))}
               </select>
+              <FormFieldError message={errors.role?.message} />
             </label>
             {editing && (
               <label className="check-field">
                 <input
-                  name="isActive"
+                  data-testid="staff-active"
+                  {...register("isActive")}
                   type="checkbox"
-                  defaultChecked={editing.isActive}
                 />
                 Активен
               </label>
@@ -218,6 +266,7 @@ export function StaffManager() {
           </div>
           <button
             className="primary-button"
+            data-testid="staff-save"
             disabled={
               actions.createStaff.isPending || actions.updateStaff.isPending
             }

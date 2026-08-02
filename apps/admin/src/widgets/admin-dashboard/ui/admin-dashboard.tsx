@@ -33,11 +33,17 @@ const CashBoard = lazy(() =>
     default: module.CashBoard,
   })),
 );
+const BranchManager = lazy(() =>
+  import("@/src/widgets/branch-manager").then((module) => ({
+    default: module.BranchManager,
+  })),
+);
 
 type View =
   | "orders"
   | "kitchen"
   | "map"
+  | "branches"
   | "catalog"
   | "marketing"
   | "staff"
@@ -66,6 +72,12 @@ const nav: Array<{
     label: "Карта курьеров",
     icon: "⌖",
     roles: ["OPERATOR", "ADMIN", "SUPER_ADMIN"],
+  },
+  {
+    id: "branches",
+    label: "Филиалы",
+    icon: "⌂",
+    roles: ["ADMIN", "SUPER_ADMIN"],
   },
   {
     id: "catalog",
@@ -237,6 +249,7 @@ export function AdminDashboard() {
             />
           )}
           {activeView === "map" && <DispatchMap />}
+          {activeView === "branches" && <BranchManager />}
           {activeView === "catalog" && <CatalogManager />}
           {activeView === "marketing" && <MarketingManager />}
           {activeView === "staff" && <StaffManager />}

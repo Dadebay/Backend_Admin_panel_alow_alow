@@ -55,3 +55,25 @@ export async function apiRequest<T>(
   if (response.status === 204) return undefined as T;
   return (await response.json()) as T;
 }
+
+export async function openApiEventStream(
+  path: string,
+  accessToken: string,
+  signal: AbortSignal,
+) {
+  const response = await fetch(resolveApiUrl(path), {
+    signal,
+    cache: "no-store",
+    headers: {
+      Accept: "text/event-stream",
+      Authorization: `Bearer ${accessToken}`,
+    },
+  });
+  if (!response.ok || !response.body) {
+    throw new ApiError(
+      `Live API stream failed with ${response.status}`,
+      response.status,
+    );
+  }
+  return response.body;
+}

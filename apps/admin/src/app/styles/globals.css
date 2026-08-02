@@ -824,9 +824,25 @@ td small {
 .courier-map-canvas,
 .map-loading {
   width: 100%;
-  height: 248px;
+  height: clamp(640px, 76vh, 920px);
   border-bottom: 1px solid #eceeef;
   background: #e7ebe6;
+}
+
+.courier-route-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 16px;
+  border-bottom: 1px solid #eef0f1;
+  color: #6f7a82;
+  background: #fffaf5;
+  font-size: 9px;
+}
+
+.courier-route-status strong {
+  color: #29343d;
 }
 
 .map-loading {
@@ -959,7 +975,6 @@ td small {
   font-weight: 760;
 }
 
-.pickup-row,
 .delivery-stop {
   display: grid;
   grid-template-columns: 25px 1fr;
@@ -968,7 +983,6 @@ td small {
   border-top: 1px solid #eef0f1;
 }
 
-.pickup-row > span,
 .delivery-stop > span {
   width: 24px;
   height: 24px;
@@ -976,27 +990,16 @@ td small {
   place-items: center;
   border-radius: 8px;
   color: white;
-  background: var(--orange);
+  background: #338f75;
   font-size: 8px;
   font-weight: 800;
 }
 
-.delivery-stop > span {
-  background: #338f75;
-}
-
-.pickup-row strong,
-.pickup-row small {
-  display: block;
-}
-
-.pickup-row strong,
 .delivery-stop-title strong {
   color: #313c44;
   font-size: 8px;
 }
 
-.pickup-row small,
 .delivery-stop small,
 .delivery-stop p,
 .no-stops {
@@ -1024,6 +1027,20 @@ td small {
   border-radius: 6px;
   color: #8a6622;
   background: #fff7e7;
+}
+
+.order-branch-row {
+  margin-top: 6px;
+  padding: 6px 8px;
+  border-radius: 7px;
+  color: #9a4c32;
+  background: #fff3ef;
+  font-size: 7px;
+  line-height: 1.45;
+}
+
+.order-branch-row strong {
+  color: #7d3823;
 }
 
 .map-message {
@@ -1819,6 +1836,21 @@ td small {
   line-height: 1.45;
 }
 
+.form-field-error {
+  display: block;
+  color: #b34848;
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+input[aria-invalid="true"],
+select[aria-invalid="true"],
+textarea[aria-invalid="true"] {
+  border-color: #c86b6b;
+  box-shadow: 0 0 0 2px rgba(200, 107, 107, 0.12);
+}
+
 .otp-card {
   display: grid;
   gap: 12px;
@@ -2058,19 +2090,20 @@ td small {
 
   .courier-map-canvas,
   .map-loading {
-    height: 320px;
+    height: clamp(600px, 70vh, 820px);
     grid-column: 1;
-    grid-row: 2 / span 2;
+    grid-row: 2 / span 3;
     border-right: 1px solid #eceeef;
   }
 
+  .courier-route-status,
   .live-courier-list,
   .courier-route-details {
     grid-column: 2;
   }
 
   .courier-route-details {
-    max-height: 235px;
+    max-height: 360px;
   }
 
   .product-grid {
@@ -2160,7 +2193,7 @@ td small {
 
   .courier-map-canvas,
   .map-loading {
-    height: 250px;
+    height: 500px;
     border-right: 0;
   }
 
@@ -2383,6 +2416,13 @@ td small {
   color: var(--muted);
   font-size: 10px;
   line-height: 1.4;
+}
+
+.coordinate-value {
+  color: #596570;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 10px;
+  white-space: nowrap;
 }
 
 .review-preview {
@@ -2745,6 +2785,76 @@ button:disabled {
 
 .form-grid .check-field input {
   min-height: 0;
+}
+
+.branch-location-field {
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+
+.branch-location-picker {
+  overflow: hidden;
+  border: 1px solid #e2e6e8;
+  border-radius: 14px;
+  background: #f8f9f7;
+}
+
+.branch-location-copy {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 14px 16px;
+}
+
+.branch-location-copy strong,
+.branch-location-copy small {
+  display: block;
+}
+
+.branch-location-copy strong {
+  color: var(--ink);
+  font-size: 12px;
+}
+
+.branch-location-copy small {
+  max-width: 620px;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1.45;
+}
+
+.branch-location-map {
+  width: 100%;
+  height: clamp(560px, 68vh, 820px);
+  border-top: 1px solid #e2e6e8;
+  border-bottom: 1px solid #e2e6e8;
+  background: #e7ebe6;
+}
+
+.branch-location-map .leaflet-control-attribution,
+.branch-location-map .leaflet-tooltip {
+  font-family:
+    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
+  font-size: 9px;
+}
+
+.branch-location-marker {
+  border: 0;
+  background: transparent;
+}
+
+.branch-location-marker span {
+  width: 28px;
+  height: 28px;
+  display: block;
+  border: 4px solid white;
+  border-radius: 50% 50% 50% 5px;
+  background: var(--orange);
+  box-shadow: 0 6px 16px rgba(42, 48, 54, 0.28);
+  transform: rotate(-45deg);
 }
 
 .editor-card > .primary-button {
@@ -3110,6 +3220,20 @@ button:disabled {
 
   .form-grid .wide-field {
     grid-column: auto;
+  }
+
+  .branch-location-field {
+    grid-column: auto;
+  }
+
+  .branch-location-copy {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 9px;
+  }
+
+  .branch-location-map {
+    height: 460px;
   }
 
   .toolbar,

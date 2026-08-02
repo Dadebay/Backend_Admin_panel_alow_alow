@@ -5,8 +5,8 @@ instructions.
 
 ## Architecture
 
-- Organize code by business module: `auth`, `users`, `catalog`, `marketing`,
-  `media`, and `orders`.
+- Organize code by business module: `auth`, `users`, `branches`, `catalog`,
+  `marketing`, `media`, `orders`, `tracking`, and `routing`.
 - Controllers handle HTTP concerns only: decorators, DTOs, status codes, and
   passing the authenticated actor to a service.
 - Services own use cases, authorization details that depend on loaded data,
@@ -15,7 +15,8 @@ instructions.
   `orders/order-policy.ts`.
 - Prisma is the only application access layer for PostgreSQL. Do not introduce
   raw SQL except for a documented locking or database-specific requirement.
-- External systems stay behind injectable services: Redis, Twilio, S3, and
+- External systems stay behind injectable services: Redis, the Android SMS
+  gateway, S3, and
   future maps/routing providers.
 
 ## API and validation
@@ -61,7 +62,16 @@ instructions.
 - One courier may have multiple simultaneous active orders. Do not add a unique
   constraint or a one-active-order guard.
 - Courier routes return all `ASSIGNED_TO_COURIER` and `OUT_FOR_DELIVERY`
-  orders assigned to that courier.
+  orders assigned to that courier plus a real OSRM road route when available.
+  OSRM remains private behind NestJS; never proxy arbitrary client coordinates.
+- Mobile-own and authorized dispatcher route endpoints must use the same route
+  builder, stop order, GeoJSON geometry, and deterministic plan identifier.
+  Keep all active orders in `stops`; `nextWaypoints` is only a three-point
+  navigation projection. Do not claim live traffic or closure awareness without
+  a trusted dynamic restriction source applied by the backend routing layer.
+- Accepted/stopped courier GPS points are pushed only to role-authorized
+  dispatch clients through SSE. Stream events contain courier ID and location,
+  never customer/order payloads; snapshots recover initial/reconnected state.
 - Use the order `version` field for optimistic concurrency on every status,
   cancellation, and assignment mutation.
 - Record every successful state change in `OrderTransition`.
@@ -72,8 +82,14 @@ instructions.
 
 - Prices, discounts, delivery fees, promo limits, and totals are calculated by
   the backend from current database data.
-- Store immutable order snapshots for product names, unit prices, and delivery
-  address fields.
+- Store immutable order snapshots for product names, unit prices, delivery
+  address fields, and the assigned branch.
+- Assign every new order to the nearest active branch by Haversine distance
+  from the selected address inside the order transaction. Fail with `409`
+  when no active branch exists; never silently create an unassigned new order.
+- Branch coordinates and availability are PostgreSQL data managed by admins,
+  not environment configuration. Deactivation affects new assignment only and
+  must not rewrite historical order snapshots.
 - New or selected order addresses become active; the last used order address is
   the default for the next order.
 - Multi-record writes use a Prisma transaction. Protect counters and state
@@ -87,8 +103,8 @@ instructions.
   use generated object names, and store objects in private S3-compatible
   storage.
 - Local development uses MinIO; production uses S3/IAM-compatible credentials.
-- Local SMS may use `console`; production must use either Twilio or the
-  authenticated Android pull gateway.
+- Local SMS may use `console`; production must use the authenticated Android
+  pull gateway.
 - Android pull jobs must be encrypted at rest, atomically leased to one device,
   acknowledged with the matching receipt, and cancelled against the original
   OTP request when delivery fails.

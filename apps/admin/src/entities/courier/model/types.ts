@@ -7,3 +7,5 @@ export type DispatchCourier =
 export type DispatchOrder = components["schemas"]["DispatchOrderDto"];
 export type CourierLocation =
   components["schemas"]["CourierLocationDto"];
+export type CourierRoute =
+  components["schemas"]["CourierRouteResponseDto"];

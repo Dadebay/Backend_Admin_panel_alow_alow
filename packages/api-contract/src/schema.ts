@@ -280,8 +280,25 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get all active courier stops for map and route planning */
+        /** Get assigned stops and a real driving route for the courier */
         get: operations["OrdersController_route_v1"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/orders/couriers/{courierId}/route": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get the same stops and road route shown to a selected courier */
+        get: operations["OrdersController_dispatchRoute_v1"];
         put?: never;
         post?: never;
         delete?: never;
@@ -476,6 +493,93 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/branches": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List all branches for operations */
+        get: operations["BranchesController_list_v1"];
+        put?: never;
+        /** Create a delivery branch */
+        post: operations["BranchesController_create_v1"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/branches/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update or deactivate a delivery branch */
+        patch: operations["BranchesController_update_v1"];
+        trace?: never;
+    };
+    "/api/v1/tracking/me/location": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Publish courier GPS; update about every 15 seconds during active delivery */
+        put: operations["TrackingController_updateLocation_v1"];
+        post?: never;
+        /** Stop sharing the authenticated courier location */
+        delete: operations["TrackingController_stopSharing_v1"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tracking/dispatch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get active couriers, their latest locations, delivery stops and customer details */
+        get: operations["TrackingController_dispatch_v1"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tracking/dispatch/live": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Stream accepted courier GPS updates to authorized dispatchers */
+        get: operations["TrackingController_dispatchLive_v1"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/marketing/banners": {
         parameters: {
             query?: never;
@@ -600,41 +704,6 @@ export interface paths {
         put?: never;
         post?: never;
         delete: operations["MediaController_remove_v1"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/tracking/me/location": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /** Publish the authenticated courier location; clients should update every 120 seconds */
-        put: operations["TrackingController_updateLocation_v1"];
-        post?: never;
-        /** Stop sharing the authenticated courier location */
-        delete: operations["TrackingController_stopSharing_v1"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/tracking/dispatch": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get active couriers, their latest locations, delivery stops and customer details */
-        get: operations["TrackingController_dispatch_v1"];
-        put?: never;
-        post?: never;
-        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -994,6 +1063,8 @@ export interface components {
             /** Format: uuid */
             addressId: string | null;
             /** Format: uuid */
+            branchId: string | null;
+            /** Format: uuid */
             cookId: string | null;
             /** Format: uuid */
             courierId: string | null;
@@ -1013,6 +1084,11 @@ export interface components {
             entrance: string | null;
             floor: string | null;
             apartment: string | null;
+            branchName: string | null;
+            branchAddress: string | null;
+            branchLatitude: number | null;
+            branchLongitude: number | null;
+            branchDistanceMeters: number | null;
             customerNote: string | null;
             cancellationReason: string | null;
             version: number;
@@ -1043,10 +1119,22 @@ export interface components {
             total: number;
             pages: number;
         };
+        CourierRouteBranchResponseDto: {
+            /** Format: uuid */
+            branchId: string;
+            name: string | null;
+            address: string | null;
+            latitude: number | null;
+            longitude: number | null;
+        };
         CourierRouteCustomerResponseDto: {
             phone: string;
             firstName: string | null;
             lastName: string | null;
+        };
+        CourierRouteItemResponseDto: {
+            productName: string;
+            quantity: number;
         };
         CourierRouteStopResponseDto: {
             sequence: number;
@@ -1058,14 +1146,82 @@ export interface components {
             address: string;
             latitude: number;
             longitude: number;
+            entrance: string | null;
+            floor: string | null;
+            apartment: string | null;
+            customerNote: string | null;
+            /** Format: date-time */
+            assignedAt: string | null;
+            branch: components["schemas"]["CourierRouteBranchResponseDto"] | null;
             customer: components["schemas"]["CourierRouteCustomerResponseDto"];
             itemCount: number;
+            items: components["schemas"]["CourierRouteItemResponseDto"][];
             cashToCollect: number;
+        };
+        CourierRouteGeometryResponseDto: {
+            /** @enum {string} */
+            type: "LineString";
+            /** @description GeoJSON coordinates in [longitude, latitude] order */
+            coordinates: number[][];
+        };
+        CourierRouteWaypointResponseDto: {
+            sequence: number;
+            /** @enum {string} */
+            kind: "COURIER" | "PICKUP" | "DELIVERY";
+            requestedLatitude: number;
+            requestedLongitude: number;
+            latitude: number;
+            longitude: number;
+            distanceToRoadMeters: number;
+            /** Format: uuid */
+            branchId: string | null;
+            /** Format: uuid */
+            orderId: string | null;
+        };
+        CourierRouteManeuverResponseDto: {
+            type: string;
+            modifier: string | null;
+            latitude: number;
+            longitude: number;
+        };
+        CourierRouteStepResponseDto: {
+            distanceMeters: number;
+            durationSeconds: number;
+            roadName: string;
+            mode: string;
+            maneuver: components["schemas"]["CourierRouteManeuverResponseDto"];
+        };
+        CourierRouteLegResponseDto: {
+            distanceMeters: number;
+            durationSeconds: number;
+            summary: string;
+            steps: components["schemas"]["CourierRouteStepResponseDto"][];
+        };
+        CourierRoadRouteResponseDto: {
+            /** @description Deterministic identifier of the ordered stops and generated road geometry */
+            planId: string;
+            /** Format: date-time */
+            generatedAt: string;
+            distanceMeters: number;
+            durationSeconds: number;
+            geometry: components["schemas"]["CourierRouteGeometryResponseDto"];
+            waypoints: components["schemas"]["CourierRouteWaypointResponseDto"][];
+            /** @description The next one to three pickup or delivery waypoints; all active orders remain available in stops */
+            nextWaypoints: components["schemas"]["CourierRouteWaypointResponseDto"][];
+            legs: components["schemas"]["CourierRouteLegResponseDto"][];
         };
         CourierRouteResponseDto: {
             /** Format: uuid */
             courierId: string;
             stops: components["schemas"]["CourierRouteStopResponseDto"][];
+            /** @enum {string} */
+            routingStatus: "READY" | "NO_STOPS" | "UNAVAILABLE";
+            /**
+             * @description Recommended maximum delay before refreshing the route from the latest courier GPS position
+             * @example 15
+             */
+            recalculateAfterSeconds: number;
+            route: components["schemas"]["CourierRoadRouteResponseDto"] | null;
         };
         TransitionOrderDto: {
             /** @enum {string} */
@@ -1173,6 +1329,168 @@ export interface components {
             floor?: string;
             apartment?: string;
         };
+        BranchResponseDto: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            address: string;
+            latitude: number;
+            longitude: number;
+            phone?: string | null;
+            isActive: boolean;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        CreateBranchDto: {
+            /** @example AlowAlow Berkarar */
+            name: string;
+            /** @example Atatürk köçesi, 80 */
+            address: string;
+            /** @example 37.9382 */
+            latitude: number;
+            /** @example 58.3731 */
+            longitude: number;
+            /** @example +99365123456 */
+            phone?: string;
+            /** @default true */
+            isActive: boolean;
+        };
+        UpdateBranchDto: {
+            /** @example AlowAlow Berkarar */
+            name?: string;
+            /** @example Atatürk köçesi, 80 */
+            address?: string;
+            /** @example 37.9382 */
+            latitude?: number;
+            /** @example 58.3731 */
+            longitude?: number;
+            /** @example +99365123456 */
+            phone?: string;
+            /** @default true */
+            isActive: boolean;
+        };
+        UpdateCourierLocationDto: {
+            /** @example 37.9601 */
+            latitude: number;
+            /** @example 58.3261 */
+            longitude: number;
+            /**
+             * @description Estimated horizontal accuracy in metres
+             * @example 18
+             */
+            accuracy?: number;
+            /**
+             * @description Direction of travel in degrees from true north
+             * @example 125
+             */
+            heading?: number;
+            /**
+             * @description Ground speed in metres per second
+             * @example 8.5
+             */
+            speed?: number;
+            /**
+             * @description Timestamp supplied by the device GPS reading
+             * @example 2026-07-27T12:30:00.000Z
+             */
+            recordedAt: string;
+        };
+        CourierLocationDto: {
+            latitude: number;
+            longitude: number;
+            accuracy?: number;
+            heading?: number;
+            speed?: number;
+            recordedAt: string;
+            receivedAt: string;
+        };
+        UpdateCourierLocationResponseDto: {
+            /** @example true */
+            accepted: boolean;
+            location: components["schemas"]["CourierLocationDto"];
+            /** @example 15 */
+            nextUpdateInSeconds: number;
+        };
+        StopCourierLocationResponseDto: {
+            /** @example true */
+            success: boolean;
+        };
+        DispatchBranchDto: {
+            /** Format: uuid */
+            id: string;
+            /** @example AlowAlow Berkarar */
+            name: string;
+            address: string;
+            latitude: number;
+            longitude: number;
+            phone: string | null;
+        };
+        DispatchOrderBranchDto: {
+            /** Format: uuid */
+            id: string;
+            name: string | null;
+            address: string | null;
+            latitude: number | null;
+            longitude: number | null;
+        };
+        DispatchCustomerDto: {
+            firstName: string | null;
+            lastName: string | null;
+            phone: string;
+        };
+        DispatchOrderItemDto: {
+            productName: string;
+            quantity: number;
+        };
+        DispatchOrderDto: {
+            /** Format: uuid */
+            id: string;
+            number: number;
+            /** @enum {string} */
+            status: "ASSIGNED_TO_COURIER" | "OUT_FOR_DELIVERY";
+            address: string;
+            latitude: number;
+            longitude: number;
+            branch: components["schemas"]["DispatchOrderBranchDto"] | null;
+            entrance: string | null;
+            floor: string | null;
+            apartment: string | null;
+            customerNote: string | null;
+            cashToCollect: number;
+            assignedAt: string | null;
+            customer: components["schemas"]["DispatchCustomerDto"];
+            items: components["schemas"]["DispatchOrderItemDto"][];
+        };
+        DispatchCourierDto: {
+            /** Format: uuid */
+            id: string;
+            firstName: string | null;
+            lastName: string | null;
+            phone: string;
+            /** @enum {string} */
+            presence: "ONLINE" | "STALE" | "OFFLINE";
+            location: components["schemas"]["CourierLocationDto"] | null;
+            rating: number | null;
+            activeOrders: components["schemas"]["DispatchOrderDto"][];
+        };
+        DispatchSnapshotDto: {
+            generatedAt: string;
+            /** @example 15 */
+            courierUpdateIntervalSeconds: number;
+            branches: components["schemas"]["DispatchBranchDto"][];
+            couriers: components["schemas"]["DispatchCourierDto"][];
+        };
+        DispatchLiveEventDto: {
+            /** @enum {string} */
+            type: "courier.location" | "heartbeat";
+            /** Format: uuid */
+            courierId: string | null;
+            location: components["schemas"]["CourierLocationDto"] | null;
+            /** Format: date-time */
+            sentAt: string;
+        };
         BannerResponseDto: {
             /** Format: uuid */
             id: string;
@@ -1270,105 +1588,6 @@ export interface components {
             width: number;
             height: number;
             bytes: number;
-        };
-        UpdateCourierLocationDto: {
-            /** @example 37.9601 */
-            latitude: number;
-            /** @example 58.3261 */
-            longitude: number;
-            /**
-             * @description Estimated horizontal accuracy in metres
-             * @example 18
-             */
-            accuracy?: number;
-            /**
-             * @description Direction of travel in degrees from true north
-             * @example 125
-             */
-            heading?: number;
-            /**
-             * @description Ground speed in metres per second
-             * @example 8.5
-             */
-            speed?: number;
-            /**
-             * @description Timestamp supplied by the device GPS reading
-             * @example 2026-07-27T12:30:00.000Z
-             */
-            recordedAt: string;
-        };
-        CourierLocationDto: {
-            latitude: number;
-            longitude: number;
-            accuracy?: number;
-            heading?: number;
-            speed?: number;
-            recordedAt: string;
-            receivedAt: string;
-        };
-        UpdateCourierLocationResponseDto: {
-            /** @example true */
-            accepted: boolean;
-            location: components["schemas"]["CourierLocationDto"];
-            /** @example 120 */
-            nextUpdateInSeconds: number;
-        };
-        StopCourierLocationResponseDto: {
-            /** @example true */
-            success: boolean;
-        };
-        DispatchPickupDto: {
-            /** @example AlowAlow */
-            name: string;
-            address: string | null;
-            latitude: number | null;
-            longitude: number | null;
-        };
-        DispatchCustomerDto: {
-            firstName: string | null;
-            lastName: string | null;
-            phone: string;
-        };
-        DispatchOrderItemDto: {
-            productName: string;
-            quantity: number;
-        };
-        DispatchOrderDto: {
-            /** Format: uuid */
-            id: string;
-            number: number;
-            /** @enum {string} */
-            status: "ASSIGNED_TO_COURIER" | "OUT_FOR_DELIVERY";
-            address: string;
-            latitude: number;
-            longitude: number;
-            entrance: string | null;
-            floor: string | null;
-            apartment: string | null;
-            customerNote: string | null;
-            cashToCollect: number;
-            assignedAt: string | null;
-            customer: components["schemas"]["DispatchCustomerDto"];
-            items: components["schemas"]["DispatchOrderItemDto"][];
-        };
-        DispatchCourierDto: {
-            /** Format: uuid */
-            id: string;
-            firstName: string | null;
-            lastName: string | null;
-            phone: string;
-            /** @enum {string} */
-            presence: "ONLINE" | "STALE" | "OFFLINE";
-            location: components["schemas"]["CourierLocationDto"] | null;
-            rating: number | null;
-            activeOrders: components["schemas"]["DispatchOrderDto"][];
-        };
-        DispatchSnapshotDto: {
-            generatedAt: string;
-            /** @example 120 */
-            courierUpdateIntervalSeconds: number;
-            pickup: components["schemas"]["DispatchPickupDto"];
-            couriers: components["schemas"]["DispatchCourierDto"][];
         };
     };
     responses: never;
@@ -1763,6 +1982,8 @@ export interface operations {
         parameters: {
             query?: {
                 status?: "NEW" | "CONFIRMED" | "SENT_TO_KITCHEN" | "COOKING" | "READY" | "ASSIGNED_TO_COURIER" | "OUT_FOR_DELIVERY" | "DELIVERED" | "CASH_RETURNED" | "COMPLETED" | "RECONCILED" | "CANCELLED";
+                /** @description Filter operational order queues by assigned branch */
+                branchId?: string;
                 /** @description Order number, customer phone/name, or delivery address */
                 search?: string;
                 page?: components["schemas"]["Object"];
@@ -1812,6 +2033,27 @@ export interface operations {
             query?: never;
             header?: never;
             path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CourierRouteResponseDto"];
+                };
+            };
+        };
+    };
+    OrdersController_dispatchRoute_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                courierId: string;
+            };
             cookie?: never;
         };
         requestBody?: never;
@@ -2134,6 +2376,153 @@ export interface operations {
             };
         };
     };
+    BranchesController_list_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BranchResponseDto"][];
+                };
+            };
+        };
+    };
+    BranchesController_create_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateBranchDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BranchResponseDto"];
+                };
+            };
+        };
+    };
+    BranchesController_update_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateBranchDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BranchResponseDto"];
+                };
+            };
+        };
+    };
+    TrackingController_updateLocation_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateCourierLocationDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UpdateCourierLocationResponseDto"];
+                };
+            };
+        };
+    };
+    TrackingController_stopSharing_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StopCourierLocationResponseDto"];
+                };
+            };
+        };
+    };
+    TrackingController_dispatch_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DispatchSnapshotDto"];
+                };
+            };
+        };
+    };
+    TrackingController_dispatchLive_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/event-stream": components["schemas"]["DispatchLiveEventDto"];
+                };
+            };
+        };
+    };
     MarketingController_banners_v1: {
         parameters: {
             query?: never;
@@ -2348,67 +2737,6 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
-            };
-        };
-    };
-    TrackingController_updateLocation_v1: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["UpdateCourierLocationDto"];
-            };
-        };
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["UpdateCourierLocationResponseDto"];
-                };
-            };
-        };
-    };
-    TrackingController_stopSharing_v1: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["StopCourierLocationResponseDto"];
-                };
-            };
-        };
-    };
-    TrackingController_dispatch_v1: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DispatchSnapshotDto"];
-                };
             };
         };
     };

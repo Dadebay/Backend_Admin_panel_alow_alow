@@ -5,6 +5,7 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
+import { createHash } from "node:crypto";
 import {
   CashSettlementStatus,
   OrderStatus,
@@ -16,6 +17,12 @@ import type { AuthUser } from "../common/auth.types";
 import { toApiResponse } from "../common/api-response";
 import { PrismaService } from "../prisma/prisma.service";
 import { AddressesService } from "../users/addresses.service";
+import { BranchesService } from "../branches/branches.service";
+import {
+  RoutingService,
+  RoutingUnavailableError,
+} from "../routing/routing.service";
+import { TrackingService } from "../tracking/tracking.service";
 import {
   AssignCourierDto,
   CancelOrderDto,
@@ -24,10 +31,11 @@ import {
   RateOrderDto,
   TransitionOrderDto,
 } from "./orders.dto";
+import { assertOrderTransition, canCancelOrder } from "./order-policy";
 import {
-  assertOrderTransition,
-  canCancelOrder,
-} from "./order-policy";
+  CourierRouteWaypointKind,
+  CourierRoutingStatus,
+} from "./orders-response.dto";
 
 const detailInclude = {
   customer: {
@@ -50,12 +58,18 @@ const detailInclude = {
     },
   },
 };
+const MAX_ROUTE_LOCATION_AGE_MS = 5 * 60 * 1_000;
+const ROUTE_RECALCULATION_SECONDS = 15;
+const NEXT_ROUTE_WAYPOINTS_LIMIT = 3;
 
 @Injectable()
 export class OrdersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly addresses: AddressesService,
+    private readonly branches: BranchesService,
+    private readonly tracking: TrackingService,
+    private readonly routing: RoutingService,
   ) {}
 
   async create(user: AuthUser, dto: CreateOrderDto) {
@@ -75,9 +89,7 @@ export class OrdersService {
       },
     });
     if (products.length !== quantityByProduct.size) {
-      throw new BadRequestException(
-        "One or more products are unavailable",
-      );
+      throw new BadRequestException("One or more products are unavailable");
     }
 
     const subtotal = products.reduce(
@@ -130,6 +142,10 @@ export class OrdersService {
         user.id,
         dto,
       );
+      const nearest = await this.branches.findNearestActive(tx, {
+        latitude: Number(selectedAddress.latitude),
+        longitude: Number(selectedAddress.longitude),
+      });
 
       if (promo) {
         const incremented = await tx.promoCode.updateMany({
@@ -150,6 +166,7 @@ export class OrdersService {
       const order = await tx.order.create({
         data: {
           customerId: user.id,
+          branchId: nearest.branch.id,
           promoCodeId: promo?.id,
           addressId: selectedAddress.id,
           subtotal,
@@ -162,6 +179,11 @@ export class OrdersService {
           entrance: selectedAddress.entrance,
           floor: selectedAddress.floor,
           apartment: selectedAddress.apartment,
+          branchName: nearest.branch.name,
+          branchAddress: nearest.branch.address,
+          branchLatitude: nearest.branch.latitude,
+          branchLongitude: nearest.branch.longitude,
+          branchDistanceMeters: nearest.distanceMeters,
           customerNote: dto.customerNote,
           items: {
             create: products.map((product) => {
@@ -194,7 +216,12 @@ export class OrdersService {
           action: "order.created",
           entityType: "Order",
           entityId: order.id,
-          metadata: { number: order.number, total },
+          metadata: {
+            number: order.number,
+            total,
+            branchId: nearest.branch.id,
+            branchDistanceMeters: nearest.distanceMeters,
+          },
         },
       });
       return toApiResponse(order);
@@ -220,11 +247,18 @@ export class OrdersService {
     const where = {
       ...roleFilter,
       ...(query.status ? { status: query.status } : {}),
+      ...(query.branchId ? { branchId: query.branchId } : {}),
       ...(search
         ? {
             OR: [
               ...(orderNumber ? [{ number: orderNumber }] : []),
               { address: { contains: search, mode: "insensitive" as const } },
+              {
+                branchName: {
+                  contains: search,
+                  mode: "insensitive" as const,
+                },
+              },
               {
                 customer: {
                   OR: [
@@ -288,17 +322,10 @@ export class OrdersService {
         throw new ConflictException("Order changed; reload and try again");
       }
       assertOrderTransition(order.status, dto.status, user.role);
-      if (
-        user.role === Role.COOK &&
-        order.cookId &&
-        order.cookId !== user.id
-      ) {
+      if (user.role === Role.COOK && order.cookId && order.cookId !== user.id) {
         throw new ForbiddenException("This order belongs to another cook");
       }
-      if (
-        user.role === Role.COURIER &&
-        order.courierId !== user.id
-      ) {
+      if (user.role === Role.COURIER && order.courierId !== user.id) {
         throw new ForbiddenException("This order is not assigned to you");
       }
 
@@ -445,7 +472,9 @@ export class OrdersService {
       if (order.version !== dto.version) {
         throw new ConflictException("Order changed; reload and try again");
       }
-      if (!canCancelOrder(order.status, user.role, order.customerId === user.id)) {
+      if (
+        !canCancelOrder(order.status, user.role, order.customerId === user.id)
+      ) {
         throw new ForbiddenException(
           "Cancellation is allowed only for authorized staff before cooking starts",
         );
@@ -535,39 +564,194 @@ export class OrdersService {
   }
 
   async courierRoute(user: AuthUser) {
-    const orders = await this.prisma.order.findMany({
-      where: {
-        courierId: user.id,
-        status: {
-          in: [
-            OrderStatus.ASSIGNED_TO_COURIER,
-            OrderStatus.OUT_FOR_DELIVERY,
-          ],
-        },
-      },
-      include: {
-        customer: {
-          select: { phone: true, firstName: true, lastName: true },
-        },
-        items: true,
-      },
-      orderBy: [{ assignedAt: "asc" }, { createdAt: "asc" }],
+    return this.buildCourierRoute(user.id);
+  }
+
+  async dispatchCourierRoute(courierId: string) {
+    const courier = await this.prisma.user.findFirst({
+      where: { id: courierId, role: Role.COURIER, isActive: true },
+      select: { id: true },
     });
-    return toApiResponse({
-      courierId: user.id,
-      stops: orders.map((order, index) => ({
-        sequence: index + 1,
-        orderId: order.id,
-        orderNumber: order.number,
-        status: order.status,
-        address: order.address,
-        latitude: order.latitude,
-        longitude: order.longitude,
-        customer: order.customer,
-        itemCount: order.items.reduce((sum, item) => sum + item.quantity, 0),
-        cashToCollect: order.total,
+    if (!courier) throw new NotFoundException("Active courier not found");
+    return this.buildCourierRoute(courier.id);
+  }
+
+  private async buildCourierRoute(courierId: string) {
+    const [orders, courierLocation] = await Promise.all([
+      this.prisma.order.findMany({
+        where: {
+          courierId,
+          status: {
+            in: [
+              OrderStatus.ASSIGNED_TO_COURIER,
+              OrderStatus.OUT_FOR_DELIVERY,
+            ],
+          },
+        },
+        include: {
+          customer: {
+            select: { phone: true, firstName: true, lastName: true },
+          },
+          items: true,
+        },
+        orderBy: [{ assignedAt: "asc" }, { createdAt: "asc" }],
+      }),
+      this.tracking.getCourierLocation(courierId),
+    ]);
+    const stops = orders.map((order, index) => ({
+      sequence: index + 1,
+      orderId: order.id,
+      orderNumber: order.number,
+      status: order.status,
+      address: order.address,
+      latitude: order.latitude,
+      longitude: order.longitude,
+      entrance: order.entrance,
+      floor: order.floor,
+      apartment: order.apartment,
+      customerNote: order.customerNote,
+      assignedAt: order.assignedAt,
+      branch: order.branchId
+        ? {
+            branchId: order.branchId,
+            name: order.branchName,
+            address: order.branchAddress,
+            latitude: order.branchLatitude,
+            longitude: order.branchLongitude,
+          }
+        : null,
+      customer: order.customer,
+      itemCount: order.items.reduce((sum, item) => sum + item.quantity, 0),
+      items: order.items.map(({ productName, quantity }) => ({
+        productName,
+        quantity,
       })),
-    });
+      cashToCollect: order.total,
+    }));
+    if (!orders.length) {
+      return toApiResponse({
+        courierId,
+        stops,
+        routingStatus: CourierRoutingStatus.NO_STOPS,
+        recalculateAfterSeconds: ROUTE_RECALCULATION_SECONDS,
+        route: null,
+      });
+    }
+
+    const routePoints: Array<{
+      kind: CourierRouteWaypointKind;
+      latitude: number;
+      longitude: number;
+      branchId: string | null;
+      orderId: string | null;
+    }> = [];
+    if (
+      courierLocation &&
+      Date.now() - Date.parse(courierLocation.recordedAt) <=
+        MAX_ROUTE_LOCATION_AGE_MS
+    ) {
+      routePoints.push({
+        kind: CourierRouteWaypointKind.COURIER,
+        latitude: courierLocation.latitude,
+        longitude: courierLocation.longitude,
+        branchId: null,
+        orderId: null,
+      });
+    }
+
+    const includedBranches = new Set<string>();
+    for (const order of orders) {
+      if (
+        order.status === OrderStatus.ASSIGNED_TO_COURIER &&
+        order.branchId &&
+        order.branchLatitude !== null &&
+        order.branchLongitude !== null &&
+        !includedBranches.has(order.branchId)
+      ) {
+        includedBranches.add(order.branchId);
+        routePoints.push({
+          kind: CourierRouteWaypointKind.PICKUP,
+          latitude: Number(order.branchLatitude),
+          longitude: Number(order.branchLongitude),
+          branchId: order.branchId,
+          orderId: null,
+        });
+      }
+    }
+    for (const order of orders) {
+      routePoints.push({
+        kind: CourierRouteWaypointKind.DELIVERY,
+        latitude: Number(order.latitude),
+        longitude: Number(order.longitude),
+        branchId: order.branchId,
+        orderId: order.id,
+      });
+    }
+
+    if (routePoints.length < 2) {
+      return toApiResponse({
+        courierId,
+        stops,
+        routingStatus: CourierRoutingStatus.UNAVAILABLE,
+        recalculateAfterSeconds: ROUTE_RECALCULATION_SECONDS,
+        route: null,
+      });
+    }
+
+    try {
+      const planned = await this.routing.planDrivingRoute(routePoints);
+      const waypoints = routePoints.map((point, index) => {
+        const snapped = planned.waypoints[index];
+        if (!snapped) throw new RoutingUnavailableError();
+        return {
+          sequence: index + 1,
+          kind: point.kind,
+          requestedLatitude: point.latitude,
+          requestedLongitude: point.longitude,
+          latitude: snapped.latitude,
+          longitude: snapped.longitude,
+          distanceToRoadMeters: snapped.distanceToRoadMeters,
+          branchId: point.branchId,
+          orderId: point.orderId,
+        };
+      });
+      const planId = createHash("sha256")
+        .update(
+          JSON.stringify({
+            courierId,
+            routePoints,
+            geometry: planned.geometry,
+          }),
+        )
+        .digest("hex");
+      return toApiResponse({
+        courierId,
+        stops,
+        routingStatus: CourierRoutingStatus.READY,
+        recalculateAfterSeconds: ROUTE_RECALCULATION_SECONDS,
+        route: {
+          planId,
+          generatedAt: new Date(),
+          distanceMeters: planned.distanceMeters,
+          durationSeconds: planned.durationSeconds,
+          geometry: planned.geometry,
+          waypoints,
+          nextWaypoints: waypoints
+            .filter(({ kind }) => kind !== CourierRouteWaypointKind.COURIER)
+            .slice(0, NEXT_ROUTE_WAYPOINTS_LIMIT),
+          legs: planned.legs,
+        },
+      });
+    } catch (error) {
+      if (!(error instanceof RoutingUnavailableError)) throw error;
+      return toApiResponse({
+        courierId,
+        stops,
+        routingStatus: CourierRoutingStatus.UNAVAILABLE,
+        recalculateAfterSeconds: ROUTE_RECALCULATION_SECONDS,
+        route: null,
+      });
+    }
   }
 
   private assertCanRead(
@@ -582,10 +766,7 @@ export class OrdersService {
     if (user.role === Role.CUSTOMER && order.customerId !== user.id) {
       throw new ForbiddenException();
     }
-    if (
-      user.role === Role.COURIER &&
-      order.courierId !== user.id
-    ) {
+    if (user.role === Role.COURIER && order.courierId !== user.id) {
       throw new ForbiddenException();
     }
     if (

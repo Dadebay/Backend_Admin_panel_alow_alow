@@ -3,9 +3,7 @@ import {
   Injectable,
   UnprocessableEntityException,
 } from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
 import type { AuthUser } from "../common/auth.types";
-import type { AppEnv } from "../config/env";
 import { OrderStatus, Role } from "../generated/prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { RedisService } from "../redis/redis.service";
@@ -16,8 +14,9 @@ import {
   type UpdateCourierLocationDto,
   type UpdateCourierLocationResponseDto,
 } from "./tracking.dto";
+import { TrackingLiveService } from "./tracking-live.service";
 
-const COURIER_UPDATE_INTERVAL_SECONDS = 120;
+const COURIER_UPDATE_INTERVAL_SECONDS = 15;
 const LOCATION_TTL_SECONDS = 15 * 60;
 const ONLINE_WINDOW_MS = 5 * 60 * 1_000;
 const MAX_READING_AGE_MS = 10 * 60 * 1_000;
@@ -48,7 +47,7 @@ export class TrackingService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly redis: RedisService,
-    private readonly config: ConfigService<AppEnv, true>,
+    private readonly live: TrackingLiveService,
   ) {}
 
   async updateLocation(
@@ -93,58 +92,84 @@ export class TrackingService {
       );
     }
 
+    const publicLocation = this.publicLocation(location);
+    this.live.publishLocation(courier.id, publicLocation);
     return {
       accepted: true,
-      location: this.publicLocation(location),
+      location: publicLocation,
       nextUpdateInSeconds: COURIER_UPDATE_INTERVAL_SECONDS,
     };
   }
 
   async stopSharing(courier: AuthUser) {
     await this.redis.delete(this.locationKey(courier.id));
+    this.live.publishLocation(courier.id, null);
     return { success: true };
   }
 
+  dispatchLive() {
+    return this.live.stream();
+  }
+
+  async getCourierLocation(
+    courierId: string,
+  ): Promise<CourierLocationDto | null> {
+    return this.parseLocation(
+      await this.redis.get(this.locationKey(courierId)),
+    );
+  }
+
   async getDispatchSnapshot(): Promise<DispatchSnapshotDto> {
-    const couriers = await this.prisma.user.findMany({
-      where: { role: Role.COURIER, isActive: true },
-      select: {
-        id: true,
-        firstName: true,
-        lastName: true,
-        phone: true,
-        courierOrders: {
-          where: { status: { in: [...ACTIVE_DELIVERY_STATUSES] } },
-          select: {
-            id: true,
-            number: true,
-            status: true,
-            address: true,
-            latitude: true,
-            longitude: true,
-            entrance: true,
-            floor: true,
-            apartment: true,
-            customerNote: true,
-            total: true,
-            assignedAt: true,
-            customer: {
-              select: {
-                firstName: true,
-                lastName: true,
-                phone: true,
+    const [couriers, branches] = await Promise.all([
+      this.prisma.user.findMany({
+        where: { role: Role.COURIER, isActive: true },
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          phone: true,
+          courierOrders: {
+            where: { status: { in: [...ACTIVE_DELIVERY_STATUSES] } },
+            select: {
+              id: true,
+              number: true,
+              status: true,
+              address: true,
+              latitude: true,
+              longitude: true,
+              branchId: true,
+              branchName: true,
+              branchAddress: true,
+              branchLatitude: true,
+              branchLongitude: true,
+              entrance: true,
+              floor: true,
+              apartment: true,
+              customerNote: true,
+              total: true,
+              assignedAt: true,
+              customer: {
+                select: {
+                  firstName: true,
+                  lastName: true,
+                  phone: true,
+                },
+              },
+              items: {
+                select: { productName: true, quantity: true },
+                orderBy: { productName: "asc" },
               },
             },
-            items: {
-              select: { productName: true, quantity: true },
-              orderBy: { productName: "asc" },
-            },
+            orderBy: [{ assignedAt: "asc" }, { createdAt: "asc" }],
           },
-          orderBy: [{ assignedAt: "asc" }, { createdAt: "asc" }],
         },
-      },
-      orderBy: [{ firstName: "asc" }, { lastName: "asc" }],
-    });
+        orderBy: [{ firstName: "asc" }, { lastName: "asc" }],
+      }),
+      this.prisma.branch.findMany({
+        where: { isActive: true },
+        orderBy: { name: "asc" },
+      }),
+    ]);
 
     const courierIds = couriers.map(({ id }) => id);
     const [locations, ratedOrders] = await Promise.all([
@@ -184,11 +209,7 @@ export class TrackingService {
         lastName: courier.lastName,
         phone: courier.phone,
         presence:
-          age <= ONLINE_WINDOW_MS
-            ? "ONLINE"
-            : location
-              ? "STALE"
-              : "OFFLINE",
+          age <= ONLINE_WINDOW_MS ? "ONLINE" : location ? "STALE" : "OFFLINE",
         location,
         rating: scores.length
           ? Number(
@@ -204,6 +225,19 @@ export class TrackingService {
           address: order.address,
           latitude: Number(order.latitude),
           longitude: Number(order.longitude),
+          branch: order.branchId
+            ? {
+                id: order.branchId,
+                name: order.branchName,
+                address: order.branchAddress,
+                latitude: order.branchLatitude
+                  ? Number(order.branchLatitude)
+                  : null,
+                longitude: order.branchLongitude
+                  ? Number(order.branchLongitude)
+                  : null,
+              }
+            : null,
           entrance: order.entrance,
           floor: order.floor,
           apartment: order.apartment,
@@ -219,15 +253,14 @@ export class TrackingService {
     return {
       generatedAt: new Date(now).toISOString(),
       courierUpdateIntervalSeconds: COURIER_UPDATE_INTERVAL_SECONDS,
-      pickup: {
-        name: this.config.get("DISPATCH_PICKUP_NAME", { infer: true }),
-        address:
-          this.config.get("DISPATCH_PICKUP_ADDRESS", { infer: true }) || null,
-        latitude: this.config.get("DISPATCH_PICKUP_LATITUDE", { infer: true }),
-        longitude: this.config.get("DISPATCH_PICKUP_LONGITUDE", {
-          infer: true,
-        }),
-      },
+      branches: branches.map((branch) => ({
+        id: branch.id,
+        name: branch.name,
+        address: branch.address,
+        latitude: Number(branch.latitude),
+        longitude: Number(branch.longitude),
+        phone: branch.phone,
+      })),
       couriers: result,
     };
   }
@@ -254,18 +287,14 @@ export class TrackingService {
     }
   }
 
-  private publicLocation(
-    location: StoredCourierLocation,
-  ): CourierLocationDto {
+  private publicLocation(location: StoredCourierLocation): CourierLocationDto {
     return {
       latitude: location.latitude,
       longitude: location.longitude,
       ...(location.accuracy !== undefined
         ? { accuracy: location.accuracy }
         : {}),
-      ...(location.heading !== undefined
-        ? { heading: location.heading }
-        : {}),
+      ...(location.heading !== undefined ? { heading: location.heading } : {}),
       ...(location.speed !== undefined ? { speed: location.speed } : {}),
       recordedAt: location.recordedAt,
       receivedAt: location.receivedAt,

@@ -5,6 +5,8 @@ const testDatabaseUrl =
   "postgresql://alofood:alofood@localhost:5432/alofood_test";
 const testRedisUrl =
   process.env.TEST_REDIS_URL ?? "redis://localhost:6379/15";
+const testS3Endpoint =
+  process.env.TEST_S3_ENDPOINT ?? "http://localhost:9000";
 
 export default defineConfig({
   test: {
@@ -28,7 +30,7 @@ export default defineConfig({
       SMS_GATEWAY_ENCRYPTION_KEY:
         "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=",
       CORS_ORIGINS: "http://localhost:3000",
-      S3_ENDPOINT: "http://localhost:9000",
+      S3_ENDPOINT: testS3Endpoint,
       S3_ACCESS_KEY_ID: "alofood",
       S3_SECRET_ACCESS_KEY: "alofood-local-secret",
       S3_FORCE_PATH_STYLE: "true",
@@ -39,6 +41,7 @@ export default defineConfig({
       reportsDirectory: "./coverage",
       include: [
         "src/auth/**/*.ts",
+        "src/branches/**/*.ts",
         "src/catalog/**/*.ts",
         "src/common/**/*.ts",
         "src/config/**/*.ts",
@@ -46,6 +49,7 @@ export default defineConfig({
         "src/users/**/*.ts",
         "src/media/**/*.ts",
         "src/redis/**/*.ts",
+        "src/routing/**/*.ts",
         "src/tracking/**/*.ts",
       ],
       exclude: ["src/common/auth.types.ts"],

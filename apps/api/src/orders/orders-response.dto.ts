@@ -194,6 +194,9 @@ export class OrderResponseDto {
   addressId: string | null;
 
   @ApiProperty({ type: String, format: "uuid", nullable: true })
+  branchId: string | null;
+
+  @ApiProperty({ type: String, format: "uuid", nullable: true })
   cookId: string | null;
 
   @ApiProperty({ type: String, format: "uuid", nullable: true })
@@ -237,6 +240,21 @@ export class OrderResponseDto {
 
   @ApiProperty({ type: String, nullable: true })
   apartment: string | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  branchName: string | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  branchAddress: string | null;
+
+  @ApiProperty({ type: Number, nullable: true })
+  branchLatitude: number | null;
+
+  @ApiProperty({ type: Number, nullable: true })
+  branchLongitude: number | null;
+
+  @ApiProperty({ type: Number, nullable: true })
+  branchDistanceMeters: number | null;
 
   @ApiProperty({ type: String, nullable: true })
   customerNote: string | null;
@@ -315,6 +333,14 @@ export class CourierRouteCustomerResponseDto {
   lastName: string | null;
 }
 
+export class CourierRouteItemResponseDto {
+  @ApiProperty()
+  productName: string;
+
+  @ApiProperty()
+  quantity: number;
+}
+
 export class CourierRouteStopResponseDto {
   @ApiProperty()
   sequence: number;
@@ -337,14 +363,191 @@ export class CourierRouteStopResponseDto {
   @ApiProperty()
   longitude: number;
 
+  @ApiProperty({ type: String, nullable: true })
+  entrance: string | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  floor: string | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  apartment: string | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  customerNote: string | null;
+
+  @ApiProperty({ type: String, format: "date-time", nullable: true })
+  assignedAt: string | null;
+
+  @ApiProperty({
+    type: () => CourierRouteBranchResponseDto,
+    nullable: true,
+  })
+  branch: CourierRouteBranchResponseDto | null;
+
   @ApiProperty({ type: CourierRouteCustomerResponseDto })
   customer: CourierRouteCustomerResponseDto;
 
   @ApiProperty()
   itemCount: number;
 
+  @ApiProperty({ type: [CourierRouteItemResponseDto] })
+  items: CourierRouteItemResponseDto[];
+
   @ApiProperty()
   cashToCollect: number;
+}
+
+export class CourierRouteBranchResponseDto {
+  @ApiProperty({ format: "uuid" })
+  branchId: string;
+
+  @ApiProperty({ type: String, nullable: true })
+  name: string | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  address: string | null;
+
+  @ApiProperty({ type: Number, nullable: true })
+  latitude: number | null;
+
+  @ApiProperty({ type: Number, nullable: true })
+  longitude: number | null;
+}
+
+export enum CourierRoutingStatus {
+  READY = "READY",
+  NO_STOPS = "NO_STOPS",
+  UNAVAILABLE = "UNAVAILABLE",
+}
+
+export enum CourierRouteWaypointKind {
+  COURIER = "COURIER",
+  PICKUP = "PICKUP",
+  DELIVERY = "DELIVERY",
+}
+
+export class CourierRouteGeometryResponseDto {
+  @ApiProperty({ enum: ["LineString"] })
+  type: "LineString";
+
+  @ApiProperty({
+    type: "array",
+    items: {
+      type: "array",
+      minItems: 2,
+      maxItems: 2,
+      items: { type: "number" },
+    },
+    description: "GeoJSON coordinates in [longitude, latitude] order",
+  })
+  coordinates: number[][];
+}
+
+export class CourierRouteManeuverResponseDto {
+  @ApiProperty()
+  type: string;
+
+  @ApiProperty({ type: String, nullable: true })
+  modifier: string | null;
+
+  @ApiProperty()
+  latitude: number;
+
+  @ApiProperty()
+  longitude: number;
+}
+
+export class CourierRouteStepResponseDto {
+  @ApiProperty()
+  distanceMeters: number;
+
+  @ApiProperty()
+  durationSeconds: number;
+
+  @ApiProperty()
+  roadName: string;
+
+  @ApiProperty()
+  mode: string;
+
+  @ApiProperty({ type: CourierRouteManeuverResponseDto })
+  maneuver: CourierRouteManeuverResponseDto;
+}
+
+export class CourierRouteLegResponseDto {
+  @ApiProperty()
+  distanceMeters: number;
+
+  @ApiProperty()
+  durationSeconds: number;
+
+  @ApiProperty()
+  summary: string;
+
+  @ApiProperty({ type: [CourierRouteStepResponseDto] })
+  steps: CourierRouteStepResponseDto[];
+}
+
+export class CourierRouteWaypointResponseDto {
+  @ApiProperty()
+  sequence: number;
+
+  @ApiProperty({ enum: CourierRouteWaypointKind })
+  kind: CourierRouteWaypointKind;
+
+  @ApiProperty()
+  requestedLatitude: number;
+
+  @ApiProperty()
+  requestedLongitude: number;
+
+  @ApiProperty()
+  latitude: number;
+
+  @ApiProperty()
+  longitude: number;
+
+  @ApiProperty()
+  distanceToRoadMeters: number;
+
+  @ApiProperty({ type: String, format: "uuid", nullable: true })
+  branchId: string | null;
+
+  @ApiProperty({ type: String, format: "uuid", nullable: true })
+  orderId: string | null;
+}
+
+export class CourierRoadRouteResponseDto {
+  @ApiProperty({
+    description:
+      "Deterministic identifier of the ordered stops and generated road geometry",
+  })
+  planId: string;
+
+  @ApiProperty({ format: "date-time" })
+  generatedAt: string;
+
+  @ApiProperty()
+  distanceMeters: number;
+
+  @ApiProperty()
+  durationSeconds: number;
+
+  @ApiProperty({ type: CourierRouteGeometryResponseDto })
+  geometry: CourierRouteGeometryResponseDto;
+
+  @ApiProperty({ type: [CourierRouteWaypointResponseDto] })
+  waypoints: CourierRouteWaypointResponseDto[];
+
+  @ApiProperty({
+    type: [CourierRouteWaypointResponseDto],
+    description:
+      "The next one to three pickup or delivery waypoints; all active orders remain available in stops",
+  })
+  nextWaypoints: CourierRouteWaypointResponseDto[];
+
+  @ApiProperty({ type: [CourierRouteLegResponseDto] })
+  legs: CourierRouteLegResponseDto[];
 }
 
 export class CourierRouteResponseDto {
@@ -353,4 +556,17 @@ export class CourierRouteResponseDto {
 
   @ApiProperty({ type: [CourierRouteStopResponseDto] })
   stops: CourierRouteStopResponseDto[];
+
+  @ApiProperty({ enum: CourierRoutingStatus })
+  routingStatus: CourierRoutingStatus;
+
+  @ApiProperty({
+    example: 15,
+    description:
+      "Recommended maximum delay before refreshing the route from the latest courier GPS position",
+  })
+  recalculateAfterSeconds: number;
+
+  @ApiProperty({ type: CourierRoadRouteResponseDto, nullable: true })
+  route: CourierRoadRouteResponseDto | null;
 }

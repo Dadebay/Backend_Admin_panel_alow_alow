@@ -32,9 +32,17 @@ capacity or a separate host.
 - Redis 8 for temporary OTP challenges and rate controls.
 - A dedicated Android phone with its own SIM is the primary production SMS
   gateway. It pulls encrypted, short-lived OTP jobs from the API over HTTPS and
-  acknowledges delivery. Twilio remains an optional provider; console is
+  acknowledges delivery. It is the only production SMS provider; console is
   development-only.
 - Private S3-compatible object storage; MinIO locally.
+- An independently deployable self-hosted OpenStreetMap base-map service for
+  Turkmenistan: Geofabrik Shortbread MBTiles, local VersaTiles assets, and an
+  isolated TileServer GL container shared by web and mobile clients. MapLibre
+  style/vector tiles are the canonical mobile contract; raster PNG tiles exist
+  only for current Leaflet compatibility.
+- A private OSRM driving engine built from the Turkmenistan OpenStreetMap
+  extract. NestJS is its only consumer and exposes normalized, authorized
+  courier routes; mobile clients never call OSRM directly.
 - React 19, Vite 8, Swagger/OpenAPI-generated TypeScript schema.
 - Local Docker services: PostgreSQL, Redis, MinIO.
 - GitHub Actions CI/CD with GHCR API, migration and static admin images.
@@ -61,6 +69,7 @@ alowalow/
 ├── docs/
 │   ├── ANDROID_SMS_GATEWAY.md
 │   ├── DEPLOYMENT.md
+│   ├── MOBILE_MAP_AND_ROUTING.md
 │   └── PROJECT_CONTEXT.md
 ├── deploy/
 │   ├── nginx/
@@ -72,6 +81,15 @@ alowalow/
 │   ├── deploy-production.sh
 │   ├── prepare-development-host.sh
 │   └── production.env.example
+├── maps/
+│   ├── compose.yml         # isolated local TileServer GL
+│   ├── config.json         # raster/vector endpoints and local assets
+│   ├── prepare.sh          # atomic regional data/style preparation
+│   └── runtime/            # ignored downloaded MBTiles/fonts/sprites
+├── routing/
+│   ├── compose.yml         # private local OSRM service
+│   ├── prepare.sh          # atomic MLD driving-graph preparation
+│   └── runtime/            # ignored OSM PBF and generated route graph
 ├── apps/
 │   ├── api/
 │   │   ├── AGENTS.md
@@ -84,11 +102,13 @@ alowalow/
 │   │   ├── src/
 │   │   │   ├── auth/      # OTP, JWT, refresh, Android pull SMS gateway
 │   │   │   ├── users/     # staff and customer addresses
+│   │   │   ├── branches/  # branch CRUD and nearest-branch selection
 │   │   │   ├── catalog/   # categories and products
 │   │   │   ├── marketing/ # banners and promo codes
 │   │   │   ├── media/     # S3-compatible image storage
 │   │   │   ├── orders/    # workflow, assignment, route, rating, cash
 │   │   │   ├── tracking/  # courier GPS and dispatch map snapshot
+│   │   │   ├── routing/   # validated private OSRM adapter
 │   │   │   ├── common/    # guards, decorators, shared HTTP types
 │   │   │   ├── config/    # validated environment configuration
 │   │   │   ├── prisma/    # Prisma service/module
@@ -105,9 +125,9 @@ alowalow/
 │       ├── src/            # FSD product layers
 │       │   ├── app/        # SPA bootstrap, routes, providers, global styles
 │       │   ├── widgets/    # dashboards, boards, maps, management screens
-│       │   ├── features/   # order/catalog/marketing/staff mutations
-│       │   ├── entities/   # typed domain queries and models
-│       │   └── shared/     # HTTP/query clients, auth, UI primitives
+│       │   ├── features/   # order/branch/catalog/marketing/staff mutations
+│       │   ├── entities/   # typed domain queries and models, incl. branches
+│       │   └── shared/     # HTTP/query clients, auth, Zod form helpers, UI
 │       ├── public/
 │       ├── tests/
 │       └── worker/         # static Sites asset adapter; never renders UI
@@ -198,25 +218,74 @@ the successful transition.
 ## Courier behavior
 
 A courier may receive multiple orders simultaneously. Do not enforce a
-one-active-order rule. The courier route contains every assigned active stop
-with address, coordinates, customer, item count, and cash amount. Individual
-orders progress independently.
+one-active-order rule. The courier work list contains every assigned active
+stop with address, coordinates, customer, item count, and cash amount.
+Individual orders progress independently. Do not draw straight lines between
+stops and call them routes. The authenticated courier route is built from the
+latest fresh Redis GPS point, each unique not-yet-picked-up branch, and every
+active delivery stop in assignment order. Private OSRM returns real road geometry,
+distance, duration, legs, and maneuvers. If OSRM is down, the API preserves
+stops and explicitly reports routing as unavailable.
 
-The courier web client publishes its own GPS reading immediately after the
-courier starts sharing and then every 120 seconds. Only the authenticated
-`COURIER` may publish or delete their own current point. The latest point is
-ephemeral operational data in Redis with a 15-minute TTL; it is `ONLINE` for
-five minutes, then `STALE` until expiry. The dispatch snapshot is restricted to
-`OPERATOR`, `ADMIN`, and `SUPER_ADMIN` and includes each active courier, latest
-location, all active assigned orders, delivery coordinates, customer contact
-details, items, and cash to collect.
+Both mobile and dispatch use the same backend-owned route contract. `stops`
+always contains every active assigned order; `route.nextWaypoints` exposes only
+the next one to three actionable pickup/delivery points for concise navigation.
+`route.planId` deterministically identifies the ordered inputs and generated
+road geometry, allowing admin and mobile to verify that they render the same
+plan. An operator/admin may request the selected courier's route through the
+role-protected dispatcher endpoint; a courier may request only their own route.
+Every fresh courier GPS event invalidates the active dispatcher route, and
+clients refresh at the backend's 15-second recommendation so deviation or a
+U-turn is recalculated from the latest position.
 
-The pickup point is deployment configuration
-(`DISPATCH_PICKUP_NAME`, address, latitude, and longitude). Both pickup
-coordinates must be configured together. Ayterek (`map.ayterek.com`) is the
-selected production map provider. Its verified tile/style endpoint, attribution
-terms, and credentials must be configured before replacing the existing
-configurable Leaflet/OpenStreetMap development fallback.
+The current OSM extract/OSRM graph has no live traffic or temporary road-closure
+feed. GPS-based recalculation adapts after the courier deviates, but cannot know
+about an unreported closure in advance. A future closure capability must ingest
+a trusted provider or operator-managed restriction source on the backend and
+apply it to routing; clients must not invent independent routes or claim a
+live-traffic ETA.
+
+Only the authenticated `COURIER` may publish or delete their own current point.
+The latest point is ephemeral operational data in Redis with a 15-minute TTL;
+it is `ONLINE` for five minutes, then `STALE` until expiry. The dispatch view is
+restricted to `OPERATOR`, `ADMIN`, and `SUPER_ADMIN` and includes each active
+courier, latest location, all active assigned orders, delivery coordinates,
+customer contact details, items, and cash to collect.
+
+The previous 120-second courier publish interval plus 30-second admin polling
+is only a near-real-time fallback and is no longer the accepted live-tracking
+target. During an active delivery the mobile client should publish a fresh GPS
+reading approximately every 10–15 seconds, adapting to platform background and
+battery restrictions. NestJS remains the authenticated ingestion boundary,
+stores the newest point in Redis, and pushes each accepted point through the
+role-protected `/tracking/dispatch/live` SSE stream. The admin applies those
+events directly to the existing TanStack Query snapshot cache. A slower
+periodic snapshot remains only for initial state and reconnect recovery.
+
+The base-map service is independent from courier tracking. It serves only the
+public base-map style, vector PBF data, and Leaflet-compatible raster PNG tiles;
+it never receives or stores GPS, order, customer, or staff data. Web and mobile
+clients render the same base map and overlay their authorized dynamic markers.
+OSRM is a separate internal service and receives only the coordinates needed
+for an authorized route from NestJS. It is not exposed to mobile/web clients
+and never receives customer names, phones, tokens, or order payloads.
+
+Collection points are active `Branch` records in PostgreSQL, never deployment
+environment variables. Each courier order exposes its own branch snapshot, and
+the dispatch map shows every active branch plus each order's branch and delivery
+coordinates. Admins choose a branch point on an interactive map; clicking or
+dragging the marker stores latitude and longitude internally. There are no
+manual coordinate inputs: a new branch cannot be saved until staff places its
+marker. `VITE_MAP_TILE_URL` and `VITE_MAP_ATTRIBUTION` are frontend build-time
+settings. Local development uses the self-hosted TileServer GL raster endpoint;
+deployment must proxy the same endpoint or provide an explicitly configured
+compatible provider. New mobile clients use the same service's
+`/styles/alowalow/style.json` MapLibre contract. A provider homepage is never
+exposed in the branch form or treated as a raster tile endpoint.
+
+The current AlowAlow style is the local VersaTiles Colorful vector style with
+local sprites/fonts. Admin courier and branch maps use increased responsive
+heights; visual density must not be reduced to the previous pale compact map.
 
 ## Customer and payment behavior
 
@@ -234,6 +303,13 @@ configurable Leaflet/OpenStreetMap development fallback.
 - A newly created or selected address becomes active.
 - The address used by the latest order becomes the active/default address.
 - Orders keep an immutable snapshot of address and product price/name data.
+- A new order is assigned inside its creation transaction to the nearest active
+  branch by straight-line Haversine distance from the selected delivery address.
+- The order stores `branchId`, the computed distance, and an immutable branch
+  name/address/coordinate snapshot. Renaming, moving, or disabling a branch
+  does not rewrite historical orders.
+- If there is no active branch, order creation fails with `409 Conflict`; an
+  order is never created without an operational destination.
 - Payment method is currently `CASH` only.
 - Courier returns cash to operator; operator confirms receipt; accountant
   reconciles.
@@ -241,10 +317,13 @@ configurable Leaflet/OpenStreetMap development fallback.
 
 ## Catalog and marketing
 
-Admins control categories, products, descriptions, active status, images,
-banners, and promo codes. Images are validated, converted to WebP, and stored
-privately in S3-compatible storage. Product availability, current price, promo
-limits, discount, delivery fee, and final total are validated by the backend.
+Admins control branches, categories, products, descriptions, active status,
+images, banners, and promo codes. Branch creation, editing, activation, and
+deactivation are limited to `ADMIN` and `SUPER_ADMIN`; trusted operations roles
+may list branches. The catalog is currently global and shared by every branch.
+Images are validated, converted to WebP, and stored privately in S3-compatible
+storage. Product availability, current price, promo limits, discount, delivery
+fee, final total, and branch assignment are validated by the backend.
 
 A product may have up to 10 ordered images. Product image references must be
 WebP paths returned by the media API, and the first image is the primary
@@ -258,15 +337,23 @@ Current status:
 
 - the protected admin dashboard has no local demo arrays;
 - orders, kitchen workflow, courier assignment, cash workflow, catalog,
-  banners, promos, and staff read/write through the NestJS API;
+  branches, banners, promos, and staff read/write through the NestJS API;
+- administrators manage branch addresses and choose branch locations only with
+  a map marker in a lazy-loaded FSD screen; the order board can filter by branch
+  and shows the assigned distance;
 - order details show the real status timeline plus the customer's five-star
   rating and comment returned by the API;
 - the dispatch map and courier GPS-sharing screen use Redis-backed tracking;
+  accepted locations reach authorized dispatchers immediately through SSE,
+  with the 30-second snapshot poll retained only as reconnect recovery;
 - media forms upload validated WebP images to S3-compatible storage;
 - the catalog editor creates and updates a dish with category, name, slug,
   description, price, availability, ordering, and up to 10 S3 images;
 - Swagger response DTOs generate the TypeScript contract used by the frontend;
 - TanStack Query owns server state and TanStack Table renders admin lists;
+- React Hook Form owns all admin form state and Zod schemas validate values
+  before typed API mutations; multipart FormData exists only in the S3 upload
+  transport;
 - heavy management sections and the Leaflet map are dynamically split.
 
 Accepted target:
@@ -325,11 +412,48 @@ remain split, and the Leaflet canvas remains a separate 156.4 KB / 46.1 KB
 gzip chunk. The server container uses unprivileged Nginx with a 64 MB DEV
 memory limit.
 
+The 2026-08-02 multi-branch build keeps the static SPA bootstrap at 199.9 KB
+raw / 63.1 KB gzip. Branch management is a separate 6.2 KB / 2.4 KB gzip
+chunk, its location picker is 2.3 KB / 1.1 KB gzip, the order board is 12.9 KB
+/ 4.1 KB gzip, and the shared Leaflet canvas remains isolated at 153.3 KB /
+44.9 KB gzip. Branch management and Leaflet are absent from the initial
+bootstrap and introduce no additional polling loop.
+
+The 2026-08-02 React Hook Form/Zod build keeps the static SPA bootstrap at
+200.0 KB raw / 63.1 KB gzip and does not add the form runtime to the initial
+module-preload list. The shared form runtime is 99.3 KB / 29.5 KB gzip and is
+loaded only when an actual form-bearing flow is opened. Domain form chunks
+remain independently split with their existing widgets.
+
+The 2026-08-02 self-hosted OpenStreetMap build changes only the compile-time
+tile endpoint. The static SPA bootstrap remains 200.0 KB raw / 63.1 KB gzip,
+and the separately loaded Leaflet chunk remains 153.3 KB / 44.9 KB gzip. It
+adds no browser dependency, request loop, or initial module preload.
+
+The 2026-08-02 Colorful/height adjustment changes CSS and runtime map assets
+only: it adds no frontend dependency, polling loop, or JavaScript to the initial
+bundle. Road-route calculation is server-side and does not add admin runtime
+code.
+
+The 2026-08-02 authenticated SSE build keeps the static SPA bootstrap unchanged
+at 200.0 KB raw / 63.1 KB gzip. The shared courier entity chunk is 2.3 KB /
+1.2 KB gzip and the dispatch view is 7.4 KB / 2.6 KB gzip; the separate Leaflet
+chunk remains 153.4 KB / 44.9 KB gzip. SSE updates the existing TanStack Query
+cache and adds no competing poll or initial preload.
+
+The 2026-08-02 adaptive courier-route build measures the static SPA bootstrap
+at 200.0 KB raw / 63.1 KB gzip and CSS at 62.3 KB / 17.4 KB gzip. The dispatch
+view is 8.3 KB / 2.9 KB gzip, its lazy courier-map canvas is 3.7 KB / 1.6 KB
+gzip, and the shared Leaflet chunk remains isolated at 153.4 KB / 44.9 KB gzip.
+GPS SSE invalidates only the selected courier's TanStack route query and adds
+no new polling loop or initial preload.
+
 ## Decision log
 
 - 2026-07-27: media moved to private S3-compatible storage.
-- 2026-07-27: OTP moved from PostgreSQL to atomic Redis storage; Twilio SMS
-  adapter added.
+- 2026-07-27: OTP moved from PostgreSQL to atomic Redis storage; an initial
+  third-party SMS adapter was added and later removed after the Android gateway
+  became the sole production provider.
 - 2026-07-27: multiple saved addresses added; last created/used address becomes
   active.
 - 2026-07-27: `SUPER_ADMIN` added; trusted staff may cancel
@@ -359,15 +483,57 @@ memory limit.
 - 2026-07-28: production OTP delivery moved to a dedicated Android SIM gateway
   using authenticated HTTPS pull, encrypted Redis jobs, atomic leases,
   delivery receipts, heartbeat/offline rejection, bounded retry, and
-  request-specific OTP cancellation. Twilio remains an optional fallback.
+  request-specific OTP cancellation.
 - 2026-07-29: branch-based backend delivery was defined as
   `develop → development` and `main → production`, using isolated server
   directories, Compose projects, ports, databases, Redis, S3, secrets, GitHub
   Environments, pre-deploy migrations, health checks, and digest rollback.
-- 2026-07-29: Ayterek (`map.ayterek.com`) was selected as the production map
-  provider. Integration remains fail-closed until its official raster tile or
-  MapLibre style contract, attribution requirements, and credentials are
-  available; the public page URL is not treated as a tile endpoint.
+- 2026-07-29: Ayterek (`map.ayterek.com`) was considered as the production map
+  provider. Its public page URL is not a tile endpoint and remains unused until
+  an official raster tile or MapLibre style contract is supplied.
+- 2026-08-02: local development moved to a self-hosted OpenStreetMap base map.
+  A separate hardened TileServer GL container renders Leaflet-compatible PNG
+  tiles from the daily Turkmenistan Shortbread MBTiles extract with local
+  VersaTiles style, sprites, and fonts. It has no runtime dependency on public
+  OSM tile servers and does not include geocoding or route planning.
+- 2026-08-02: the self-hosted base map became an independently deployable
+  shared web/mobile service. MapLibre vector style is the preferred mobile
+  contract and PNG remains a Leaflet compatibility output of the same server.
+  Courier GPS continues to enter only through the authenticated API; true live
+  dispatch requires 10–15-second active-delivery publishing and server-pushed
+  authorized marker updates. Straight-line pseudo-routes were removed.
+- 2026-08-02: courier route planning became an accepted backend capability.
+  A private, digest-pinned OSRM MLD service builds routes from the same regional
+  OpenStreetMap source; NestJS combines current courier GPS, unique branch
+  pickups, and every assigned delivery, then returns normalized GeoJSON,
+  distance, duration, legs, and maneuvers. Clients never access OSRM directly,
+  and assigned stops remain visible if routing is unavailable. The shared map
+  style moved from pale Neutrino to local VersaTiles Colorful and map canvases
+  received larger responsive heights.
+- 2026-08-02: live dispatch moved from polling-only updates to an authenticated
+  SSE stream. Courier GPS still enters through the role-protected NestJS
+  endpoint and Redis remains the latest-point store; accepted/stopped location
+  events contain only courier ID and GPS data and update the existing TanStack
+  Query snapshot cache. Active-delivery clients now receive a 15-second update
+  recommendation; periodic polling remains a recovery path, not a second
+  competing live-state owner.
+- 2026-08-02: courier and dispatch route views converged on one authoritative
+  response. Every active order remains in `stops`, the next three operational
+  waypoints are exposed separately, and a deterministic `planId` identifies the
+  shared road geometry. Fresh GPS invalidates the selected admin route for
+  15-second adaptive recalculation. The self-hosted OSRM graph does not provide
+  live closures/traffic; integrating a trusted dynamic-restriction source is a
+  separate future backend capability.
+- 2026-08-02: branch management gained a lazy-loaded interactive location
+  picker. A map click or marker drag stores validated latitude/longitude at the
+  persisted seven-decimal precision. Manual coordinate inputs and the provider
+  homepage link are intentionally absent from the branch form; only the direct
+  tile template and its attribution are build-time settings.
+- 2026-08-02: every React admin form standardized on React Hook Form with
+  colocated Zod schemas and shared validation helpers. Zod handles input
+  normalization and client feedback, while NestJS remains authoritative for
+  permissions and business invariants. Multipart FormData is limited to the S3
+  image upload transport.
 - 2026-07-29: API and admin were physically consolidated under `apps/`, with
   generated Swagger types in `packages/api-contract`, one Docker/CI/CD flow,
   and one GitHub pull-request lifecycle. API and admin intentionally retain
@@ -386,3 +552,12 @@ memory limit.
   Next.js, vinext, React Server Components, SSR, hydration, and the Node
   frontend server were removed. Browser routes use a static index fallback;
   the Sites Worker only forwards static assets and performs no rendering.
+- 2026-08-02: the unused Twilio fallback and its credentials were removed.
+  Production OTP delivery is Android pull only; local development keeps the
+  non-delivering console mode.
+- 2026-08-02: multi-branch operations replaced the deployment-level dispatch
+  configuration. Admins manage PostgreSQL-backed branches, every new order is
+  routed to the nearest active branch and stores an immutable branch snapshot,
+  order lists can filter by branch, and dispatch maps show all branch
+  points. The global catalog remains shared across branches. No active branch
+  is a fail-closed `409` condition.

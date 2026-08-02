@@ -48,6 +48,10 @@ type OrderResponse = {
   status: OrderStatus;
   version: number;
   address: string;
+  branchId: string | null;
+  branchName: string | null;
+  branchAddress: string | null;
+  branchDistanceMeters: number | null;
   cashSettlement?: { status: string } | null;
   rating?: { score: number; comment: string | null } | null;
   transitions?: Array<{ toStatus: OrderStatus }>;
@@ -63,6 +67,12 @@ type CatalogProductResponse = {
   images: Array<{ url: string; sortOrder: number }>;
 };
 
+type BranchResponse = {
+  id: string;
+  isActive: boolean;
+  phone: string | null;
+};
+
 describe("backend security and critical workflow", () => {
   let app: INestApplication;
   let prisma: PrismaService;
@@ -74,6 +84,8 @@ describe("backend security and critical workflow", () => {
   let users: TestUsers;
   let tokens: Record<keyof TestUsers, string>;
   let productId: string;
+  let nearestBranchId: string;
+  let nearestBranchName: string;
 
   const bearer = (token: string) => ({ Authorization: `Bearer ${token}` });
   const mediaUrl = (sequence: number) =>
@@ -182,6 +194,34 @@ describe("backend security and critical workflow", () => {
       },
     });
     productId = product.id;
+
+    const nearestBranch = await prisma.branch.create({
+      data: {
+        name: "Nearest test branch",
+        address: "Branch street 1",
+        latitude: 37.9502,
+        longitude: 58.3802,
+      },
+    });
+    nearestBranchId = nearestBranch.id;
+    nearestBranchName = nearestBranch.name;
+    await prisma.branch.createMany({
+      data: [
+        {
+          name: "Far test branch",
+          address: "Branch street 2",
+          latitude: 37.7,
+          longitude: 58.0,
+        },
+        {
+          name: "Inactive closest branch",
+          address: "Branch street 3",
+          latitude: 37.95,
+          longitude: 58.38,
+          isActive: false,
+        },
+      ],
+    });
   });
 
   afterAll(async () => {
@@ -451,6 +491,86 @@ describe("backend security and critical workflow", () => {
       .expect(409);
   });
 
+  it("allows only administrators to manage branches", async () => {
+    await request(server)
+      .post("/api/v1/branches")
+      .set(bearer(tokens.operator))
+      .send({
+        name: "Forbidden branch",
+        address: "Forbidden address",
+        latitude: 37.9,
+        longitude: 58.3,
+      })
+      .expect(403);
+
+    await request(server)
+      .post("/api/v1/branches")
+      .set(bearer(tokens.admin))
+      .send({
+        name: "Invalid branch",
+        address: "Invalid address",
+        latitude: 91,
+        longitude: 58.3,
+      })
+      .expect(400);
+
+    await request(server)
+      .post("/api/v1/branches")
+      .set(bearer(tokens.admin))
+      .send({
+        name: "Missing map point",
+        address: "Missing coordinates",
+      })
+      .expect(400);
+
+    const created = await request(server)
+      .post("/api/v1/branches")
+      .set(bearer(tokens.admin))
+      .send({
+        name: "Temporary branch",
+        address: "Temporary address",
+        latitude: 37.8,
+        longitude: 58.2,
+        phone: "+99365123456",
+      })
+      .expect(201);
+    const createdBranch = created.body as BranchResponse;
+
+    const updated = await request(server)
+      .patch(`/api/v1/branches/${createdBranch.id}`)
+      .set(bearer(tokens.admin))
+      .send({
+        isActive: false,
+        phone: "",
+        latitude: 37.9601235,
+        longitude: 58.3261,
+      })
+      .expect(200);
+    expect((updated.body as BranchResponse).phone).toBeNull();
+    expect(updated.body).toMatchObject({
+      latitude: 37.9601235,
+      longitude: 58.3261,
+    });
+
+    const list = await request(server)
+      .get("/api/v1/branches")
+      .set(bearer(tokens.operator))
+      .expect(200);
+    expect(list.body).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: createdBranch.id,
+          isActive: false,
+        }),
+      ]),
+    );
+
+    await request(server)
+      .get("/api/v1/branches")
+      .set(bearer(tokens.customer))
+      .expect(403);
+  });
+
   it("reserves SUPER_ADMIN role management for a super administrator", async () => {
     const candidate = await prisma.user.create({
       data: {
@@ -558,6 +678,20 @@ describe("backend security and critical workflow", () => {
 
     const order = await createOrder(tokens.customer, { addressId: first.id });
     expect(order.address).toBe("Street 1");
+    expect(order).toMatchObject({
+      branchId: nearestBranchId,
+      branchName: nearestBranchName,
+      branchAddress: "Branch street 1",
+    });
+    expect(order.branchDistanceMeters).toBeLessThan(50);
+
+    const byBranch = await request(server)
+      .get(`/api/v1/orders?branchId=${nearestBranchId}`)
+      .set(bearer(tokens.operator))
+      .expect(200);
+    expect(
+      (byBranch.body as { items: OrderResponse[] }).items.map(({ id }) => id),
+    ).toContain(order.id);
 
     const afterOrder = await request(server)
       .get("/api/v1/users/me/addresses")
@@ -578,11 +712,30 @@ describe("backend security and critical workflow", () => {
       .set(bearer(tokens.customer))
       .expect(200);
     expect((storedOrder.body as OrderResponse).address).toBe("Street 1");
+    expect((storedOrder.body as OrderResponse).branchName).toBe(
+      nearestBranchName,
+    );
 
     await request(server)
       .get(`/api/v1/orders/${order.id}`)
       .set(bearer(tokens.otherCustomer))
       .expect(403);
+  });
+
+  it("rejects a new order when no active branch can accept it", async () => {
+    await prisma.branch.updateMany({ data: { isActive: false } });
+    try {
+      await request(server)
+        .post("/api/v1/orders")
+        .set(bearer(tokens.customer))
+        .send({ items: [{ productId, quantity: 1 }] })
+        .expect(409);
+    } finally {
+      await prisma.branch.updateMany({
+        where: { id: nearestBranchId },
+        data: { isActive: true },
+      });
+    }
   });
 
   it("allows only one concurrent order mutation to win", async () => {
@@ -716,7 +869,10 @@ describe("backend security and critical workflow", () => {
       await request(server)
         .patch(`/api/v1/orders/${order.id}/cancel`)
         .set(bearer(tokens.customer))
-        .send({ reason: "Customer cannot stop kitchen handoff", version: order.version })
+        .send({
+          reason: "Customer cannot stop kitchen handoff",
+          version: order.version,
+        })
         .expect(403);
 
       await request(server)
@@ -727,11 +883,7 @@ describe("backend security and critical workflow", () => {
     }
 
     let cooking = await createOrder(tokens.customer, {});
-    cooking = await transition(
-      tokens.operator,
-      cooking,
-      OrderStatus.CONFIRMED,
-    );
+    cooking = await transition(tokens.operator, cooking, OrderStatus.CONFIRMED);
     cooking = await transition(
       tokens.operator,
       cooking,
@@ -792,7 +944,7 @@ describe("backend security and critical workflow", () => {
       .expect(200);
     expect(published.body).toMatchObject({
       accepted: true,
-      nextUpdateInSeconds: 120,
+      nextUpdateInSeconds: 15,
       location: {
         latitude: location.latitude,
         longitude: location.longitude,
@@ -833,6 +985,65 @@ describe("backend security and critical workflow", () => {
     }
 
     await request(server)
+      .get("/api/v1/orders/courier/route")
+      .set(bearer(tokens.customer))
+      .expect(403);
+    await request(server)
+      .get("/api/v1/orders/courier/route")
+      .set(bearer(tokens.operator))
+      .expect(403);
+    const courierRoute = await request(server)
+      .get("/api/v1/orders/courier/route")
+      .set(bearer(tokens.courier))
+      .expect(200);
+    const courierRouteBody = courierRoute.body as {
+      courierId: string;
+      routingStatus: string;
+      recalculateAfterSeconds: number;
+      stops: Array<{ orderId: string }>;
+      route: null | {
+        planId: string;
+        geometry: { type: string; coordinates: number[][] };
+        nextWaypoints: Array<{ orderId: string | null }>;
+      };
+    };
+    expect(courierRouteBody.courierId).toBe(users.courier.id);
+    expect(courierRouteBody.recalculateAfterSeconds).toBe(15);
+    expect(courierRouteBody.stops.map(({ orderId }) => orderId)).toEqual(
+      expect.arrayContaining(assignedOrders.map(({ id }) => id)),
+    );
+    expect(["READY", "UNAVAILABLE"]).toContain(
+      courierRouteBody.routingStatus,
+    );
+
+    await request(server)
+      .get(`/api/v1/orders/couriers/${users.courier.id}/route`)
+      .set(bearer(tokens.customer))
+      .expect(403);
+    await request(server)
+      .get(`/api/v1/orders/couriers/${users.courier.id}/route`)
+      .set(bearer(tokens.courier))
+      .expect(403);
+    const dispatchRoute = await request(server)
+      .get(`/api/v1/orders/couriers/${users.courier.id}/route`)
+      .set(bearer(tokens.operator))
+      .expect(200);
+    const dispatchRouteBody = dispatchRoute.body as typeof courierRouteBody;
+    expect(dispatchRouteBody.courierId).toBe(users.courier.id);
+    expect(dispatchRouteBody.stops.map(({ orderId }) => orderId)).toEqual(
+      courierRouteBody.stops.map(({ orderId }) => orderId),
+    );
+    if (courierRouteBody.route && dispatchRouteBody.route) {
+      expect(dispatchRouteBody.route.planId).toBe(courierRouteBody.route.planId);
+      expect(dispatchRouteBody.route.geometry).toEqual(
+        courierRouteBody.route.geometry,
+      );
+      expect(dispatchRouteBody.route.nextWaypoints.length).toBeLessThanOrEqual(
+        3,
+      );
+    }
+
+    await request(server)
       .get("/api/v1/tracking/dispatch")
       .set(bearer(tokens.courier))
       .expect(403);
@@ -840,29 +1051,37 @@ describe("backend security and critical workflow", () => {
       .get("/api/v1/tracking/dispatch")
       .set(bearer(tokens.customer))
       .expect(403);
+    await request(server)
+      .get("/api/v1/tracking/dispatch/live")
+      .set(bearer(tokens.customer))
+      .expect(403);
 
     const dispatch = await request(server)
       .get("/api/v1/tracking/dispatch")
       .set(bearer(tokens.operator))
       .expect(200);
-    const tracked = (
-      dispatch.body as {
-        courierUpdateIntervalSeconds: number;
-        couriers: Array<{
+    const dispatchBody = dispatch.body as {
+      courierUpdateIntervalSeconds: number;
+      branches: Array<{ id: string }>;
+      couriers: Array<{
+        id: string;
+        presence: string;
+        location: { latitude: number; longitude: number } | null;
+        activeOrders: Array<{
           id: string;
-          presence: string;
-          location: { latitude: number; longitude: number } | null;
-          activeOrders: Array<{
-            id: string;
-            customer: { phone: string };
-            items: Array<{ productName: string; quantity: number }>;
-          }>;
+          branch: { id: string; name: string } | null;
+          customer: { phone: string };
+          items: Array<{ productName: string; quantity: number }>;
         }>;
-      }
-    ).couriers.find(({ id }) => id === users.courier.id);
-    expect(dispatch.body).toMatchObject({
-      courierUpdateIntervalSeconds: 120,
-    });
+      }>;
+    };
+    const tracked = dispatchBody.couriers.find(
+      ({ id }) => id === users.courier.id,
+    );
+    expect(dispatchBody.courierUpdateIntervalSeconds).toBe(15);
+    expect(dispatchBody.branches.map(({ id }) => id)).toContain(
+      nearestBranchId,
+    );
     expect(tracked).toMatchObject({
       presence: "ONLINE",
       location: {
@@ -873,9 +1092,11 @@ describe("backend security and critical workflow", () => {
     expect(tracked?.activeOrders.map(({ id }) => id)).toEqual(
       expect.arrayContaining(assignedOrders.map(({ id }) => id)),
     );
-    expect(tracked?.activeOrders[0]?.customer.phone).toBe(
-      users.customer.phone,
-    );
+    expect(tracked?.activeOrders[0]?.customer.phone).toBe(users.customer.phone);
+    expect(tracked?.activeOrders[0]?.branch).toMatchObject({
+      id: nearestBranchId,
+      name: nearestBranchName,
+    });
     expect(tracked?.activeOrders[0]?.items[0]).toMatchObject({
       productName: "Security test meal",
       quantity: 2,
@@ -971,8 +1192,7 @@ describe("backend security and critical workflow", () => {
   });
 
   it("authenticates Android pull, claims once and cancels failed OTP delivery", async () => {
-    const deviceToken =
-      "test-android-device-token-with-at-least-32-characters";
+    const deviceToken = "test-android-device-token-with-at-least-32-characters";
     const deviceBearer = { Authorization: `Bearer ${deviceToken}` };
     const phone = "+99365000320";
     const challenge = await otp.issue(phone);

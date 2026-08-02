@@ -5,11 +5,11 @@ export function DispatchMap() {
     <section className="admin-section">
       <header className="section-head">
         <div>
-          <span className="eyebrow">REDIS GPS · 2 МИНУТЫ</span>
+          <span className="eyebrow">REDIS GPS · LIVE PUSH</span>
           <h1>Карта доставки</h1>
           <p>
-            Реальные курьеры, их последняя точка, несколько активных заказов,
-            клиенты и адреса доставки.
+            Все активные филиалы, реальные курьеры, их последняя точка,
+            несколько активных заказов, клиенты и адреса доставки.
           </p>
         </div>
       </header>

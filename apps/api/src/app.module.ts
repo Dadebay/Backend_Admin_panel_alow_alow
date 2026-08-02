@@ -2,10 +2,7 @@ import { Module } from "@nestjs/common";
 import { ConfigModule, ConfigService } from "@nestjs/config";
 import { APP_GUARD } from "@nestjs/core";
 import { JwtModule } from "@nestjs/jwt";
-import {
-  ThrottlerGuard,
-  ThrottlerModule,
-} from "@nestjs/throttler";
+import { ThrottlerGuard, ThrottlerModule } from "@nestjs/throttler";
 import type { AppEnv } from "./config/env";
 import { validateEnv } from "./config/env";
 import { JwtAuthGuard } from "./common/jwt-auth.guard";
@@ -20,6 +17,7 @@ import { UsersModule } from "./users/users.module";
 import { HealthController } from "./health/health.controller";
 import { RedisModule } from "./redis/redis.module";
 import { TrackingModule } from "./tracking/tracking.module";
+import { BranchesModule } from "./branches/branches.module";
 
 @Module({
   imports: [
@@ -62,6 +60,7 @@ import { TrackingModule } from "./tracking/tracking.module";
     MediaModule,
     UsersModule,
     TrackingModule,
+    BranchesModule,
   ],
   controllers: [HealthController],
   providers: [

@@ -1,5 +1,11 @@
-import { useMemo, useState, type FormEvent } from "react";
+import { useMemo, useState } from "react";
+import { zodResolver } from "@hookform/resolvers/zod";
 import type { ColumnDef } from "@tanstack/react-table";
+import { useForm } from "react-hook-form";
+import {
+  formatBranchDistance,
+  useBranches,
+} from "@/src/entities/branch";
 import {
   canCancel,
   nextOrderStatus,
@@ -14,7 +20,12 @@ import {
 import { useOrderActions } from "@/src/features/order-management";
 import { ApiError } from "@/src/shared/api/api-client";
 import { useSession } from "@/src/shared/auth";
+import { FormFieldError } from "@/src/shared/forms";
 import { AsyncPanel, DataTable } from "@/src/shared/ui";
+import {
+  orderSearchFormSchema,
+  type OrderSearchFormValues,
+} from "../model/order-search-form";
 import { OrderDetailDialog } from "./order-detail-dialog";
 
 function personName(person: {
@@ -50,19 +61,29 @@ export function OrderBoard({
   const [status, setStatus] = useState<OrderStatus | "ALL">(
     fixedStatus ?? "ALL",
   );
-  const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
+  const [branchId, setBranchId] = useState("ALL");
   const [page, setPage] = useState(1);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [courierByOrder, setCourierByOrder] = useState<Record<string, string>>(
     {},
   );
+  const {
+    register: registerSearch,
+    handleSubmit: handleSearchSubmit,
+    formState: { errors: searchErrors },
+  } = useForm<OrderSearchFormValues>({
+    resolver: zodResolver(orderSearchFormSchema),
+    defaultValues: { search: "" },
+  });
   const orders = useOrders({
     status: fixedStatus ?? (status === "ALL" ? undefined : status),
+    branchId: branchId === "ALL" ? undefined : branchId,
     search,
     page,
     limit: 25,
   });
+  const branches = useBranches();
   const couriers = useCouriers();
   const actions = useOrderActions();
   const role = session?.user.role ?? "CUSTOMER";
@@ -75,10 +96,9 @@ export function OrderBoard({
     actions.assignCourier.error ||
     actions.cancel.error;
 
-  function submitSearch(event: FormEvent) {
-    event.preventDefault();
+  function submitSearch(values: OrderSearchFormValues) {
     setPage(1);
-    setSearch(searchInput.trim());
+    setSearch(values.search);
   }
 
   const columns = useMemo<ColumnDef<Order, unknown>[]>(
@@ -108,6 +128,20 @@ export function OrderBoard({
               {row.original.customer.phone}
             </a>
             <small>{row.original.address}</small>
+          </div>
+        ),
+      },
+      {
+        header: "Филиал",
+        cell: ({ row }) => (
+          <div className="primary-cell">
+            <strong>{row.original.branchName ?? "Старый заказ"}</strong>
+            {row.original.branchDistanceMeters !== null && (
+              <small>
+                {formatBranchDistance(row.original.branchDistanceMeters)} до
+                клиента
+              </small>
+            )}
           </div>
         ),
       },
@@ -299,16 +333,46 @@ export function OrderBoard({
             </select>
           </label>
         )}
-        <form className="search-form" onSubmit={submitSearch}>
+        <label>
+          <span>Филиал</span>
+          <select
+            data-testid="orders-branch-filter"
+            value={branchId}
+            onChange={(event) => {
+              setBranchId(event.target.value);
+              setPage(1);
+            }}
+          >
+            <option value="ALL">Все филиалы</option>
+            {(branches.data ?? []).map((branch) => (
+              <option value={branch.id} key={branch.id}>
+                {branch.name}
+                {branch.isActive ? "" : " (отключён)"}
+              </option>
+            ))}
+          </select>
+        </label>
+        <form
+          className="search-form"
+          data-testid="orders-search-form"
+          noValidate
+          onSubmit={handleSearchSubmit(submitSearch)}
+        >
           <label>
             <span>Поиск</span>
             <input
-              value={searchInput}
-              onChange={(event) => setSearchInput(event.target.value)}
+              data-testid="orders-search-input"
+              {...registerSearch("search")}
+              aria-invalid={Boolean(searchErrors.search)}
               placeholder="№, телефон, имя или адрес"
             />
+            <FormFieldError message={searchErrors.search?.message} />
           </label>
-          <button className="secondary-button" type="submit">
+          <button
+            className="secondary-button"
+            data-testid="orders-search-submit"
+            type="submit"
+          >
             Найти
           </button>
         </form>

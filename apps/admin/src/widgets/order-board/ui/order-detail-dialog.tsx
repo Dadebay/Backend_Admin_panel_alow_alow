@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { formatBranchDistance } from "@/src/entities/branch";
 import {
   ratingStars,
   roleLabels,
@@ -75,6 +76,16 @@ function OrderDetails({ order }: { order: Order }) {
         <article>
           <span>Адрес</span>
           <strong>{order.address}</strong>
+        </article>
+        <article>
+          <span>Филиал</span>
+          <strong>{order.branchName ?? "Не назначен"}</strong>
+          {order.branchAddress && <small>{order.branchAddress}</small>}
+          {order.branchDistanceMeters !== null && (
+            <small>
+              {formatBranchDistance(order.branchDistanceMeters)} до клиента
+            </small>
+          )}
         </article>
       </div>
 

@@ -166,6 +166,14 @@ export class ListOrdersQueryDto {
   status?: OrderStatus;
 
   @ApiPropertyOptional({
+    format: "uuid",
+    description: "Filter operational order queues by assigned branch",
+  })
+  @IsOptional()
+  @IsUUID()
+  branchId?: string;
+
+  @ApiPropertyOptional({
     description: "Order number, customer phone/name, or delivery address",
   })
   @IsOptional()

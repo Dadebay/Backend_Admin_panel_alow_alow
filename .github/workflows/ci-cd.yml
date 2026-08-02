@@ -21,6 +21,8 @@ permissions:
 env:
   NODE_VERSION: 24.18.0
   NPM_VERSION: 11.6.2
+  VITE_MAP_TILE_URL: ${{ vars.VITE_MAP_TILE_URL || '/tiles/styles/alowalow/{z}/{x}/{y}.png' }}
+  VITE_MAP_ATTRIBUTION: ${{ vars.VITE_MAP_ATTRIBUTION || '© OpenStreetMap contributors' }}
 
 jobs:
   backend:
@@ -178,7 +180,13 @@ jobs:
         run: docker build --file apps/api/Dockerfile --target migration --tag alowalow-migration:ci apps/api
 
       - name: Build static admin image
-        run: docker build --file apps/admin/Dockerfile --tag alowalow-admin:ci .
+        run: |
+          docker build \
+            --file apps/admin/Dockerfile \
+            --build-arg "VITE_MAP_TILE_URL=${VITE_MAP_TILE_URL}" \
+            --build-arg "VITE_MAP_ATTRIBUTION=${VITE_MAP_ATTRIBUTION}" \
+            --tag alowalow-admin:ci \
+            .
 
       - name: Verify hardened runtime metadata
         run: |
@@ -300,6 +308,8 @@ jobs:
             --platform linux/amd64 \
             --provenance=mode=max \
             --sbom=true \
+            --build-arg "VITE_MAP_TILE_URL=${VITE_MAP_TILE_URL}" \
+            --build-arg "VITE_MAP_ATTRIBUTION=${VITE_MAP_ATTRIBUTION}" \
             --label "org.opencontainers.image.source=${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}" \
             --label "org.opencontainers.image.revision=${GITHUB_SHA}" \
             "${admin_tags[@]}" \

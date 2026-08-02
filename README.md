@@ -10,6 +10,8 @@ apps/api                 NestJS, Prisma, Redis, S3 и SMS gateway
 apps/admin               React/Vite operations admin
 packages/api-contract    генерируемые TypeScript-типы OpenAPI
 deploy                   DEV/PROD Compose и deployment script
+maps                     отдельный self-hosted OpenStreetMap tile server
+routing                  приватный OSRM для маршрутов по дорогам
 ```
 
 Первая рабочая версия платформы доставки еды:
@@ -49,27 +51,48 @@ deploy                   DEV/PROD Compose и deployment script
 `courierId + status + assignedAt` позволяет быстро получить все точки и
 сформировать маршрут из нескольких доставок.
 
+Каждая принятая GPS-точка сразу отправляется авторизованной диспетчерской
+админке через `GET /api/v1/tracking/dispatch/live` (`text/event-stream`). Redis
+хранит последнюю точку, а 30-секундный snapshot-запрос остаётся только для
+первой загрузки и восстановления соединения.
+
 ## Запуск
 
 Требуется Node.js 22.13+ LTS (или 24+) и Docker.
 
 ```bash
 cp apps/api/.env.example apps/api/.env
+cp apps/admin/.env.example apps/admin/.env
 docker compose up -d postgres redis minio minio-init
-npm install
-npm --prefix apps/admin install
-npm --prefix apps/api install
+npm run maps:up
+npm run routing:up
+npm ci
+npm --prefix apps/admin ci
+npm --prefix apps/api ci
 npm --prefix apps/api run prisma:generate
 npm --prefix apps/api run db:migrate -- --name init
 npm --prefix apps/api run db:seed
 npm run dev
 ```
 
-- Админка: `http://localhost:3000` (или следующий свободный порт)
+- Админка: `http://localhost:5173` (или следующий свободный порт)
 - API: `http://localhost:4000/api/v1`
 - Swagger: `http://localhost:4000/docs`
 - OpenAPI JSON: `http://localhost:4000/docs-json`
 - MinIO Console: `http://localhost:9001` (`alofood` / `alofood-local-secret`)
+- OpenStreetMap tiles: `http://127.0.0.1:8080`
+- OSRM: `http://127.0.0.1:5000` (только для NestJS, не для клиента)
+
+Первый `npm run maps:up` скачивает региональный MBTiles Туркменистана, стили и
+шрифты, затем запускает изолированный TileServer GL. Подробности и обновление
+карты: [`maps/README.md`](maps/README.md).
+
+Первый `npm run routing:up` скачивает OSM-экстракт Туркменистана и строит
+локальный автомобильный граф. Защищённая ручка
+`GET /api/v1/orders/courier/route` объединяет текущую GPS-точку курьера,
+уникальные филиалы выдачи и все назначенные адреса, затем возвращает настоящую
+GeoJSON-линию дорог, расстояние, время и манёвры. Инструкция мобильщикам:
+[`docs/MOBILE_MAP_AND_ROUTING.md`](docs/MOBILE_MAP_AND_ROUTING.md).
 
 В development при `SMS_PROVIDER=console` ответ
 `POST /api/v1/auth/otp/request` содержит `devCode`. В production код в ответ
@@ -95,7 +118,7 @@ Pull-задания AES-256-GCM-зашифрованы в Redis. Для producti
 `SMS_PROVIDER=android_pull`, независимый случайный
 `SMS_GATEWAY_DEVICE_TOKEN` и ключ из `openssl rand -base64 32`. Первый pull
 или `POST /api/v1/internal/sms-gateway/heartbeat` отмечает телефон онлайн.
-Twilio остаётся опциональной альтернативой через `SMS_PROVIDER=twilio`.
+Других production SMS-провайдеров backend не поддерживает.
 Полная инструкция для готовой Android-программы, включая JSON-контракт,
 heartbeat, подтверждения и обработку ошибок:
 [`docs/ANDROID_SMS_GATEWAY.md`](docs/ANDROID_SMS_GATEWAY.md).
@@ -123,6 +146,12 @@ heartbeat, подтверждения и обработку ошибок:
 npm run dev:admin           # только React-админка
 npm run dev:api             # только NestJS API
 npm run dev                 # оба приложения
+npm run maps:up             # подготовить и запустить локальную OSM-карту
+npm run maps:update         # атомарно обновить данные Туркменистана
+npm run maps:down           # остановить только сервер карты
+npm run routing:up          # подготовить и запустить OSRM маршрутизацию
+npm run routing:update      # атомарно обновить дорожный граф
+npm run routing:down        # остановить только OSRM
 npm run api:client          # Swagger → packages/api-contract/src/schema.ts
 npm test                    # admin production build + UI smoke tests
 npm run test:api            # backend unit/e2e/security tests

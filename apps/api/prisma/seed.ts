@@ -62,73 +62,91 @@ async function main() {
     });
   }
 
+  await prisma.branch.upsert({
+    where: { id: "00000000-0000-4000-8000-000000000001" },
+    create: {
+      id: "00000000-0000-4000-8000-000000000001",
+      name: "AlowAlow Demo",
+      address: "Ashgabat (local demo)",
+      latitude: 37.9601,
+      longitude: 58.3261,
+    },
+    update: {
+      name: "AlowAlow Demo",
+      address: "Ashgabat (local demo)",
+      latitude: 37.9601,
+      longitude: 58.3261,
+      isActive: true,
+    },
+  });
+
   const burgers = await prisma.category.upsert({
-  where: { slug: "burgers" },
-  create: {
-    name: "Бургеры",
-    slug: "burgers",
-    sortOrder: 10,
-  },
-  update: { name: "Бургеры", isActive: true },
+    where: { slug: "burgers" },
+    create: {
+      name: "Бургеры",
+      slug: "burgers",
+      sortOrder: 10,
+    },
+    update: { name: "Бургеры", isActive: true },
   });
   const pizza = await prisma.category.upsert({
-  where: { slug: "pizza" },
-  create: {
-    name: "Пицца",
-    slug: "pizza",
-    sortOrder: 20,
-  },
-  update: { name: "Пицца", isActive: true },
+    where: { slug: "pizza" },
+    create: {
+      name: "Пицца",
+      slug: "pizza",
+      sortOrder: 20,
+    },
+    update: { name: "Пицца", isActive: true },
   });
 
   await prisma.product.updateMany({
-  where: { slug: "alo-burger" },
-  data: { name: "AlowAlow Burger", slug: "alowalow-burger" },
+    where: { slug: "alo-burger" },
+    data: { name: "AlowAlow Burger", slug: "alowalow-burger" },
   });
   await prisma.product.upsert({
-  where: { slug: "alowalow-burger" },
-  create: {
-    categoryId: burgers.id,
-    name: "AlowAlow Burger",
-    slug: "alowalow-burger",
-    description: "Говяжья котлета, чеддер, свежие овощи и фирменный соус.",
-    price: 48,
-  },
-  update: {
-    categoryId: burgers.id,
-    name: "AlowAlow Burger",
-    description: "Говяжья котлета, чеддер, свежие овощи и фирменный соус.",
-    price: 48,
-    isActive: true,
-  },
+    where: { slug: "alowalow-burger" },
+    create: {
+      categoryId: burgers.id,
+      name: "AlowAlow Burger",
+      slug: "alowalow-burger",
+      description: "Говяжья котлета, чеддер, свежие овощи и фирменный соус.",
+      price: 48,
+    },
+    update: {
+      categoryId: burgers.id,
+      name: "AlowAlow Burger",
+      description: "Говяжья котлета, чеддер, свежие овощи и фирменный соус.",
+      price: 48,
+      isActive: true,
+    },
   });
   await prisma.product.upsert({
-  where: { slug: "margherita" },
-  create: {
-    categoryId: pizza.id,
-    name: "Маргарита",
-    slug: "margherita",
-    description: "Томаты, моцарелла и базилик на тонком тесте.",
-    price: 65,
-  },
-  update: {
-    categoryId: pizza.id,
-    price: 65,
-    isActive: true,
-  },
+    where: { slug: "margherita" },
+    create: {
+      categoryId: pizza.id,
+      name: "Маргарита",
+      slug: "margherita",
+      description: "Томаты, моцарелла и базилик на тонком тесте.",
+      price: 65,
+    },
+    update: {
+      categoryId: pizza.id,
+      price: 65,
+      isActive: true,
+    },
   });
 
   await prisma.promoCode.upsert({
-  where: { code: "WELCOME15" },
-  create: {
-    code: "WELCOME15",
-    type: PromoType.PERCENT,
-    value: 15,
-    minOrderAmount: 80,
-    maxDiscountAmount: 35,
-    perUserLimit: 1,
-  },
-  update: { isActive: true },
+    where: { code: "WELCOME15" },
+    create: {
+      code: "WELCOME15",
+      type: PromoType.PERCENT,
+      value: 15,
+      minOrderAmount: 80,
+      maxDiscountAmount: 35,
+      perUserLimit: 1,
+    },
+    update: { isActive: true },
   });
 }
 

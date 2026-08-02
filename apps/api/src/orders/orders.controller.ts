@@ -59,13 +59,25 @@ export class OrdersController {
   }
 
   @Get("courier/route")
-  @Roles(Role.COURIER, Role.ADMIN)
+  @Roles(Role.COURIER)
   @ApiOperation({
-    summary: "Get all active courier stops for map and route planning",
+    summary: "Get assigned stops and a real driving route for the courier",
   })
   @ApiOkResponse({ type: CourierRouteResponseDto })
   route(@CurrentUser() user: AuthUser) {
     return this.orders.courierRoute(user);
+  }
+
+  @Get("couriers/:courierId/route")
+  @Roles(Role.OPERATOR, Role.ADMIN)
+  @ApiOperation({
+    summary: "Get the same stops and road route shown to a selected courier",
+  })
+  @ApiOkResponse({ type: CourierRouteResponseDto })
+  dispatchRoute(
+    @Param("courierId", ParseUUIDPipe) courierId: string,
+  ) {
+    return this.orders.dispatchCourierRoute(courierId);
   }
 
   @Get(":id")

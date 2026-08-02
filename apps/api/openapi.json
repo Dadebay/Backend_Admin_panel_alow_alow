@@ -639,6 +639,16 @@
             }
           },
           {
+            "name": "branchId",
+            "required": false,
+            "in": "query",
+            "description": "Filter operational order queues by assigned branch",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
             "name": "search",
             "required": false,
             "in": "query",
@@ -719,7 +729,43 @@
             "bearer": []
           }
         ],
-        "summary": "Get all active courier stops for map and route planning",
+        "summary": "Get assigned stops and a real driving route for the courier",
+        "tags": [
+          "orders"
+        ]
+      }
+    },
+    "/api/v1/orders/couriers/{courierId}/route": {
+      "get": {
+        "operationId": "OrdersController_dispatchRoute_v1",
+        "parameters": [
+          {
+            "name": "courierId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CourierRouteResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Get the same stops and road route shown to a selected courier",
         "tags": [
           "orders"
         ]
@@ -1234,6 +1280,233 @@
         ]
       }
     },
+    "/api/v1/branches": {
+      "get": {
+        "operationId": "BranchesController_list_v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/BranchResponseDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "List all branches for operations",
+        "tags": [
+          "branches"
+        ]
+      },
+      "post": {
+        "operationId": "BranchesController_create_v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateBranchDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BranchResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Create a delivery branch",
+        "tags": [
+          "branches"
+        ]
+      }
+    },
+    "/api/v1/branches/{id}": {
+      "patch": {
+        "operationId": "BranchesController_update_v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateBranchDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BranchResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Update or deactivate a delivery branch",
+        "tags": [
+          "branches"
+        ]
+      }
+    },
+    "/api/v1/tracking/me/location": {
+      "put": {
+        "operationId": "TrackingController_updateLocation_v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCourierLocationDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateCourierLocationResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Publish courier GPS; update about every 15 seconds during active delivery",
+        "tags": [
+          "tracking"
+        ]
+      },
+      "delete": {
+        "operationId": "TrackingController_stopSharing_v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StopCourierLocationResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Stop sharing the authenticated courier location",
+        "tags": [
+          "tracking"
+        ]
+      }
+    },
+    "/api/v1/tracking/dispatch": {
+      "get": {
+        "operationId": "TrackingController_dispatch_v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DispatchSnapshotDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Get active couriers, their latest locations, delivery stops and customer details",
+        "tags": [
+          "tracking"
+        ]
+      }
+    },
+    "/api/v1/tracking/dispatch/live": {
+      "get": {
+        "operationId": "TrackingController_dispatchLive_v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "$ref": "#/components/schemas/DispatchLiveEventDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Stream accepted courier GPS updates to authorized dispatchers",
+        "tags": [
+          "tracking"
+        ]
+      }
+    },
     "/api/v1/marketing/banners": {
       "get": {
         "operationId": "MarketingController_banners_v1",
@@ -1568,95 +1841,6 @@
         ],
         "tags": [
           "media"
-        ]
-      }
-    },
-    "/api/v1/tracking/me/location": {
-      "put": {
-        "operationId": "TrackingController_updateLocation_v1",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdateCourierLocationDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/UpdateCourierLocationResponseDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Publish the authenticated courier location; clients should update every 120 seconds",
-        "tags": [
-          "tracking"
-        ]
-      },
-      "delete": {
-        "operationId": "TrackingController_stopSharing_v1",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/StopCourierLocationResponseDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Stop sharing the authenticated courier location",
-        "tags": [
-          "tracking"
-        ]
-      }
-    },
-    "/api/v1/tracking/dispatch": {
-      "get": {
-        "operationId": "TrackingController_dispatch_v1",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DispatchSnapshotDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Get active couriers, their latest locations, delivery stops and customer details",
-        "tags": [
-          "tracking"
         ]
       }
     }
@@ -2798,6 +2982,11 @@
             "format": "uuid",
             "nullable": true
           },
+          "branchId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
           "cookId": {
             "type": "string",
             "format": "uuid",
@@ -2867,6 +3056,26 @@
           },
           "apartment": {
             "type": "string",
+            "nullable": true
+          },
+          "branchName": {
+            "type": "string",
+            "nullable": true
+          },
+          "branchAddress": {
+            "type": "string",
+            "nullable": true
+          },
+          "branchLatitude": {
+            "type": "number",
+            "nullable": true
+          },
+          "branchLongitude": {
+            "type": "number",
+            "nullable": true
+          },
+          "branchDistanceMeters": {
+            "type": "number",
             "nullable": true
           },
           "customerNote": {
@@ -2969,6 +3178,7 @@
           "number",
           "customerId",
           "addressId",
+          "branchId",
           "cookId",
           "courierId",
           "promoCodeId",
@@ -2984,6 +3194,11 @@
           "entrance",
           "floor",
           "apartment",
+          "branchName",
+          "branchAddress",
+          "branchLatitude",
+          "branchLongitude",
+          "branchDistanceMeters",
           "customerNote",
           "cancellationReason",
           "version",
@@ -3036,6 +3251,38 @@
           "pages"
         ]
       },
+      "CourierRouteBranchResponseDto": {
+        "type": "object",
+        "properties": {
+          "branchId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "address": {
+            "type": "string",
+            "nullable": true
+          },
+          "latitude": {
+            "type": "number",
+            "nullable": true
+          },
+          "longitude": {
+            "type": "number",
+            "nullable": true
+          }
+        },
+        "required": [
+          "branchId",
+          "name",
+          "address",
+          "latitude",
+          "longitude"
+        ]
+      },
       "CourierRouteCustomerResponseDto": {
         "type": "object",
         "properties": {
@@ -3055,6 +3302,21 @@
           "phone",
           "firstName",
           "lastName"
+        ]
+      },
+      "CourierRouteItemResponseDto": {
+        "type": "object",
+        "properties": {
+          "productName": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "productName",
+          "quantity"
         ]
       },
       "CourierRouteStopResponseDto": {
@@ -3096,11 +3358,47 @@
           "longitude": {
             "type": "number"
           },
+          "entrance": {
+            "type": "string",
+            "nullable": true
+          },
+          "floor": {
+            "type": "string",
+            "nullable": true
+          },
+          "apartment": {
+            "type": "string",
+            "nullable": true
+          },
+          "customerNote": {
+            "type": "string",
+            "nullable": true
+          },
+          "assignedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "branch": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CourierRouteBranchResponseDto"
+              }
+            ]
+          },
           "customer": {
             "$ref": "#/components/schemas/CourierRouteCustomerResponseDto"
           },
           "itemCount": {
             "type": "number"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CourierRouteItemResponseDto"
+            }
           },
           "cashToCollect": {
             "type": "number"
@@ -3114,9 +3412,223 @@
           "address",
           "latitude",
           "longitude",
+          "entrance",
+          "floor",
+          "apartment",
+          "customerNote",
+          "assignedAt",
+          "branch",
           "customer",
           "itemCount",
+          "items",
           "cashToCollect"
+        ]
+      },
+      "CourierRouteGeometryResponseDto": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "LineString"
+            ]
+          },
+          "coordinates": {
+            "type": "array",
+            "items": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 2,
+              "items": {
+                "type": "number"
+              }
+            },
+            "description": "GeoJSON coordinates in [longitude, latitude] order"
+          }
+        },
+        "required": [
+          "type",
+          "coordinates"
+        ]
+      },
+      "CourierRouteWaypointResponseDto": {
+        "type": "object",
+        "properties": {
+          "sequence": {
+            "type": "number"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "COURIER",
+              "PICKUP",
+              "DELIVERY"
+            ]
+          },
+          "requestedLatitude": {
+            "type": "number"
+          },
+          "requestedLongitude": {
+            "type": "number"
+          },
+          "latitude": {
+            "type": "number"
+          },
+          "longitude": {
+            "type": "number"
+          },
+          "distanceToRoadMeters": {
+            "type": "number"
+          },
+          "branchId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "orderId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          }
+        },
+        "required": [
+          "sequence",
+          "kind",
+          "requestedLatitude",
+          "requestedLongitude",
+          "latitude",
+          "longitude",
+          "distanceToRoadMeters",
+          "branchId",
+          "orderId"
+        ]
+      },
+      "CourierRouteManeuverResponseDto": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string"
+          },
+          "modifier": {
+            "type": "string",
+            "nullable": true
+          },
+          "latitude": {
+            "type": "number"
+          },
+          "longitude": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "type",
+          "modifier",
+          "latitude",
+          "longitude"
+        ]
+      },
+      "CourierRouteStepResponseDto": {
+        "type": "object",
+        "properties": {
+          "distanceMeters": {
+            "type": "number"
+          },
+          "durationSeconds": {
+            "type": "number"
+          },
+          "roadName": {
+            "type": "string"
+          },
+          "mode": {
+            "type": "string"
+          },
+          "maneuver": {
+            "$ref": "#/components/schemas/CourierRouteManeuverResponseDto"
+          }
+        },
+        "required": [
+          "distanceMeters",
+          "durationSeconds",
+          "roadName",
+          "mode",
+          "maneuver"
+        ]
+      },
+      "CourierRouteLegResponseDto": {
+        "type": "object",
+        "properties": {
+          "distanceMeters": {
+            "type": "number"
+          },
+          "durationSeconds": {
+            "type": "number"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CourierRouteStepResponseDto"
+            }
+          }
+        },
+        "required": [
+          "distanceMeters",
+          "durationSeconds",
+          "summary",
+          "steps"
+        ]
+      },
+      "CourierRoadRouteResponseDto": {
+        "type": "object",
+        "properties": {
+          "planId": {
+            "type": "string",
+            "description": "Deterministic identifier of the ordered stops and generated road geometry"
+          },
+          "generatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "distanceMeters": {
+            "type": "number"
+          },
+          "durationSeconds": {
+            "type": "number"
+          },
+          "geometry": {
+            "$ref": "#/components/schemas/CourierRouteGeometryResponseDto"
+          },
+          "waypoints": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CourierRouteWaypointResponseDto"
+            }
+          },
+          "nextWaypoints": {
+            "description": "The next one to three pickup or delivery waypoints; all active orders remain available in stops",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CourierRouteWaypointResponseDto"
+            }
+          },
+          "legs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CourierRouteLegResponseDto"
+            }
+          }
+        },
+        "required": [
+          "planId",
+          "generatedAt",
+          "distanceMeters",
+          "durationSeconds",
+          "geometry",
+          "waypoints",
+          "nextWaypoints",
+          "legs"
         ]
       },
       "CourierRouteResponseDto": {
@@ -3131,11 +3643,36 @@
             "items": {
               "$ref": "#/components/schemas/CourierRouteStopResponseDto"
             }
+          },
+          "routingStatus": {
+            "type": "string",
+            "enum": [
+              "READY",
+              "NO_STOPS",
+              "UNAVAILABLE"
+            ]
+          },
+          "recalculateAfterSeconds": {
+            "type": "number",
+            "example": 15,
+            "description": "Recommended maximum delay before refreshing the route from the latest courier GPS position"
+          },
+          "route": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CourierRoadRouteResponseDto"
+              }
+            ]
           }
         },
         "required": [
           "courierId",
-          "stops"
+          "stops",
+          "routingStatus",
+          "recalculateAfterSeconds",
+          "route"
         ]
       },
       "TransitionOrderDto": {
@@ -3529,6 +4066,530 @@
           }
         }
       },
+      "BranchResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "address": {
+            "type": "string"
+          },
+          "latitude": {
+            "type": "number"
+          },
+          "longitude": {
+            "type": "number"
+          },
+          "phone": {
+            "type": "string",
+            "nullable": true
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "address",
+          "latitude",
+          "longitude",
+          "isActive",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "CreateBranchDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "AlowAlow Berkarar"
+          },
+          "address": {
+            "type": "string",
+            "example": "Atatürk köçesi, 80"
+          },
+          "latitude": {
+            "type": "number",
+            "example": 37.9382
+          },
+          "longitude": {
+            "type": "number",
+            "example": 58.3731
+          },
+          "phone": {
+            "type": "string",
+            "example": "+99365123456"
+          },
+          "isActive": {
+            "type": "boolean",
+            "default": true
+          }
+        },
+        "required": [
+          "name",
+          "address",
+          "latitude",
+          "longitude"
+        ]
+      },
+      "UpdateBranchDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "AlowAlow Berkarar"
+          },
+          "address": {
+            "type": "string",
+            "example": "Atatürk köçesi, 80"
+          },
+          "latitude": {
+            "type": "number",
+            "example": 37.9382
+          },
+          "longitude": {
+            "type": "number",
+            "example": 58.3731
+          },
+          "phone": {
+            "type": "string",
+            "example": "+99365123456"
+          },
+          "isActive": {
+            "type": "boolean",
+            "default": true
+          }
+        }
+      },
+      "UpdateCourierLocationDto": {
+        "type": "object",
+        "properties": {
+          "latitude": {
+            "type": "number",
+            "example": 37.9601
+          },
+          "longitude": {
+            "type": "number",
+            "example": 58.3261
+          },
+          "accuracy": {
+            "type": "number",
+            "description": "Estimated horizontal accuracy in metres",
+            "example": 18
+          },
+          "heading": {
+            "type": "number",
+            "description": "Direction of travel in degrees from true north",
+            "example": 125
+          },
+          "speed": {
+            "type": "number",
+            "description": "Ground speed in metres per second",
+            "example": 8.5
+          },
+          "recordedAt": {
+            "type": "string",
+            "description": "Timestamp supplied by the device GPS reading",
+            "example": "2026-07-27T12:30:00.000Z"
+          }
+        },
+        "required": [
+          "latitude",
+          "longitude",
+          "recordedAt"
+        ]
+      },
+      "CourierLocationDto": {
+        "type": "object",
+        "properties": {
+          "latitude": {
+            "type": "number"
+          },
+          "longitude": {
+            "type": "number"
+          },
+          "accuracy": {
+            "type": "number"
+          },
+          "heading": {
+            "type": "number"
+          },
+          "speed": {
+            "type": "number"
+          },
+          "recordedAt": {
+            "type": "string"
+          },
+          "receivedAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "latitude",
+          "longitude",
+          "recordedAt",
+          "receivedAt"
+        ]
+      },
+      "UpdateCourierLocationResponseDto": {
+        "type": "object",
+        "properties": {
+          "accepted": {
+            "type": "boolean",
+            "example": true
+          },
+          "location": {
+            "$ref": "#/components/schemas/CourierLocationDto"
+          },
+          "nextUpdateInSeconds": {
+            "type": "number",
+            "example": 15
+          }
+        },
+        "required": [
+          "accepted",
+          "location",
+          "nextUpdateInSeconds"
+        ]
+      },
+      "StopCourierLocationResponseDto": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "example": true
+          }
+        },
+        "required": [
+          "success"
+        ]
+      },
+      "DispatchBranchDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "example": "AlowAlow Berkarar"
+          },
+          "address": {
+            "type": "string"
+          },
+          "latitude": {
+            "type": "number"
+          },
+          "longitude": {
+            "type": "number"
+          },
+          "phone": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "address",
+          "latitude",
+          "longitude",
+          "phone"
+        ]
+      },
+      "DispatchOrderBranchDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "address": {
+            "type": "string",
+            "nullable": true
+          },
+          "latitude": {
+            "type": "number",
+            "nullable": true
+          },
+          "longitude": {
+            "type": "number",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "address",
+          "latitude",
+          "longitude"
+        ]
+      },
+      "DispatchCustomerDto": {
+        "type": "object",
+        "properties": {
+          "firstName": {
+            "type": "string",
+            "nullable": true
+          },
+          "lastName": {
+            "type": "string",
+            "nullable": true
+          },
+          "phone": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "firstName",
+          "lastName",
+          "phone"
+        ]
+      },
+      "DispatchOrderItemDto": {
+        "type": "object",
+        "properties": {
+          "productName": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "productName",
+          "quantity"
+        ]
+      },
+      "DispatchOrderDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "number": {
+            "type": "number"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ASSIGNED_TO_COURIER",
+              "OUT_FOR_DELIVERY"
+            ]
+          },
+          "address": {
+            "type": "string"
+          },
+          "latitude": {
+            "type": "number"
+          },
+          "longitude": {
+            "type": "number"
+          },
+          "branch": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DispatchOrderBranchDto"
+              }
+            ]
+          },
+          "entrance": {
+            "type": "string",
+            "nullable": true
+          },
+          "floor": {
+            "type": "string",
+            "nullable": true
+          },
+          "apartment": {
+            "type": "string",
+            "nullable": true
+          },
+          "customerNote": {
+            "type": "string",
+            "nullable": true
+          },
+          "cashToCollect": {
+            "type": "number"
+          },
+          "assignedAt": {
+            "type": "string",
+            "nullable": true
+          },
+          "customer": {
+            "$ref": "#/components/schemas/DispatchCustomerDto"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DispatchOrderItemDto"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "number",
+          "status",
+          "address",
+          "latitude",
+          "longitude",
+          "branch",
+          "entrance",
+          "floor",
+          "apartment",
+          "customerNote",
+          "cashToCollect",
+          "assignedAt",
+          "customer",
+          "items"
+        ]
+      },
+      "DispatchCourierDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "firstName": {
+            "type": "string",
+            "nullable": true
+          },
+          "lastName": {
+            "type": "string",
+            "nullable": true
+          },
+          "phone": {
+            "type": "string"
+          },
+          "presence": {
+            "type": "string",
+            "enum": [
+              "ONLINE",
+              "STALE",
+              "OFFLINE"
+            ]
+          },
+          "location": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CourierLocationDto"
+              }
+            ]
+          },
+          "rating": {
+            "type": "number",
+            "nullable": true
+          },
+          "activeOrders": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DispatchOrderDto"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "firstName",
+          "lastName",
+          "phone",
+          "presence",
+          "location",
+          "rating",
+          "activeOrders"
+        ]
+      },
+      "DispatchSnapshotDto": {
+        "type": "object",
+        "properties": {
+          "generatedAt": {
+            "type": "string"
+          },
+          "courierUpdateIntervalSeconds": {
+            "type": "number",
+            "example": 15
+          },
+          "branches": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DispatchBranchDto"
+            }
+          },
+          "couriers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DispatchCourierDto"
+            }
+          }
+        },
+        "required": [
+          "generatedAt",
+          "courierUpdateIntervalSeconds",
+          "branches",
+          "couriers"
+        ]
+      },
+      "DispatchLiveEventDto": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "courier.location",
+              "heartbeat"
+            ]
+          },
+          "courierId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "location": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CourierLocationDto"
+              }
+            ]
+          },
+          "sentAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "type",
+          "courierId",
+          "location",
+          "sentAt"
+        ]
+      },
       "BannerResponseDto": {
         "type": "object",
         "properties": {
@@ -3844,332 +4905,6 @@
           "width",
           "height",
           "bytes"
-        ]
-      },
-      "UpdateCourierLocationDto": {
-        "type": "object",
-        "properties": {
-          "latitude": {
-            "type": "number",
-            "example": 37.9601
-          },
-          "longitude": {
-            "type": "number",
-            "example": 58.3261
-          },
-          "accuracy": {
-            "type": "number",
-            "description": "Estimated horizontal accuracy in metres",
-            "example": 18
-          },
-          "heading": {
-            "type": "number",
-            "description": "Direction of travel in degrees from true north",
-            "example": 125
-          },
-          "speed": {
-            "type": "number",
-            "description": "Ground speed in metres per second",
-            "example": 8.5
-          },
-          "recordedAt": {
-            "type": "string",
-            "description": "Timestamp supplied by the device GPS reading",
-            "example": "2026-07-27T12:30:00.000Z"
-          }
-        },
-        "required": [
-          "latitude",
-          "longitude",
-          "recordedAt"
-        ]
-      },
-      "CourierLocationDto": {
-        "type": "object",
-        "properties": {
-          "latitude": {
-            "type": "number"
-          },
-          "longitude": {
-            "type": "number"
-          },
-          "accuracy": {
-            "type": "number"
-          },
-          "heading": {
-            "type": "number"
-          },
-          "speed": {
-            "type": "number"
-          },
-          "recordedAt": {
-            "type": "string"
-          },
-          "receivedAt": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "latitude",
-          "longitude",
-          "recordedAt",
-          "receivedAt"
-        ]
-      },
-      "UpdateCourierLocationResponseDto": {
-        "type": "object",
-        "properties": {
-          "accepted": {
-            "type": "boolean",
-            "example": true
-          },
-          "location": {
-            "$ref": "#/components/schemas/CourierLocationDto"
-          },
-          "nextUpdateInSeconds": {
-            "type": "number",
-            "example": 120
-          }
-        },
-        "required": [
-          "accepted",
-          "location",
-          "nextUpdateInSeconds"
-        ]
-      },
-      "StopCourierLocationResponseDto": {
-        "type": "object",
-        "properties": {
-          "success": {
-            "type": "boolean",
-            "example": true
-          }
-        },
-        "required": [
-          "success"
-        ]
-      },
-      "DispatchPickupDto": {
-        "type": "object",
-        "properties": {
-          "name": {
-            "type": "string",
-            "example": "AlowAlow"
-          },
-          "address": {
-            "type": "string",
-            "nullable": true
-          },
-          "latitude": {
-            "type": "number",
-            "nullable": true
-          },
-          "longitude": {
-            "type": "number",
-            "nullable": true
-          }
-        },
-        "required": [
-          "name",
-          "address",
-          "latitude",
-          "longitude"
-        ]
-      },
-      "DispatchCustomerDto": {
-        "type": "object",
-        "properties": {
-          "firstName": {
-            "type": "string",
-            "nullable": true
-          },
-          "lastName": {
-            "type": "string",
-            "nullable": true
-          },
-          "phone": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "firstName",
-          "lastName",
-          "phone"
-        ]
-      },
-      "DispatchOrderItemDto": {
-        "type": "object",
-        "properties": {
-          "productName": {
-            "type": "string"
-          },
-          "quantity": {
-            "type": "number"
-          }
-        },
-        "required": [
-          "productName",
-          "quantity"
-        ]
-      },
-      "DispatchOrderDto": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "number": {
-            "type": "number"
-          },
-          "status": {
-            "type": "string",
-            "enum": [
-              "ASSIGNED_TO_COURIER",
-              "OUT_FOR_DELIVERY"
-            ]
-          },
-          "address": {
-            "type": "string"
-          },
-          "latitude": {
-            "type": "number"
-          },
-          "longitude": {
-            "type": "number"
-          },
-          "entrance": {
-            "type": "string",
-            "nullable": true
-          },
-          "floor": {
-            "type": "string",
-            "nullable": true
-          },
-          "apartment": {
-            "type": "string",
-            "nullable": true
-          },
-          "customerNote": {
-            "type": "string",
-            "nullable": true
-          },
-          "cashToCollect": {
-            "type": "number"
-          },
-          "assignedAt": {
-            "type": "string",
-            "nullable": true
-          },
-          "customer": {
-            "$ref": "#/components/schemas/DispatchCustomerDto"
-          },
-          "items": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/DispatchOrderItemDto"
-            }
-          }
-        },
-        "required": [
-          "id",
-          "number",
-          "status",
-          "address",
-          "latitude",
-          "longitude",
-          "entrance",
-          "floor",
-          "apartment",
-          "customerNote",
-          "cashToCollect",
-          "assignedAt",
-          "customer",
-          "items"
-        ]
-      },
-      "DispatchCourierDto": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "firstName": {
-            "type": "string",
-            "nullable": true
-          },
-          "lastName": {
-            "type": "string",
-            "nullable": true
-          },
-          "phone": {
-            "type": "string"
-          },
-          "presence": {
-            "type": "string",
-            "enum": [
-              "ONLINE",
-              "STALE",
-              "OFFLINE"
-            ]
-          },
-          "location": {
-            "nullable": true,
-            "type": "object",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/CourierLocationDto"
-              }
-            ]
-          },
-          "rating": {
-            "type": "number",
-            "nullable": true
-          },
-          "activeOrders": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/DispatchOrderDto"
-            }
-          }
-        },
-        "required": [
-          "id",
-          "firstName",
-          "lastName",
-          "phone",
-          "presence",
-          "location",
-          "rating",
-          "activeOrders"
-        ]
-      },
-      "DispatchSnapshotDto": {
-        "type": "object",
-        "properties": {
-          "generatedAt": {
-            "type": "string"
-          },
-          "courierUpdateIntervalSeconds": {
-            "type": "number",
-            "example": 120
-          },
-          "pickup": {
-            "$ref": "#/components/schemas/DispatchPickupDto"
-          },
-          "couriers": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/DispatchCourierDto"
-            }
-          }
-        },
-        "required": [
-          "generatedAt",
-          "courierUpdateIntervalSeconds",
-          "pickup",
-          "couriers"
         ]
       }
     }

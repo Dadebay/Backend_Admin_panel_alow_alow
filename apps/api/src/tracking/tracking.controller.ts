@@ -1,8 +1,17 @@
-import { Controller, Delete, Get, Put, Body } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Header,
+  Put,
+  Sse,
+} from "@nestjs/common";
 import {
   ApiBearerAuth,
   ApiOkResponse,
   ApiOperation,
+  ApiProduces,
   ApiTags,
 } from "@nestjs/swagger";
 import { Throttle } from "@nestjs/throttler";
@@ -11,6 +20,7 @@ import type { AuthUser } from "../common/auth.types";
 import { Role } from "../generated/prisma/client";
 import {
   DispatchSnapshotDto,
+  DispatchLiveEventDto,
   StopCourierLocationResponseDto,
   UpdateCourierLocationDto,
   UpdateCourierLocationResponseDto,
@@ -28,7 +38,7 @@ export class TrackingController {
   @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @ApiOperation({
     summary:
-      "Publish the authenticated courier location; clients should update every 120 seconds",
+      "Publish courier GPS; update about every 15 seconds during active delivery",
   })
   @ApiOkResponse({ type: UpdateCourierLocationResponseDto })
   updateLocation(
@@ -55,5 +65,18 @@ export class TrackingController {
   @ApiOkResponse({ type: DispatchSnapshotDto })
   dispatch() {
     return this.tracking.getDispatchSnapshot();
+  }
+
+  @Sse("dispatch/live")
+  @Roles(Role.OPERATOR, Role.ADMIN)
+  @Header("Cache-Control", "no-cache, no-transform")
+  @Header("X-Accel-Buffering", "no")
+  @ApiOperation({
+    summary: "Stream accepted courier GPS updates to authorized dispatchers",
+  })
+  @ApiProduces("text/event-stream")
+  @ApiOkResponse({ type: DispatchLiveEventDto })
+  dispatchLive() {
+    return this.tracking.dispatchLive();
   }
 }

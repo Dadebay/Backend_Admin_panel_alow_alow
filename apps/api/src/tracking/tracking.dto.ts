@@ -86,7 +86,7 @@ export class UpdateCourierLocationResponseDto {
   @ApiProperty({ type: CourierLocationDto })
   location: CourierLocationDto;
 
-  @ApiProperty({ example: 120 })
+  @ApiProperty({ example: 15 })
   nextUpdateInSeconds: number;
 }
 
@@ -95,9 +95,32 @@ export class StopCourierLocationResponseDto {
   success: boolean;
 }
 
-export class DispatchPickupDto {
-  @ApiProperty({ example: "AlowAlow" })
+export class DispatchBranchDto {
+  @ApiProperty({ format: "uuid" })
+  id: string;
+
+  @ApiProperty({ example: "AlowAlow Berkarar" })
   name: string;
+
+  @ApiProperty()
+  address: string;
+
+  @ApiProperty()
+  latitude: number;
+
+  @ApiProperty()
+  longitude: number;
+
+  @ApiProperty({ type: String, nullable: true })
+  phone: string | null;
+}
+
+export class DispatchOrderBranchDto {
+  @ApiProperty({ format: "uuid" })
+  id: string;
+
+  @ApiProperty({ type: String, nullable: true })
+  name: string | null;
 
   @ApiProperty({ type: String, nullable: true })
   address: string | null;
@@ -148,6 +171,9 @@ export class DispatchOrderDto {
 
   @ApiProperty()
   longitude: number;
+
+  @ApiProperty({ type: DispatchOrderBranchDto, nullable: true })
+  branch: DispatchOrderBranchDto | null;
 
   @ApiProperty({ type: String, nullable: true })
   entrance: string | null;
@@ -204,12 +230,26 @@ export class DispatchSnapshotDto {
   @ApiProperty()
   generatedAt: string;
 
-  @ApiProperty({ example: 120 })
+  @ApiProperty({ example: 15 })
   courierUpdateIntervalSeconds: number;
 
-  @ApiProperty({ type: DispatchPickupDto })
-  pickup: DispatchPickupDto;
+  @ApiProperty({ type: [DispatchBranchDto] })
+  branches: DispatchBranchDto[];
 
   @ApiProperty({ type: [DispatchCourierDto] })
   couriers: DispatchCourierDto[];
+}
+
+export class DispatchLiveEventDto {
+  @ApiProperty({ enum: ["courier.location", "heartbeat"] })
+  type: "courier.location" | "heartbeat";
+
+  @ApiProperty({ type: String, format: "uuid", nullable: true })
+  courierId: string | null;
+
+  @ApiProperty({ type: CourierLocationDto, nullable: true })
+  location: CourierLocationDto | null;
+
+  @ApiProperty({ format: "date-time" })
+  sentAt: string;
 }

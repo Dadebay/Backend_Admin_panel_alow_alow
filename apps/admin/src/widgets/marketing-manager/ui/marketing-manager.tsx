@@ -1,5 +1,7 @@
-import { useMemo, useState, type FormEvent } from "react";
+import { useMemo, useState } from "react";
+import { zodResolver } from "@hookform/resolvers/zod";
 import type { ColumnDef } from "@tanstack/react-table";
+import { useForm } from "react-hook-form";
 import {
   useAdminBanners,
   useAdminPromos,
@@ -10,12 +12,16 @@ import { useCatalogActions } from "@/src/features/catalog-management";
 import { useMarketingActions } from "@/src/features/marketing-management";
 import { resolveApiUrl } from "@/src/shared/api/api-client";
 import { useSession } from "@/src/shared/auth";
+import { FormFieldError, toIsoDateTime } from "@/src/shared/forms";
 import { AsyncPanel, DataTable } from "@/src/shared/ui";
-
-function optionalNumber(value: FormDataEntryValue | null) {
-  const text = String(value ?? "").trim();
-  return text ? Number(text) : undefined;
-}
+import {
+  bannerFormSchema,
+  promoFormSchema,
+  type BannerFormInput,
+  type BannerFormValues,
+  type PromoFormInput,
+  type PromoFormValues,
+} from "../model/marketing-forms";
 
 export function MarketingManager() {
   const { session } = useSession();
@@ -27,6 +33,47 @@ export function MarketingManager() {
   const [promoEdit, setPromoEdit] = useState<Promo | null>(null);
   const [showBanner, setShowBanner] = useState(false);
   const [showPromo, setShowPromo] = useState(false);
+  const {
+    register: registerBanner,
+    handleSubmit: handleBannerSubmit,
+    reset: resetBanner,
+    setError: setBannerError,
+    formState: { errors: bannerErrors },
+  } = useForm<BannerFormInput, unknown, BannerFormValues>({
+    resolver: zodResolver(bannerFormSchema),
+    mode: "onBlur",
+    defaultValues: {
+      title: "",
+      subtitle: "",
+      link: "",
+      sortOrder: 0,
+      startsAt: "",
+      endsAt: "",
+      isActive: true,
+      image: undefined,
+    },
+  });
+  const {
+    register: registerPromo,
+    handleSubmit: handlePromoSubmit,
+    reset: resetPromo,
+    formState: { errors: promoErrors },
+  } = useForm<PromoFormInput, unknown, PromoFormValues>({
+    resolver: zodResolver(promoFormSchema),
+    mode: "onBlur",
+    defaultValues: {
+      code: "",
+      type: "PERCENT",
+      value: 0,
+      minOrderAmount: undefined,
+      maxDiscountAmount: undefined,
+      totalUsageLimit: undefined,
+      perUserLimit: 1,
+      startsAt: "",
+      endsAt: "",
+      isActive: true,
+    },
+  });
   const canEdit = Boolean(
     session && ["ADMIN", "SUPER_ADMIN"].includes(session.user.role),
   );
@@ -84,6 +131,16 @@ export function MarketingManager() {
                 className="secondary-button compact"
                 onClick={() => {
                   setBannerEdit(row.original);
+                  resetBanner({
+                    title: row.original.title,
+                    subtitle: row.original.subtitle ?? "",
+                    link: row.original.link ?? "",
+                    sortOrder: row.original.sortOrder,
+                    startsAt: row.original.startsAt?.slice(0, 16) ?? "",
+                    endsAt: row.original.endsAt?.slice(0, 16) ?? "",
+                    isActive: row.original.isActive,
+                    image: undefined,
+                  });
                   setShowBanner(true);
                 }}
               >
@@ -104,7 +161,7 @@ export function MarketingManager() {
           ),
       },
     ],
-    [canEdit, marketing.updateBanner],
+    [canEdit, marketing.updateBanner, resetBanner],
   );
 
   const promoColumns = useMemo<ColumnDef<Promo, unknown>[]>(
@@ -155,6 +212,24 @@ export function MarketingManager() {
                 className="secondary-button compact"
                 onClick={() => {
                   setPromoEdit(row.original);
+                  resetPromo({
+                    code: row.original.code,
+                    type: row.original.type,
+                    value: Number(row.original.value),
+                    minOrderAmount:
+                      row.original.minOrderAmount === null
+                        ? undefined
+                        : Number(row.original.minOrderAmount),
+                    maxDiscountAmount:
+                      row.original.maxDiscountAmount === null
+                        ? undefined
+                        : Number(row.original.maxDiscountAmount),
+                    totalUsageLimit: row.original.totalUsageLimit ?? undefined,
+                    perUserLimit: row.original.perUserLimit,
+                    startsAt: row.original.startsAt?.slice(0, 16) ?? "",
+                    endsAt: row.original.endsAt?.slice(0, 16) ?? "",
+                    isActive: row.original.isActive,
+                  });
                   setShowPromo(true);
                 }}
               >
@@ -178,29 +253,28 @@ export function MarketingManager() {
           ),
       },
     ],
-    [canEdit, marketing.updatePromo],
+    [canEdit, marketing.updatePromo, resetPromo],
   );
 
-  async function submitBanner(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    const file = form.get("image");
+  async function submitBanner(values: BannerFormValues) {
+    const file = (values.image as FileList | undefined)?.item(0);
     let imageUrl = bannerEdit?.imageUrl;
-    if (file instanceof File && file.size) {
+    if (file?.size) {
       imageUrl = (await media.uploadImage.mutateAsync(file)).url;
     }
-    if (!imageUrl) throw new Error("Выберите изображение баннера");
-    const startsAt = String(form.get("startsAt") ?? "");
-    const endsAt = String(form.get("endsAt") ?? "");
+    if (!imageUrl) {
+      setBannerError("image", { message: "Выберите изображение баннера" });
+      return;
+    }
     const body = {
-      title: String(form.get("title")).trim(),
-      subtitle: String(form.get("subtitle") ?? "").trim() || undefined,
+      title: values.title,
+      subtitle: values.subtitle,
       imageUrl,
-      link: String(form.get("link") ?? "").trim() || undefined,
-      sortOrder: Number(form.get("sortOrder")),
-      isActive: form.get("isActive") === "on",
-      startsAt: startsAt ? new Date(startsAt).toISOString() : undefined,
-      endsAt: endsAt ? new Date(endsAt).toISOString() : undefined,
+      link: values.link,
+      sortOrder: values.sortOrder,
+      isActive: values.isActive,
+      startsAt: toIsoDateTime(values.startsAt),
+      endsAt: toIsoDateTime(values.endsAt),
     };
     if (bannerEdit) {
       await marketing.updateBanner.mutateAsync({
@@ -212,24 +286,14 @@ export function MarketingManager() {
     }
     setBannerEdit(null);
     setShowBanner(false);
+    resetBanner();
   }
 
-  async function submitPromo(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    const startsAt = String(form.get("startsAt") ?? "");
-    const endsAt = String(form.get("endsAt") ?? "");
+  async function submitPromo(values: PromoFormValues) {
     const body = {
-      code: String(form.get("code")).trim().toUpperCase(),
-      type: String(form.get("type")) as "PERCENT" | "FIXED",
-      value: Number(form.get("value")),
-      minOrderAmount: optionalNumber(form.get("minOrderAmount")),
-      maxDiscountAmount: optionalNumber(form.get("maxDiscountAmount")),
-      totalUsageLimit: optionalNumber(form.get("totalUsageLimit")),
-      perUserLimit: Number(form.get("perUserLimit")),
-      isActive: form.get("isActive") === "on",
-      startsAt: startsAt ? new Date(startsAt).toISOString() : undefined,
-      endsAt: endsAt ? new Date(endsAt).toISOString() : undefined,
+      ...values,
+      startsAt: toIsoDateTime(values.startsAt),
+      endsAt: toIsoDateTime(values.endsAt),
     };
     if (promoEdit) {
       await marketing.updatePromo.mutateAsync({
@@ -241,6 +305,7 @@ export function MarketingManager() {
     }
     setPromoEdit(null);
     setShowPromo(false);
+    resetPromo();
   }
 
   const mutationError =
@@ -262,8 +327,10 @@ export function MarketingManager() {
           <div className="header-actions">
             <button
               className="secondary-button"
+              data-testid="banner-form-open"
               onClick={() => {
                 setBannerEdit(null);
+                resetBanner();
                 setShowBanner((value) => !value);
               }}
             >
@@ -271,8 +338,10 @@ export function MarketingManager() {
             </button>
             <button
               className="primary-button"
+              data-testid="promo-form-open"
               onClick={() => {
                 setPromoEdit(null);
+                resetPromo();
                 setShowPromo((value) => !value);
               }}
             >
@@ -289,13 +358,23 @@ export function MarketingManager() {
       )}
 
       {showBanner && (
-        <form className="editor-card" onSubmit={submitBanner}>
+        <form
+          className="editor-card"
+          data-testid="banner-form"
+          noValidate
+          onSubmit={handleBannerSubmit(submitBanner)}
+        >
           <div className="editor-title">
             <h2>{bannerEdit ? "Изменить баннер" : "Новый баннер"}</h2>
             <button
               className="text-button"
+              data-testid="banner-form-close"
               type="button"
-              onClick={() => setShowBanner(false)}
+              onClick={() => {
+                setShowBanner(false);
+                setBannerEdit(null);
+                resetBanner();
+              }}
             >
               Закрыть
             </button>
@@ -304,77 +383,113 @@ export function MarketingManager() {
             <label>
               <span>Заголовок</span>
               <input
-                name="title"
-                defaultValue={bannerEdit?.title}
-                required
+                data-testid="banner-title"
+                {...registerBanner("title")}
+                aria-invalid={Boolean(bannerErrors.title)}
                 maxLength={160}
               />
+              <FormFieldError message={bannerErrors.title?.message} />
             </label>
             <label>
               <span>Подзаголовок</span>
               <input
-                name="subtitle"
-                defaultValue={bannerEdit?.subtitle ?? ""}
+                data-testid="banner-subtitle"
+                {...registerBanner("subtitle")}
+                aria-invalid={Boolean(bannerErrors.subtitle)}
               />
+              <FormFieldError message={bannerErrors.subtitle?.message} />
             </label>
             <label>
               <span>Ссылка</span>
-              <input name="link" defaultValue={bannerEdit?.link ?? ""} />
+              <input
+                data-testid="banner-link"
+                {...registerBanner("link")}
+                aria-invalid={Boolean(bannerErrors.link)}
+              />
+              <FormFieldError message={bannerErrors.link?.message} />
             </label>
             <label>
               <span>Порядок</span>
               <input
-                name="sortOrder"
+                data-testid="banner-sort-order"
+                {...registerBanner("sortOrder", { valueAsNumber: true })}
+                aria-invalid={Boolean(bannerErrors.sortOrder)}
                 type="number"
-                defaultValue={bannerEdit?.sortOrder ?? 0}
               />
+              <FormFieldError message={bannerErrors.sortOrder?.message} />
             </label>
             <label>
               <span>Начало</span>
               <input
-                name="startsAt"
+                data-testid="banner-starts-at"
+                {...registerBanner("startsAt")}
+                aria-invalid={Boolean(bannerErrors.startsAt)}
                 type="datetime-local"
-                defaultValue={bannerEdit?.startsAt?.slice(0, 16)}
               />
+              <FormFieldError message={bannerErrors.startsAt?.message} />
             </label>
             <label>
               <span>Окончание</span>
               <input
-                name="endsAt"
+                data-testid="banner-ends-at"
+                {...registerBanner("endsAt")}
+                aria-invalid={Boolean(bannerErrors.endsAt)}
                 type="datetime-local"
-                defaultValue={bannerEdit?.endsAt?.slice(0, 16)}
               />
+              <FormFieldError message={bannerErrors.endsAt?.message} />
             </label>
             <label>
               <span>Изображение до 5 МБ</span>
               <input
-                name="image"
+                data-testid="banner-image"
+                {...registerBanner("image")}
+                aria-invalid={Boolean(bannerErrors.image)}
                 type="file"
                 accept="image/*"
-                required={!bannerEdit}
               />
+              <FormFieldError message={bannerErrors.image?.message} />
             </label>
             <label className="check-field">
               <input
-                name="isActive"
+                data-testid="banner-active"
+                {...registerBanner("isActive")}
                 type="checkbox"
-                defaultChecked={bannerEdit?.isActive ?? true}
               />
               Показывать
             </label>
           </div>
-          <button className="primary-button">Сохранить баннер</button>
+          <button
+            className="primary-button"
+            data-testid="banner-save"
+            disabled={
+              media.uploadImage.isPending ||
+              marketing.createBanner.isPending ||
+              marketing.updateBanner.isPending
+            }
+          >
+            Сохранить баннер
+          </button>
         </form>
       )}
 
       {showPromo && (
-        <form className="editor-card" onSubmit={submitPromo}>
+        <form
+          className="editor-card"
+          data-testid="promo-form"
+          noValidate
+          onSubmit={handlePromoSubmit(submitPromo)}
+        >
           <div className="editor-title">
             <h2>{promoEdit ? "Изменить промокод" : "Новый промокод"}</h2>
             <button
               className="text-button"
+              data-testid="promo-form-close"
               type="button"
-              onClick={() => setShowPromo(false)}
+              onClick={() => {
+                setShowPromo(false);
+                setPromoEdit(null);
+                resetPromo();
+              }}
             >
               Закрыть
             </button>
@@ -383,95 +498,128 @@ export function MarketingManager() {
             <label>
               <span>Код</span>
               <input
-                name="code"
-                defaultValue={promoEdit?.code}
-                required
+                data-testid="promo-code"
+                {...registerPromo("code")}
+                aria-invalid={Boolean(promoErrors.code)}
                 maxLength={40}
               />
+              <FormFieldError message={promoErrors.code?.message} />
             </label>
             <label>
               <span>Тип скидки</span>
-              <select name="type" defaultValue={promoEdit?.type ?? "PERCENT"}>
+              <select data-testid="promo-type" {...registerPromo("type")}>
                 <option value="PERCENT">Процент</option>
                 <option value="FIXED">Сумма TMT</option>
               </select>
+              <FormFieldError message={promoErrors.type?.message} />
             </label>
             <label>
               <span>Значение</span>
               <input
-                name="value"
+                data-testid="promo-value"
+                {...registerPromo("value", { valueAsNumber: true })}
+                aria-invalid={Boolean(promoErrors.value)}
                 type="number"
                 min="0"
                 step="0.01"
-                defaultValue={promoEdit?.value}
-                required
               />
+              <FormFieldError message={promoErrors.value?.message} />
             </label>
             <label>
               <span>Минимум заказа</span>
               <input
-                name="minOrderAmount"
+                data-testid="promo-min-order"
+                {...registerPromo("minOrderAmount", {
+                  setValueAs: (value) =>
+                    value === "" ? undefined : Number(value),
+                })}
+                aria-invalid={Boolean(promoErrors.minOrderAmount)}
                 type="number"
                 min="0"
                 step="0.01"
-                defaultValue={promoEdit?.minOrderAmount ?? ""}
               />
+              <FormFieldError message={promoErrors.minOrderAmount?.message} />
             </label>
             <label>
               <span>Максимум скидки</span>
               <input
-                name="maxDiscountAmount"
+                data-testid="promo-max-discount"
+                {...registerPromo("maxDiscountAmount", {
+                  setValueAs: (value) =>
+                    value === "" ? undefined : Number(value),
+                })}
+                aria-invalid={Boolean(promoErrors.maxDiscountAmount)}
                 type="number"
                 min="0"
                 step="0.01"
-                defaultValue={promoEdit?.maxDiscountAmount ?? ""}
+              />
+              <FormFieldError
+                message={promoErrors.maxDiscountAmount?.message}
               />
             </label>
             <label>
               <span>Общий лимит</span>
               <input
-                name="totalUsageLimit"
+                data-testid="promo-total-limit"
+                {...registerPromo("totalUsageLimit", {
+                  setValueAs: (value) =>
+                    value === "" ? undefined : Number(value),
+                })}
+                aria-invalid={Boolean(promoErrors.totalUsageLimit)}
                 type="number"
                 min="1"
-                defaultValue={promoEdit?.totalUsageLimit ?? ""}
               />
+              <FormFieldError message={promoErrors.totalUsageLimit?.message} />
             </label>
             <label>
               <span>На пользователя</span>
               <input
-                name="perUserLimit"
+                data-testid="promo-user-limit"
+                {...registerPromo("perUserLimit", { valueAsNumber: true })}
+                aria-invalid={Boolean(promoErrors.perUserLimit)}
                 type="number"
                 min="1"
-                defaultValue={promoEdit?.perUserLimit ?? 1}
-                required
               />
+              <FormFieldError message={promoErrors.perUserLimit?.message} />
             </label>
             <label>
               <span>Начало</span>
               <input
-                name="startsAt"
+                data-testid="promo-starts-at"
+                {...registerPromo("startsAt")}
+                aria-invalid={Boolean(promoErrors.startsAt)}
                 type="datetime-local"
-                defaultValue={promoEdit?.startsAt?.slice(0, 16)}
               />
+              <FormFieldError message={promoErrors.startsAt?.message} />
             </label>
             <label>
               <span>Окончание</span>
               <input
-                name="endsAt"
+                data-testid="promo-ends-at"
+                {...registerPromo("endsAt")}
+                aria-invalid={Boolean(promoErrors.endsAt)}
                 type="datetime-local"
-                defaultValue={promoEdit?.endsAt?.slice(0, 16)}
               />
+              <FormFieldError message={promoErrors.endsAt?.message} />
             </label>
             <label className="check-field">
               <input
-                name="isActive"
+                data-testid="promo-active"
+                {...registerPromo("isActive")}
                 type="checkbox"
-                defaultChecked={promoEdit?.isActive ?? true}
               />
               Активен
             </label>
           </div>
-          <button className="primary-button">Сохранить промокод</button>
+          <button
+            className="primary-button"
+            data-testid="promo-save"
+            disabled={
+              marketing.createPromo.isPending || marketing.updatePromo.isPending
+            }
+          >
+            Сохранить промокод
+          </button>
         </form>
       )}
 

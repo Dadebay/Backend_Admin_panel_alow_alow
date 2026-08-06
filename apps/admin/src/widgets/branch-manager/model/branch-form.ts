@@ -14,6 +14,7 @@ export const branchFormSchema = z.object({
     .min(1, "Укажите адрес")
     .max(500, "Не больше 500 символов"),
   isActive: z.boolean(),
+  isPrimary: z.boolean(),
 });
 
 export type BranchFormInput = z.input<typeof branchFormSchema>;

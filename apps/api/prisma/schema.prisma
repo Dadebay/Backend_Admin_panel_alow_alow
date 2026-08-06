@@ -53,6 +53,13 @@ enum PushDevicePlatform {
   IOS
 }
 
+enum LoginAttemptStatus {
+  REQUESTED
+  VERIFIED
+  FAILED
+  EXPIRED
+}
+
 enum NotificationAudience {
   ALL_CUSTOMERS
 }
@@ -78,6 +85,7 @@ model User {
   lastName       String?                @db.VarChar(80)
   role           Role                   @default(CUSTOMER)
   isActive       Boolean                @default(true)
+  lastLoginAt    DateTime?
   createdAt      DateTime               @default(now())
   updatedAt      DateTime               @updatedAt
   addresses      UserAddress[]
@@ -94,8 +102,28 @@ model User {
   pushDevices    PushDevice[]
   notifications  UserNotification[]
   campaignsMade  NotificationCampaign[] @relation("NotificationCampaignCreator")
+  favorites      Favorite[]
+  loginAttempts  LoginAttempt[]
 
   @@index([role, isActive])
+  @@index([lastLoginAt])
+}
+
+model LoginAttempt {
+  id             String             @id @default(uuid()) @db.Uuid
+  phone          String             @db.VarChar(24)
+  installationId String?            @db.VarChar(255)
+  deviceName     String?            @db.VarChar(160)
+  platform       PushDevicePlatform?
+  appVersion     String?            @db.VarChar(40)
+  status         LoginAttemptStatus @default(REQUESTED)
+  userId         String?            @db.Uuid
+  createdAt      DateTime           @default(now())
+  verifiedAt     DateTime?
+  user           User?              @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt])
+  @@index([phone, createdAt])
 }
 
 model UserAddress {
@@ -159,6 +187,7 @@ model Product {
   category    Category       @relation(fields: [categoryId], references: [id], onDelete: Restrict)
   images      ProductImage[]
   orderItems  OrderItem[]
+  favorites   Favorite[]
 
   @@index([categoryId, isActive, sortOrder])
 }
@@ -175,6 +204,18 @@ model ProductImage {
   @@index([productId, sortOrder])
 }
 
+model Favorite {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  productId String   @db.Uuid
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, productId])
+  @@index([userId, createdAt])
+}
+
 model Banner {
   id        String    @id @default(uuid()) @db.Uuid
   title     String    @db.VarChar(160)
@@ -189,6 +230,18 @@ model Banner {
   updatedAt DateTime  @updatedAt
 
   @@index([isActive, sortOrder])
+}
+
+model ContactSettings {
+  id                String   @id @default("default") @db.VarChar(40)
+  telegram          String?  @db.VarChar(500)
+  displayName       String   @db.VarChar(160)
+  phone             String   @db.VarChar(24)
+  email             String?  @db.VarChar(254)
+  privacyLink       String?  @db.VarChar(1000)
+  userAgreementLink String?  @db.VarChar(1000)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 }
 
 model PromoCode {
@@ -232,6 +285,7 @@ model Branch {
   longitude Decimal  @db.Decimal(10, 7)
   phone     String?  @db.VarChar(24)
   isActive  Boolean  @default(true)
+  isPrimary Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   orders    Order[]

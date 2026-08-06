@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
   ServiceUnavailableException,
   UnauthorizedException,
 } from "@nestjs/common";
@@ -10,7 +11,7 @@ import * as argon2 from "argon2";
 import { randomUUID, randomBytes } from "node:crypto";
 import { parsePhoneNumberFromString } from "libphonenumber-js";
 import { PrismaService } from "../prisma/prisma.service";
-import { Prisma } from "../generated/prisma/client";
+import { LoginAttemptStatus, Prisma } from "../generated/prisma/client";
 import type { AppEnv } from "../config/env";
 import { RequestOtpDto, VerifyOtpDto } from "./auth.dto";
 import { OtpService } from "./otp.service";
@@ -18,6 +19,8 @@ import { SmsService } from "./sms.service";
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
@@ -37,6 +40,8 @@ export class AuthService {
   async requestOtp(dto: RequestOtpDto) {
     const phone = this.normalizePhone(dto.phone);
     const challenge = await this.otp.issue(phone);
+    const isDevelopment =
+      this.config.get("NODE_ENV", { infer: true }) === "development";
     try {
       await this.sms.sendOtp(
         phone,
@@ -44,18 +49,36 @@ export class AuthService {
         challenge.requestId,
         challenge.expiresInSeconds,
       );
-    } catch {
-      await this.otp.cancel(phone, challenge.requestId);
-      throw new ServiceUnavailableException(
-        "The verification code could not be sent",
+    } catch (error) {
+      if (!isDevelopment) {
+        await this.otp.cancel(phone, challenge.requestId);
+        throw new ServiceUnavailableException(
+          "The verification code could not be sent",
+        );
+      }
+      // In development the code is still handed back below via `devCode`,
+      // so a down SMS gateway (eg. the android_pull phone being offline)
+      // doesn't block testing the login flow — only production requires
+      // delivery to actually succeed.
+      this.logger.warn(
+        `SMS delivery failed for ${phone}, continuing in development mode: ${error instanceof Error ? error.message : error}`,
       );
     }
 
+    await this.prisma.loginAttempt.create({
+      data: {
+        phone,
+        installationId: dto.installationId,
+        deviceName: dto.deviceName,
+        platform: dto.platform,
+        appVersion: dto.appVersion,
+        status: LoginAttemptStatus.REQUESTED,
+      },
+    });
+
     return {
       expiresInSeconds: challenge.expiresInSeconds,
-      ...(this.config.get("NODE_ENV", { infer: true }) === "development"
-        ? { devCode: challenge.code }
-        : {}),
+      ...(isDevelopment ? { devCode: challenge.code } : {}),
     };
   }
 
@@ -63,9 +86,11 @@ export class AuthService {
     const phone = this.normalizePhone(dto.phone);
     const verification = await this.otp.verify(phone, dto.code);
     if (verification === "unavailable") {
+      await this.updateOpenAttempt(phone, LoginAttemptStatus.EXPIRED);
       throw new UnauthorizedException("Code is expired or unavailable");
     }
     if (verification === "incorrect") {
+      await this.updateOpenAttempt(phone, LoginAttemptStatus.FAILED);
       throw new UnauthorizedException("Code is incorrect");
     }
 
@@ -75,13 +100,16 @@ export class AuthService {
         phone,
         firstName: dto.firstName,
         lastName: dto.lastName,
+        lastLoginAt: new Date(),
       },
       update: {
         ...(dto.firstName ? { firstName: dto.firstName } : {}),
         ...(dto.lastName ? { lastName: dto.lastName } : {}),
+        lastLoginAt: new Date(),
       },
     });
 
+    await this.updateOpenAttempt(phone, LoginAttemptStatus.VERIFIED, user.id);
     return this.issueSession(user);
   }
 
@@ -172,7 +200,9 @@ export class AuthService {
     return {
       accessToken,
       refreshToken,
-      expiresInSeconds: 900,
+      expiresInSeconds: parseTtlSeconds(
+        this.config.get("ACCESS_TOKEN_TTL", { infer: true }),
+      ),
       user: {
         id: user.id,
         phone: user.phone,
@@ -190,4 +220,56 @@ export class AuthService {
       return false;
     }
   }
+
+  /**
+   * Redis owns OTP secrets; this table deliberately stores only the audit state.
+   * A phone can have several historical attempts, so only the newest open one is
+   * transitioned for a verification result.
+   */
+  private async updateOpenAttempt(
+    phone: string,
+    status: LoginAttemptStatus,
+    userId?: string,
+  ) {
+    const attempt = await this.prisma.loginAttempt.findFirst({
+      where: {
+        phone,
+        // A user may mistype once and then enter the same still-valid code.
+        // Keep that single request auditable instead of losing the later success.
+        status: {
+          in: [LoginAttemptStatus.REQUESTED, LoginAttemptStatus.FAILED],
+        },
+      },
+      orderBy: { createdAt: "desc" },
+      select: { id: true },
+    });
+    if (!attempt) return;
+    await this.prisma.loginAttempt.update({
+      where: { id: attempt.id },
+      data: {
+        status,
+        ...(status === LoginAttemptStatus.VERIFIED
+          ? { userId, verifiedAt: new Date() }
+          : {}),
+      },
+    });
+  }
+}
+
+const TTL_UNIT_SECONDS: Record<string, number> = {
+  s: 1,
+  m: 60,
+  h: 60 * 60,
+  d: 24 * 60 * 60,
+};
+
+/** Mirrors the handful of `<number><unit>` forms `ACCESS_TOKEN_TTL` is ever
+ * set to (eg. "15m", "365d") — the same string JwtModule signs tokens with,
+ * kept in sync here so the session response's `expiresInSeconds` reports
+ * the token's real lifetime instead of a stale hardcoded value. */
+function parseTtlSeconds(ttl: string): number {
+  const match = /^(\d+)([smhd])$/.exec(ttl.trim());
+  if (!match?.[1] || !match[2]) return 900;
+  const unitSeconds = TTL_UNIT_SECONDS[match[2]];
+  return unitSeconds ? Number(match[1]) * unitSeconds : 900;
 }

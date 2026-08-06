@@ -1,5 +1,132 @@
 @import "tailwindcss";
 
+@font-face {
+  font-family: "Gilroy";
+  src: url("/fonts/Gilroy-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Tablet and phone navigation uses a drawer. Desktop keeps the persistent
+   sidebar, avoiding the cramped multi-row bottom navigation. */
+@media (max-width: 900px) {
+  .integrated-shell { display: block; padding-bottom: 0; }
+
+  .integrated-shell .sidebar {
+    position: fixed;
+    inset: 0 auto 0 0;
+    width: min(290px, calc(100vw - 58px));
+    height: 100dvh;
+    padding: 24px 16px 18px;
+    transform: translateX(-105%);
+    transition: transform 220ms ease;
+    box-shadow: 18px 0 42px rgba(12, 19, 25, .24);
+    z-index: 70;
+  }
+
+  .integrated-shell .sidebar.drawer-open { transform: translateX(0); }
+  .integrated-shell .brand,
+  .integrated-shell .nav-caption,
+  .integrated-shell .sidebar-note,
+  .integrated-shell .sidebar-user { display: flex; }
+  .integrated-shell .nav-caption { display: block; margin-top: 34px; }
+  .integrated-shell .sidebar-note { margin-top: auto; }
+  .integrated-shell .sidebar-user { margin-top: 12px; }
+
+  .integrated-shell .main-nav {
+    height: auto;
+    display: grid;
+    grid-template-columns: 1fr;
+    grid-template-rows: none;
+    gap: 6px;
+  }
+
+  .integrated-shell .main-nav button {
+    height: 46px;
+    display: grid;
+    grid-template-columns: 30px 1fr;
+    justify-content: initial;
+    gap: 0;
+    padding: 0 13px;
+    font-size: 13px;
+    line-height: normal;
+    text-align: left;
+  }
+
+  .integrated-shell .main-nav button .nav-label { display: inline; }
+  .integrated-shell .main-nav button.active::before {
+    top: 10px;
+    bottom: 10px;
+    left: 0;
+    width: 3px;
+    height: auto;
+    border-radius: 0 4px 4px 0;
+  }
+
+  .drawer-scrim {
+    position: fixed;
+    inset: 0;
+    display: block;
+    border: 0;
+    background: rgba(11, 18, 24, .48);
+    z-index: 60;
+  }
+
+  .mobile-nav-toggle {
+    position: fixed;
+    top: 15px;
+    left: 15px;
+    z-index: 50;
+    width: 42px;
+    height: 42px;
+    display: grid;
+    place-content: center;
+    gap: 5px;
+    border: 1px solid #e1e6e9;
+    border-radius: 12px;
+    background: white;
+    box-shadow: 0 8px 22px rgba(21, 31, 39, .12);
+    cursor: pointer;
+  }
+
+  .mobile-nav-toggle span { width: 18px; height: 2px; border-radius: 2px; background: #28353e; }
+  .admin-main { padding-top: 76px; }
+}
+
+.login-attempt-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin: 20px 0; }
+.login-attempt-summary .stat-card { padding: 18px; border: 1px solid var(--border, #dfe5e8); border-radius: 12px; background: var(--surface, #fff); }
+.login-attempt-summary .stat-card span { display: block; color: var(--muted, #667085); font-size: .84rem; }
+.login-attempt-summary .stat-card strong { display: block; margin-top: 7px; font-size: 1.65rem; }
+.login-attempt-status { font-weight: 650; }
+.login-attempt-status.verified { color: #16794d; }.login-attempt-status.failed { color: #b42318; }.login-attempt-status.expired { color: #8b5e00; }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }.table-pagination { display:flex; justify-content:space-between; align-items:center; margin-top:14px; }.table-pagination > div { display:flex; align-items:center; gap:10px; }
+@media (max-width: 760px) { .login-attempt-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }.table-pagination { align-items:flex-start; flex-direction:column; gap:10px; } }
+
+@font-face {
+  font-family: "Gilroy";
+  src: url("/fonts/Gilroy-Medium.ttf") format("truetype");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Gilroy";
+  src: url("/fonts/Gilroy-SemiBold.ttf") format("truetype");
+  font-weight: 600 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Gilroy";
+  src: url("/fonts/Gilroy-Bold.ttf") format("truetype");
+  font-weight: 800 900;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
   --ink: #17212b;
   --muted: #7d8997;
@@ -27,7 +154,7 @@ body {
 
 body {
   font-family:
-    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    "Gilroy", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
     sans-serif;
   -webkit-font-smoothing: antialiased;
 }
@@ -42,6 +169,9 @@ textarea {
 button {
   color: inherit;
 }
+
+.mobile-nav-toggle,
+.drawer-scrim { display: none; }
 
 .app-shell {
   min-height: 100vh;
@@ -164,6 +294,12 @@ button {
   place-items: center;
   color: #6f7b86;
   font-size: 16px;
+}
+
+.nav-icon svg {
+  width: 18px;
+  height: 18px;
+  stroke-width: 1.9;
 }
 
 .main-nav button.active .nav-icon {
@@ -2488,11 +2624,42 @@ textarea[aria-invalid="true"] {
   }
 
   .data-table--orders td:first-child {
-    background: #fbfbfa;
+    padding: 16px;
+    border-bottom-color: #e8e1dc;
+    background: linear-gradient(135deg, #fffaf7 0%, #fff 65%);
   }
 
   .data-table--orders td:last-child {
     border-bottom: 0;
+  }
+
+  .data-table--orders .order-identity-head .status-pill {
+    display: inline-flex;
+  }
+
+  .data-table--orders .order-cancellation-reason {
+    display: block;
+  }
+
+  .data-table--orders td:nth-child(6) {
+    display: none;
+  }
+
+  .data-table--orders .customer-address-cell {
+    max-width: none;
+  }
+
+  .data-table--orders .customer-note {
+    max-width: 100%;
+    white-space: normal;
+  }
+
+  .data-table--orders .amount-cell strong {
+    font-size: 16px;
+  }
+
+  .data-table--orders .row-actions {
+    gap: 8px;
   }
 
   .data-table--orders tbody tr:has(.table-empty) {
@@ -2537,6 +2704,83 @@ textarea[aria-invalid="true"] {
 
   .data-table--orders .row-actions {
     flex-wrap: wrap;
+  }
+
+  /* The header block carries the status as a soft tint instead of a hard
+     edge bar — it sits naturally inside the card's own rounded corner
+     instead of cutting across it, and reads at a glance either way. */
+  .data-table--orders td:first-child {
+    background: linear-gradient(135deg, #fafbfb 0%, #fff 70%);
+  }
+
+  .data-table--orders tbody tr:has(.status-new) td:first-child,
+  .data-table--orders tbody tr:has(.status-confirmed) td:first-child {
+    background: linear-gradient(135deg, #edf5ff 0%, #fff 75%);
+  }
+
+  .data-table--orders tbody tr:has(.status-sent_to_kitchen) td:first-child,
+  .data-table--orders tbody tr:has(.status-cooking) td:first-child {
+    background: linear-gradient(135deg, #fff3e5 0%, #fff 75%);
+  }
+
+  .data-table--orders tbody tr:has(.status-ready) td:first-child {
+    background: linear-gradient(135deg, #e8f8f0 0%, #fff 75%);
+  }
+
+  .data-table--orders tbody tr:has(.status-assigned_to_courier) td:first-child,
+  .data-table--orders tbody tr:has(.status-out_for_delivery) td:first-child {
+    background: linear-gradient(135deg, #e7f7f8 0%, #fff 75%);
+  }
+
+  .data-table--orders tbody tr:has(.status-cancelled) td:first-child {
+    background: linear-gradient(135deg, #fff0f0 0%, #fff 75%);
+  }
+
+  /* The order number is the one thing staff match against a printed
+     kitchen ticket or a customer's own words on the phone — it has to
+     win the eye before anything else on the card. */
+  .data-table--orders .order-identity-head strong {
+    font-size: 20px;
+    letter-spacing: -0.01em;
+  }
+
+  .data-table--orders .order-identity-head .status-pill {
+    min-height: 22px;
+    font-size: 10px;
+  }
+
+  /* Cash to collect is the other number that actually matters at the
+     counter — big, confident typography does the work, rather than a
+     boxed badge that fights the rest of the card's plain palette. */
+  .data-table--orders .amount-cell strong {
+    color: #1c2b24;
+    font-size: 22px;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+  }
+
+  .data-table--orders .customer-address-cell a {
+    font-weight: 750;
+  }
+
+  /* A quiet footer band separates "do something" from "read something" —
+     the eye finds the buttons without hunting through the data above. */
+  .data-table--orders td:last-child {
+    background: #fbfbfb;
+  }
+
+  .data-table--orders .row-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .data-table--orders .row-actions .primary-button.compact,
+  .data-table--orders .row-actions .secondary-button.compact,
+  .data-table--orders .row-actions .danger-button.compact {
+    min-height: 42px;
+    height: 42px;
+    padding: 0 16px;
+    font-size: 12px;
   }
 }
 
@@ -2692,6 +2936,85 @@ textarea[aria-invalid="true"] {
   gap: 4px;
 }
 
+.order-identity {
+  gap: 6px;
+}
+
+.order-identity-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.order-identity-head .status-pill {
+  display: none;
+}
+
+.order-item-count,
+.delivery-details,
+.amount-cell span,
+.status-context small {
+  color: #87929b;
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+.order-cancellation-reason {
+  display: none;
+  overflow: hidden;
+  color: #a34e4e;
+  font-size: 10px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.customer-address-cell {
+  max-width: 275px;
+}
+
+.address-copy {
+  color: #5e6972 !important;
+  font-size: 11px !important;
+  font-weight: 600;
+}
+
+.delivery-details {
+  color: #9aa3aa;
+}
+
+.customer-note {
+  display: block;
+  overflow: hidden;
+  padding: 5px 7px;
+  border-left: 2px solid #f4c7ae;
+  border-radius: 0 6px 6px 0;
+  color: #8b6752;
+  background: #fff9f5;
+  font-size: 10px;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.amount-cell,
+.status-context {
+  display: grid;
+  gap: 4px;
+}
+
+.amount-cell strong {
+  color: #24323a;
+  font-size: 14px;
+}
+
+.amount-cell small {
+  color: #57766d;
+  font-size: 10px;
+  font-weight: 700;
+}
+
 .primary-cell small,
 .order-items-cell,
 .muted {
@@ -2795,6 +3118,65 @@ textarea[aria-invalid="true"] {
 .order-detail-section-head h3 {
   margin: 4px 0 0;
   font-size: 16px;
+}
+
+.order-details-total {
+  color: #26363f;
+  font-size: 16px;
+  white-space: nowrap;
+}
+
+.order-detail-items {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  list-style: none;
+}
+
+.order-detail-items li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 14px;
+  color: #4e5961;
+  font-size: 12px;
+}
+
+.order-detail-items li + li {
+  border-top: 1px solid var(--line);
+}
+
+.order-detail-items strong {
+  color: #a35d3e;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.order-note {
+  display: grid;
+  gap: 5px;
+  padding: 12px 14px;
+  border-left: 3px solid #efb18f;
+  border-radius: 0 10px 10px 0;
+  background: #fff9f5;
+}
+
+.order-note strong {
+  color: #8b583f;
+  font-size: 11px;
+}
+
+.order-note p {
+  margin: 0;
+  color: #6a6260;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
 }
 
 .review-card {
@@ -2907,6 +3289,17 @@ textarea[aria-invalid="true"] {
   white-space: nowrap;
 }
 
+.order-items-cell b {
+  display: inline-grid;
+  min-width: 22px;
+  place-items: center;
+  padding: 1px 4px;
+  border-radius: 5px;
+  color: #986044;
+  background: #fff1ea;
+  font-size: 10px;
+}
+
 .table-pagination {
   justify-content: space-between;
   padding: 13px 16px;
@@ -3015,6 +3408,40 @@ button:disabled {
   font-weight: 650;
 }
 
+.recent-logins {
+  display: grid;
+  gap: 14px;
+  margin: 0 0 22px;
+  padding: 20px;
+  border: 1px solid #e6e9eb;
+  border-radius: 15px;
+  background: white;
+  box-shadow: var(--shadow);
+}
+
+.recent-logins-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.recent-logins h2 { margin: 2px 0 0; font-size: 18px; }
+
+.last-login-card {
+  display: grid;
+  gap: 3px;
+  min-width: 195px;
+  padding: 11px 13px;
+  border-radius: 11px;
+  background: #fff4ee;
+}
+
+.last-login-card span,
+.last-login-card small { color: #8d7164; font-size: 10px; }
+
+.last-login-card strong { font-size: 13px; }
+
 .async-state {
   min-height: 130px;
   display: grid;
@@ -3038,6 +3465,114 @@ button:disabled {
   border-radius: 15px;
   background: white;
   box-shadow: var(--shadow);
+}
+
+/* Product editing is a focused panel, so the user never has to scroll back
+   to the top of the long catalogue table after pressing "Изменить". */
+.catalog-editor-backdrop {
+  align-items: stretch;
+  justify-items: end;
+  padding: 0;
+}
+
+.catalog-editor-modal {
+  box-sizing: border-box;
+  width: min(780px, 100vw);
+  max-height: 100dvh;
+  overflow-y: auto;
+  border-radius: 24px 0 0 24px;
+  box-shadow: -20px 0 60px rgba(14, 22, 28, 0.28);
+  background: #f8fafb;
+}
+
+.catalog-category-modal { width: min(580px, 100vw); }
+
+.catalog-editor-modal .form-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.catalog-editor-modal .form-grid > label,
+.catalog-editor-modal .product-image-editor {
+  padding: 12px;
+  border: 1px solid #e5eaed;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.catalog-editor-modal .form-grid > label.check-field {
+  padding: 13px;
+}
+
+.catalog-editor-title {
+  position: sticky;
+  top: -20px;
+  z-index: 1;
+  margin: -20px -20px 0;
+  align-items: center;
+  padding: 17px 20px;
+  background: linear-gradient(110deg, #fff5f0, #fff 55%);
+  border-bottom: 1px solid #f0e3de;
+}
+
+.catalog-editor-title h2 { margin-top: 3px; font-size: 20px; }
+
+.catalog-editor-close {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 1px solid #e2e7ea;
+  border-radius: 10px;
+  color: #5f6b73;
+  background: #fff;
+  font-size: 23px;
+  line-height: 1;
+  cursor: pointer;
+}
+.catalog-editor-close:hover { color: #d94d2e; border-color: #ffc8ba; background: #fff7f4; }
+
+.catalog-editor-modal > .primary-button {
+  position: sticky;
+  bottom: -20px;
+  z-index: 1;
+  margin: 0 -20px -20px;
+  display: flex;
+  min-height: 68px;
+  align-items: center;
+  justify-content: center;
+  padding: 15px 28px;
+  border-radius: 0;
+  text-align: center;
+  box-shadow: 0 -8px 20px rgba(27, 35, 42, .08);
+}
+
+.catalog-search-panel {
+  display: grid;
+  grid-template-columns: minmax(180px, .75fr) minmax(260px, 1.55fr) minmax(170px, .7fr);
+  align-items: end;
+  gap: 14px;
+  margin: 20px 0;
+  padding: 16px 18px;
+  border: 1px solid #e7eaed;
+  border-radius: 16px;
+  background: linear-gradient(110deg, #fff8f4, #fff 54%);
+}
+
+.catalog-search-panel strong { display: block; margin-top: 4px; color: #26323b; font-size: 14px; }
+.catalog-search-input { display: flex; align-items: center; min-height: 44px; gap: 9px; padding: 0 12px; border: 1px solid #d8dfe3; border-radius: 11px; background: #fff; }
+.catalog-search-input:focus-within { border-color: #ff6845; box-shadow: 0 0 0 3px #fff0eb; }
+.catalog-search-input > span { color: #ff6845; font-size: 20px; line-height: 1; }
+.catalog-search-input input { width: 100%; border: 0; outline: 0; color: #26323b; background: transparent; }
+.catalog-search-input button { border: 0; color: #88939b; background: transparent; font-size: 20px; cursor: pointer; }
+.catalog-category-filter { display: grid; gap: 6px; color: #67737c; font-size: 11px; font-weight: 650; }
+.catalog-category-filter select { min-height: 44px; padding: 0 11px; border: 1px solid #d8dfe3; border-radius: 11px; color: #26323b; background: #fff; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
+
+@media (max-width: 760px) {
+  .catalog-search-panel { grid-template-columns: 1fr; align-items: stretch; }
+  .catalog-editor-modal { border-radius: 18px 18px 0 0; }
+  .catalog-editor-backdrop { align-items: end; justify-items: stretch; }
 }
 
 .editor-title {
@@ -3255,6 +3790,15 @@ button:disabled {
   justify-self: start;
 }
 
+/* This is intentionally more specific than the generic editor rule above:
+   the catalogue side panel has a single primary action centered in its footer. */
+.editor-card.catalog-editor-modal > .primary-button {
+  justify-self: center;
+  margin: 0;
+  min-width: 220px;
+  border-radius: 12px;
+}
+
 .split-tables {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -3366,7 +3910,7 @@ button:disabled {
 
 .product-image-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(132px, 160px));
   gap: 10px;
 }
 
@@ -3402,7 +3946,14 @@ button:disabled {
 .product-file-picker {
   display: grid;
   gap: 7px;
+  padding: 12px;
+  border: 1px dashed #f0a38e;
+  border-radius: 11px;
+  color: #8a5c50;
+  background: #fffaf8;
 }
+
+.product-file-picker input { max-width: 100%; }
 
 .selected-product-files {
   display: flex;
@@ -3542,6 +4093,19 @@ button:disabled {
 
 .integrated-shell .main-nav button {
   grid-template-columns: 30px 1fr;
+}
+
+/* Keep collapsed desktop navigation on one visual centre line. */
+@media (min-width: 901px) and (max-width: 1180px) {
+  .integrated-shell .main-nav button {
+    grid-template-columns: 1fr;
+    place-items: center;
+    padding: 0;
+  }
+
+  .integrated-shell .nav-icon {
+    justify-self: center;
+  }
 }
 
 .live-dispatch {
@@ -3713,4 +4277,23 @@ button:disabled {
     align-items: flex-start;
     flex-direction: column;
   }
+}
+
+/* Must follow legacy mobile-nav rules so the drawer wins on tablets/phones. */
+@media (max-width: 900px) {
+  .integrated-shell { display: block; padding-bottom: 0; }
+  .integrated-shell .sidebar { position: fixed; inset: 0 auto 0 0; width: min(290px, calc(100vw - 58px)); height: 100dvh; padding: 24px 16px 18px; transform: translateX(-105%); transition: transform 220ms ease; box-shadow: 18px 0 42px rgba(12, 19, 25, .24); z-index: 70; }
+  .integrated-shell .sidebar.drawer-open { transform: translateX(0); }
+  .integrated-shell .brand, .integrated-shell .nav-caption, .integrated-shell .sidebar-note, .integrated-shell .sidebar-user { display: flex; }
+  .integrated-shell .nav-caption { display: block; margin-top: 34px; }
+  .integrated-shell .sidebar-note { margin-top: auto; }
+  .integrated-shell .sidebar-user { margin-top: 12px; }
+  .integrated-shell .main-nav { height: auto; display: grid; grid-template-columns: 1fr; grid-template-rows: none; gap: 6px; }
+  .integrated-shell .main-nav button { height: 46px; display: grid; grid-template-columns: 30px 1fr; justify-content: initial; gap: 0; padding: 0 13px; font-size: 13px; line-height: normal; text-align: left; }
+  .integrated-shell .main-nav button .nav-label { display: inline; }
+  .integrated-shell .main-nav button.active::before { top: 10px; bottom: 10px; left: 0; width: 3px; height: auto; border-radius: 0 4px 4px 0; }
+  .drawer-scrim { position: fixed; inset: 0; display: block; border: 0; background: rgba(11, 18, 24, .48); z-index: 60; }
+  .mobile-nav-toggle { position: fixed; top: 15px; left: 15px; z-index: 50; width: 42px; height: 42px; display: grid; place-content: center; gap: 5px; border: 1px solid #e1e6e9; border-radius: 12px; background: white; box-shadow: 0 8px 22px rgba(21, 31, 39, .12); cursor: pointer; }
+  .mobile-nav-toggle span { width: 18px; height: 2px; border-radius: 2px; background: #28353e; }
+  .admin-main { padding-top: 76px; }
 }

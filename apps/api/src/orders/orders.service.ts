@@ -18,6 +18,7 @@ import { toApiResponse } from "../common/api-response";
 import { PrismaService } from "../prisma/prisma.service";
 import { AddressesService } from "../users/addresses.service";
 import { BranchesService } from "../branches/branches.service";
+import { NotificationsService } from "../notifications/notifications.service";
 import {
   RoutingService,
   RoutingUnavailableError,
@@ -45,7 +46,19 @@ const detailInclude = {
   courier: {
     select: { id: true, phone: true, firstName: true, lastName: true },
   },
-  items: true,
+  items: {
+    include: {
+      // Only the item's own row fields go to the client (see
+      // `withItemImages`) — the current product photo is looked up at read
+      // time rather than snapshotted, since (unlike price) showing today's
+      // photo for a past order is exactly what a customer expects.
+      product: {
+        include: {
+          images: { orderBy: { sortOrder: "asc" as const }, take: 1 },
+        },
+      },
+    },
+  },
   rating: true,
   cashSettlement: true,
   savedAddress: true,
@@ -58,9 +71,66 @@ const detailInclude = {
     },
   },
 };
+type OrderWithDetails = Prisma.OrderGetPayload<{ include: typeof detailInclude }>;
+
+/** Flattens each item's joined `product.images` down to the single
+ * `productImageUrl` the client actually needs, instead of shipping the
+ * whole nested product/image objects. */
+function withItemImages<T extends OrderWithDetails>(order: T) {
+  return {
+    ...order,
+    items: order.items.map(({ product, ...item }) => ({
+      ...item,
+      productImageUrl: product.images[0]?.url ?? null,
+    })),
+  };
+}
+
 const MAX_ROUTE_LOCATION_AGE_MS = 5 * 60 * 1_000;
 const ROUTE_RECALCULATION_SECONDS = 15;
 const NEXT_ROUTE_WAYPOINTS_LIMIT = 3;
+
+/** Only the statuses a customer actually needs to hear about — the later
+ * back-office accounting stages (cash returned/completed/reconciled) never
+ * reach them, they've already got their food by then. Turkmen first: the
+ * app's primary market and the only locale guaranteed to be understood if
+ * a device never reported one. */
+const CUSTOMER_STATUS_MESSAGES: Partial<
+  Record<OrderStatus, (orderNumber: number) => { title: string; body: string }>
+> = {
+  CONFIRMED: (n) => ({
+    title: `Sargyt #${n} tassyklandy`,
+    body: "Sargydyňyz kabul edildi, ýakynda taýýarlanyp başlanar.",
+  }),
+  SENT_TO_KITCHEN: (n) => ({
+    title: `Sargyt #${n} aşhanada`,
+    body: "Sargydyňyz taýýarlanýar.",
+  }),
+  COOKING: (n) => ({
+    title: `Sargyt #${n} taýýarlanýar`,
+    body: "Aşpezimiz sargydyňyzy taýýarlaýar.",
+  }),
+  READY: (n) => ({
+    title: `Sargyt #${n} taýýar`,
+    body: "Sargydyňyz kurýere berilmäge taýýar.",
+  }),
+  ASSIGNED_TO_COURIER: (n) => ({
+    title: `Sargyt #${n} kurýerde`,
+    body: "Kurýer sargydyňyzy almaga barýar.",
+  }),
+  OUT_FOR_DELIVERY: (n) => ({
+    title: `Sargyt #${n} ýolda`,
+    body: "Kurýer sargydyňyzy size getirýär.",
+  }),
+  DELIVERED: (n) => ({
+    title: `Sargyt #${n} gowşuryldy`,
+    body: "Işdäňiz açyk bolsun! Sargydyňyzy nähili baha berýärsiňiz?",
+  }),
+  CANCELLED: (n) => ({
+    title: `Sargyt #${n} ýatyryldy`,
+    body: "Sargydyňyz ýatyryldy. Jikme-jiklikler üçin programma serediň.",
+  }),
+};
 
 @Injectable()
 export class OrdersService {
@@ -70,7 +140,21 @@ export class OrdersService {
     private readonly branches: BranchesService,
     private readonly tracking: TrackingService,
     private readonly routing: RoutingService,
+    private readonly notifications: NotificationsService,
   ) {}
+
+  /** Fire-and-forget: a push failure must never fail the status change
+   * that triggered it, so this is called without `await`ing its result
+   * into the transaction's own success/failure path. */
+  private notifyCustomer(
+    customerId: string,
+    orderNumber: number,
+    status: OrderStatus,
+  ) {
+    const message = CUSTOMER_STATUS_MESSAGES[status]?.(orderNumber);
+    if (!message) return;
+    void this.notifications.sendDirectPush(customerId, message);
+  }
 
   async create(user: AuthUser, dto: CreateOrderDto) {
     const quantityByProduct = new Map<string, number>();
@@ -224,7 +308,7 @@ export class OrdersService {
           },
         },
       });
-      return toApiResponse(order);
+      return toApiResponse(withItemImages(order));
     });
   }
 
@@ -293,7 +377,7 @@ export class OrdersService {
       this.prisma.order.count({ where }),
     ]);
     return toApiResponse({
-      items,
+      items: items.map(withItemImages),
       page: query.page,
       limit: query.limit,
       total,
@@ -308,11 +392,12 @@ export class OrdersService {
     });
     if (!order) throw new NotFoundException("Order not found");
     this.assertCanRead(user, order);
-    return toApiResponse(order);
+    return toApiResponse(withItemImages(order));
   }
 
   async transition(user: AuthUser, id: string, dto: TransitionOrderDto) {
-    return this.prisma.$transaction(async (tx) => {
+    let notifyTarget: { customerId: string; number: number } | null = null;
+    const response = await this.prisma.$transaction(async (tx) => {
       const order = await tx.order.findUnique({
         where: { id },
         include: { cashSettlement: true },
@@ -407,12 +492,26 @@ export class OrdersService {
         where: { id },
         include: detailInclude,
       });
-      return toApiResponse(result);
+      notifyTarget = { customerId: result.customerId, number: result.number };
+      return toApiResponse(withItemImages(result));
     });
+    const transitionTarget = notifyTarget as {
+      customerId: string;
+      number: number;
+    } | null;
+    if (transitionTarget) {
+      this.notifyCustomer(
+        transitionTarget.customerId,
+        transitionTarget.number,
+        dto.status,
+      );
+    }
+    return response;
   }
 
   async assignCourier(user: AuthUser, id: string, dto: AssignCourierDto) {
-    return this.prisma.$transaction(async (tx) => {
+    let notifyTarget: { customerId: string; number: number } | null = null;
+    const response = await this.prisma.$transaction(async (tx) => {
       const [order, courier] = await Promise.all([
         tx.order.findUnique({ where: { id } }),
         tx.user.findUnique({ where: { id: dto.courierId } }),
@@ -461,12 +560,26 @@ export class OrdersService {
         where: { id },
         include: detailInclude,
       });
-      return toApiResponse(result);
+      notifyTarget = { customerId: result.customerId, number: result.number };
+      return toApiResponse(withItemImages(result));
     });
+    const assignTarget = notifyTarget as {
+      customerId: string;
+      number: number;
+    } | null;
+    if (assignTarget) {
+      this.notifyCustomer(
+        assignTarget.customerId,
+        assignTarget.number,
+        OrderStatus.ASSIGNED_TO_COURIER,
+      );
+    }
+    return response;
   }
 
   async cancel(user: AuthUser, id: string, dto: CancelOrderDto) {
-    return this.prisma.$transaction(async (tx) => {
+    let notifyTarget: { customerId: string; number: number } | null = null;
+    const response = await this.prisma.$transaction(async (tx) => {
       const order = await tx.order.findUnique({ where: { id } });
       if (!order) throw new NotFoundException("Order not found");
       if (order.version !== dto.version) {
@@ -512,8 +625,21 @@ export class OrdersService {
         where: { id },
         include: detailInclude,
       });
-      return toApiResponse(result);
+      notifyTarget = { customerId: result.customerId, number: result.number };
+      return toApiResponse(withItemImages(result));
     });
+    const cancelTarget = notifyTarget as {
+      customerId: string;
+      number: number;
+    } | null;
+    if (cancelTarget) {
+      this.notifyCustomer(
+        cancelTarget.customerId,
+        cancelTarget.number,
+        OrderStatus.CANCELLED,
+      );
+    }
+    return response;
   }
 
   async rate(user: AuthUser, id: string, dto: RateOrderDto) {

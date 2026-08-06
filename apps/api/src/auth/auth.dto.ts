@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 import {
   IsOptional,
+  IsEnum,
   IsPhoneNumber,
   IsString,
   Length,
@@ -8,11 +9,28 @@ import {
   MaxLength,
 } from "class-validator";
 import { Role } from "../generated/prisma/client";
+import { PushDevicePlatform } from "../generated/prisma/client";
 
 export class RequestOtpDto {
   @ApiProperty({ example: "+99365123456" })
   @IsPhoneNumber()
   phone: string;
+
+  @ApiPropertyOptional()
+  @IsOptional() @IsString() @MaxLength(255)
+  installationId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional() @IsString() @MaxLength(160)
+  deviceName?: string;
+
+  @ApiPropertyOptional({ enum: PushDevicePlatform })
+  @IsOptional() @IsEnum(PushDevicePlatform)
+  platform?: PushDevicePlatform;
+
+  @ApiPropertyOptional({ example: "1.0.0" })
+  @IsOptional() @IsString() @MaxLength(40)
+  appVersion?: string;
 }
 
 export class VerifyOtpDto extends RequestOtpDto {

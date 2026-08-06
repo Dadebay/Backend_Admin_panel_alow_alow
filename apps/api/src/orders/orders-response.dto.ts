@@ -49,6 +49,9 @@ export class OrderItemResponseDto {
   @ApiProperty()
   productName: string;
 
+  @ApiProperty({ type: String, nullable: true })
+  productImageUrl: string | null;
+
   @ApiProperty()
   unitPrice: number;
 

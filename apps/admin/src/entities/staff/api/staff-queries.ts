@@ -1,10 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
 import { useSession } from "@/src/shared/auth";
-import type { Staff } from "../model/types";
+import type { RecentLogin, Staff } from "../model/types";
 
 export const staffQueryKeys = {
   all: ["staff"] as const,
   list: (userId: string) => [...staffQueryKeys.all, "list", userId] as const,
+  recentLogins: (userId: string) =>
+    [...staffQueryKeys.all, "recent-logins", userId] as const,
 };
 
 export function useStaff() {
@@ -20,5 +22,19 @@ export function useStaff() {
         ),
     ),
     staleTime: 30_000,
+  });
+}
+
+export function useRecentLogins() {
+  const { session, authorizedRequest } = useSession();
+  const canView = Boolean(
+    session && ["ADMIN", "SUPER_ADMIN"].includes(session.user.role),
+  );
+  return useQuery({
+    queryKey: staffQueryKeys.recentLogins(session?.user.id ?? "anonymous"),
+    queryFn: ({ signal }) =>
+      authorizedRequest<RecentLogin[]>("/staff/recent-logins", { signal }),
+    enabled: canView,
+    staleTime: 15_000,
   });
 }

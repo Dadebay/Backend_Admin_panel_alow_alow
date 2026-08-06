@@ -4,6 +4,8 @@ import {
   Delete,
   Get,
   Header,
+  Param,
+  ParseUUIDPipe,
   Put,
   Sse,
 } from "@nestjs/common";
@@ -65,6 +67,16 @@ export class TrackingController {
   @ApiOkResponse({ type: DispatchSnapshotDto })
   dispatch() {
     return this.tracking.getDispatchSnapshot();
+  }
+
+  @Get("orders/:orderId/courier-location")
+  @Roles(Role.CUSTOMER)
+  @ApiOperation({ summary: "Get the current customer's courier location for one order" })
+  customerCourierLocation(
+    @CurrentUser() customer: AuthUser,
+    @Param("orderId", ParseUUIDPipe) orderId: string,
+  ) {
+    return this.tracking.customerCourierLocation(customer, orderId);
   }
 
   @Sse("dispatch/live")

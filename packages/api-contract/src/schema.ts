@@ -392,6 +392,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/staff/login-attempts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["UsersController_loginAttempts_v1"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/staff": {
         parameters: {
             query?: never;
@@ -416,6 +432,22 @@ export interface paths {
             cookie?: never;
         };
         get: operations["UsersController_couriers_v1"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/staff/recent-logins": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["UsersController_recentLogins_v1"];
         put?: never;
         post?: never;
         delete?: never;
@@ -493,6 +525,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/users/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["CustomerController_me_v1"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/branches": {
         parameters: {
             query?: never;
@@ -555,6 +603,23 @@ export interface paths {
         };
         /** Get active couriers, their latest locations, delivery stops and customer details */
         get: operations["TrackingController_dispatch_v1"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tracking/orders/{orderId}/courier-location": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get the current customer's courier location for one order */
+        get: operations["TrackingController_customerCourierLocation_v1"];
         put?: never;
         post?: never;
         delete?: never;
@@ -842,6 +907,71 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/favorites": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["FavoritesController_list_v1"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/favorites/{productId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["FavoritesController_add_v1"];
+        post?: never;
+        delete: operations["FavoritesController_remove_v1"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/contacts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ContactController_get_v1"];
+        put: operations["ContactController_update_v1"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/geocoding/reverse": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Turn a map point into a short address line for the delivery-address form */
+        get: operations["GeocodingController_reverse_v1"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -849,6 +979,12 @@ export interface components {
         RequestOtpDto: {
             /** @example +99365123456 */
             phone: string;
+            installationId?: string;
+            deviceName?: string;
+            /** @enum {string} */
+            platform?: "ANDROID" | "IOS";
+            /** @example 1.0.0 */
+            appVersion?: string;
         };
         RequestOtpResponseDto: {
             /** @example 300 */
@@ -862,6 +998,12 @@ export interface components {
         VerifyOtpDto: {
             /** @example +99365123456 */
             phone: string;
+            installationId?: string;
+            deviceName?: string;
+            /** @enum {string} */
+            platform?: "ANDROID" | "IOS";
+            /** @example 1.0.0 */
+            appVersion?: string;
             /** @example 123456 */
             code: string;
             /** @example Aman */
@@ -1375,6 +1517,42 @@ export interface components {
             score: number;
             comment?: string;
         };
+        LoginAttemptUserResponseDto: {
+            /** Format: uuid */
+            id: string;
+            firstName: string | null;
+            lastName: string | null;
+        };
+        LoginAttemptResponseDto: {
+            /** Format: uuid */
+            id: string;
+            phone: string;
+            /** @enum {string} */
+            status: "REQUESTED" | "VERIFIED" | "FAILED" | "EXPIRED";
+            installationId: string | null;
+            deviceName: string | null;
+            /** @enum {string|null} */
+            platform: "ANDROID" | "IOS" | null;
+            appVersion: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            verifiedAt: string | null;
+            user: components["schemas"]["LoginAttemptUserResponseDto"] | null;
+        };
+        LoginAttemptSummaryResponseDto: {
+            total: number;
+            verified: number;
+            failed: number;
+            requestedOrExpired: number;
+        };
+        LoginAttemptsResponseDto: {
+            items: components["schemas"]["LoginAttemptResponseDto"][];
+            page: number;
+            limit: number;
+            total: number;
+            summary: components["schemas"]["LoginAttemptSummaryResponseDto"];
+        };
         StaffWorkCountResponseDto: {
             courierOrders: number;
             cookedOrders: number;
@@ -1406,6 +1584,17 @@ export interface components {
             firstName: string | null;
             lastName: string | null;
             courierOrders: components["schemas"]["CourierOrderSummaryResponseDto"][];
+        };
+        RecentLoginResponseDto: {
+            /** Format: uuid */
+            id: string;
+            phone: string;
+            firstName: string | null;
+            lastName: string | null;
+            /** @enum {string} */
+            role: "CUSTOMER" | "OPERATOR" | "COOK" | "COURIER" | "ACCOUNTANT" | "ADMIN" | "SUPER_ADMIN";
+            /** Format: date-time */
+            lastLoginAt: string;
         };
         CreateStaffDto: {
             /** @example +99365123456 */
@@ -1471,6 +1660,7 @@ export interface components {
             longitude: number;
             phone?: string | null;
             isActive: boolean;
+            isPrimary: boolean;
             /** Format: date-time */
             createdAt: string;
             /** Format: date-time */
@@ -1489,6 +1679,11 @@ export interface components {
             phone?: string;
             /** @default true */
             isActive: boolean;
+            /**
+             * @description Use this branch when nearest-branch selection cannot be completed
+             * @default false
+             */
+            isPrimary: boolean;
         };
         UpdateBranchDto: {
             /** @example AlowAlow Berkarar */
@@ -1503,6 +1698,11 @@ export interface components {
             phone?: string;
             /** @default true */
             isActive: boolean;
+            /**
+             * @description Use this branch when nearest-branch selection cannot be completed
+             * @default false
+             */
+            isPrimary: boolean;
         };
         UpdateCourierLocationDto: {
             /** @example 37.9601 */
@@ -1830,6 +2030,25 @@ export interface components {
              * @enum {string}
              */
             audience: "ALL_CUSTOMERS";
+        };
+        ContactSettingsResponseDto: {
+            id: string;
+            telegram?: string | null;
+            displayName: string;
+            phone: string;
+            email?: string | null;
+            privacyLink?: string | null;
+            userAgreementLink?: string | null;
+            createdAt: string;
+            updatedAt: string;
+        };
+        UpdateContactSettingsDto: {
+            telegram?: string;
+            displayName: string;
+            phone: string;
+            email?: string;
+            privacyLink?: string;
+            userAgreementLink?: string;
         };
     };
     responses: never;
@@ -2431,6 +2650,33 @@ export interface operations {
             };
         };
     };
+    UsersController_loginAttempts_v1: {
+        parameters: {
+            query?: {
+                phone?: string;
+                status?: "REQUESTED" | "VERIFIED" | "FAILED" | "EXPIRED";
+                platform?: "ANDROID" | "IOS";
+                from?: string;
+                to?: string;
+                page?: number;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LoginAttemptsResponseDto"];
+                };
+            };
+        };
+    };
     UsersController_list_v1: {
         parameters: {
             query: {
@@ -2490,6 +2736,25 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CourierSummaryResponseDto"][];
+                };
+            };
+        };
+    };
+    UsersController_recentLogins_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecentLoginResponseDto"][];
                 };
             };
         };
@@ -2611,6 +2876,24 @@ export interface operations {
         requestBody?: never;
         responses: {
             201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    CustomerController_me_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Authenticated customer profile */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2743,6 +3026,25 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["DispatchSnapshotDto"];
                 };
+            };
+        };
+    };
+    TrackingController_customerCourierLocation_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orderId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
@@ -3168,6 +3470,126 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["NotificationCampaignResponseDto"];
                 };
+            };
+        };
+    };
+    FavoritesController_list_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Current customer's favorited products */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    FavoritesController_add_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                productId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Favorite product */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    FavoritesController_remove_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                productId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Remove favorite product */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    ContactController_get_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContactSettingsResponseDto"];
+                };
+            };
+        };
+    };
+    ContactController_update_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateContactSettingsDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContactSettingsResponseDto"];
+                };
+            };
+        };
+    };
+    GeocodingController_reverse_v1: {
+        parameters: {
+            query: {
+                lat: number;
+                lon: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

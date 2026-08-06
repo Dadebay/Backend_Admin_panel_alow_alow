@@ -19,6 +19,9 @@ import { RedisModule } from "./redis/redis.module";
 import { TrackingModule } from "./tracking/tracking.module";
 import { BranchesModule } from "./branches/branches.module";
 import { NotificationsModule } from "./notifications/notifications.module";
+import { FavoritesModule } from "./favorites/favorites.module";
+import { ContactModule } from "./contact/contact.module";
+import { GeocodingModule } from "./geocoding/geocoding.module";
 
 @Module({
   imports: [
@@ -63,6 +66,9 @@ import { NotificationsModule } from "./notifications/notifications.module";
     TrackingModule,
     BranchesModule,
     NotificationsModule,
+    FavoritesModule,
+    ContactModule,
+    GeocodingModule,
   ],
   controllers: [HealthController],
   providers: [

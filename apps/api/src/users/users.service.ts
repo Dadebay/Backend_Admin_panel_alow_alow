@@ -7,13 +7,30 @@ import {
 } from "@nestjs/common";
 import { parsePhoneNumberFromString } from "libphonenumber-js";
 import type { AuthUser } from "../common/auth.types";
-import { Role } from "../generated/prisma/client";
+import { LoginAttemptStatus, Prisma, Role } from "../generated/prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
-import { CreateStaffDto, UpdateStaffDto } from "./users.dto";
+import { CreateStaffDto, LoginAttemptsQueryDto, UpdateStaffDto } from "./users.dto";
+import { toApiResponse } from "../common/api-response";
 
 @Injectable()
 export class UsersService {
   constructor(private readonly prisma: PrismaService) {}
+
+  async me(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        phone: true,
+        firstName: true,
+        lastName: true,
+        role: true,
+        createdAt: true,
+      },
+    });
+    if (!user) throw new NotFoundException("User not found");
+    return toApiResponse(user);
+  }
 
   list(role?: Role) {
     return this.prisma.user.findMany({
@@ -53,6 +70,49 @@ export class UsersService {
       },
       orderBy: { firstName: "asc" },
     });
+  }
+
+  recentLogins() {
+    return this.prisma.user.findMany({
+      where: { lastLoginAt: { not: null } },
+      select: {
+        id: true,
+        phone: true,
+        firstName: true,
+        lastName: true,
+        role: true,
+        lastLoginAt: true,
+      },
+      orderBy: { lastLoginAt: "desc" },
+      take: 50,
+    });
+  }
+
+  async loginAttempts(query: LoginAttemptsQueryDto) {
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 25;
+    const where: Prisma.LoginAttemptWhereInput = {
+      ...(query.phone ? { phone: { contains: query.phone } } : {}),
+      ...(query.status ? { status: query.status } : {}),
+      ...(query.platform ? { platform: query.platform } : {}),
+      ...(query.from || query.to
+        ? { createdAt: { ...(query.from ? { gte: new Date(query.from) } : {}), ...(query.to ? { lte: new Date(query.to) } : {}) } }
+        : {}),
+    };
+    const [items, total, verified, failed, requestedOrExpired] = await this.prisma.$transaction([
+      this.prisma.loginAttempt.findMany({
+        where,
+        include: { user: { select: { id: true, firstName: true, lastName: true } } },
+        orderBy: { createdAt: "desc" },
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      this.prisma.loginAttempt.count({ where }),
+      this.prisma.loginAttempt.count({ where: { ...where, status: LoginAttemptStatus.VERIFIED } }),
+      this.prisma.loginAttempt.count({ where: { ...where, status: LoginAttemptStatus.FAILED } }),
+      this.prisma.loginAttempt.count({ where: { ...where, status: { in: [LoginAttemptStatus.REQUESTED, LoginAttemptStatus.EXPIRED] } } }),
+    ]);
+    return { items, page, limit, total, summary: { total, verified, failed, requestedOrExpired } };
   }
 
   async create(actor: AuthUser, dto: CreateStaffDto) {

@@ -33,6 +33,30 @@ export type PushResult = {
 
 const FCM_APP_NAME = "alowalow-push";
 const FCM_BATCH_SIZE = 500;
+// FCM sends usually settle in well under a second; occasional network
+// interference (seen from some deployments' networks) can otherwise leave
+// the request hanging indefinitely instead of failing fast, so a batch
+// past this is treated as failed rather than left to dangle forever.
+const FCM_SEND_TIMEOUT_MS = 15_000;
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(
+      () => reject(new Error(`FCM request timed out after ${ms}ms`)),
+      ms,
+    );
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error) => {
+        clearTimeout(timer);
+        reject(error);
+      },
+    );
+  });
+}
 
 function errorCode(error: unknown) {
   if (
@@ -44,6 +68,17 @@ function errorCode(error: unknown) {
     return error.code.slice(0, 160);
   }
   return "messaging/unknown-error";
+}
+
+/** The bit that actually explains *why* — `errorCode()` alone is often
+ * just "messaging/unknown-error" for anything outside the SDK's known
+ * FCM error codes (auth failures, disabled APIs, malformed input). */
+function errorDetail(error: unknown): string {
+  if (error instanceof Error) return `${error.name}: ${error.message}`;
+  if (error && typeof error === "object" && "message" in error) {
+    return String((error as { message: unknown }).message);
+  }
+  return String(error);
 }
 
 function isInvalidInstallation(code: string) {
@@ -84,7 +119,15 @@ export class PushGateway {
     for (let offset = 0; offset < targets.length; offset += FCM_BATCH_SIZE) {
       const batch = targets.slice(offset, offset + FCM_BATCH_SIZE);
       const messages: Message[] = batch.map((target) => ({
-        fid: target.installationId,
+        // Targeting by Firebase Installation ID (`fid`) consistently comes
+        // back `messaging/installation-id-not-registered` in this project
+        // even for a freshly-generated ID with a live FCM token behind it
+        // — confirmed against two separate real devices. The FCM
+        // registration token itself is the long-standing, universally
+        // supported way to reach one device, so `installationId` here
+        // actually holds a token now (see PushDeviceRegistrationService on
+        // the client) despite the field's name.
+        token: target.installationId,
         notification: {
           title: payload.title,
           body: payload.body,
@@ -104,11 +147,19 @@ export class PushGateway {
       }));
 
       try {
-        const response = await messaging.sendEach(messages);
+        const response = await withTimeout(
+          messaging.sendEach(messages),
+          FCM_SEND_TIMEOUT_MS,
+        );
         response.responses.forEach((item, index) => {
           const target = batch[index];
           if (!target) return;
           const code = item.success ? null : errorCode(item.error);
+          if (!item.success) {
+            this.logger.warn(
+              `FCM rejected installation ${target.installationId}: ${code} — ${errorDetail(item.error)}`,
+            );
+          }
           results.push({
             deliveryId: target.deliveryId,
             ok: item.success,
@@ -120,7 +171,7 @@ export class PushGateway {
       } catch (error) {
         const code = errorCode(error);
         this.logger.error(
-          `FCM batch failed for campaign ${payload.campaignId}: ${code}`,
+          `FCM batch failed for campaign ${payload.campaignId}: ${code} — ${errorDetail(error)}`,
         );
         results.push(
           ...batch.map((target) => ({

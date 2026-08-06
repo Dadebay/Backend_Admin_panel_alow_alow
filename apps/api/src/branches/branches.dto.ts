@@ -44,6 +44,14 @@ export class CreateBranchDto {
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
+
+  @ApiPropertyOptional({
+    default: false,
+    description: "Use this branch when nearest-branch selection cannot be completed",
+  })
+  @IsOptional()
+  @IsBoolean()
+  isPrimary?: boolean;
 }
 
 export class UpdateBranchDto extends PartialType(CreateBranchDto) {

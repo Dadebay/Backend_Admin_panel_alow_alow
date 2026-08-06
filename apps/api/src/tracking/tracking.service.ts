@@ -119,6 +119,20 @@ export class TrackingService {
     );
   }
 
+  async customerCourierLocation(customer: AuthUser, orderId: string) {
+    const order = await this.prisma.order.findFirst({
+      where: { id: orderId, customerId: customer.id },
+      select: { courierId: true },
+    });
+    if (!order) {
+      throw new UnprocessableEntityException("Order is not available for this customer");
+    }
+    const location = order.courierId
+      ? await this.getCourierLocation(order.courierId)
+      : null;
+    return { location };
+  }
+
   async getDispatchSnapshot(): Promise<DispatchSnapshotDto> {
     const [couriers, branches] = await Promise.all([
       this.prisma.user.findMany({

@@ -36,6 +36,8 @@ export function CatalogManager() {
   const [productEdit, setProductEdit] = useState<Product | null>(null);
   const [showCategoryForm, setShowCategoryForm] = useState(false);
   const [showProductForm, setShowProductForm] = useState(false);
+  const [catalogSearch, setCatalogSearch] = useState("");
+  const [productCategoryFilter, setProductCategoryFilter] = useState("");
   const [storedProductImages, setStoredProductImages] = useState<
     Product["images"]
   >([]);
@@ -82,6 +84,30 @@ export function CatalogManager() {
   const canEdit = Boolean(
     session &&
       ["ADMIN", "SUPER_ADMIN"].includes(session.user.role),
+  );
+  const searchTerm = catalogSearch.trim().toLocaleLowerCase("ru-RU");
+  const filteredCategories = useMemo(
+    () =>
+      (categories.data ?? []).filter((category) =>
+        !searchTerm ||
+        `${category.name} ${category.slug}`
+          .toLocaleLowerCase("ru-RU")
+          .includes(searchTerm),
+      ),
+    [categories.data, searchTerm],
+  );
+  const filteredProducts = useMemo(
+    () =>
+      (products.data ?? []).filter((product) => {
+        const matchesCategory =
+          !productCategoryFilter ||
+          product.categoryId === productCategoryFilter;
+        const searchText =
+          `${product.name} ${product.slug} ${product.description} ${product.category?.name ?? ""}`
+            .toLocaleLowerCase("ru-RU");
+        return matchesCategory && (!searchTerm || searchText.includes(searchTerm));
+      }),
+    [productCategoryFilter, products.data, searchTerm],
   );
 
   const categoryColumns = useMemo<ColumnDef<Category, unknown>[]>(
@@ -398,26 +424,71 @@ export function CatalogManager() {
         <div className="inline-alert">{mutationMessage}</div>
       )}
 
+      <section className="catalog-search-panel" aria-label="Поиск по каталогу">
+        <div>
+          <span className="eyebrow">БЫСТРЫЙ ПОИСК</span>
+          <strong>Найдите блюдо или категорию</strong>
+        </div>
+        <label className="catalog-search-input">
+          <span className="visually-hidden">Поиск</span>
+          <span aria-hidden="true">⌕</span>
+          <input
+            value={catalogSearch}
+            onChange={(event) => setCatalogSearch(event.target.value)}
+            placeholder="Название, slug или описание…"
+          />
+          {catalogSearch && (
+            <button type="button" aria-label="Очистить поиск" onClick={() => setCatalogSearch("")}>×</button>
+          )}
+        </label>
+        <label className="catalog-category-filter">
+          <span>Категория</span>
+          <select value={productCategoryFilter} onChange={(event) => setProductCategoryFilter(event.target.value)}>
+            <option value="">Все категории</option>
+            {(categories.data ?? []).map((category) => (
+              <option key={category.id} value={category.id}>{category.name}</option>
+            ))}
+          </select>
+        </label>
+      </section>
+
       {showCategoryForm && (
-        <form
-          className="editor-card"
-          data-testid="category-form"
-          noValidate
-          onSubmit={handleCategorySubmit(submitCategory)}
+        <div
+          className="modal-backdrop catalog-editor-backdrop"
+          onMouseDown={(event) => {
+            if (event.currentTarget === event.target) {
+              setShowCategoryForm(false);
+              setCategoryEdit(null);
+              resetCategory();
+            }
+          }}
         >
-          <div className="editor-title">
-            <h2>{categoryEdit ? "Изменить категорию" : "Новая категория"}</h2>
+          <form
+            className="editor-card catalog-editor-modal catalog-category-modal"
+            data-testid="category-form"
+            noValidate
+            onSubmit={handleCategorySubmit(submitCategory)}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="category-editor-title"
+          >
+          <div className="editor-title catalog-editor-title">
+            <div>
+              <span className="eyebrow">КАТАЛОГ</span>
+              <h2 id="category-editor-title">{categoryEdit ? "Изменить категорию" : "Новая категория"}</h2>
+            </div>
             <button
-              className="text-button"
+              className="catalog-editor-close"
               data-testid="category-form-close"
               type="button"
+              aria-label="Закрыть редактор категории"
               onClick={() => {
                 setShowCategoryForm(false);
                 setCategoryEdit(null);
                 resetCategory();
               }}
             >
-              Закрыть
+              ×
             </button>
           </div>
           <div className="form-grid">
@@ -488,22 +559,43 @@ export function CatalogManager() {
           >
             Сохранить категорию
           </button>
-        </form>
+          </form>
+        </div>
       )}
 
       {showProductForm && (
-        <form
-          className="editor-card"
-          data-testid="product-form"
-          noValidate
-          onSubmit={handleProductSubmit(submitProduct)}
+        <div
+          className="modal-backdrop catalog-editor-backdrop"
+          onMouseDown={(event) => {
+            if (event.currentTarget === event.target) {
+              setShowProductForm(false);
+              setProductEdit(null);
+              setStoredProductImages([]);
+              setSelectedProductFiles([]);
+              setProductImageError("");
+              resetProduct();
+            }
+          }}
         >
-          <div className="editor-title">
-            <h2>{productEdit ? "Изменить блюдо" : "Новое блюдо"}</h2>
+          <form
+            className="editor-card catalog-editor-modal"
+            data-testid="product-form"
+            noValidate
+            onSubmit={handleProductSubmit(submitProduct)}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="product-editor-title"
+          >
+          <div className="editor-title catalog-editor-title">
+            <div>
+              <span className="eyebrow">КАТАЛОГ</span>
+              <h2 id="product-editor-title">{productEdit ? "Изменить блюдо" : "Новое блюдо"}</h2>
+            </div>
             <button
-              className="text-button"
+              className="catalog-editor-close"
               data-testid="product-form-close"
               type="button"
+              aria-label="Закрыть редактор блюда"
               onClick={() => {
                 setShowProductForm(false);
                 setProductEdit(null);
@@ -513,7 +605,7 @@ export function CatalogManager() {
                 resetProduct();
               }}
             >
-              Закрыть
+              ×
             </button>
           </div>
           <div className="form-grid">
@@ -704,14 +796,15 @@ export function CatalogManager() {
           >
             Сохранить блюдо
           </button>
-        </form>
+          </form>
+        </div>
       )}
 
       <div className="split-tables">
         <article className="table-card">
           <div className="card-title">
             <h2>Категории</h2>
-            <span>{categories.data?.length ?? 0}</span>
+            <span>{filteredCategories.length}{searchTerm ? ` / ${categories.data?.length ?? 0}` : ""}</span>
           </div>
           <AsyncPanel
             pending={categories.isPending}
@@ -720,7 +813,7 @@ export function CatalogManager() {
           >
             <DataTable
               columns={categoryColumns}
-              data={categories.data ?? []}
+              data={filteredCategories}
               getRowId={(category) => category.id}
               empty="Категорий пока нет"
               label="Категории каталога"
@@ -730,7 +823,7 @@ export function CatalogManager() {
         <article className="table-card">
           <div className="card-title">
             <h2>Блюда</h2>
-            <span>{products.data?.length ?? 0}</span>
+            <span>{filteredProducts.length}{(searchTerm || productCategoryFilter) ? ` / ${products.data?.length ?? 0}` : ""}</span>
           </div>
           <AsyncPanel
             pending={products.isPending}
@@ -739,7 +832,7 @@ export function CatalogManager() {
           >
             <DataTable
               columns={productColumns}
-              data={products.data ?? []}
+              data={filteredProducts}
               getRowId={(product) => product.id}
               empty="Добавьте первое блюдо"
               label="Блюда каталога"

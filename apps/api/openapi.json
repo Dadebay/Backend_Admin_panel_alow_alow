@@ -991,6 +991,106 @@
         ]
       }
     },
+    "/api/v1/staff/login-attempts": {
+      "get": {
+        "operationId": "UsersController_loginAttempts_v1",
+        "parameters": [
+          {
+            "name": "phone",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "REQUESTED",
+                "VERIFIED",
+                "FAILED",
+                "EXPIRED"
+              ]
+            }
+          },
+          {
+            "name": "platform",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "ANDROID",
+                "IOS"
+              ]
+            }
+          },
+          {
+            "name": "from",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "default": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginAttemptsResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "staff"
+        ]
+      }
+    },
     "/api/v1/staff": {
       "get": {
         "operationId": "UsersController_list_v1",
@@ -1076,6 +1176,35 @@
                   "type": "array",
                   "items": {
                     "$ref": "#/components/schemas/CourierSummaryResponseDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "staff"
+        ]
+      }
+    },
+    "/api/v1/staff/recent-logins": {
+      "get": {
+        "operationId": "UsersController_recentLogins_v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RecentLoginResponseDto"
                   }
                 }
               }
@@ -1280,6 +1409,25 @@
         ]
       }
     },
+    "/api/v1/users/me": {
+      "get": {
+        "operationId": "CustomerController_me_v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Authenticated customer profile"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "customer"
+        ]
+      }
+    },
     "/api/v1/branches": {
       "get": {
         "operationId": "BranchesController_list_v1",
@@ -1475,6 +1623,35 @@
           }
         ],
         "summary": "Get active couriers, their latest locations, delivery stops and customer details",
+        "tags": [
+          "tracking"
+        ]
+      }
+    },
+    "/api/v1/tracking/orders/{orderId}/courier-location": {
+      "get": {
+        "operationId": "TrackingController_customerCourierLocation_v1",
+        "parameters": [
+          {
+            "name": "orderId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Get the current customer's courier location for one order",
         "tags": [
           "tracking"
         ]
@@ -2176,6 +2353,168 @@
           "notifications"
         ]
       }
+    },
+    "/api/v1/favorites": {
+      "get": {
+        "operationId": "FavoritesController_list_v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Current customer's favorited products"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "favorites"
+        ]
+      }
+    },
+    "/api/v1/favorites/{productId}": {
+      "put": {
+        "operationId": "FavoritesController_add_v1",
+        "parameters": [
+          {
+            "name": "productId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Favorite product"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "favorites"
+        ]
+      },
+      "delete": {
+        "operationId": "FavoritesController_remove_v1",
+        "parameters": [
+          {
+            "name": "productId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Remove favorite product"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "favorites"
+        ]
+      }
+    },
+    "/api/v1/contacts": {
+      "get": {
+        "operationId": "ContactController_get_v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContactSettingsResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "contacts"
+        ]
+      },
+      "put": {
+        "operationId": "ContactController_update_v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateContactSettingsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContactSettingsResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "contacts"
+        ]
+      }
+    },
+    "/api/v1/geocoding/reverse": {
+      "get": {
+        "operationId": "GeocodingController_reverse_v1",
+        "parameters": [
+          {
+            "name": "lat",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "example": 37.9601,
+              "type": "number"
+            }
+          },
+          {
+            "name": "lon",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "example": 58.3261,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Turn a map point into a short address line for the delivery-address form",
+        "tags": [
+          "geocoding"
+        ]
+      }
     }
   },
   "info": {
@@ -2247,6 +2586,23 @@
           "phone": {
             "type": "string",
             "example": "+99365123456"
+          },
+          "installationId": {
+            "type": "string"
+          },
+          "deviceName": {
+            "type": "string"
+          },
+          "platform": {
+            "type": "string",
+            "enum": [
+              "ANDROID",
+              "IOS"
+            ]
+          },
+          "appVersion": {
+            "type": "string",
+            "example": "1.0.0"
           }
         },
         "required": [
@@ -2276,6 +2632,23 @@
           "phone": {
             "type": "string",
             "example": "+99365123456"
+          },
+          "installationId": {
+            "type": "string"
+          },
+          "deviceName": {
+            "type": "string"
+          },
+          "platform": {
+            "type": "string",
+            "enum": [
+              "ANDROID",
+              "IOS"
+            ]
+          },
+          "appVersion": {
+            "type": "string",
+            "example": "1.0.0"
           },
           "code": {
             "type": "string",
@@ -4091,6 +4464,152 @@
           "score"
         ]
       },
+      "LoginAttemptUserResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "firstName": {
+            "type": "string",
+            "nullable": true
+          },
+          "lastName": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "firstName",
+          "lastName"
+        ]
+      },
+      "LoginAttemptResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "phone": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "REQUESTED",
+              "VERIFIED",
+              "FAILED",
+              "EXPIRED"
+            ]
+          },
+          "installationId": {
+            "type": "string",
+            "nullable": true
+          },
+          "deviceName": {
+            "type": "string",
+            "nullable": true
+          },
+          "platform": {
+            "type": "string",
+            "enum": [
+              "ANDROID",
+              "IOS"
+            ],
+            "nullable": true
+          },
+          "appVersion": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "verifiedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "user": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/LoginAttemptUserResponseDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "phone",
+          "status",
+          "installationId",
+          "deviceName",
+          "platform",
+          "appVersion",
+          "createdAt",
+          "verifiedAt",
+          "user"
+        ]
+      },
+      "LoginAttemptSummaryResponseDto": {
+        "type": "object",
+        "properties": {
+          "total": {
+            "type": "number"
+          },
+          "verified": {
+            "type": "number"
+          },
+          "failed": {
+            "type": "number"
+          },
+          "requestedOrExpired": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "total",
+          "verified",
+          "failed",
+          "requestedOrExpired"
+        ]
+      },
+      "LoginAttemptsResponseDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LoginAttemptResponseDto"
+            }
+          },
+          "page": {
+            "type": "number"
+          },
+          "limit": {
+            "type": "number"
+          },
+          "total": {
+            "type": "number"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/LoginAttemptSummaryResponseDto"
+          }
+        },
+        "required": [
+          "items",
+          "page",
+          "limit",
+          "total",
+          "summary"
+        ]
+      },
       "StaffWorkCountResponseDto": {
         "type": "object",
         "properties": {
@@ -4223,6 +4742,50 @@
           "firstName",
           "lastName",
           "courierOrders"
+        ]
+      },
+      "RecentLoginResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "phone": {
+            "type": "string"
+          },
+          "firstName": {
+            "type": "string",
+            "nullable": true
+          },
+          "lastName": {
+            "type": "string",
+            "nullable": true
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "CUSTOMER",
+              "OPERATOR",
+              "COOK",
+              "COURIER",
+              "ACCOUNTANT",
+              "ADMIN",
+              "SUPER_ADMIN"
+            ]
+          },
+          "lastLoginAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "phone",
+          "firstName",
+          "lastName",
+          "role",
+          "lastLoginAt"
         ]
       },
       "CreateStaffDto": {
@@ -4429,6 +4992,9 @@
           "isActive": {
             "type": "boolean"
           },
+          "isPrimary": {
+            "type": "boolean"
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time"
@@ -4445,6 +5011,7 @@
           "latitude",
           "longitude",
           "isActive",
+          "isPrimary",
           "createdAt",
           "updatedAt"
         ]
@@ -4475,6 +5042,11 @@
           "isActive": {
             "type": "boolean",
             "default": true
+          },
+          "isPrimary": {
+            "type": "boolean",
+            "default": false,
+            "description": "Use this branch when nearest-branch selection cannot be completed"
           }
         },
         "required": [
@@ -4510,6 +5082,11 @@
           "isActive": {
             "type": "boolean",
             "default": true
+          },
+          "isPrimary": {
+            "type": "boolean",
+            "default": false,
+            "description": "Use this branch when nearest-branch selection cannot be completed"
           }
         }
       },
@@ -5580,6 +6157,76 @@
         "required": [
           "title",
           "body"
+        ]
+      },
+      "ContactSettingsResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "telegram": {
+            "type": "string",
+            "nullable": true
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "phone": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string",
+            "nullable": true
+          },
+          "privacyLink": {
+            "type": "string",
+            "nullable": true
+          },
+          "userAgreementLink": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "displayName",
+          "phone",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "UpdateContactSettingsDto": {
+        "type": "object",
+        "properties": {
+          "telegram": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "phone": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "privacyLink": {
+            "type": "string"
+          },
+          "userAgreementLink": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "displayName",
+          "phone"
         ]
       }
     }

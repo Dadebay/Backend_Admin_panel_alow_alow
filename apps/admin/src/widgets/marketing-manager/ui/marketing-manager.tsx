@@ -8,6 +8,7 @@ import {
   type Banner,
   type Promo,
 } from "@/src/entities/marketing";
+import { useAdminCategories, useAdminProducts } from "@/src/entities/catalog";
 import { useCatalogActions } from "@/src/features/catalog-management";
 import { useMarketingActions } from "@/src/features/marketing-management";
 import { resolveApiUrl } from "@/src/shared/api/api-client";
@@ -23,16 +24,27 @@ import {
   type PromoFormValues,
 } from "../model/marketing-forms";
 
+function parseBannerTarget(link: string | null) {
+  const match = link?.match(/^app:\/\/(product|category)\/([^/]+)$/);
+  return match
+    ? { type: match[1] as "product" | "category", id: match[2] }
+    : { type: "external" as const, id: "" };
+}
+
 export function MarketingManager() {
   const { session } = useSession();
   const banners = useAdminBanners();
   const promos = useAdminPromos();
   const marketing = useMarketingActions();
   const media = useCatalogActions();
+  const categories = useAdminCategories();
+  const products = useAdminProducts();
   const [bannerEdit, setBannerEdit] = useState<Banner | null>(null);
   const [promoEdit, setPromoEdit] = useState<Promo | null>(null);
   const [showBanner, setShowBanner] = useState(false);
   const [showPromo, setShowPromo] = useState(false);
+  const [bannerTargetType, setBannerTargetType] = useState<"external" | "product" | "category">("external");
+  const [bannerTargetId, setBannerTargetId] = useState("");
   const {
     register: registerBanner,
     handleSubmit: handleBannerSubmit,
@@ -131,6 +143,9 @@ export function MarketingManager() {
                 className="secondary-button compact"
                 onClick={() => {
                   setBannerEdit(row.original);
+                  const target = parseBannerTarget(row.original.link);
+                  setBannerTargetType(target.type);
+                  setBannerTargetId(target.id);
                   resetBanner({
                     title: row.original.title,
                     subtitle: row.original.subtitle ?? "",
@@ -270,7 +285,11 @@ export function MarketingManager() {
       title: values.title,
       subtitle: values.subtitle,
       imageUrl,
-      link: values.link,
+      link: bannerTargetType === "external"
+          ? values.link
+          : bannerTargetId
+          ? `app://${bannerTargetType}/${bannerTargetId}`
+          : "",
       sortOrder: values.sortOrder,
       isActive: values.isActive,
       startsAt: toIsoDateTime(values.startsAt),
@@ -330,6 +349,8 @@ export function MarketingManager() {
               data-testid="banner-form-open"
               onClick={() => {
                 setBannerEdit(null);
+                setBannerTargetType("external");
+                setBannerTargetId("");
                 resetBanner();
                 setShowBanner((value) => !value);
               }}
@@ -400,6 +421,17 @@ export function MarketingManager() {
               <FormFieldError message={bannerErrors.subtitle?.message} />
             </label>
             <label>
+              <span>Переход</span>
+              <select value={bannerTargetType} onChange={(event) => {
+                setBannerTargetType(event.target.value as "external" | "product" | "category");
+                setBannerTargetId("");
+              }}>
+                <option value="external">Внешняя ссылка</option>
+                <option value="product">Открыть блюдо</option>
+                <option value="category">Открыть категорию</option>
+              </select>
+            </label>
+            {bannerTargetType === "external" ? <label>
               <span>Ссылка</span>
               <input
                 data-testid="banner-link"
@@ -407,7 +439,15 @@ export function MarketingManager() {
                 aria-invalid={Boolean(bannerErrors.link)}
               />
               <FormFieldError message={bannerErrors.link?.message} />
-            </label>
+            </label> : <label className="wide-field">
+              <span>{bannerTargetType === "product" ? "Блюдо" : "Категория"}</span>
+              <select value={bannerTargetId} onChange={(event) => setBannerTargetId(event.target.value)}>
+                <option value="">Выберите…</option>
+                {bannerTargetType === "product"
+                    ? (products.data ?? []).map((product) => <option key={product.id} value={product.id}>{product.name}</option>)
+                    : (categories.data ?? []).map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
+              </select>
+            </label>}
             <label>
               <span>Порядок</span>
               <input

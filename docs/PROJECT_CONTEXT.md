@@ -11,6 +11,8 @@ AlowAlow is a cash-on-delivery food ordering platform for Ashgabat with:
 - a pure React/Vite SPA operations admin;
 - customer-facing API capabilities for phone login, addresses, catalog,
   ordering, promos, and ratings;
+- an admin-visible recent-login list, populated only after a successful OTP
+  verification;
 - role-specific operations for kitchen, dispatch, courier, cash receipt, and
   accounting.
 
@@ -603,6 +605,10 @@ it, and polls every three seconds only while a visible campaign is `PENDING` or
 - 2026-08-02: the unused Twilio fallback and its credentials were removed.
   Production OTP delivery is Android pull only; local development keeps the
   non-delivering console mode.
+- 2026-08-06: a single-device LAN development mode may use the Android pull
+  gateway without a bearer token when `SMS_GATEWAY_ALLOW_UNAUTHENTICATED_LOCAL`
+  is explicitly enabled. The flag is rejected outside development; production
+  Android gateway authentication remains mandatory.
 - 2026-08-02: multi-branch operations replaced the deployment-level dispatch
   configuration. Admins manage PostgreSQL-backed branches, every new order is
   routed to the nearest active branch and stores an immutable branch snapshot,

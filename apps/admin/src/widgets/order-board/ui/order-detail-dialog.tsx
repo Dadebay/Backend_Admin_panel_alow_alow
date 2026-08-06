@@ -40,6 +40,16 @@ function eventCountLabel(count: number) {
   return `${count} ${word}`;
 }
 
+function deliveryDetails(order: Order) {
+  return [
+    order.entrance && `Подъезд ${order.entrance}`,
+    order.floor && `этаж ${order.floor}`,
+    order.apartment && `кв. ${order.apartment}`,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
 function RatingStars({ score }: { score: number }) {
   return (
     <span
@@ -63,6 +73,12 @@ function OrderDetails({ order }: { order: Order }) {
         <article>
           <span>Сумма</span>
           <strong>{Number(order.total).toFixed(2)} TMT</strong>
+          <small>
+            Наличными
+            {Number(order.deliveryFee) > 0
+              ? ` · доставка ${Number(order.deliveryFee).toFixed(2)} TMT`
+              : ""}
+          </small>
         </article>
         <article>
           <span>Клиент</span>
@@ -76,6 +92,7 @@ function OrderDetails({ order }: { order: Order }) {
         <article>
           <span>Адрес</span>
           <strong>{order.address}</strong>
+          {deliveryDetails(order) && <small>{deliveryDetails(order)}</small>}
         </article>
         <article>
           <span>Филиал</span>
@@ -88,6 +105,32 @@ function OrderDetails({ order }: { order: Order }) {
           )}
         </article>
       </div>
+
+      <section className="order-detail-section" aria-labelledby="items-title">
+        <div className="order-detail-section-head">
+          <div>
+            <span className="eyebrow">СОСТАВ ЗАКАЗА</span>
+            <h3 id="items-title">{order.items.length} позиций</h3>
+          </div>
+          <strong className="order-details-total">
+            {Number(order.total).toFixed(2)} TMT
+          </strong>
+        </div>
+        <ul className="order-detail-items">
+          {order.items.map((item) => (
+            <li key={item.id}>
+              <span>{item.productName}</span>
+              <strong>× {item.quantity}</strong>
+            </li>
+          ))}
+        </ul>
+        {order.customerNote && (
+          <aside className="order-note">
+            <strong>Примечание клиента</strong>
+            <p>{order.customerNote}</p>
+          </aside>
+        )}
+      </section>
 
       <section className="order-detail-section" aria-labelledby="review-title">
         <div className="order-detail-section-head">

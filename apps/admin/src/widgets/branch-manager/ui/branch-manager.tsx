@@ -47,6 +47,7 @@ export function BranchManager() {
       phone: "",
       address: "",
       isActive: true,
+      isPrimary: false,
     },
   });
   const canEdit = Boolean(
@@ -61,6 +62,7 @@ export function BranchManager() {
       phone: branch?.phone ?? "",
       address: branch?.address ?? "",
       isActive: branch?.isActive ?? true,
+      isPrimary: branch?.isPrimary ?? false,
     });
     setSelectedCoordinates(
       branch
@@ -88,6 +90,7 @@ export function BranchManager() {
         cell: ({ row }) => (
           <div className="primary-cell">
             <strong>{row.original.name}</strong>
+            {row.original.isPrimary && <small>Главный филиал · резервный маршрут</small>}
             <small>{row.original.address}</small>
           </div>
         ),
@@ -139,7 +142,10 @@ export function BranchManager() {
                 onClick={() =>
                   actions.updateBranch.mutate({
                     id: row.original.id,
-                    body: { isActive: !row.original.isActive },
+                    body: {
+                      isActive: !row.original.isActive,
+                      isPrimary: row.original.isPrimary,
+                    },
                   })
                 }
               >
@@ -161,6 +167,7 @@ export function BranchManager() {
       longitude: selectedCoordinates.longitude,
       phone: values.phone,
       isActive: editing ? values.isActive : true,
+      isPrimary: values.isPrimary,
     };
 
     if (editing) {
@@ -272,6 +279,14 @@ export function BranchManager() {
                 Принимает новые заказы
               </label>
             )}
+            <label className="check-field">
+              <input
+                data-testid="branch-primary"
+                {...register("isPrimary")}
+                type="checkbox"
+              />
+              Главный филиал (резерв для заказов)
+            </label>
             <div className="branch-location-field">
               <Suspense fallback={<div className="map-loading">Загружаем карту…</div>}>
                 <BranchLocationPicker

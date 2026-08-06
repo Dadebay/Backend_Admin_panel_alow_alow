@@ -17,9 +17,11 @@ import {
 import { CurrentUser, Roles } from "../common/auth.decorators";
 import type { AuthUser } from "../common/auth.types";
 import { Role } from "../generated/prisma/client";
-import { CreateStaffDto, UpdateStaffDto } from "./users.dto";
+import { CreateStaffDto, LoginAttemptsQueryDto, UpdateStaffDto } from "./users.dto";
 import {
   CourierSummaryResponseDto,
+  RecentLoginResponseDto,
+  LoginAttemptsResponseDto,
   StaffMutationResponseDto,
   StaffResponseDto,
 } from "./users-response.dto";
@@ -30,6 +32,13 @@ import { UsersService } from "./users.service";
 @Controller("staff")
 export class UsersController {
   constructor(private readonly users: UsersService) {}
+
+  @Get("login-attempts")
+  @Roles(Role.ADMIN, Role.SUPER_ADMIN)
+  @ApiOkResponse({ type: LoginAttemptsResponseDto })
+  loginAttempts(@Query() query: LoginAttemptsQueryDto) {
+    return this.users.loginAttempts(query);
+  }
 
   @Get()
   @Roles(Role.ADMIN, Role.OPERATOR, Role.ACCOUNTANT)
@@ -43,6 +52,13 @@ export class UsersController {
   @ApiOkResponse({ type: [CourierSummaryResponseDto] })
   couriers() {
     return this.users.couriers();
+  }
+
+  @Get("recent-logins")
+  @Roles(Role.ADMIN)
+  @ApiOkResponse({ type: [RecentLoginResponseDto] })
+  recentLogins() {
+    return this.users.recentLogins();
   }
 
   @Post()

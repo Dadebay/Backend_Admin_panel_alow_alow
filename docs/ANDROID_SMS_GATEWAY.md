@@ -61,6 +61,20 @@ DEVICE_TOKEN=<то же значение SMS_GATEWAY_DEVICE_TOKEN>
 
 В production разрешён только HTTPS с действительным сертификатом.
 
+## Локальная разработка с одним телефоном
+
+Для локального теста на одной доверенной Wi-Fi сети можно отключить bearer
+token только в development-окружении:
+
+```env
+NODE_ENV=development
+SMS_PROVIDER=android_pull
+SMS_GATEWAY_ALLOW_UNAUTHENTICATED_LOCAL=true
+```
+
+В этом режиме Android-приложению нужен только `API_BASE_URL`. Этот флаг
+недействителен в test и production, где device token остаётся обязательным.
+
 ## Авторизация Android-устройства
 
 Все три endpoint шлюза требуют заголовок:

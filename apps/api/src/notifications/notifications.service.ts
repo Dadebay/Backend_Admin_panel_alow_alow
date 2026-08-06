@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  Logger,
   NotFoundException,
   OnModuleDestroy,
   OnModuleInit,
@@ -40,6 +41,7 @@ const STALE_SENDING_MS = 15 * 60 * 1000;
 
 @Injectable()
 export class NotificationsService implements OnModuleInit, OnModuleDestroy {
+  private readonly logger = new Logger(NotificationsService.name);
   private timer: ReturnType<typeof setInterval> | null = null;
   private dispatchInProgress = false;
 
@@ -62,6 +64,59 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
   onModuleDestroy() {
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
+  }
+
+  /**
+   * A single transactional push straight to one customer's devices — an
+   * order status change, not a marketing blast, so it skips the
+   * campaign/delivery bookkeeping built for `ALL_CUSTOMERS` broadcasts
+   * (that machinery always targets every customer, see `dispatchCampaign`)
+   * and just calls the gateway directly. Never throws: a push failure
+   * must not roll back the status change that triggered it.
+   */
+  async sendDirectPush(
+    userId: string,
+    message: { title: string; body: string },
+  ) {
+    try {
+      const devices = await this.prisma.pushDevice.findMany({
+        where: { userId, isActive: true },
+        select: { id: true, installationId: true },
+      });
+      if (!devices.length) return;
+
+      const results = await this.push.send(
+        {
+          campaignId: `direct:${userId}:${Date.now()}`,
+          title: message.title,
+          body: message.body,
+          deepLink: null,
+        },
+        devices.map((device) => ({
+          deliveryId: device.id,
+          installationId: device.installationId,
+          notificationId: device.id,
+        })),
+      );
+
+      const invalid = results
+        .filter((result) => result.invalidInstallation)
+        .map((result) => result.deliveryId);
+      if (invalid.length) {
+        await this.prisma.pushDevice.updateMany({
+          where: { id: { in: invalid } },
+          data: { isActive: false },
+        });
+      }
+      const sent = results.filter((result) => result.ok).length;
+      this.logger.log(
+        `Direct push "${message.title}" to user ${userId}: ${sent}/${results.length} delivered`,
+      );
+    } catch (error) {
+      const detail = error instanceof Error ? (error.stack ?? error.message) : String(error);
+      this.logger.warn(`Direct push to user ${userId} failed: ${detail}`);
+      // Best-effort — the order status change itself already succeeded.
+    }
   }
 
   async registerDevice(actor: AuthUser, dto: RegisterPushDeviceDto) {

@@ -22,6 +22,9 @@ export class BranchResponseDto {
   @ApiProperty()
   isActive: boolean;
 
+  @ApiProperty()
+  isPrimary: boolean;
+
   @ApiProperty({ format: "date-time" })
   createdAt: string;
 

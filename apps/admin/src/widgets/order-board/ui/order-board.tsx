@@ -48,6 +48,25 @@ function mutationMessage(error: unknown) {
   return error.message;
 }
 
+function formatOrderDate(value: string) {
+  return new Intl.DateTimeFormat("ru-RU", {
+    day: "2-digit",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(value));
+}
+
+function deliveryDetails(order: Order) {
+  const details = [
+    order.entrance && `подъезд ${order.entrance}`,
+    order.floor && `этаж ${order.floor}`,
+    order.apartment && `кв. ${order.apartment}`,
+  ].filter(Boolean);
+
+  return details.join(" · ");
+}
+
 export function OrderBoard({
   fixedStatus,
   title = "Заказы",
@@ -106,28 +125,46 @@ export function OrderBoard({
       {
         header: "Заказ",
         cell: ({ row }) => (
-          <div className="primary-cell">
-            <strong>#{row.original.number}</strong>
-            <small>
-              {new Intl.DateTimeFormat("ru-RU", {
-                day: "2-digit",
-                month: "2-digit",
-                hour: "2-digit",
-                minute: "2-digit",
-              }).format(new Date(row.original.createdAt))}
-            </small>
+          <div className="primary-cell order-identity">
+            <div className="order-identity-head">
+              <strong>#{row.original.number}</strong>
+              <span
+                className={`status-pill status-${row.original.status.toLowerCase()}`}
+              >
+                {statusLabels[row.original.status]}
+              </span>
+            </div>
+            <small>{formatOrderDate(row.original.createdAt)}</small>
+            <span className="order-item-count">
+              {row.original.items.length} позиций
+            </span>
+            {row.original.cancellationReason && (
+              <span className="order-cancellation-reason">
+                Причина отмены: {row.original.cancellationReason}
+              </span>
+            )}
           </div>
         ),
       },
       {
         header: "Клиент и адрес",
         cell: ({ row }) => (
-          <div className="primary-cell">
+          <div className="primary-cell customer-address-cell">
             <strong>{personName(row.original.customer)}</strong>
             <a href={`tel:${row.original.customer.phone}`}>
               {row.original.customer.phone}
             </a>
-            <small>{row.original.address}</small>
+            <small className="address-copy">{row.original.address}</small>
+            {deliveryDetails(row.original) && (
+              <span className="delivery-details">
+                {deliveryDetails(row.original)}
+              </span>
+            )}
+            {row.original.customerNote && (
+              <span className="customer-note" title={row.original.customerNote}>
+                Примечание: {row.original.customerNote}
+              </span>
+            )}
           </div>
         ),
       },
@@ -151,27 +188,45 @@ export function OrderBoard({
           <div className="order-items-cell">
             {row.original.items.map((item) => (
               <span key={item.id}>
-                {item.productName} × {item.quantity}
+                <b>{item.quantity}×</b> {item.productName}
               </span>
             ))}
           </div>
         ),
       },
       {
-        header: "Сумма",
+        header: "Оплата",
         cell: ({ row }) => (
-          <strong>{Number(row.original.total).toFixed(2)} TMT</strong>
+          <div className="amount-cell">
+            <strong>{Number(row.original.total).toFixed(2)} TMT</strong>
+            <small>Наличными</small>
+            {Number(row.original.deliveryFee) > 0 && (
+              <span>Доставка: {Number(row.original.deliveryFee).toFixed(2)} TMT</span>
+            )}
+          </div>
         ),
       },
       {
         header: "Статус",
-        cell: ({ row }) => (
-          <span
-            className={`status-pill status-${row.original.status.toLowerCase()}`}
-          >
-            {statusLabels[row.original.status]}
-          </span>
-        ),
+        cell: ({ row }) =>
+          row.original.cancellationReason ? (
+            <div className="status-context">
+              <span
+                className={`status-pill status-${row.original.status.toLowerCase()}`}
+              >
+                {statusLabels[row.original.status]}
+              </span>
+              <small title={row.original.cancellationReason}>
+                {row.original.cancellationReason}
+              </small>
+            </div>
+          ) : (
+            <span
+              className={`status-pill status-${row.original.status.toLowerCase()}`}
+            >
+              {statusLabels[row.original.status]}
+            </span>
+          ),
       },
       {
         header: "Отзыв",
@@ -394,7 +449,7 @@ export function OrderBoard({
             getRowId={(order) => order.id}
             empty="Заказов по выбранным условиям нет"
             label="Список заказов"
-            minWidth={900}
+            minWidth={1180}
             variant="orders"
           />
           <footer className="table-pagination">

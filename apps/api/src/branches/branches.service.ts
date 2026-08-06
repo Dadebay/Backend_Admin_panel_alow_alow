@@ -23,6 +23,12 @@ export class BranchesService {
 
   create(actor: AuthUser, dto: CreateBranchDto) {
     return this.prisma.$transaction(async (tx) => {
+      if (dto.isPrimary) {
+        await tx.branch.updateMany({
+          where: { isPrimary: true },
+          data: { isPrimary: false },
+        });
+      }
       const branch = await tx.branch.create({
         data: {
           ...dto,
@@ -48,6 +54,12 @@ export class BranchesService {
     return this.prisma.$transaction(async (tx) => {
       const exists = await tx.branch.findUnique({ where: { id } });
       if (!exists) throw new NotFoundException("Branch not found");
+      if (dto.isPrimary) {
+        await tx.branch.updateMany({
+          where: { isPrimary: true, id: { not: id } },
+          data: { isPrimary: false },
+        });
+      }
       const branch = await tx.branch.update({
         where: { id },
         data: {
@@ -85,18 +97,46 @@ export class BranchesService {
       throw new ConflictException("No active branch can accept orders");
     }
 
-    let nearest = {
-      branch: first,
-      distanceMeters: distanceBetweenMeters(destination, {
-        latitude: Number(first.latitude),
-        longitude: Number(first.longitude),
-      }),
+    // The primary branch is the intentional, operator-configured fallback.
+    // For legacy data without one, the first active branch remains available.
+    const fallback = branches.find((branch) => branch.isPrimary) ?? first;
+    const fallbackCoordinates = {
+      latitude: Number(fallback.latitude),
+      longitude: Number(fallback.longitude),
     };
-    for (const branch of rest) {
-      const distanceMeters = distanceBetweenMeters(destination, {
+    const safeDistance = (branch: (typeof branches)[number]) => {
+      const coordinates = {
         latitude: Number(branch.latitude),
         longitude: Number(branch.longitude),
-      });
+      };
+      if (
+        !Number.isFinite(destination.latitude) ||
+        !Number.isFinite(destination.longitude) ||
+        !Number.isFinite(coordinates.latitude) ||
+        !Number.isFinite(coordinates.longitude)
+      ) {
+        return null;
+      }
+      try {
+        return distanceBetweenMeters(destination, coordinates);
+      } catch {
+        return null;
+      }
+    };
+
+    const fallbackDistance = safeDistance(fallback);
+    if (fallbackDistance === null) {
+      // This can only happen with corrupt coordinates. Keep accepting orders
+      // through the primary branch rather than dropping the customer order.
+      return { branch: fallback, distanceMeters: 0 };
+    }
+    let nearest = {
+      branch: fallback,
+      distanceMeters: fallbackDistance,
+    };
+    for (const branch of [first, ...rest]) {
+      const distanceMeters = safeDistance(branch);
+      if (distanceMeters === null) continue;
       if (distanceMeters < nearest.distanceMeters) {
         nearest = { branch, distanceMeters };
       }

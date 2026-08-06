@@ -3,7 +3,12 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useForm } from "react-hook-form";
 import { roleLabels } from "@/src/entities/order";
-import { useStaff, type Staff } from "@/src/entities/staff";
+import {
+  useRecentLogins,
+  useStaff,
+  type RecentLogin,
+  type Staff,
+} from "@/src/entities/staff";
 import { useStaffActions } from "@/src/features/staff-management";
 import { useSession } from "@/src/shared/auth";
 import { FormFieldError } from "@/src/shared/forms";
@@ -18,6 +23,7 @@ import {
 export function StaffManager() {
   const { session } = useSession();
   const staff = useStaff();
+  const recentLogins = useRecentLogins();
   const actions = useStaffActions();
   const [editing, setEditing] = useState<Staff | null>(null);
   const [showForm, setShowForm] = useState(false);
@@ -39,6 +45,30 @@ export function StaffManager() {
   });
   const canEdit = Boolean(
     session && ["ADMIN", "SUPER_ADMIN"].includes(session.user.role),
+  );
+
+  const recentLoginColumns = useMemo<ColumnDef<RecentLogin, unknown>[]>(
+    () => [
+      {
+        header: "Пользователь",
+        cell: ({ row }) => (
+          <div className="primary-cell">
+            <strong>
+              {[row.original.firstName, row.original.lastName]
+                .filter(Boolean)
+                .join(" ") || row.original.phone}
+            </strong>
+            <small>{row.original.phone}</small>
+          </div>
+        ),
+      },
+      { header: "Роль", cell: ({ row }) => roleLabels[row.original.role] },
+      {
+        header: "Последний вход",
+        cell: ({ row }) => new Date(row.original.lastLoginAt).toLocaleString("ru-RU"),
+      },
+    ],
+    [],
   );
 
   const columns = useMemo<ColumnDef<Staff, unknown>[]>(
@@ -171,6 +201,41 @@ export function StaffManager() {
           </button>
         )}
       </header>
+
+      {canEdit && (
+        <section className="recent-logins" aria-label="Последние входы">
+          <div className="recent-logins-head">
+            <div>
+              <span className="eyebrow">АКТИВНОСТЬ ПОЛЬЗОВАТЕЛЕЙ</span>
+              <h2>Последние входы</h2>
+            </div>
+            {recentLogins.data?.[0] && (
+              <div className="last-login-card">
+                <span>Последний вход</span>
+                <strong>
+                  {[recentLogins.data[0].firstName, recentLogins.data[0].lastName]
+                    .filter(Boolean)
+                    .join(" ") || recentLogins.data[0].phone}
+                </strong>
+                <small>{new Date(recentLogins.data[0].lastLoginAt).toLocaleString("ru-RU")}</small>
+              </div>
+            )}
+          </div>
+          <AsyncPanel
+            pending={recentLogins.isPending}
+            error={recentLogins.error}
+            onRetry={() => void recentLogins.refetch()}
+          >
+            <DataTable
+              columns={recentLoginColumns}
+              data={recentLogins.data ?? []}
+              getRowId={(user) => user.id}
+              empty="Пока никто не вошёл"
+              label="Последние входы пользователей"
+            />
+          </AsyncPanel>
+        </section>
+      )}
 
       {mutationError && (
         <div className="inline-alert">

@@ -16,12 +16,15 @@ import {
   PushDevicePlatform,
 } from "../generated/prisma/client";
 
-export const PUSH_INSTALLATION_ID_PATTERN = /^[A-Za-z0-9_-]{10,255}$/;
+// An FCM registration token, not a bare Firebase Installation ID — it's
+// shaped `<installation-id>:<APA91b...secret>`, so the colon has to be
+// allowed alongside the base64url charset the ID portion alone would use.
+export const PUSH_INSTALLATION_ID_PATTERN = /^[A-Za-z0-9_:-]{10,255}$/;
 
 export class RegisterPushDeviceDto {
   @ApiProperty({
-    description: "Firebase Installation ID returned by the mobile FCM SDK",
-    example: "c3VwcG9ydGVkLWZpcmViYXNlLWZpZA",
+    description: "FCM registration token returned by the mobile SDK",
+    example: "c5QXUxvrSS2QWHsZtC-DH-:APA91bG...",
   })
   @IsString()
   @MinLength(10)

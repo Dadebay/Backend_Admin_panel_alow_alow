@@ -111,7 +111,7 @@ describe("push gateway", () => {
       privateKey: "private-key",
     });
     expect(firstBatch?.[0]).toMatchObject({
-      fid: "installation_0",
+      token: "installation_0",
       data: {
         campaignId: payload.campaignId,
         notificationId: "notification-0",

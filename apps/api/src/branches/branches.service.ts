@@ -100,10 +100,6 @@ export class BranchesService {
     // The primary branch is the intentional, operator-configured fallback.
     // For legacy data without one, the first active branch remains available.
     const fallback = branches.find((branch) => branch.isPrimary) ?? first;
-    const fallbackCoordinates = {
-      latitude: Number(fallback.latitude),
-      longitude: Number(fallback.longitude),
-    };
     const safeDistance = (branch: (typeof branches)[number]) => {
       const coordinates = {
         latitude: Number(branch.latitude),

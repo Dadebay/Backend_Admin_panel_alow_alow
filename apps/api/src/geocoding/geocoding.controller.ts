@@ -1,7 +1,19 @@
 import { Controller, Get, Query } from "@nestjs/common";
-import { ApiOperation, ApiTags } from "@nestjs/swagger";
-import { Public } from "../common/auth.decorators";
-import { ReverseGeocodeQueryDto, ReverseGeocodeResponseDto } from "./geocoding.dto";
+import {
+  ApiBearerAuth,
+  ApiOkResponse,
+  ApiOperation,
+  ApiTags,
+} from "@nestjs/swagger";
+import { Throttle } from "@nestjs/throttler";
+import { Public, Roles } from "../common/auth.decorators";
+import { Role } from "../generated/prisma/client";
+import {
+  ReverseGeocodeQueryDto,
+  ReverseGeocodeResponseDto,
+  SearchGeocodeQueryDto,
+  SearchGeocodeResponseDto,
+} from "./geocoding.dto";
 import { GeocodingService } from "./geocoding.service";
 
 @ApiTags("geocoding")
@@ -11,11 +23,33 @@ export class GeocodingController {
 
   @Get("reverse")
   @Public()
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
   @ApiOperation({
-    summary: "Turn a map point into a short address line for the delivery-address form",
+    summary:
+      "Turn a map point into a short address line for the delivery-address form",
   })
-  async reverse(@Query() query: ReverseGeocodeQueryDto): Promise<ReverseGeocodeResponseDto> {
+  @ApiOkResponse({ type: ReverseGeocodeResponseDto })
+  async reverse(
+    @Query() query: ReverseGeocodeQueryDto,
+  ): Promise<ReverseGeocodeResponseDto> {
     const line = await this.geocoding.reverseGeocode(query.lat, query.lon);
     return { line };
+  }
+
+  @Get("search")
+  @ApiBearerAuth()
+  @Roles(Role.CUSTOMER, Role.OPERATOR, Role.ADMIN)
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @ApiOperation({
+    summary: "Search Turkmenistan OSM names after an explicit user submit",
+  })
+  @ApiOkResponse({ type: SearchGeocodeResponseDto })
+  async search(
+    @Query() query: SearchGeocodeQueryDto,
+  ): Promise<SearchGeocodeResponseDto> {
+    return {
+      items: await this.geocoding.search(query.q, query.limit),
+      attribution: "© OpenStreetMap contributors",
+    };
   }
 }

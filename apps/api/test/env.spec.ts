@@ -180,4 +180,23 @@ describe("security environment configuration", () => {
       validateEnv({ ROUTING_URL: "http://routing:5000/route/v1" }),
     ).toThrow("ROUTING_URL");
   });
+
+  it("validates switchable geocoding provider origins and identifying user agent", () => {
+    const env = validateEnv({});
+    expect(env.GEOCODING_PRIMARY_URL).toBe(
+      "https://nominatim.openstreetmap.org",
+    );
+    expect(env.GEOCODING_FALLBACK_URL).toBe("https://photon.komoot.io");
+    expect(() =>
+      validateEnv({
+        GEOCODING_PRIMARY_URL: "https://user:secret@geocoder.example",
+      }),
+    ).toThrow("GEOCODING_PRIMARY_URL");
+    expect(() =>
+      validateEnv({ GEOCODING_FALLBACK_URL: "file:///tmp/geocoder" }),
+    ).toThrow("GEOCODING_FALLBACK_URL");
+    expect(() => validateEnv({ GEOCODING_USER_AGENT: "short" })).toThrow(
+      "GEOCODING_USER_AGENT",
+    );
+  });
 });

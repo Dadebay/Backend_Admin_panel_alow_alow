@@ -708,6 +708,96 @@
         ]
       }
     },
+    "/api/v1/orders/assisted/customers": {
+      "get": {
+        "operationId": "OrdersController_assistedCustomers_v1",
+        "parameters": [
+          {
+            "name": "phone",
+            "required": true,
+            "in": "query",
+            "description": "At least four phone digits; spaces and + are accepted",
+            "schema": {
+              "example": "6512",
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 10,
+              "default": 10,
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/Object"
+                }
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssistedCustomerListResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Find customers by phone for an operator-assisted order",
+        "tags": [
+          "orders"
+        ]
+      }
+    },
+    "/api/v1/orders/assisted": {
+      "post": {
+        "operationId": "OrdersController_createAssisted_v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAssistedOrderDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Create a cash order for a caller without issuing a customer session",
+        "tags": [
+          "orders"
+        ]
+      }
+    },
     "/api/v1/orders/courier/route": {
       "get": {
         "operationId": "OrdersController_route_v1",
@@ -1684,6 +1774,339 @@
         ]
       }
     },
+    "/api/v1/notifications/devices": {
+      "put": {
+        "operationId": "NotificationsController_registerDevice_v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterPushDeviceDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PushDeviceResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Register or refresh the current mobile FCM registration token",
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
+    "/api/v1/notifications/devices/{installationId}": {
+      "delete": {
+        "operationId": "NotificationsController_unregisterDevice_v1",
+        "parameters": [
+          {
+            "name": "installationId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Deactivate one current-user push installation",
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
+    "/api/v1/notifications/me": {
+      "get": {
+        "operationId": "NotificationsController_mine_v1",
+        "parameters": [
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": 1,
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/Object"
+                }
+              ]
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "maximum": 100,
+              "default": 25,
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/Object"
+                }
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserNotificationListResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "List the current customer's notification inbox",
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
+    "/api/v1/notifications/me/unread-count": {
+      "get": {
+        "operationId": "NotificationsController_unread_v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnreadNotificationCountResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
+    "/api/v1/notifications/me/{id}/read": {
+      "patch": {
+        "operationId": "NotificationsController_markRead_v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MarkNotificationReadResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
+    "/api/v1/notifications/me/read-all": {
+      "post": {
+        "operationId": "NotificationsController_markAllRead_v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MarkAllNotificationsReadResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
+    "/api/v1/notifications/admin/campaigns": {
+      "get": {
+        "operationId": "NotificationsController_campaigns_v1",
+        "parameters": [
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": 1,
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/Object"
+                }
+              ]
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "maximum": 100,
+              "default": 25,
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/Object"
+                }
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationCampaignListResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "List push campaigns and delivery totals",
+        "tags": [
+          "notifications"
+        ]
+      },
+      "post": {
+        "operationId": "NotificationsController_createCampaign_v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateNotificationCampaignDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationCampaignResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Create and queue a customer push campaign",
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
+    "/api/v1/notifications/admin/campaigns/{id}/retry": {
+      "post": {
+        "operationId": "NotificationsController_retryCampaign_v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationCampaignResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
     "/api/v1/marketing/banners": {
       "get": {
         "operationId": "MarketingController_banners_v1",
@@ -2021,339 +2444,6 @@
         ]
       }
     },
-    "/api/v1/notifications/devices": {
-      "put": {
-        "operationId": "NotificationsController_registerDevice_v1",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/RegisterPushDeviceDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PushDeviceResponseDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Register or refresh the current mobile FCM FID",
-        "tags": [
-          "notifications"
-        ]
-      }
-    },
-    "/api/v1/notifications/devices/{installationId}": {
-      "delete": {
-        "operationId": "NotificationsController_unregisterDevice_v1",
-        "parameters": [
-          {
-            "name": "installationId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Deactivate one current-user push installation",
-        "tags": [
-          "notifications"
-        ]
-      }
-    },
-    "/api/v1/notifications/me": {
-      "get": {
-        "operationId": "NotificationsController_mine_v1",
-        "parameters": [
-          {
-            "name": "page",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "default": 1,
-              "allOf": [
-                {
-                  "$ref": "#/components/schemas/Object"
-                }
-              ]
-            }
-          },
-          {
-            "name": "limit",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "maximum": 100,
-              "default": 25,
-              "allOf": [
-                {
-                  "$ref": "#/components/schemas/Object"
-                }
-              ]
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/UserNotificationListResponseDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "List the current customer's notification inbox",
-        "tags": [
-          "notifications"
-        ]
-      }
-    },
-    "/api/v1/notifications/me/unread-count": {
-      "get": {
-        "operationId": "NotificationsController_unread_v1",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/UnreadNotificationCountResponseDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "tags": [
-          "notifications"
-        ]
-      }
-    },
-    "/api/v1/notifications/me/{id}/read": {
-      "patch": {
-        "operationId": "NotificationsController_markRead_v1",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MarkNotificationReadResponseDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "tags": [
-          "notifications"
-        ]
-      }
-    },
-    "/api/v1/notifications/me/read-all": {
-      "post": {
-        "operationId": "NotificationsController_markAllRead_v1",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MarkAllNotificationsReadResponseDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "tags": [
-          "notifications"
-        ]
-      }
-    },
-    "/api/v1/notifications/admin/campaigns": {
-      "get": {
-        "operationId": "NotificationsController_campaigns_v1",
-        "parameters": [
-          {
-            "name": "page",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "default": 1,
-              "allOf": [
-                {
-                  "$ref": "#/components/schemas/Object"
-                }
-              ]
-            }
-          },
-          {
-            "name": "limit",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "maximum": 100,
-              "default": 25,
-              "allOf": [
-                {
-                  "$ref": "#/components/schemas/Object"
-                }
-              ]
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/NotificationCampaignListResponseDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "List push campaigns and delivery totals",
-        "tags": [
-          "notifications"
-        ]
-      },
-      "post": {
-        "operationId": "NotificationsController_createCampaign_v1",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateNotificationCampaignDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/NotificationCampaignResponseDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Create and queue a customer push campaign",
-        "tags": [
-          "notifications"
-        ]
-      }
-    },
-    "/api/v1/notifications/admin/campaigns/{id}/retry": {
-      "post": {
-        "operationId": "NotificationsController_retryCampaign_v1",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/NotificationCampaignResponseDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "tags": [
-          "notifications"
-        ]
-      }
-    },
     "/api/v1/favorites": {
       "get": {
         "operationId": "FavoritesController_list_v1",
@@ -2507,10 +2597,69 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReverseGeocodeResponseDto"
+                }
+              }
+            }
           }
         },
         "summary": "Turn a map point into a short address line for the delivery-address form",
+        "tags": [
+          "geocoding"
+        ]
+      }
+    },
+    "/api/v1/geocoding/search": {
+      "get": {
+        "operationId": "GeocodingController_search_v1",
+        "parameters": [
+          {
+            "name": "q",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "example": "Parahat 7 Görogly",
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 10,
+              "default": 5,
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/Object"
+                }
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchGeocodeResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Search Turkmenistan OSM names after an explicit user submit",
         "tags": [
           "geocoding"
         ]
@@ -3384,6 +3533,10 @@
           "productName": {
             "type": "string"
           },
+          "productImageUrl": {
+            "type": "string",
+            "nullable": true
+          },
           "unitPrice": {
             "type": "number"
           },
@@ -3399,6 +3552,7 @@
           "orderId",
           "productId",
           "productName",
+          "productImageUrl",
           "unitPrice",
           "quantity",
           "lineTotal"
@@ -3729,6 +3883,13 @@
               "CANCELLED"
             ]
           },
+          "source": {
+            "type": "string",
+            "enum": [
+              "CUSTOMER_APP",
+              "STAFF_PHONE"
+            ]
+          },
           "paymentMethod": {
             "type": "string",
             "enum": [
@@ -3893,6 +4054,7 @@
           "courierId",
           "promoCodeId",
           "status",
+          "source",
           "paymentMethod",
           "subtotal",
           "discount",
@@ -3930,6 +4092,166 @@
       "Object": {
         "type": "object",
         "properties": {}
+      },
+      "AssistedCustomerAddressResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "label": {
+            "type": "string",
+            "nullable": true
+          },
+          "address": {
+            "type": "string"
+          },
+          "latitude": {
+            "type": "number"
+          },
+          "longitude": {
+            "type": "number"
+          },
+          "entrance": {
+            "type": "string",
+            "nullable": true
+          },
+          "floor": {
+            "type": "string",
+            "nullable": true
+          },
+          "apartment": {
+            "type": "string",
+            "nullable": true
+          },
+          "isActive": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "address",
+          "latitude",
+          "longitude",
+          "entrance",
+          "floor",
+          "apartment",
+          "isActive"
+        ]
+      },
+      "AssistedCustomerResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "phone": {
+            "type": "string"
+          },
+          "firstName": {
+            "type": "string",
+            "nullable": true
+          },
+          "lastName": {
+            "type": "string",
+            "nullable": true
+          },
+          "addresses": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AssistedCustomerAddressResponseDto"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "phone",
+          "firstName",
+          "lastName",
+          "addresses"
+        ]
+      },
+      "AssistedCustomerListResponseDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AssistedCustomerResponseDto"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "CreateAssistedOrderDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CreateOrderItemDto"
+            }
+          },
+          "addressId": {
+            "type": "string",
+            "description": "Saved address owned by the current user"
+          },
+          "addressLabel": {
+            "type": "string",
+            "example": "Дом",
+            "description": "Label used when an inline address is saved"
+          },
+          "address": {
+            "type": "string",
+            "example": "Magtymguly şaýoly, 72",
+            "description": "New address; omitted fields use the active saved address"
+          },
+          "latitude": {
+            "type": "number",
+            "example": 37.9601
+          },
+          "longitude": {
+            "type": "number",
+            "example": 58.3261
+          },
+          "entrance": {
+            "type": "string"
+          },
+          "floor": {
+            "type": "string"
+          },
+          "apartment": {
+            "type": "string"
+          },
+          "customerNote": {
+            "type": "string"
+          },
+          "promoCode": {
+            "type": "string",
+            "example": "WELCOME15"
+          },
+          "customerPhone": {
+            "type": "string",
+            "example": "+99365123456"
+          },
+          "customerFirstName": {
+            "type": "string",
+            "example": "Aman"
+          },
+          "customerLastName": {
+            "type": "string",
+            "example": "Ataýew"
+          }
+        },
+        "required": [
+          "items",
+          "customerPhone"
+        ]
       },
       "OrderListResponseDto": {
         "type": "object",
@@ -5504,330 +5826,13 @@
           "sentAt"
         ]
       },
-      "BannerResponseDto": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "title": {
-            "type": "string"
-          },
-          "subtitle": {
-            "type": "string",
-            "nullable": true
-          },
-          "imageUrl": {
-            "type": "string"
-          },
-          "link": {
-            "type": "string",
-            "nullable": true
-          },
-          "sortOrder": {
-            "type": "number"
-          },
-          "isActive": {
-            "type": "boolean"
-          },
-          "startsAt": {
-            "type": "string",
-            "format": "date-time",
-            "nullable": true
-          },
-          "endsAt": {
-            "type": "string",
-            "format": "date-time",
-            "nullable": true
-          },
-          "createdAt": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "updatedAt": {
-            "type": "string",
-            "format": "date-time"
-          }
-        },
-        "required": [
-          "id",
-          "title",
-          "subtitle",
-          "imageUrl",
-          "link",
-          "sortOrder",
-          "isActive",
-          "startsAt",
-          "endsAt",
-          "createdAt",
-          "updatedAt"
-        ]
-      },
-      "CreateBannerDto": {
-        "type": "object",
-        "properties": {
-          "title": {
-            "type": "string"
-          },
-          "subtitle": {
-            "type": "string"
-          },
-          "imageUrl": {
-            "type": "string"
-          },
-          "link": {
-            "type": "string"
-          },
-          "sortOrder": {
-            "type": "number"
-          },
-          "isActive": {
-            "type": "boolean"
-          },
-          "startsAt": {
-            "type": "string"
-          },
-          "endsAt": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "title",
-          "imageUrl"
-        ]
-      },
-      "UpdateBannerDto": {
-        "type": "object",
-        "properties": {
-          "title": {
-            "type": "string"
-          },
-          "subtitle": {
-            "type": "string"
-          },
-          "imageUrl": {
-            "type": "string"
-          },
-          "link": {
-            "type": "string"
-          },
-          "sortOrder": {
-            "type": "number"
-          },
-          "isActive": {
-            "type": "boolean"
-          },
-          "startsAt": {
-            "type": "string"
-          },
-          "endsAt": {
-            "type": "string"
-          }
-        }
-      },
-      "PromoCodeResponseDto": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "code": {
-            "type": "string"
-          },
-          "type": {
-            "type": "string",
-            "enum": [
-              "PERCENT",
-              "FIXED"
-            ]
-          },
-          "value": {
-            "type": "number"
-          },
-          "minOrderAmount": {
-            "type": "number",
-            "nullable": true
-          },
-          "maxDiscountAmount": {
-            "type": "number",
-            "nullable": true
-          },
-          "totalUsageLimit": {
-            "type": "number",
-            "nullable": true
-          },
-          "perUserLimit": {
-            "type": "number"
-          },
-          "usedCount": {
-            "type": "number"
-          },
-          "isActive": {
-            "type": "boolean"
-          },
-          "startsAt": {
-            "type": "string",
-            "format": "date-time",
-            "nullable": true
-          },
-          "endsAt": {
-            "type": "string",
-            "format": "date-time",
-            "nullable": true
-          },
-          "createdAt": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "updatedAt": {
-            "type": "string",
-            "format": "date-time"
-          }
-        },
-        "required": [
-          "id",
-          "code",
-          "type",
-          "value",
-          "minOrderAmount",
-          "maxDiscountAmount",
-          "totalUsageLimit",
-          "perUserLimit",
-          "usedCount",
-          "isActive",
-          "startsAt",
-          "endsAt",
-          "createdAt",
-          "updatedAt"
-        ]
-      },
-      "CreatePromoCodeDto": {
-        "type": "object",
-        "properties": {
-          "code": {
-            "type": "string",
-            "example": "WELCOME15"
-          },
-          "type": {
-            "type": "string",
-            "enum": [
-              "PERCENT",
-              "FIXED"
-            ]
-          },
-          "value": {
-            "type": "number"
-          },
-          "minOrderAmount": {
-            "type": "number"
-          },
-          "maxDiscountAmount": {
-            "type": "number"
-          },
-          "totalUsageLimit": {
-            "type": "number"
-          },
-          "perUserLimit": {
-            "type": "number",
-            "default": 1
-          },
-          "isActive": {
-            "type": "boolean"
-          },
-          "startsAt": {
-            "type": "string"
-          },
-          "endsAt": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "code",
-          "type",
-          "value"
-        ]
-      },
-      "UpdatePromoCodeDto": {
-        "type": "object",
-        "properties": {
-          "code": {
-            "type": "string",
-            "example": "WELCOME15"
-          },
-          "type": {
-            "type": "string",
-            "enum": [
-              "PERCENT",
-              "FIXED"
-            ]
-          },
-          "value": {
-            "type": "number"
-          },
-          "minOrderAmount": {
-            "type": "number"
-          },
-          "maxDiscountAmount": {
-            "type": "number"
-          },
-          "totalUsageLimit": {
-            "type": "number"
-          },
-          "perUserLimit": {
-            "type": "number",
-            "default": 1
-          },
-          "isActive": {
-            "type": "boolean"
-          },
-          "startsAt": {
-            "type": "string"
-          },
-          "endsAt": {
-            "type": "string"
-          }
-        }
-      },
-      "MediaUploadResponseDto": {
-        "type": "object",
-        "properties": {
-          "filename": {
-            "type": "string"
-          },
-          "url": {
-            "type": "string"
-          },
-          "contentType": {
-            "type": "string"
-          },
-          "width": {
-            "type": "number"
-          },
-          "height": {
-            "type": "number"
-          },
-          "bytes": {
-            "type": "number"
-          }
-        },
-        "required": [
-          "filename",
-          "url",
-          "contentType",
-          "width",
-          "height",
-          "bytes"
-        ]
-      },
       "RegisterPushDeviceDto": {
         "type": "object",
         "properties": {
           "installationId": {
             "type": "string",
-            "description": "Firebase Installation ID returned by the mobile FCM SDK",
-            "example": "c3VwcG9ydGVkLWZpcmViYXNlLWZpZA"
+            "description": "FCM registration token returned by the mobile SDK",
+            "example": "c5QXUxvrSS2QWHsZtC-DH-:APA91bG..."
           },
           "platform": {
             "type": "string",
@@ -6159,6 +6164,323 @@
           "body"
         ]
       },
+      "BannerResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "title": {
+            "type": "string"
+          },
+          "subtitle": {
+            "type": "string",
+            "nullable": true
+          },
+          "imageUrl": {
+            "type": "string"
+          },
+          "link": {
+            "type": "string",
+            "nullable": true
+          },
+          "sortOrder": {
+            "type": "number"
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "startsAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "endsAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "subtitle",
+          "imageUrl",
+          "link",
+          "sortOrder",
+          "isActive",
+          "startsAt",
+          "endsAt",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "CreateBannerDto": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "subtitle": {
+            "type": "string"
+          },
+          "imageUrl": {
+            "type": "string"
+          },
+          "link": {
+            "type": "string"
+          },
+          "sortOrder": {
+            "type": "number"
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "startsAt": {
+            "type": "string"
+          },
+          "endsAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "title",
+          "imageUrl"
+        ]
+      },
+      "UpdateBannerDto": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "subtitle": {
+            "type": "string"
+          },
+          "imageUrl": {
+            "type": "string"
+          },
+          "link": {
+            "type": "string"
+          },
+          "sortOrder": {
+            "type": "number"
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "startsAt": {
+            "type": "string"
+          },
+          "endsAt": {
+            "type": "string"
+          }
+        }
+      },
+      "PromoCodeResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "code": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "PERCENT",
+              "FIXED"
+            ]
+          },
+          "value": {
+            "type": "number"
+          },
+          "minOrderAmount": {
+            "type": "number",
+            "nullable": true
+          },
+          "maxDiscountAmount": {
+            "type": "number",
+            "nullable": true
+          },
+          "totalUsageLimit": {
+            "type": "number",
+            "nullable": true
+          },
+          "perUserLimit": {
+            "type": "number"
+          },
+          "usedCount": {
+            "type": "number"
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "startsAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "endsAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "code",
+          "type",
+          "value",
+          "minOrderAmount",
+          "maxDiscountAmount",
+          "totalUsageLimit",
+          "perUserLimit",
+          "usedCount",
+          "isActive",
+          "startsAt",
+          "endsAt",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "CreatePromoCodeDto": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "example": "WELCOME15"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "PERCENT",
+              "FIXED"
+            ]
+          },
+          "value": {
+            "type": "number"
+          },
+          "minOrderAmount": {
+            "type": "number"
+          },
+          "maxDiscountAmount": {
+            "type": "number"
+          },
+          "totalUsageLimit": {
+            "type": "number"
+          },
+          "perUserLimit": {
+            "type": "number",
+            "default": 1
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "startsAt": {
+            "type": "string"
+          },
+          "endsAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "type",
+          "value"
+        ]
+      },
+      "UpdatePromoCodeDto": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "example": "WELCOME15"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "PERCENT",
+              "FIXED"
+            ]
+          },
+          "value": {
+            "type": "number"
+          },
+          "minOrderAmount": {
+            "type": "number"
+          },
+          "maxDiscountAmount": {
+            "type": "number"
+          },
+          "totalUsageLimit": {
+            "type": "number"
+          },
+          "perUserLimit": {
+            "type": "number",
+            "default": 1
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "startsAt": {
+            "type": "string"
+          },
+          "endsAt": {
+            "type": "string"
+          }
+        }
+      },
+      "MediaUploadResponseDto": {
+        "type": "object",
+        "properties": {
+          "filename": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "contentType": {
+            "type": "string"
+          },
+          "width": {
+            "type": "number"
+          },
+          "height": {
+            "type": "number"
+          },
+          "bytes": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "filename",
+          "url",
+          "contentType",
+          "width",
+          "height",
+          "bytes"
+        ]
+      },
       "ContactSettingsResponseDto": {
         "type": "object",
         "properties": {
@@ -6227,6 +6549,69 @@
         "required": [
           "displayName",
           "phone"
+        ]
+      },
+      "ReverseGeocodeResponseDto": {
+        "type": "object",
+        "properties": {
+          "line": {
+            "type": "string",
+            "nullable": true,
+            "example": "Parahat 7, Görogly köçesi"
+          }
+        }
+      },
+      "SearchGeocodeResultDto": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "latitude": {
+            "type": "number"
+          },
+          "longitude": {
+            "type": "number"
+          },
+          "aliases": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "provider": {
+            "type": "string",
+            "enum": [
+              "NOMINATIM",
+              "PHOTON"
+            ]
+          }
+        },
+        "required": [
+          "label",
+          "latitude",
+          "longitude",
+          "aliases",
+          "provider"
+        ]
+      },
+      "SearchGeocodeResponseDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SearchGeocodeResultDto"
+            }
+          },
+          "attribution": {
+            "type": "string",
+            "example": "© OpenStreetMap contributors"
+          }
+        },
+        "required": [
+          "items",
+          "attribution"
         ]
       }
     }

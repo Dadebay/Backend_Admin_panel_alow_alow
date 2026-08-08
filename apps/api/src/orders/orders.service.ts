@@ -6,8 +6,10 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import { createHash } from "node:crypto";
+import { parsePhoneNumberFromString } from "libphonenumber-js";
 import {
   CashSettlementStatus,
+  OrderSource,
   OrderStatus,
   Prisma,
   PromoType,
@@ -27,9 +29,11 @@ import { TrackingService } from "../tracking/tracking.service";
 import {
   AssignCourierDto,
   CancelOrderDto,
+  CreateAssistedOrderDto,
   CreateOrderDto,
   ListOrdersQueryDto,
   RateOrderDto,
+  SearchAssistedCustomersQueryDto,
   TransitionOrderDto,
 } from "./orders.dto";
 import { assertOrderTransition, canCancelOrder } from "./order-policy";
@@ -71,7 +75,9 @@ const detailInclude = {
     },
   },
 };
-type OrderWithDetails = Prisma.OrderGetPayload<{ include: typeof detailInclude }>;
+type OrderWithDetails = Prisma.OrderGetPayload<{
+  include: typeof detailInclude;
+}>;
 
 /** Flattens each item's joined `product.images` down to the single
  * `productImageUrl` the client actually needs, instead of shipping the
@@ -156,7 +162,153 @@ export class OrdersService {
     void this.notifications.sendDirectPush(customerId, message);
   }
 
-  async create(user: AuthUser, dto: CreateOrderDto) {
+  create(user: AuthUser, dto: CreateOrderDto) {
+    return this.prisma.$transaction((tx) =>
+      this.createForCustomer(tx, {
+        actorId: user.id,
+        customerId: user.id,
+        dto,
+        source: OrderSource.CUSTOMER_APP,
+      }),
+    );
+  }
+
+  async searchAssistedCustomers(query: SearchAssistedCustomersQueryDto) {
+    const digits = query.phone.replace(/\D/g, "");
+    const phoneFragment = digits.startsWith("993") ? `+${digits}` : digits;
+    const items = await this.prisma.user.findMany({
+      where: {
+        role: Role.CUSTOMER,
+        isActive: true,
+        phone: { contains: phoneFragment },
+      },
+      select: {
+        id: true,
+        phone: true,
+        firstName: true,
+        lastName: true,
+        addresses: {
+          select: {
+            id: true,
+            label: true,
+            address: true,
+            latitude: true,
+            longitude: true,
+            entrance: true,
+            floor: true,
+            apartment: true,
+            isActive: true,
+          },
+          orderBy: [
+            { isActive: "desc" },
+            { lastUsedAt: { sort: "desc", nulls: "last" } },
+            { createdAt: "desc" },
+          ],
+        },
+      },
+      orderBy: { createdAt: "desc" },
+      take: query.limit,
+    });
+    return toApiResponse({ items });
+  }
+
+  createAssisted(actor: AuthUser, dto: CreateAssistedOrderDto) {
+    const { customerPhone, customerFirstName, customerLastName, ...orderDto } =
+      dto;
+    return this.prisma.$transaction(async (tx) => {
+      const customer = await this.resolveAssistedCustomer(tx, actor, {
+        phone: customerPhone,
+        firstName: customerFirstName,
+        lastName: customerLastName,
+      });
+      return this.createForCustomer(tx, {
+        actorId: actor.id,
+        customerId: customer.id,
+        dto: orderDto,
+        source: OrderSource.STAFF_PHONE,
+      });
+    });
+  }
+
+  private async resolveAssistedCustomer(
+    tx: Prisma.TransactionClient,
+    actor: AuthUser,
+    input: { phone: string; firstName?: string; lastName?: string },
+  ) {
+    const phone = this.normalizePhone(input.phone);
+    const existingBeforeUpsert = await tx.user.findUnique({ where: { phone } });
+    const existing =
+      existingBeforeUpsert ??
+      (await tx.user.upsert({
+        where: { phone },
+        create: {
+          phone,
+          role: Role.CUSTOMER,
+          firstName: input.firstName?.trim() || undefined,
+          lastName: input.lastName?.trim() || undefined,
+        },
+        update: {},
+      }));
+    if (existing.role !== Role.CUSTOMER) {
+      throw new ConflictException(
+        "This phone belongs to a staff account and cannot receive a customer order",
+      );
+    }
+    if (!existing.isActive) {
+      throw new ConflictException("Customer account is inactive");
+    }
+    if (!existingBeforeUpsert) {
+      await tx.auditLog.create({
+        data: {
+          actorId: actor.id,
+          action: "customer.resolved_for_phone_order",
+          entityType: "User",
+          entityId: existing.id,
+          metadata: { channel: "PHONE_ORDER" },
+        },
+      });
+      return existing;
+    }
+
+    const firstName = existing.firstName ?? (input.firstName?.trim() || null);
+    const lastName = existing.lastName ?? (input.lastName?.trim() || null);
+    if (firstName === existing.firstName && lastName === existing.lastName) {
+      return existing;
+    }
+    const updated = await tx.user.update({
+      where: { id: existing.id },
+      data: { firstName, lastName },
+    });
+    await tx.auditLog.create({
+      data: {
+        actorId: actor.id,
+        action: "customer.profile_completed_by_staff",
+        entityType: "User",
+        entityId: updated.id,
+        metadata: { channel: "PHONE_ORDER" },
+      },
+    });
+    return updated;
+  }
+
+  private normalizePhone(value: string) {
+    const parsed = parsePhoneNumberFromString(value, "TM");
+    if (!parsed?.isValid()) {
+      throw new BadRequestException("Phone number is invalid");
+    }
+    return parsed.number;
+  }
+
+  private async createForCustomer(
+    tx: Prisma.TransactionClient,
+    input: {
+      actorId: string;
+      customerId: string;
+      dto: CreateOrderDto;
+      source: OrderSource;
+    },
+  ) {
+    const { actorId, customerId, dto, source } = input;
     const quantityByProduct = new Map<string, number>();
     for (const item of dto.items) {
       quantityByProduct.set(
@@ -165,7 +317,7 @@ export class OrdersService {
       );
     }
 
-    const products = await this.prisma.product.findMany({
+    const products = await tx.product.findMany({
       where: {
         id: { in: [...quantityByProduct.keys()] },
         isActive: true,
@@ -183,7 +335,7 @@ export class OrdersService {
     );
     const now = new Date();
     const promo = dto.promoCode
-      ? await this.prisma.promoCode.findUnique({
+      ? await tx.promoCode.findUnique({
           where: { code: dto.promoCode.trim().toUpperCase() },
         })
       : null;
@@ -201,8 +353,8 @@ export class OrdersService {
       ) {
         throw new BadRequestException("Promo code is unavailable");
       }
-      const usedByCustomer = await this.prisma.promoRedemption.count({
-        where: { promoCodeId: promo.id, userId: user.id },
+      const usedByCustomer = await tx.promoRedemption.count({
+        where: { promoCodeId: promo.id, userId: customerId },
       });
       if (usedByCustomer >= promo.perUserLimit) {
         throw new BadRequestException("Promo code usage limit reached");
@@ -220,96 +372,101 @@ export class OrdersService {
     const deliveryFee = subtotal >= 150 ? 0 : 15;
     const total = Math.max(0, subtotal - discount + deliveryFee);
 
-    return this.prisma.$transaction(async (tx) => {
-      const selectedAddress = await this.addresses.selectForOrder(
-        tx,
-        user.id,
-        dto,
-      );
-      const nearest = await this.branches.findNearestActive(tx, {
-        latitude: Number(selectedAddress.latitude),
-        longitude: Number(selectedAddress.longitude),
-      });
+    const selectedAddress = await this.addresses.selectForOrder(
+      tx,
+      customerId,
+      dto,
+      actorId,
+    );
+    const nearest = await this.branches.findNearestActive(tx, {
+      latitude: Number(selectedAddress.latitude),
+      longitude: Number(selectedAddress.longitude),
+    });
 
-      if (promo) {
-        const incremented = await tx.promoCode.updateMany({
-          where: {
-            id: promo.id,
-            usedCount: promo.usedCount,
-            ...(promo.totalUsageLimit != null
-              ? { usedCount: { lt: promo.totalUsageLimit } }
-              : {}),
-          },
-          data: { usedCount: { increment: 1 } },
-        });
-        if (incremented.count !== 1) {
-          throw new ConflictException("Promo code was just exhausted");
-        }
-      }
-
-      const order = await tx.order.create({
-        data: {
-          customerId: user.id,
-          branchId: nearest.branch.id,
-          promoCodeId: promo?.id,
-          addressId: selectedAddress.id,
-          subtotal,
-          discount,
-          deliveryFee,
-          total,
-          address: selectedAddress.address,
-          latitude: selectedAddress.latitude,
-          longitude: selectedAddress.longitude,
-          entrance: selectedAddress.entrance,
-          floor: selectedAddress.floor,
-          apartment: selectedAddress.apartment,
-          branchName: nearest.branch.name,
-          branchAddress: nearest.branch.address,
-          branchLatitude: nearest.branch.latitude,
-          branchLongitude: nearest.branch.longitude,
-          branchDistanceMeters: nearest.distanceMeters,
-          customerNote: dto.customerNote,
-          items: {
-            create: products.map((product) => {
-              const quantity = quantityByProduct.get(product.id) ?? 0;
-              return {
-                productId: product.id,
-                productName: product.name,
-                unitPrice: product.price,
-                quantity,
-                lineTotal: Number(product.price) * quantity,
-              };
-            }),
-          },
-          ...(promo
-            ? {
-                promoRedemption: {
-                  create: {
-                    promoCodeId: promo.id,
-                    userId: user.id,
-                  },
-                },
-              }
+    if (promo) {
+      const incremented = await tx.promoCode.updateMany({
+        where: {
+          id: promo.id,
+          usedCount: promo.usedCount,
+          ...(promo.totalUsageLimit != null
+            ? { usedCount: { lt: promo.totalUsageLimit } }
             : {}),
         },
-        include: detailInclude,
+        data: { usedCount: { increment: 1 } },
       });
-      await tx.auditLog.create({
-        data: {
-          actorId: user.id,
-          action: "order.created",
-          entityType: "Order",
-          entityId: order.id,
-          metadata: {
-            number: order.number,
-            total,
-            branchId: nearest.branch.id,
-            branchDistanceMeters: nearest.distanceMeters,
-          },
+      if (incremented.count !== 1) {
+        throw new ConflictException("Promo code was just exhausted");
+      }
+    }
+
+    const order = await tx.order.create({
+      data: {
+        customerId,
+        source,
+        branchId: nearest.branch.id,
+        promoCodeId: promo?.id,
+        addressId: selectedAddress.id,
+        subtotal,
+        discount,
+        deliveryFee,
+        total,
+        address: selectedAddress.address,
+        latitude: selectedAddress.latitude,
+        longitude: selectedAddress.longitude,
+        entrance: selectedAddress.entrance,
+        floor: selectedAddress.floor,
+        apartment: selectedAddress.apartment,
+        branchName: nearest.branch.name,
+        branchAddress: nearest.branch.address,
+        branchLatitude: nearest.branch.latitude,
+        branchLongitude: nearest.branch.longitude,
+        branchDistanceMeters: nearest.distanceMeters,
+        customerNote: dto.customerNote,
+        items: {
+          create: products.map((product) => {
+            const quantity = quantityByProduct.get(product.id) ?? 0;
+            return {
+              productId: product.id,
+              productName: product.name,
+              unitPrice: product.price,
+              quantity,
+              lineTotal: Number(product.price) * quantity,
+            };
+          }),
         },
-      });
-      return toApiResponse(withItemImages(order));
+        ...(promo
+          ? {
+              promoRedemption: {
+                create: {
+                  promoCodeId: promo.id,
+                  userId: customerId,
+                },
+              },
+            }
+          : {}),
+      },
+      include: detailInclude,
     });
+    await tx.auditLog.create({
+      data: {
+        actorId,
+        action:
+          source === OrderSource.STAFF_PHONE
+            ? "order.created_by_staff"
+            : "order.created",
+        entityType: "Order",
+        entityId: order.id,
+        metadata: {
+          number: order.number,
+          total,
+          source,
+          customerId,
+          branchId: nearest.branch.id,
+          branchDistanceMeters: nearest.distanceMeters,
+        },
+      },
+    });
+    return toApiResponse(withItemImages(order));
   }
 
   async list(user: AuthUser, query: ListOrdersQueryDto) {
@@ -708,10 +865,7 @@ export class OrdersService {
         where: {
           courierId,
           status: {
-            in: [
-              OrderStatus.ASSIGNED_TO_COURIER,
-              OrderStatus.OUT_FOR_DELIVERY,
-            ],
+            in: [OrderStatus.ASSIGNED_TO_COURIER, OrderStatus.OUT_FOR_DELIVERY],
           },
         },
         include: {

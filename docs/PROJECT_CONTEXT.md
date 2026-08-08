@@ -49,6 +49,11 @@ capacity or a separate host.
 - A private OSRM driving engine built from the Turkmenistan OpenStreetMap
   extract. NestJS is its only consumer and exposes normalized, authorized
   courier routes; mobile clients never call OSRM directly.
+- A server-side geocoding adapter provides explicit Turkmenistan place search
+  and reverse geocoding. Provider origins are environment-configurable;
+  low-volume development defaults to Nominatim with Photon fallback, bounded
+  caching, and serialized primary-provider requests. Public Nominatim is never
+  used for autocomplete.
 - React 19, Vite 8, Swagger/OpenAPI-generated TypeScript schema.
 - Local Docker services: PostgreSQL, Redis, MinIO.
 - GitHub Actions CI/CD with GHCR API, migration and static admin images.
@@ -117,6 +122,7 @@ alowalow/
 │   │   │   ├── orders/    # workflow, assignment, route, rating, cash
 │   │   │   ├── tracking/  # courier GPS and dispatch map snapshot
 │   │   │   ├── routing/   # validated private OSRM adapter
+│   │   │   ├── geocoding/ # provider-swappable OSM search/reverse adapter
 │   │   │   ├── common/    # guards, decorators, shared HTTP types
 │   │   │   ├── config/    # validated environment configuration
 │   │   │   ├── prisma/    # Prisma service/module
@@ -132,9 +138,9 @@ alowalow/
 │       ├── .openai/hosting.json # existing private Sites project
 │       ├── src/            # FSD product layers
 │       │   ├── app/        # SPA bootstrap, routes, providers, global styles
-│       │   ├── widgets/    # dashboards, boards, maps, management screens
-│       │   ├── features/   # domain mutations, incl. notification campaigns
-│       │   ├── entities/   # typed domain queries/models, incl. notifications
+│       │   ├── widgets/    # boards/maps/managers, incl. assisted phone order
+│       │   ├── features/   # typed mutations, incl. assisted order creation
+│       │   ├── entities/   # typed queries/models, incl. customer/geocoding
 │       │   └── shared/     # HTTP/query clients, auth, Zod form helpers, UI
 │       ├── public/
 │       ├── tests/
@@ -173,7 +179,8 @@ Prisma access in React, or duplicate backend policies in client state.
 
 - `CUSTOMER`: own addresses, orders, cancellation where allowed, rating.
 - `OPERATOR`: confirms orders, sends them to kitchen, assigns couriers,
-  receives returned cash, and may cancel before cooking starts.
+  receives returned cash, may cancel before cooking starts, and may create a
+  cash order for a caller through the assisted-order API/admin form.
 - `COOK`: accepts `SENT_TO_KITCHEN` orders and marks them `COOKING`/`READY`.
 - `COURIER`: handles only assigned orders and returns collected cash.
 - `ACCOUNTANT`: performs final cash reconciliation.
@@ -183,6 +190,10 @@ Prisma access in React, or duplicate backend policies in client state.
 
 Only `ADMIN` and `SUPER_ADMIN` may create or retry a customer notification
 campaign. `OPERATOR`, `COOK`, `COURIER`, and `ACCOUNTANT` cannot send broadcasts.
+
+Only `OPERATOR`, `ADMIN`, and `SUPER_ADMIN` may create a phone-assisted order.
+The regular customer order endpoint accepts only `CUSTOMER`; staff cannot use
+their own staff account as the customer of an ordinary order.
 
 Only `SUPER_ADMIN` may manage another `SUPER_ADMIN`, and the system must retain
 at least one active `SUPER_ADMIN`.
@@ -314,6 +325,13 @@ heights; visual density must not be reduced to the previous pale compact map.
 - A newly created or selected address becomes active.
 - The address used by the latest order becomes the active/default address.
 - Orders keep an immutable snapshot of address and product price/name data.
+- An operator/admin phone order resolves an existing active customer by phone
+  or creates a `CUSTOMER` record without issuing OTP, JWT, or refresh tokens.
+  A staff phone number or inactive customer is rejected. Staff may reuse one
+  of that customer's saved addresses or save a new map-selected address with
+  an editable official/unofficial description. Every such order is marked
+  `STAFF_PHONE`, keeps the normal audit trail, prices/promos/branch rules, and
+  remains otherwise identical to a customer-app order.
 - A new order is assigned inside its creation transaction to the nearest active
   branch by straight-line Haversine distance from the selected delivery address.
 - The order stores `branchId`, the computed distance, and an immutable branch
@@ -344,10 +362,11 @@ endpoint.
 
 ## Customer notifications
 
-- An authenticated `CUSTOMER` registers or refreshes their own Firebase
-  Installation ID (FID). The same installation may move to a new authenticated
-  customer after logout/login, but one customer cannot deactivate another
-  customer's device.
+- An authenticated `CUSTOMER` registers or refreshes their own FCM registration
+  token. The legacy API field is still named `installationId`, but it contains
+  the token used by Firebase Admin SDK. The same device may move to a new
+  authenticated customer after logout/login, but one customer cannot
+  deactivate another customer's device.
 - `ADMIN` and `SUPER_ADMIN` create immediate broadcasts to all active customers.
   External URLs are rejected; an optional deep link must be an internal
   application path.
@@ -374,6 +393,14 @@ Current status:
 - administrators manage branch addresses and choose branch locations only with
   a map marker in a lazy-loaded FSD screen; the order board can filter by branch
   and shows the assigned distance;
+- operators/admins can open a lazy phone-order flow from the order board, find
+  a caller by phone, automatically select an exact phone match, prefill the
+  active or last-used saved address while still offering every saved address,
+  select active catalog items,
+  perform an explicit OSM address search, edit an unofficial landmark, or put
+  a draggable marker on the large map. TanStack Query owns all remote data,
+  React Hook Form/Zod validate the form, and the backend computes the final
+  amount and nearest branch;
 - order details show the real status timeline plus the customer's five-star
   rating and comment returned by the API;
 - the dispatch map and courier GPS-sharing screen use Redis-backed tracking;
@@ -497,6 +524,14 @@ raw / 63.1 KB gzip and adds the notification manager only as a lazy 8.0 KB /
 form and TanStack chunks, performs no request before an authorized admin opens
 it, and polls every three seconds only while a visible campaign is `PENDING` or
 `SENDING`; terminal history has no background polling.
+
+The 2026-08-08 assisted-order build measures the static SPA bootstrap at
+203.3 KB raw / 63.8 KB gzip and CSS at 87.4 KB / 22.1 KB gzip. The order board
+remains a separate 17.3 KB / 5.2 KB gzip chunk. The phone-order flow is loaded
+only after an authorized operator opens it (18.8 KB / 5.7 KB gzip); its marker
+picker is another 1.3 KB / 0.7 KB gzip chunk and the shared Leaflet runtime
+remains isolated at 153.4 KB / 44.9 KB gzip. Address/customer search has no
+keystroke autocomplete or polling loop; requests happen only on explicit submit.
 
 ## Decision log
 
@@ -624,7 +659,15 @@ it, and polls every three seconds only while a visible campaign is `PENDING` or
 - 2026-08-02: customer push notifications became a durable backend capability.
   `ADMIN`/`SUPER_ADMIN` create immediate all-customer campaigns, PostgreSQL
   stores customer inbox and per-device delivery results, and a restart-safe
-  worker sends through FCM in batches. Mobile devices register current Firebase
-  Installation IDs against the existing customer JWT; Firebase Auth is not
+  worker sends through FCM in batches. Mobile devices register current FCM
+  registration tokens against the existing customer JWT; Firebase Auth is not
   used. The lazy FSD admin screen uses the generated Swagger contract and polls
   only while a visible campaign is pending or sending.
+- 2026-08-08: operator-assisted phone orders became a first-class API and lazy
+  admin workflow. `OPERATOR`/`ADMIN` may resolve or create a caller by phone
+  without issuing a session, choose dishes and a saved/new address, and submit
+  a `STAFF_PHONE` cash order through the same backend pricing, promo, nearest
+  branch, address activation, immutable snapshots, and audit logic used by the
+  customer flow. Address lookup is explicit-submit server-side geocoding with
+  a manual unofficial-landmark and draggable-map fallback; public Nominatim is
+  rate-limited/cached and its endpoints are replaceable through environment.

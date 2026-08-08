@@ -60,8 +60,9 @@ export class AuthService {
       // so a down SMS gateway (eg. the android_pull phone being offline)
       // doesn't block testing the login flow — only production requires
       // delivery to actually succeed.
+      const detail = error instanceof Error ? error.message : "unknown error";
       this.logger.warn(
-        `SMS delivery failed for ${phone}, continuing in development mode: ${error instanceof Error ? error.message : error}`,
+        `SMS delivery failed for ${phone}, continuing in development mode: ${detail}`,
       );
     }
 

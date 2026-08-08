@@ -21,13 +21,16 @@ import { Role } from "../generated/prisma/client";
 import {
   AssignCourierDto,
   CancelOrderDto,
+  CreateAssistedOrderDto,
   CreateOrderDto,
   ListOrdersQueryDto,
   RateOrderDto,
+  SearchAssistedCustomersQueryDto,
   TransitionOrderDto,
 } from "./orders.dto";
 import { OrdersService } from "./orders.service";
 import {
+  AssistedCustomerListResponseDto,
   CourierRouteResponseDto,
   OrderListResponseDto,
   OrderRatingResponseDto,
@@ -41,20 +44,41 @@ export class OrdersController {
   constructor(private readonly orders: OrdersService) {}
 
   @Post()
-  @Roles(Role.CUSTOMER, Role.ADMIN)
+  @Roles(Role.CUSTOMER)
   @ApiOperation({ summary: "Create a cash-on-delivery order" })
   @ApiCreatedResponse({ type: OrderResponseDto })
   create(@CurrentUser() user: AuthUser, @Body() dto: CreateOrderDto) {
     return this.orders.create(user, dto);
   }
 
+  @Get("assisted/customers")
+  @Roles(Role.OPERATOR, Role.ADMIN)
+  @ApiOperation({
+    summary: "Find customers by phone for an operator-assisted order",
+  })
+  @ApiOkResponse({ type: AssistedCustomerListResponseDto })
+  assistedCustomers(@Query() query: SearchAssistedCustomersQueryDto) {
+    return this.orders.searchAssistedCustomers(query);
+  }
+
+  @Post("assisted")
+  @Roles(Role.OPERATOR, Role.ADMIN)
+  @ApiOperation({
+    summary:
+      "Create a cash order for a caller without issuing a customer session",
+  })
+  @ApiCreatedResponse({ type: OrderResponseDto })
+  createAssisted(
+    @CurrentUser() actor: AuthUser,
+    @Body() dto: CreateAssistedOrderDto,
+  ) {
+    return this.orders.createAssisted(actor, dto);
+  }
+
   @Get()
   @ApiOperation({ summary: "List orders visible to the current role" })
   @ApiOkResponse({ type: OrderListResponseDto })
-  list(
-    @CurrentUser() user: AuthUser,
-    @Query() query: ListOrdersQueryDto,
-  ) {
+  list(@CurrentUser() user: AuthUser, @Query() query: ListOrdersQueryDto) {
     return this.orders.list(user, query);
   }
 
@@ -74,19 +98,14 @@ export class OrdersController {
     summary: "Get the same stops and road route shown to a selected courier",
   })
   @ApiOkResponse({ type: CourierRouteResponseDto })
-  dispatchRoute(
-    @Param("courierId", ParseUUIDPipe) courierId: string,
-  ) {
+  dispatchRoute(@Param("courierId", ParseUUIDPipe) courierId: string) {
     return this.orders.dispatchCourierRoute(courierId);
   }
 
   @Get(":id")
   @ApiOperation({ summary: "Get order details and transition history" })
   @ApiOkResponse({ type: OrderResponseDto })
-  get(
-    @CurrentUser() user: AuthUser,
-    @Param("id", ParseUUIDPipe) id: string,
-  ) {
+  get(@CurrentUser() user: AuthUser, @Param("id", ParseUUIDPipe) id: string) {
     return this.orders.getById(user, id);
   }
 

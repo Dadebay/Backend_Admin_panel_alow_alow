@@ -1,6 +1,7 @@
 import { ApiProperty } from "@nestjs/swagger";
 import {
   CashSettlementStatus,
+  OrderSource,
   OrderStatus,
   PaymentMethod,
   Role,
@@ -18,6 +19,45 @@ export class OrderCustomerResponseDto {
 
   @ApiProperty({ type: String, nullable: true })
   lastName: string | null;
+}
+
+export class AssistedCustomerAddressResponseDto {
+  @ApiProperty({ format: "uuid" })
+  id: string;
+
+  @ApiProperty({ type: String, nullable: true })
+  label: string | null;
+
+  @ApiProperty()
+  address: string;
+
+  @ApiProperty()
+  latitude: number;
+
+  @ApiProperty()
+  longitude: number;
+
+  @ApiProperty({ type: String, nullable: true })
+  entrance: string | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  floor: string | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  apartment: string | null;
+
+  @ApiProperty()
+  isActive: boolean;
+}
+
+export class AssistedCustomerResponseDto extends OrderCustomerResponseDto {
+  @ApiProperty({ type: [AssistedCustomerAddressResponseDto] })
+  addresses: AssistedCustomerAddressResponseDto[];
+}
+
+export class AssistedCustomerListResponseDto {
+  @ApiProperty({ type: [AssistedCustomerResponseDto] })
+  items: AssistedCustomerResponseDto[];
 }
 
 export class OrderStaffResponseDto {
@@ -210,6 +250,9 @@ export class OrderResponseDto {
 
   @ApiProperty({ enum: OrderStatus })
   status: OrderStatus;
+
+  @ApiProperty({ enum: OrderSource })
+  source: OrderSource;
 
   @ApiProperty({ enum: PaymentMethod })
   paymentMethod: PaymentMethod;

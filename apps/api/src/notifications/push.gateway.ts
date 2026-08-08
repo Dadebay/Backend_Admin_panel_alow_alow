@@ -1,5 +1,6 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
+import { createHash } from "node:crypto";
 import {
   cert,
   getApps,
@@ -52,7 +53,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
       },
       (error) => {
         clearTimeout(timer);
-        reject(error);
+        reject(asError(error));
       },
     );
   });
@@ -76,9 +77,23 @@ function errorCode(error: unknown) {
 function errorDetail(error: unknown): string {
   if (error instanceof Error) return `${error.name}: ${error.message}`;
   if (error && typeof error === "object" && "message" in error) {
-    return String((error as { message: unknown }).message);
+    return String(error.message);
   }
   return String(error);
+}
+
+type CodedError = Error & { code?: string };
+
+function asError(error: unknown): CodedError {
+  if (error instanceof Error) return error;
+  const normalized: CodedError = new Error(errorDetail(error));
+  const code = errorCode(error);
+  if (code !== "messaging/unknown-error") normalized.code = code;
+  return normalized;
+}
+
+function installationFingerprint(installationId: string) {
+  return createHash("sha256").update(installationId).digest("hex").slice(0, 12);
 }
 
 function isInvalidInstallation(code: string) {
@@ -157,7 +172,7 @@ export class PushGateway {
           const code = item.success ? null : errorCode(item.error);
           if (!item.success) {
             this.logger.warn(
-              `FCM rejected installation ${target.installationId}: ${code} — ${errorDetail(item.error)}`,
+              `FCM rejected installation ${installationFingerprint(target.installationId)}: ${code} — ${errorDetail(item.error)}`,
             );
           }
           results.push({

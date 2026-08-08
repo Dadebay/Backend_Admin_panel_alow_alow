@@ -5,6 +5,9 @@ export type AppEnv = {
   REDIS_URL: string;
   ROUTING_URL: string;
   ROUTING_TIMEOUT_MS: number;
+  GEOCODING_PRIMARY_URL: string;
+  GEOCODING_FALLBACK_URL: string;
+  GEOCODING_USER_AGENT: string;
   JWT_ACCESS_SECRET: string;
   OTP_PEPPER: string;
   SMS_PROVIDER: "android_pull" | "console";
@@ -74,6 +77,18 @@ export function validateEnv(source: Record<string, unknown>): AppEnv {
     /\/$/,
     "",
   );
+  const geocodingPrimaryUrl = text(
+    "GEOCODING_PRIMARY_URL",
+    "https://nominatim.openstreetmap.org",
+  ).replace(/\/+$/, "");
+  const geocodingFallbackUrl = text(
+    "GEOCODING_FALLBACK_URL",
+    "https://photon.komoot.io",
+  ).replace(/\/+$/, "");
+  const geocodingUserAgent = text(
+    "GEOCODING_USER_AGENT",
+    "AlowAlow-Delivery/1.0",
+  ).trim();
   const smsProvider = text("SMS_PROVIDER", isProduction ? "" : "console");
   const smsGatewayDeviceId = text(
     "SMS_GATEWAY_DEVICE_ID",
@@ -115,6 +130,37 @@ export function validateEnv(source: Record<string, unknown>): AppEnv {
   ) {
     throw new Error(
       "ROUTING_URL must be an HTTP origin without credentials, path, query or fragment",
+    );
+  }
+  for (const [key, value] of [
+    ["GEOCODING_PRIMARY_URL", geocodingPrimaryUrl],
+    ["GEOCODING_FALLBACK_URL", geocodingFallbackUrl],
+  ] as const) {
+    let parsed: URL;
+    try {
+      parsed = new URL(value);
+    } catch {
+      throw new Error(`${key} must be a valid HTTP URL`);
+    }
+    if (
+      !["http:", "https:"].includes(parsed.protocol) ||
+      parsed.username ||
+      parsed.password ||
+      parsed.search ||
+      parsed.hash
+    ) {
+      throw new Error(
+        `${key} must be an HTTP URL without credentials, query or fragment`,
+      );
+    }
+  }
+  if (
+    geocodingUserAgent.length < 8 ||
+    geocodingUserAgent.length > 160 ||
+    /[\r\n]/.test(geocodingUserAgent)
+  ) {
+    throw new Error(
+      "GEOCODING_USER_AGENT must contain 8 to 160 safe characters",
     );
   }
   if (
@@ -294,6 +340,9 @@ export function validateEnv(source: Record<string, unknown>): AppEnv {
     REDIS_URL: redisUrl,
     ROUTING_URL: routingUrl,
     ROUTING_TIMEOUT_MS: routingTimeoutMs,
+    GEOCODING_PRIMARY_URL: geocodingPrimaryUrl,
+    GEOCODING_FALLBACK_URL: geocodingFallbackUrl,
+    GEOCODING_USER_AGENT: geocodingUserAgent,
     JWT_ACCESS_SECRET: jwtSecret,
     OTP_PEPPER: otpPepper,
     SMS_PROVIDER: smsProvider as AppEnv["SMS_PROVIDER"],

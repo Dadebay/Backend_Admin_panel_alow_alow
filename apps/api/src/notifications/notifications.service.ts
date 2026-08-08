@@ -113,7 +113,10 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
         `Direct push "${message.title}" to user ${userId}: ${sent}/${results.length} delivered`,
       );
     } catch (error) {
-      const detail = error instanceof Error ? (error.stack ?? error.message) : String(error);
+      const detail =
+        error instanceof Error
+          ? `${error.name}: ${error.message}`
+          : "unknown provider error";
       this.logger.warn(`Direct push to user ${userId} failed: ${detail}`);
       // Best-effort — the order status change itself already succeeded.
     }

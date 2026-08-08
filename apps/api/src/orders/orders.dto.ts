@@ -9,11 +9,14 @@ import {
   IsLatitude,
   IsLongitude,
   IsOptional,
+  IsPhoneNumber,
   IsString,
   IsUUID,
+  Matches,
   Max,
   MaxLength,
   Min,
+  MinLength,
   ValidateNested,
 } from "class-validator";
 import { OrderStatus } from "../generated/prisma/client";
@@ -103,6 +106,44 @@ export class CreateOrderDto {
   @IsString()
   @MaxLength(40)
   promoCode?: string;
+}
+
+export class CreateAssistedOrderDto extends CreateOrderDto {
+  @ApiProperty({ example: "+99365123456" })
+  @IsPhoneNumber()
+  customerPhone: string;
+
+  @ApiPropertyOptional({ example: "Aman" })
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  customerFirstName?: string;
+
+  @ApiPropertyOptional({ example: "Ataýew" })
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  customerLastName?: string;
+}
+
+export class SearchAssistedCustomersQueryDto {
+  @ApiProperty({
+    example: "6512",
+    description: "At least four phone digits; spaces and + are accepted",
+  })
+  @IsString()
+  @MinLength(4)
+  @MaxLength(24)
+  @Matches(/^[+\d\s()-]+$/)
+  phone: string;
+
+  @ApiPropertyOptional({ default: 10, minimum: 1, maximum: 10 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(10)
+  limit = 10;
 }
 
 export class TransitionOrderDto {

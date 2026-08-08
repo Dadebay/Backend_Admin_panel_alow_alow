@@ -28,6 +28,7 @@ import { GeocodingModule } from "./geocoding/geocoding.module";
     ConfigModule.forRoot({
       isGlobal: true,
       cache: true,
+      ignoreEnvFile: process.env.NODE_ENV === "test",
       validate: validateEnv,
     }),
     JwtModule.registerAsync({

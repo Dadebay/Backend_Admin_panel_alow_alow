@@ -17,6 +17,10 @@ import {
 import { orderSearchFormSchema } from "../src/widgets/order-board/model/order-search-form.ts";
 import { notificationFormSchema } from "../src/widgets/notification-manager/model/notification-form.ts";
 import { staffFormSchema } from "../src/widgets/staff-manager/model/staff-form.ts";
+import {
+  assistedOrderFormSchema,
+  normalizeAssistedOrderCoordinates,
+} from "../src/widgets/assisted-order/model/assisted-order-form.ts";
 
 test("OTP schemas validate Turkmen phone and six-digit verification code", () => {
   assert.equal(
@@ -45,12 +49,14 @@ test("branch and staff forms trim values and validate required fields", () => {
       phone: "",
       address: "  Atatürk köçesi  ",
       isActive: true,
+      isPrimary: false,
     }),
     {
       name: "Berkarar",
       phone: undefined,
       address: "Atatürk köçesi",
       isActive: true,
+      isPrimary: false,
     },
   );
   assert.equal(
@@ -180,6 +186,49 @@ test("notification schema accepts only internal application deep links", () => {
   );
 });
 
+test("assisted order validates the caller and keeps unofficial address text", () => {
+  const parsed = assistedOrderFormSchema.parse({
+    customerPhone: "+993 65 12 34 56",
+    customerFirstName: " Aman ",
+    customerLastName: "",
+    addressId: "",
+    addressLabel: " По телефону ",
+    address: " около школы 26, второй поворот ",
+    entrance: "",
+    floor: "",
+    apartment: "",
+    customerNote: " позвонить ",
+    promoCode: " welcome15 ",
+    addressSearch: "",
+  });
+
+  assert.equal(parsed.customerPhone, "+99365123456");
+  assert.equal(parsed.address, "около школы 26, второй поворот");
+  assert.equal(parsed.promoCode, "WELCOME15");
+  assert.equal(
+    assistedOrderFormSchema.safeParse({
+      customerPhone: "+99365123456",
+      customerFirstName: "",
+      customerLastName: "",
+      addressId: "",
+      addressLabel: "",
+      address: "",
+      entrance: "",
+      floor: "",
+      apartment: "",
+      customerNote: "",
+      promoCode: "",
+      addressSearch: "",
+    }).success,
+    false,
+  );
+  assert.deepEqual(normalizeAssistedOrderCoordinates(37.960123456, 58.3261), {
+    latitude: 37.9601235,
+    longitude: 58.3261,
+  });
+  assert.equal(normalizeAssistedOrderCoordinates(91, 58.3261), null);
+});
+
 test("every admin form uses React Hook Form instead of manual FormData", async () => {
   const formFiles = [
     "../src/features/otp-login/ui/otp-login-card.tsx",
@@ -187,6 +236,7 @@ test("every admin form uses React Hook Form instead of manual FormData", async (
     "../src/widgets/catalog-manager/ui/catalog-manager.tsx",
     "../src/widgets/marketing-manager/ui/marketing-manager.tsx",
     "../src/widgets/order-board/ui/order-board.tsx",
+    "../src/widgets/assisted-order/ui/assisted-order-dialog.tsx",
     "../src/widgets/notification-manager/ui/notification-manager.tsx",
     "../src/widgets/staff-manager/ui/staff-manager.tsx",
   ];

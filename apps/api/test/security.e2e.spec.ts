@@ -6,7 +6,12 @@ import request from "supertest";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { AppModule } from "../src/app.module";
 import { configureApp } from "../src/bootstrap";
-import { OrderStatus, Role, type User } from "../src/generated/prisma/client";
+import {
+  OrderSource,
+  OrderStatus,
+  Role,
+  type User,
+} from "../src/generated/prisma/client";
 import { PrismaService } from "../src/prisma/prisma.service";
 import { OtpService } from "../src/auth/otp.service";
 import {
@@ -46,6 +51,7 @@ type AddressResponse = {
 type OrderResponse = {
   id: string;
   status: OrderStatus;
+  source: OrderSource;
   version: number;
   address: string;
   branchId: string | null;
@@ -895,6 +901,147 @@ describe("backend security and critical workflow", () => {
       .get(`/api/v1/orders/${order.id}`)
       .set(bearer(tokens.otherCustomer))
       .expect(403);
+  });
+
+  it("creates audited phone orders for callers without issuing a session", async () => {
+    const callerPhone = "+99365000301";
+    const body = {
+      customerPhone: callerPhone,
+      customerFirstName: "Phone",
+      customerLastName: "Customer",
+      items: [{ productId, quantity: 2 }],
+      addressLabel: "По телефону",
+      address: "Parahat 7, unofficial landmark",
+      latitude: 37.95021,
+      longitude: 58.38021,
+      entrance: "2",
+      customerNote: "Позвонить перед доставкой",
+    };
+
+    await request(server)
+      .post("/api/v1/orders/assisted")
+      .set(bearer(tokens.customer))
+      .send(body)
+      .expect(403);
+    await request(server)
+      .post("/api/v1/orders/assisted")
+      .set(bearer(tokens.cook))
+      .send(body)
+      .expect(403);
+    await request(server)
+      .post("/api/v1/orders")
+      .set(bearer(tokens.admin))
+      .send(body)
+      .expect(403);
+
+    const createdResponse = await request(server)
+      .post("/api/v1/orders/assisted")
+      .set(bearer(tokens.operator))
+      .send(body)
+      .expect(201);
+    const created = createdResponse.body as OrderResponse & {
+      customer: { id: string; phone: string; firstName: string | null };
+      addressId: string;
+    };
+    expect(created).toMatchObject({
+      source: OrderSource.STAFF_PHONE,
+      status: OrderStatus.NEW,
+      branchId: nearestBranchId,
+      branchName: nearestBranchName,
+      address: body.address,
+      customer: {
+        phone: callerPhone,
+        firstName: "Phone",
+      },
+    });
+
+    const caller = await prisma.user.findUniqueOrThrow({
+      where: { phone: callerPhone },
+      include: { refreshTokens: true, addresses: true },
+    });
+    expect(caller).toMatchObject({ role: Role.CUSTOMER, isActive: true });
+    expect(caller.refreshTokens).toHaveLength(0);
+    expect(caller.addresses).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: created.addressId,
+          isActive: true,
+          address: body.address,
+        }),
+      ]),
+    );
+
+    const found = await request(server)
+      .get("/api/v1/orders/assisted/customers?phone=0301")
+      .set(bearer(tokens.operator))
+      .expect(200);
+    const foundBody = found.body as {
+      items: Array<{
+        id: string;
+        phone: string;
+        addresses: Array<{ id: string }>;
+      }>;
+    };
+    const foundCaller = foundBody.items.find(({ id }) => id === caller.id);
+    expect(foundCaller).toMatchObject({ id: caller.id, phone: callerPhone });
+    expect(
+      foundCaller?.addresses.some(({ id }) => id === created.addressId),
+    ).toBe(true);
+    await request(server)
+      .get("/api/v1/orders/assisted/customers?phone=301")
+      .set(bearer(tokens.operator))
+      .expect(400);
+    await request(server)
+      .get("/api/v1/orders/assisted/customers?phone=0301")
+      .set(bearer(tokens.accountant))
+      .expect(403);
+
+    const repeated = await request(server)
+      .post("/api/v1/orders/assisted")
+      .set(bearer(tokens.admin))
+      .send({
+        customerPhone: callerPhone,
+        items: [{ productId, quantity: 1 }],
+        addressId: created.addressId,
+      })
+      .expect(201);
+    expect(repeated.body).toMatchObject({
+      source: OrderSource.STAFF_PHONE,
+      customerId: caller.id,
+      addressId: created.addressId,
+    });
+
+    await request(server)
+      .post("/api/v1/orders/assisted")
+      .set(bearer(tokens.operator))
+      .send({ ...body, customerPhone: users.operator.phone })
+      .expect(409);
+    await request(server)
+      .post("/api/v1/orders/assisted")
+      .set(bearer(tokens.operator))
+      .send({ ...body, customerPhone: users.inactive.phone })
+      .expect(409);
+
+    const audit = await prisma.auditLog.findMany({
+      where: {
+        OR: [
+          { entityType: "Order", entityId: created.id },
+          { entityType: "User", entityId: caller.id },
+        ],
+      },
+    });
+    expect(audit).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          actorId: users.operator.id,
+          action: "order.created_by_staff",
+        }),
+        expect.objectContaining({
+          actorId: users.operator.id,
+          action: "customer.resolved_for_phone_order",
+        }),
+      ]),
+    );
   });
 
   it("rejects a new order when no active branch can accept it", async () => {

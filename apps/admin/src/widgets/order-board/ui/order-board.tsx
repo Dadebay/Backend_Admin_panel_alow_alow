@@ -1,11 +1,8 @@
-import { useMemo, useState } from "react";
+import { lazy, Suspense, useMemo, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useForm } from "react-hook-form";
-import {
-  formatBranchDistance,
-  useBranches,
-} from "@/src/entities/branch";
+import { formatBranchDistance, useBranches } from "@/src/entities/branch";
 import {
   canCancel,
   nextOrderStatus,
@@ -27,6 +24,8 @@ import {
   type OrderSearchFormValues,
 } from "../model/order-search-form";
 import { OrderDetailDialog } from "./order-detail-dialog";
+
+const AssistedOrderDialog = lazy(() => import("@/src/widgets/assisted-order"));
 
 function personName(person: {
   firstName: string | null;
@@ -84,6 +83,7 @@ export function OrderBoard({
   const [branchId, setBranchId] = useState("ALL");
   const [page, setPage] = useState(1);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+  const [showAssistedOrder, setShowAssistedOrder] = useState(false);
   const [courierByOrder, setCourierByOrder] = useState<Record<string, string>>(
     {},
   );
@@ -135,6 +135,9 @@ export function OrderBoard({
               </span>
             </div>
             <small>{formatOrderDate(row.original.createdAt)}</small>
+            {row.original.source === "STAFF_PHONE" && (
+              <span className="order-source-label">Заказ по телефону</span>
+            )}
             <span className="order-item-count">
               {row.original.items.length} позиций
             </span>
@@ -201,7 +204,9 @@ export function OrderBoard({
             <strong>{Number(row.original.total).toFixed(2)} TMT</strong>
             <small>Наличными</small>
             {Number(row.original.deliveryFee) > 0 && (
-              <span>Доставка: {Number(row.original.deliveryFee).toFixed(2)} TMT</span>
+              <span>
+                Доставка: {Number(row.original.deliveryFee).toFixed(2)} TMT
+              </span>
             )}
           </div>
         ),
@@ -267,7 +272,8 @@ export function OrderBoard({
               <option value="">Выберите</option>
               {(couriers.data ?? []).map((courier) => (
                 <option key={courier.id} value={courier.id}>
-                  {personName(courier)} · {courier.courierOrders.length} в работе
+                  {personName(courier)} · {courier.courierOrders.length} в
+                  работе
                 </option>
               ))}
             </select>
@@ -360,12 +366,25 @@ export function OrderBoard({
           <h1>{title}</h1>
           <p>{description}</p>
         </div>
-        <button
-          className="secondary-button"
-          onClick={() => void orders.refetch()}
-        >
-          Обновить
-        </button>
+        <div className="header-actions">
+          {["OPERATOR", "ADMIN", "SUPER_ADMIN"].includes(role) && (
+            <button
+              className="primary-button"
+              data-testid="assisted-order-open"
+              type="button"
+              onClick={() => setShowAssistedOrder(true)}
+            >
+              + Заказ по звонку
+            </button>
+          )}
+          <button
+            className="secondary-button"
+            type="button"
+            onClick={() => void orders.refetch()}
+          >
+            Обновить
+          </button>
+        </div>
       </header>
 
       <div className="toolbar">
@@ -481,6 +500,13 @@ export function OrderBoard({
           orderId={selectedOrderId}
           onClose={() => setSelectedOrderId(null)}
         />
+      )}
+      {showAssistedOrder && (
+        <Suspense
+          fallback={<div className="async-state">Открываем форму заказа…</div>}
+        >
+          <AssistedOrderDialog onClose={() => setShowAssistedOrder(false)} />
+        </Suspense>
       )}
     </section>
   );

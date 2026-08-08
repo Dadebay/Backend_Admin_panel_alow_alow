@@ -49,7 +49,9 @@ export class NotificationsController {
   @Put("devices")
   @Roles(Role.CUSTOMER)
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
-  @ApiOperation({ summary: "Register or refresh the current mobile FCM FID" })
+  @ApiOperation({
+    summary: "Register or refresh the current mobile FCM registration token",
+  })
   @ApiOkResponse({ type: PushDeviceResponseDto })
   registerDevice(
     @CurrentUser() actor: AuthUser,

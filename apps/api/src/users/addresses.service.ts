@@ -124,6 +124,7 @@ export class AddressesService {
     tx: Prisma.TransactionClient,
     userId: string,
     input: OrderAddressInput,
+    actorId = userId,
   ): Promise<UserAddress> {
     const inlineFields = [
       input.addressLabel,
@@ -164,7 +165,7 @@ export class AddressesService {
         where: { id: input.addressId },
         data: { isActive: true, lastUsedAt: new Date() },
       });
-      await this.audit(tx, userId, "address.used_for_order", selected.id);
+      await this.audit(tx, actorId, "address.used_for_order", selected.id);
       return selected;
     }
 
@@ -181,7 +182,7 @@ export class AddressesService {
         where: { id: active.id },
         data: { lastUsedAt: new Date() },
       });
-      await this.audit(tx, userId, "address.used_for_order", selected.id);
+      await this.audit(tx, actorId, "address.used_for_order", selected.id);
       return selected;
     }
 
@@ -204,7 +205,7 @@ export class AddressesService {
         lastUsedAt: new Date(),
       },
     });
-    await this.audit(tx, userId, "address.created_from_order", created.id);
+    await this.audit(tx, actorId, "address.created_from_order", created.id);
     return created;
   }
 
@@ -226,10 +227,7 @@ export class AddressesService {
     `;
   }
 
-  private async assertCapacity(
-    tx: Prisma.TransactionClient,
-    userId: string,
-  ) {
+  private async assertCapacity(tx: Prisma.TransactionClient, userId: string) {
     const count = await tx.userAddress.count({ where: { userId } });
     if (count >= MAX_ADDRESSES_PER_USER) {
       throw new BadRequestException(

@@ -37,6 +37,11 @@ enum PaymentMethod {
   CASH
 }
 
+enum OrderSource {
+  CUSTOMER_APP
+  STAFF_PHONE
+}
+
 enum PromoType {
   PERCENT
   FIXED
@@ -303,6 +308,7 @@ model Order {
   courierId            String?           @db.Uuid
   promoCodeId          String?           @db.Uuid
   status               OrderStatus       @default(NEW)
+  source               OrderSource       @default(CUSTOMER_APP)
   paymentMethod        PaymentMethod     @default(CASH)
   subtotal             Decimal           @db.Decimal(12, 2)
   discount             Decimal           @default(0) @db.Decimal(12, 2)

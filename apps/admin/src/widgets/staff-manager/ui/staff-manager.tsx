@@ -352,7 +352,7 @@ export function StaffManager() {
             data={staff.data ?? []}
             getRowId={(member) => member.id}
             empty="Сотрудников пока нет"
-            label="Команда AlowAlow"
+            label="Команда A7-tagam"
           />
         </AsyncPanel>
       </article>

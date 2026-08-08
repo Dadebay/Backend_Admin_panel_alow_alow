@@ -1,6 +1,7 @@
 import { CourierLocationSharing } from "@/src/features/courier-location-sharing";
 import { OtpLoginCard } from "@/src/features/otp-login";
 import { useSession } from "@/src/shared/auth";
+import { BrandLogo } from "@/src/shared/ui";
 
 export function CourierTrackingScreen() {
   const { session, ready, logout } = useSession();
@@ -17,9 +18,9 @@ export function CourierTrackingScreen() {
     <main className="courier-screen" data-testid="courier-screen">
       <header className="courier-screen-head">
         <a className="brand" data-testid="courier-home-link" href="/">
-          <span className="brand-mark">A</span>
+          <BrandLogo />
           <span>
-            <strong>AlowAlow</strong>
+            <strong>A7-tagam</strong>
             <small>courier</small>
           </span>
         </a>

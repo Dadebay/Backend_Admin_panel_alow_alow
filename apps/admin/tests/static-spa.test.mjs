@@ -10,7 +10,9 @@ test("builds a static React entry document", async () => {
   const html = await readFile(clientHtmlUrl, "utf8");
 
   assert.match(html, /<div id="root" data-testid="admin-root">/);
-  assert.match(html, /AlowAlow — центр управления доставкой/);
+  assert.match(html, /A7-tagam — центр управления доставкой/);
+  assert.match(html, /\/a7-tagam-logo\.png/);
+  assert.match(html, /\/a7-tagam-logo\.webp/);
   assert.match(
     html,
     /Администрирование заказов, кухни, курьеров, каталога, промокодов и наличных/,

@@ -165,7 +165,7 @@ export function NotificationManager() {
         <div className="editor-title">
           <div>
             <h2>Новая рассылка</h2>
-            <p>Получатели: все активные клиенты AlowAlow</p>
+            <p>Получатели: все активные клиенты A7-tagam</p>
           </div>
           <span className="notification-audience">Все клиенты</span>
         </div>

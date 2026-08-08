@@ -1,11 +1,11 @@
-# AlowAlow durable project context
+# A7-tagam durable project context
 
 Update this file whenever an accepted requirement or architectural decision
 changes. It is intentionally concise and should be read before every task.
 
 ## Product
 
-AlowAlow is a cash-on-delivery food ordering platform for Ashgabat with:
+A7-tagam is a cash-on-delivery food ordering platform for Ashgabat with:
 
 - a NestJS API;
 - a pure React/Vite SPA operations admin;
@@ -28,6 +28,12 @@ migration and static Nginx admin images. The accepted server target currently
 hosts DEV only; production remains disabled until it receives adequate
 capacity or a separate host.
 
+The customer-facing brand is `A7-tagam`. Existing repository, package, service,
+deployment-directory, map-style, and storage identifiers named `alowalow`
+remain stable technical identifiers for backward compatibility. The admin uses
+the supplied hot-food delivery-bag mark and only its cream `#FEF7E7`, navy
+`#062F5E`, and orange `#EC7A1B` palette or blends derived from those colors.
+
 ## Stack and storage
 
 - Node.js 24 LTS with npm 11.6.2, NestJS 11, Prisma 7, PostgreSQL 18.
@@ -37,7 +43,7 @@ capacity or a separate host.
   acknowledges delivery. It is the only production SMS provider; console is
   development-only.
 - Firebase Cloud Messaging is the push transport for customer mobile devices.
-  Firebase never owns AlowAlow authentication, OTP, users, roles, or business
+  Firebase never owns A7-tagam authentication, OTP, users, roles, or business
   data. A PostgreSQL outbox/inbox records campaigns and delivery results;
   `console` is the non-delivering local provider.
 - Private S3-compatible object storage; MinIO locally.
@@ -305,7 +311,7 @@ compatible provider. New mobile clients use the same service's
 `/styles/alowalow/style.json` MapLibre contract. A provider homepage is never
 exposed in the branch form or treated as a raster tile endpoint.
 
-The current AlowAlow style is the local VersaTiles Colorful vector style with
+The current A7-tagam style is the local VersaTiles Colorful vector style with
 local sprites/fonts. Admin courier and branch maps use increased responsive
 heights; visual density must not be reduced to the previous pale compact map.
 
@@ -379,7 +385,7 @@ endpoint.
 - Customers may list only their own inbox, read their unread count, and mark one
   or all own notifications read. A push permission or network failure does not
   remove the durable inbox item.
-- Firebase is transport only. AlowAlow phone OTP/JWT stays authoritative, and
+- Firebase is transport only. A7-tagam phone OTP/JWT stays authoritative, and
   the FCM service account exists only in the backend runtime environment.
 
 ## Frontend status and target
@@ -533,6 +539,12 @@ picker is another 1.3 KB / 0.7 KB gzip chunk and the shared Leaflet runtime
 remains isolated at 153.4 KB / 44.9 KB gzip. Address/customer search has no
 keystroke autocomplete or polling loop; requests happen only on explicit submit.
 
+The 2026-08-08 A7-tagam brand build keeps the SPA bootstrap at 203.4 KB raw /
+63.8 KB gzip. CSS is 93.7 KB raw / 21.1 KB gzip after consolidating every UI
+color into three palette tokens and their blends. The in-app/fav icon is a
+14 KB WebP; the 940 KB PNG master is reserved for download and social metadata.
+No dependency, polling loop, or route preload was added.
+
 ## Decision log
 
 - 2026-07-27: media moved to private S3-compatible storage.
@@ -627,7 +639,7 @@ keystroke autocomplete or polling loop; requests happen only on explicit submit.
   The canonical repository is `Guvanch99/alowalow`; the old admin repository
   is archived after the monorepo push is verified. Android stays separate.
 - 2026-07-30: the accepted shared Ubuntu host was audited before mutation.
-  AlowAlow is limited to DEV in `/opt/alowalow/development`, HTTPS port `8443`,
+  A7-tagam is limited to DEV in `/opt/alowalow/development`, HTTPS port `8443`,
   and loopback ports `3001`/`4001`; the existing project and ports `80`/`443`
   remain owned by that project. DEV uses isolated, non-public PostgreSQL,
   TLS-Redis and MinIO containers with memory limits, plus a static React SPA
@@ -671,3 +683,8 @@ keystroke autocomplete or polling loop; requests happen only on explicit submit.
   customer flow. Address lookup is explicit-submit server-side geocoding with
   a manual unofficial-landmark and draggable-map fallback; public Nominatim is
   rate-limited/cached and its endpoints are replaceable through environment.
+- 2026-08-08: the customer-facing brand changed to `A7-tagam`. The React admin
+  uses the supplied hot-food delivery-bag logo for login, navigation, courier,
+  favicon, and social metadata. Its visual system is restricted to the logo's
+  cream, navy, and orange palette plus blends derived only from those colors;
+  stable technical identifiers named `alowalow` remain unchanged.

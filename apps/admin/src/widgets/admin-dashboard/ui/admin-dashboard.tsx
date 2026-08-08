@@ -2,6 +2,7 @@ import { lazy, Suspense, useState, type ReactNode } from "react";
 import { roleLabels, type Role } from "@/src/entities/order";
 import { OtpLoginCard } from "@/src/features/otp-login";
 import { useSession } from "@/src/shared/auth";
+import { BrandLogo } from "@/src/shared/ui";
 
 const OrderBoard = lazy(() =>
   import("@/src/widgets/order-board").then((module) => ({
@@ -183,7 +184,7 @@ function NavIcon({ name }: { name: NavIconName }) {
 
 function initials(firstName: string | null, lastName: string | null) {
   const value = `${firstName?.[0] ?? ""}${lastName?.[0] ?? ""}`;
-  return value || "AA";
+  return value || "A7";
 }
 
 export function AdminDashboard() {
@@ -203,9 +204,9 @@ export function AdminDashboard() {
     return (
       <main className="login-page" data-testid="admin-login">
         <div className="login-brand">
-          <span className="brand-mark">A</span>
+          <BrandLogo className="brand-logo brand-logo--login" />
           <div>
-            <h1>AlowAlow Operations</h1>
+            <h1>A7-tagam Operations</h1>
             <p>Единая админка кафе, кухни, доставки и кассы</p>
           </div>
         </div>
@@ -277,13 +278,16 @@ export function AdminDashboard() {
         />
       )}
       <aside className={`sidebar ${isNavigationOpen ? "drawer-open" : ""}`}>
-        <button className="brand" onClick={() => {
-          setView("orders");
-          setIsNavigationOpen(false);
-        }}>
-          <span className="brand-mark">A</span>
+        <button
+          className="brand"
+          onClick={() => {
+            setView("orders");
+            setIsNavigationOpen(false);
+          }}
+        >
+          <BrandLogo />
           <span>
-            <strong>AlowAlow</strong>
+            <strong>A7-tagam</strong>
             <small>Operations</small>
           </span>
         </button>

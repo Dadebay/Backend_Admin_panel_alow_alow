@@ -321,7 +321,7 @@ export function BranchManager() {
             data={branches.data ?? []}
             getRowId={(branch) => branch.id}
             empty="Филиалов пока нет. Без активного филиала новые заказы не принимаются."
-            label="Филиалы AlowAlow"
+            label="Филиалы A7-tagam"
           />
         </AsyncPanel>
       </article>

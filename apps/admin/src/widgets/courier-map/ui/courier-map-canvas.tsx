@@ -9,8 +9,9 @@ import {
   useMap,
 } from "react-leaflet";
 import type { LatLngBoundsExpression, LatLngTuple } from "leaflet";
-import { MAP_ATTRIBUTION, MAP_TILE_URL } from "@/src/shared/map";
 import type { CourierRoute } from "@/src/entities/courier";
+import { MAP_ATTRIBUTION, MAP_TILE_URL } from "@/src/shared/map";
+import { brandColors } from "@/src/shared/ui";
 import type {
   DispatchBranchDto,
   DispatchCourier,
@@ -100,11 +101,11 @@ export default function CourierMapCanvas({
         <>
           <Polyline
             positions={routeLine}
-            pathOptions={{ color: "#ffffff", weight: 10, opacity: 0.9 }}
+            pathOptions={{ color: brandColors.cream, weight: 10, opacity: 0.9 }}
           />
           <Polyline
             positions={routeLine}
-            pathOptions={{ color: "#f36b46", weight: 6, opacity: 0.95 }}
+            pathOptions={{ color: brandColors.orange, weight: 6, opacity: 0.95 }}
           />
         </>
       )}
@@ -114,8 +115,8 @@ export default function CourierMapCanvas({
           center={[branch.latitude, branch.longitude]}
           radius={10}
           pathOptions={{
-            color: "#ffffff",
-            fillColor: "#f36b46",
+            color: brandColors.cream,
+            fillColor: brandColors.orange,
             fillOpacity: 1,
             weight: 3,
           }}
@@ -140,9 +141,11 @@ export default function CourierMapCanvas({
             ]}
             radius={courier.id === selected?.id ? 11 : 8}
             pathOptions={{
-              color: "#ffffff",
+              color: brandColors.cream,
               fillColor:
-                courier.presence === "ONLINE" ? "#25323d" : "#9099a1",
+                courier.presence === "ONLINE"
+                  ? brandColors.navy
+                  : brandColors.orange,
               fillOpacity: 1,
               weight: 3,
             }}
@@ -165,8 +168,8 @@ export default function CourierMapCanvas({
           center={[order.latitude, order.longitude]}
           radius={8}
           pathOptions={{
-            color: "#ffffff",
-            fillColor: "#338f75",
+            color: brandColors.cream,
+            fillColor: brandColors.navy,
             fillOpacity: 1,
             weight: 3,
           }}

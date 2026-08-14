@@ -732,3 +732,9 @@ No dependency, polling loop, or route preload was added.
   successful quality gate. No separate `develop` or staging environment is
   maintained yet. When a second server is provisioned, branch/environment
   separation must be introduced explicitly before production launch.
+- 2026-08-15: GitHub-hosted runners cannot reach the VDS SSH service through
+  Telecom on port `22`, while the server must remain VPN-free. The same hardened
+  sshd therefore listens temporarily on both `22` and `443`; deploy jobs use a
+  validated `DEPLOY_SSH_PORT=443`, short connection timeouts, the verified host
+  key and the job-scoped GHCR token. Port `443` must be returned to Nginx and
+  the deploy transport reviewed before trusted public HTTPS is enabled.

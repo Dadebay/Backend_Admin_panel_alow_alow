@@ -406,24 +406,41 @@ jobs:
         env:
           SSH_HOST: ${{ secrets.DEPLOY_SSH_HOST || secrets.DEVELOPMENT_SSH_HOST }}
           SSH_USER: ${{ secrets.DEPLOY_SSH_USER || secrets.DEVELOPMENT_SSH_USER }}
+          SSH_PORT: ${{ vars.DEPLOY_SSH_PORT || '22' }}
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           test -n "$SSH_HOST"
           test -n "$SSH_USER"
           test -n "$GHCR_TOKEN"
+          case "$SSH_PORT" in
+            ''|*[!0-9]*) echo "SSH_PORT must be numeric" >&2; exit 1 ;;
+          esac
+          if [ "$SSH_PORT" -lt 1 ] || [ "$SSH_PORT" -gt 65535 ]; then
+            echo "SSH_PORT must be between 1 and 65535" >&2
+            exit 1
+          fi
           case "$GITHUB_ACTOR" in
             ''|*[!A-Za-z0-9_-]*) echo "Unsafe GitHub actor" >&2; exit 1 ;;
           esac
+          ssh_command=(ssh -p "$SSH_PORT" -o ConnectTimeout=30 -o ConnectionAttempts=2)
+          scp_command=(scp -P "$SSH_PORT" -o ConnectTimeout=30 -o ConnectionAttempts=2)
           cleanup_registry_login() {
-            ssh "${SSH_USER}@${SSH_HOST}" 'docker logout ghcr.io >/dev/null 2>&1 || true'
+            "${ssh_command[@]}" "${SSH_USER}@${SSH_HOST}" \
+              'docker logout ghcr.io >/dev/null 2>&1 || true'
           }
           trap cleanup_registry_login EXIT
           printf '%s' "$GHCR_TOKEN" \
-            | ssh "${SSH_USER}@${SSH_HOST}" \
+            | "${ssh_command[@]}" "${SSH_USER}@${SSH_HOST}" \
               "docker login ghcr.io --username '$GITHUB_ACTOR' --password-stdin"
-          ssh "${SSH_USER}@${SSH_HOST}" 'sudo install -d -m 750 -o "$USER" -g "$USER" /opt/alowalow/development'
-          scp deploy/compose.production.yml "${SSH_USER}@${SSH_HOST}:/opt/alowalow/development/docker-compose.production.yml"
-          scp deploy/compose.development.yml "${SSH_USER}@${SSH_HOST}:/opt/alowalow/development/docker-compose.development.yml"
-          scp deploy/deploy-production.sh "${SSH_USER}@${SSH_HOST}:/opt/alowalow/development/deploy-production.sh"
-          scp /tmp/alowalow-release.env "${SSH_USER}@${SSH_HOST}:/opt/alowalow/development/.release.pending.env"
-          ssh "${SSH_USER}@${SSH_HOST}" 'sh /opt/alowalow/development/deploy-production.sh'
+          "${ssh_command[@]}" "${SSH_USER}@${SSH_HOST}" \
+            'sudo install -d -m 750 -o "$USER" -g "$USER" /opt/alowalow/development'
+          "${scp_command[@]}" deploy/compose.production.yml \
+            "${SSH_USER}@${SSH_HOST}:/opt/alowalow/development/docker-compose.production.yml"
+          "${scp_command[@]}" deploy/compose.development.yml \
+            "${SSH_USER}@${SSH_HOST}:/opt/alowalow/development/docker-compose.development.yml"
+          "${scp_command[@]}" deploy/deploy-production.sh \
+            "${SSH_USER}@${SSH_HOST}:/opt/alowalow/development/deploy-production.sh"
+          "${scp_command[@]}" /tmp/alowalow-release.env \
+            "${SSH_USER}@${SSH_HOST}:/opt/alowalow/development/.release.pending.env"
+          "${ssh_command[@]}" "${SSH_USER}@${SSH_HOST}" \
+            'sh /opt/alowalow/development/deploy-production.sh'

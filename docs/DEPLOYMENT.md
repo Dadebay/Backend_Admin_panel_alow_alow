@@ -12,7 +12,8 @@
 | Ресурс | A7-tagam DEV |
 | --- | --- |
 | Каталог | `/opt/alowalow/development` |
-| HTTP/HTTPS | `80` для ACME/redirect, приложение на `443` |
+| HTTP/HTTPS | `80` для ACME; приложение на `443` после trusted certificate |
+| SSH | `22` для администрирования; временно `443` для GitHub deploy |
 | React SPA | `127.0.0.1:3001` |
 | NestJS API | `127.0.0.1:4001` |
 | Карта | `127.0.0.1:8080`, наружу только через `/tiles/` |
@@ -22,8 +23,9 @@
 | MinIO | отдельный Docker volume, без host-порта |
 | Compose project | `alowalow-development` |
 
-Nginx на `443` проксирует `/api/v1/*`, `/docs` и `/docs-json` в NestJS, а
-остальные запросы — в статический React/Vite SPA-контейнер. Admin собран с
+После выпуска trusted certificate Nginx на `443` проксирует `/api/v1/*`,
+`/docs` и `/docs-json` в NestJS, а остальные запросы — в статический React/Vite
+SPA-контейнер. Admin собран с
 `VITE_API_URL=/api/v1`, поэтому браузер обращается к API через тот же HTTPS
 origin. Внутри admin image нет Node.js frontend server: статические файлы
 раздаёт непривилегированный Nginx.
@@ -223,12 +225,20 @@ Environment variables:
 ```text
 API_PORT=4001
 ADMIN_PORT=3001
+DEPLOY_SSH_PORT=443
 DEVELOPMENT_CERTIFICATE_RENEWAL_ENABLED=false
 ```
 
 Используется отдельный deploy SSH key. Пароль Ubuntu не сохраняется в GitHub.
 Host key должен быть проверен заранее и сохранён целиком в
-`DEPLOY_SSH_KNOWN_HOSTS`.
+`DEPLOY_SSH_KNOWN_HOSTS`. Для нестандартного порта запись имеет вид
+`[216.250.12.132]:443 ssh-ed25519 ...`; secret содержит записи и для `22`, и
+для `443`.
+
+Международный маршрут Telecom не пропускает SSH GitHub-hosted runner на порт
+`22`, поэтому deploy временно использует тот же sshd на `443`. Это не второй
+SSH-сервер и не VPN. Перед включением Nginx HTTPS порт `443` надо вернуть Nginx,
+а deploy перевести на доступный отдельный transport.
 
 Если GHCR images приватные, deploy job передаёт свой короткоживущий
 `GITHUB_TOKEN` в `docker login` через SSH stdin и выполняет `docker logout` в

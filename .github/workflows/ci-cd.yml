@@ -3,11 +3,9 @@ name: CI/CD
 on:
   pull_request:
     branches:
-      - develop
       - main
   push:
     branches:
-      - develop
       - main
   workflow_dispatch:
 
@@ -119,7 +117,7 @@ jobs:
       - name: Upload deployable admin build
         if: >-
           (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
-          && (github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main')
+          && github.ref == 'refs/heads/main'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: alowalow-admin-${{ github.ref_name }}-${{ github.sha }}
@@ -219,7 +217,7 @@ jobs:
       - container
     if: >-
       (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
-      && github.ref == 'refs/heads/develop'
+      && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 35
     permissions:
@@ -242,7 +240,7 @@ jobs:
         shell: bash
         run: |
           repository="ghcr.io/${GITHUB_REPOSITORY,,}"
-          test "$GITHUB_REF" = "refs/heads/develop"
+          test "$GITHUB_REF" = "refs/heads/main"
           deployment_channel="development"
           echo "api_image=${repository}-api" >> "$GITHUB_OUTPUT"
           echo "migration_image=${repository}-migration" >> "$GITHUB_OUTPUT"
@@ -338,6 +336,7 @@ jobs:
       name: development
     permissions:
       contents: read
+      packages: read
     steps:
       - name: Check out repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -363,6 +362,11 @@ jobs:
           MIGRATION_DIGEST: ${{ needs.publish_images.outputs.migration_digest }}
           ADMIN_IMAGE: ${{ needs.publish_images.outputs.admin_image }}
           ADMIN_DIGEST: ${{ needs.publish_images.outputs.admin_digest }}
+          POSTGRES_IMAGE: nexus.telecom.tm/postgres:18-alpine@sha256:9a8afca54e7861fd90fab5fdf4c42477a6b1cb7d293595148e674e0a3181de15
+          REDIS_IMAGE: nexus.telecom.tm/redis:8.8.0-alpine@sha256:9d317178eceac8454a2284a9e6df2466b93c745529947f0cd42a0fa9609d7005
+          MINIO_IMAGE: nexus.telecom.tm/minio/minio:latest@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e
+          MINIO_MC_IMAGE: nexus.telecom.tm/minio/mc:latest@sha256:a7fe349ef4bd8521fb8497f55c6042871b2ae640607cf99d9bede5e9bdf11727
+          TILESERVER_IMAGE: nexus.telecom.tm/maptiler/tileserver-gl:v5.6.0@sha256:3a9ccdb24820b6814c8119bcc8a4376c39867cb0ffe69d62919ef898b90c2427
           API_PORT: ${{ vars.API_PORT || '4001' }}
           ADMIN_PORT: ${{ vars.ADMIN_PORT || '3001' }}
         run: |
@@ -387,6 +391,11 @@ jobs:
           printf 'ALOWALOW_API_IMAGE=%s@%s\n' "$API_IMAGE" "$API_DIGEST" > /tmp/alowalow-release.env
           printf 'ALOWALOW_MIGRATION_IMAGE=%s@%s\n' "$MIGRATION_IMAGE" "$MIGRATION_DIGEST" >> /tmp/alowalow-release.env
           printf 'ALOWALOW_ADMIN_IMAGE=%s@%s\n' "$ADMIN_IMAGE" "$ADMIN_DIGEST" >> /tmp/alowalow-release.env
+          printf 'ALOWALOW_POSTGRES_IMAGE=%s\n' "$POSTGRES_IMAGE" >> /tmp/alowalow-release.env
+          printf 'ALOWALOW_REDIS_IMAGE=%s\n' "$REDIS_IMAGE" >> /tmp/alowalow-release.env
+          printf 'ALOWALOW_MINIO_IMAGE=%s\n' "$MINIO_IMAGE" >> /tmp/alowalow-release.env
+          printf 'ALOWALOW_MINIO_MC_IMAGE=%s\n' "$MINIO_MC_IMAGE" >> /tmp/alowalow-release.env
+          printf 'ALOWALOW_TILESERVER_IMAGE=%s\n' "$TILESERVER_IMAGE" >> /tmp/alowalow-release.env
           printf 'ALOWALOW_COMPOSE_PROJECT=alowalow-development\n' >> /tmp/alowalow-release.env
           printf 'ALOWALOW_ENV_FILE=.env.development\n' >> /tmp/alowalow-release.env
           printf 'ALOWALOW_COMPOSE_OVERRIDE=docker-compose.development.yml\n' >> /tmp/alowalow-release.env
@@ -397,9 +406,21 @@ jobs:
         env:
           SSH_HOST: ${{ secrets.DEPLOY_SSH_HOST || secrets.DEVELOPMENT_SSH_HOST }}
           SSH_USER: ${{ secrets.DEPLOY_SSH_USER || secrets.DEVELOPMENT_SSH_USER }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           test -n "$SSH_HOST"
           test -n "$SSH_USER"
+          test -n "$GHCR_TOKEN"
+          case "$GITHUB_ACTOR" in
+            ''|*[!A-Za-z0-9_-]*) echo "Unsafe GitHub actor" >&2; exit 1 ;;
+          esac
+          cleanup_registry_login() {
+            ssh "${SSH_USER}@${SSH_HOST}" 'docker logout ghcr.io >/dev/null 2>&1 || true'
+          }
+          trap cleanup_registry_login EXIT
+          printf '%s' "$GHCR_TOKEN" \
+            | ssh "${SSH_USER}@${SSH_HOST}" \
+              "docker login ghcr.io --username '$GITHUB_ACTOR' --password-stdin"
           ssh "${SSH_USER}@${SSH_HOST}" 'sudo install -d -m 750 -o "$USER" -g "$USER" /opt/alowalow/development'
           scp deploy/compose.production.yml "${SSH_USER}@${SSH_HOST}:/opt/alowalow/development/docker-compose.production.yml"
           scp deploy/compose.development.yml "${SSH_USER}@${SSH_HOST}:/opt/alowalow/development/docker-compose.development.yml"

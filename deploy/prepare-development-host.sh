@@ -3,6 +3,9 @@ set -eu
 
 deployment_dir=/opt/alowalow/development
 tls_dir="$deployment_dir/redis-tls"
+maps_runtime_dir="$deployment_dir/maps-runtime"
+routing_runtime_dir="$deployment_dir/routing-runtime/current"
+acme_state_dir=/opt/alowalow/acme-state
 
 if [ "$(id -u)" -ne 0 ]; then
   echo "Run this one-time preparation script with sudo." >&2
@@ -21,6 +24,9 @@ id "$deploy_user" >/dev/null 2>&1
 install -d -m 750 -o "$deploy_user" -g "$deploy_user" /opt/alowalow
 install -d -m 750 -o "$deploy_user" -g "$deploy_user" "$deployment_dir"
 install -d -m 750 -o "$deploy_user" -g "$deploy_user" "$tls_dir"
+install -d -m 755 -o "$deploy_user" -g "$deploy_user" "$maps_runtime_dir"
+install -d -m 755 -o "$deploy_user" -g "$deploy_user" "$routing_runtime_dir"
+install -d -m 700 -o "$deploy_user" -g "$deploy_user" "$acme_state_dir"
 
 if [ ! -s "$tls_dir/ca.crt" ] || [ ! -s "$tls_dir/redis.crt" ] || [ ! -s "$tls_dir/redis.key" ]; then
   umask 077
@@ -60,5 +66,8 @@ chmod 750 "$tls_dir"
 chmod 444 "$tls_dir/ca.crt" "$tls_dir/redis.crt" "$tls_dir/redis.key"
 chmod 600 "$tls_dir/ca.key"
 find "$tls_dir" -type f \( -name '*.csr' -o -name '*.srl' \) -delete
+
+printf '%s\n' 'vm.overcommit_memory = 1' > /etc/sysctl.d/60-alowalow-redis.conf
+sysctl --system >/dev/null
 
 echo "Prepared isolated DEV directory: $deployment_dir"

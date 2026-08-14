@@ -24,9 +24,10 @@ toolchain and release lifecycle.
 
 The private Sites URL publishes the static admin frontend only. The NestJS
 backend is currently a local/deployable service. CI/CD produces immutable API,
-migration and static Nginx admin images. The accepted server target currently
-hosts DEV only; production remains disabled until it receives adequate
-capacity or a separate host.
+migration and static Nginx admin images. The accepted dedicated VDS target is
+`216.250.12.132` (4 vCPU, 4 GB RAM, 60 GB SSD) and hosts one full DEV stack,
+including TileServer GL and private OSRM. Production remains disabled until it
+receives a separate host or an explicit capacity review.
 
 The customer-facing brand is `A7-tagam`. Existing repository, package, service,
 deployment-directory, map-style, and storage identifiers named `alowalow`
@@ -63,8 +64,10 @@ the supplied hot-food delivery-bag mark and only its cream `#FEF7E7`, navy
 - React 19, Vite 8, Swagger/OpenAPI-generated TypeScript schema.
 - Local Docker services: PostgreSQL, Redis, MinIO.
 - GitHub Actions CI/CD with GHCR API, migration and static admin images.
-  `develop` may deploy to the isolated `development` environment. Production
-  automation remains deny-by-default and disabled.
+  During the initial customer-testing phase, `main` deploys production-mode
+  builds to the single isolated `development` environment. A separate
+  `develop` branch and production host are deferred; production automation
+  remains deny-by-default and disabled.
 
 Durable business data belongs in PostgreSQL. Temporary OTP data belongs in
 Redis. Images belong in S3-compatible storage.
@@ -82,7 +85,8 @@ alowalow/
 ├── .github/
 │   ├── dependabot.yml
 │   └── workflows/
-│       └── ci-cd.yml
+│       ├── ci-cd.yml
+│       └── development-certificate.yml
 ├── docs/
 │   ├── ANDROID_SMS_GATEWAY.md
 │   ├── DEPLOYMENT.md
@@ -91,10 +95,13 @@ alowalow/
 │   └── PROJECT_CONTEXT.md
 ├── deploy/
 │   ├── nginx/
+│   │   ├── alowalow-acme-bootstrap.conf
 │   │   ├── alowalow-acme-location.conf
 │   │   └── alowalow-development.conf
 │   ├── compose.development.yml
 │   ├── compose.production.yml
+│   ├── certbot-remote-auth.sh
+│   ├── certbot-remote-cleanup.sh
 │   ├── development.env.example
 │   ├── deploy-production.sh
 │   ├── prepare-development-host.sh
@@ -638,13 +645,11 @@ No dependency, polling loop, or route preload was added.
   stay isolated and reproducible.
   The canonical repository is `Guvanch99/alowalow`; the old admin repository
   is archived after the monorepo push is verified. Android stays separate.
-- 2026-07-30: the accepted shared Ubuntu host was audited before mutation.
-  A7-tagam is limited to DEV in `/opt/alowalow/development`, HTTPS port `8443`,
-  and loopback ports `3001`/`4001`; the existing project and ports `80`/`443`
-  remain owned by that project. DEV uses isolated, non-public PostgreSQL,
-  TLS-Redis and MinIO containers with memory limits, plus a static React SPA
-  served by unprivileged Nginx. Because the host has 2 GB RAM and no swap, at
-  least 2 GB swap is required before DEV starts. Production stays disabled.
+- 2026-07-30: the first accepted target was a shared Ubuntu host. That plan used
+  HTTPS port `8443`, loopback ports `3001`/`4001`, and an isolated
+  `/opt/alowalow/development` directory. It was superseded on 2026-08-14 before
+  the application was deployed there; the other project and its ports were not
+  changed.
 - 2026-07-30: the admin deployment was corrected to pure React/Vite SPA.
   Next.js, vinext, React Server Components, SSR, hydration, and the Node
   frontend server were removed. Browser routes use a static index fallback;
@@ -688,3 +693,42 @@ No dependency, polling loop, or route preload was added.
   favicon, and social metadata. Its visual system is restricted to the logo's
   cream, navy, and orange palette plus blends derived only from those colors;
   stable technical identifiers named `alowalow` remain unchanged.
+- 2026-08-14: DEV moved to the dedicated VDS `216.250.12.132` with 4 vCPU,
+  4 GB RAM and 60 GB SSD. One full stack runs under the isolated Compose project
+  and directory `/opt/alowalow/development`: API, static admin, PostgreSQL,
+  TLS-Redis, MinIO, TileServer GL and private OSRM. Nginx owns standard ports
+  `80`/`443`; public access is HTTPS on the IP, while application and tile
+  upstreams remain loopback-only and OSRM remains Docker-internal. A 2 GB swap
+  is recommended for image updates and map-rendering peaks. Production remains
+  disabled and requires a separate host or explicit capacity/security review.
+- 2026-08-14: the VDS egress audit found Ubuntu APT, GitHub, GHCR and Telecom
+  Nexus available, while public Docker Hub, PyPI and Snap CDN are unreachable.
+  Pinned third-party images retain their source digest and are pulled through
+  the anonymous `nexus.telecom.tm` Docker proxy; the available npm proxy is not
+  needed because no Node build runs on the server. Repository-owned images use
+  a job-scoped `GITHUB_TOKEN` for SSH-stdin Docker login followed by logout, so
+  no persistent registry token or server VPN is required. Certbot 5.7 runs from
+  an isolated offline wheel installation under `/opt/alowalow/tools`.
+- 2026-08-14: because the VDS cannot reach the Let's Encrypt ACME API, IP
+  certificate issuance and renewal run outside the server. A pinned Certbot
+  client in GitHub Actions uses validated SSH auth/cleanup hooks to publish only
+  the HTTP-01 token, keeps canonical ACME account/certificate state under
+  `/opt/alowalow/acme-state`, and checks every 12 hours. Nginx reloads only
+  after the renewed state is transferred and its configuration passes.
+- 2026-08-15: the pinned Redis image is forced to its upstream non-root
+  `999:1000` identity. This lets Redis traverse the host TLS directory through
+  its numeric group while `cap_drop: ALL`, the directory's `750` mode and the
+  host-only CA key remain intact. Host preparation also persists Redis's
+  recommended `vm.overcommit_memory=1` sysctl.
+- 2026-08-15: two Let's Encrypt staging attempts reached the VDS successfully
+  from two and then three validation perspectives, while one secondary
+  perspective consistently received `connection refused`. Trusted IP HTTPS is
+  therefore not marked ready: the HTTP-only ACME bootstrap stays active and
+  scheduled renewal stays gated off until Telecom fixes international port-80
+  reachability and the first production certificate is installed.
+- 2026-08-15: the temporary release flow was simplified for the initial
+  customer-testing period. `main` is the only active integration branch and
+  deploys production-mode images to the single `development` VDS after every
+  successful quality gate. No separate `develop` or staging environment is
+  maintained yet. When a second server is provisioned, branch/environment
+  separation must be introduced explicitly before production launch.

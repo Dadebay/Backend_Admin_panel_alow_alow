@@ -89,6 +89,8 @@ services:
     image: ${ALOWALOW_MINIO_MC_IMAGE:-minio/mc:latest@sha256:a7fe349ef4bd8521fb8497f55c6042871b2ae640607cf99d9bede5e9bdf11727}
     env_file:
       - ${ALOWALOW_ENV_FILE:-.env.development}
+    environment:
+      MC_CONFIG_DIR: /tmp/.mc
     depends_on:
       minio:
         condition: service_healthy

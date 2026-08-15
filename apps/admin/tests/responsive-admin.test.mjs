@@ -46,3 +46,24 @@ test("mobile navigation and cash tabs do not require horizontal scrolling", asyn
     /\.cash-tabs\s*\{[^}]*grid-template-columns: minmax\(0, 1fr\);[^}]*overflow: visible;/s,
   );
 });
+
+test("order kanban wraps at desktop, tablet, and phone breakpoints", async () => {
+  const styles = await readFile(stylesUrl, "utf8");
+
+  assert.match(
+    styles,
+    /\.order-kanban\s*\{[^}]*grid-template-columns: repeat\(3, minmax\(0, 1fr\)\);/s,
+  );
+  assert.match(
+    styles,
+    /@media \(max-width: 1180px\)[\s\S]*?\.order-kanban\s*\{[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/,
+  );
+  assert.match(
+    styles,
+    /@media \(max-width: 760px\)[\s\S]*?\.order-kanban\s*\{[^}]*grid-template-columns: minmax\(0, 1fr\);/,
+  );
+  assert.match(
+    styles,
+    /\.courier-screen \.order-kanban\s*\{[^}]*grid-template-columns: minmax\(0, 1fr\);/s,
+  );
+});

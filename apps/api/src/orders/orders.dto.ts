@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
-import { Type } from "class-transformer";
+import { Transform, Type } from "class-transformer";
 import {
   ArrayMaxSize,
   ArrayMinSize,
@@ -205,6 +205,26 @@ export class ListOrdersQueryDto {
   @IsOptional()
   @IsEnum(OrderStatus)
   status?: OrderStatus;
+
+  @ApiPropertyOptional({
+    enum: OrderStatus,
+    isArray: true,
+    description:
+      "Comma-separated workflow statuses for one role-specific order queue; ignored when status is present",
+  })
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) => {
+    const values = Array.isArray(value) ? value : [value];
+    return values
+      .flatMap((item) => String(item).split(","))
+      .map((item) => item.trim())
+      .filter(Boolean);
+  })
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(12)
+  @IsEnum(OrderStatus, { each: true })
+  statuses?: OrderStatus[];
 
   @ApiPropertyOptional({
     format: "uuid",

@@ -27,6 +27,7 @@ export function CashBoard() {
       </div>
       <OrderBoard
         key={status}
+        defaultView="table"
         fixedStatus={status}
         title="Контроль наличных"
         description="Курьер сдаёт деньги оператору, затем бухгалтер сверяет закрытый заказ."

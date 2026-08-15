@@ -50,6 +50,7 @@ type AddressResponse = {
 
 type OrderResponse = {
   id: string;
+  number: number;
   status: OrderStatus;
   source: OrderSource;
   version: number;
@@ -935,6 +936,69 @@ describe("backend security and critical workflow", () => {
       .get(`/api/v1/orders/${order.id}`)
       .set(bearer(tokens.otherCustomer))
       .expect(403);
+  });
+
+  it("filters role kanbans by multiple statuses without weakening cook scope", async () => {
+    let kitchenOrder = await createOrder(tokens.customer, {});
+    kitchenOrder = await transition(
+      tokens.operator,
+      kitchenOrder,
+      OrderStatus.CONFIRMED,
+    );
+    kitchenOrder = await transition(
+      tokens.operator,
+      kitchenOrder,
+      OrderStatus.SENT_TO_KITCHEN,
+    );
+    const hiddenOrder = await createOrder(tokens.otherCustomer, {
+      address: "Private order outside kitchen queue",
+      latitude: 37.9503,
+      longitude: 58.3803,
+    });
+
+    const queue = await request(server)
+      .get(
+        "/api/v1/orders?statuses=SENT_TO_KITCHEN,COOKING,READY&limit=100",
+      )
+      .set(bearer(tokens.cook))
+      .expect(200);
+    const queueItems = (queue.body as { items: OrderResponse[] }).items;
+    expect(queueItems.map(({ id }) => id)).toContain(kitchenOrder.id);
+    expect(queueItems.map(({ id }) => id)).not.toContain(hiddenOrder.id);
+    expect(
+      queueItems.every(({ status }) =>
+        [
+          OrderStatus.SENT_TO_KITCHEN,
+          OrderStatus.COOKING,
+          OrderStatus.READY,
+        ].includes(status),
+      ),
+    ).toBe(true);
+
+    const visibleSearch = await request(server)
+      .get(`/api/v1/orders?search=${kitchenOrder.number}`)
+      .set(bearer(tokens.cook))
+      .expect(200);
+    expect(
+      (visibleSearch.body as { items: OrderResponse[] }).items.map(
+        ({ id }) => id,
+      ),
+    ).toContain(kitchenOrder.id);
+
+    const forbiddenSearch = await request(server)
+      .get(`/api/v1/orders?search=${hiddenOrder.number}`)
+      .set(bearer(tokens.cook))
+      .expect(200);
+    expect(
+      (forbiddenSearch.body as { items: OrderResponse[] }).items.map(
+        ({ id }) => id,
+      ),
+    ).not.toContain(hiddenOrder.id);
+
+    await request(server)
+      .get("/api/v1/orders?statuses=NEW,NOT_A_STATUS")
+      .set(bearer(tokens.operator))
+      .expect(400);
   });
 
   it("creates audited phone orders for callers without issuing a session", async () => {

@@ -1,7 +1,14 @@
+import { lazy, Suspense } from "react";
 import { CourierLocationSharing } from "@/src/features/courier-location-sharing";
 import { OtpLoginCard } from "@/src/features/otp-login";
 import { useSession } from "@/src/shared/auth";
 import { BrandLogo } from "@/src/shared/ui";
+
+const OrderBoard = lazy(() =>
+  import("@/src/widgets/order-board").then((module) => ({
+    default: module.OrderBoard,
+  })),
+);
 
 export function CourierTrackingScreen() {
   const { session, ready, logout } = useSession();
@@ -65,6 +72,15 @@ export function CourierTrackingScreen() {
             </p>
           </div>
           <CourierLocationSharing />
+          <Suspense
+            fallback={<div className="async-state">Загружаем доставки…</div>}
+          >
+            <OrderBoard
+              defaultView="kanban"
+              title="Мои доставки"
+              description="Назначенные вам заказы и действия текущего этапа доставки."
+            />
+          </Suspense>
         </>
       )}
     </main>

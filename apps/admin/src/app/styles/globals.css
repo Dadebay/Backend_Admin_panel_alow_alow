@@ -86,6 +86,295 @@
   .admin-main { padding-top: 76px; }
 }
 
+/* Role-aware order workspace. The board wraps instead of scrolling sideways,
+   so every responsibility remains visible on desktop, tablet, and phone. */
+.order-view-tabs {
+  margin: 0;
+  flex: 0 0 auto;
+}
+
+.order-board-results {
+  min-width: 0;
+}
+
+.order-kanban {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: start;
+  gap: 14px;
+}
+
+.order-kanban-lane {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--brand-cream) 91%, var(--brand-navy));
+  box-shadow: var(--shadow);
+}
+
+.order-kanban-lane-head {
+  min-height: 78px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--line);
+  border-top: 4px solid var(--brand-navy);
+  background: var(--brand-cream);
+}
+
+.order-kanban-lane--incoming .order-kanban-lane-head,
+.order-kanban-lane--ready .order-kanban-lane-head,
+.order-kanban-lane--cash .order-kanban-lane-head {
+  border-top-color: var(--brand-orange);
+}
+
+.order-kanban-lane-head span,
+.order-kanban-card span,
+.order-kanban-card small,
+.order-kanban-card time {
+  color: var(--muted);
+}
+
+.order-kanban-lane-head span {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 9px;
+  font-weight: 750;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+}
+
+.order-kanban-lane-head h2 {
+  margin: 0;
+  color: var(--brand-navy);
+  font-size: 15px;
+  letter-spacing: -.02em;
+}
+
+.order-kanban-lane-head > strong {
+  min-width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  padding-inline: 8px;
+  border-radius: 999px;
+  color: var(--brand-cream);
+  background: var(--brand-navy);
+  font-size: 11px;
+}
+
+.order-kanban-cards {
+  display: grid;
+  gap: 10px;
+  padding: 10px;
+}
+
+.order-kanban-empty {
+  margin: 0;
+  padding: 22px 12px;
+  border: 1px dashed color-mix(in srgb, var(--brand-navy) 22%, var(--brand-cream));
+  border-radius: 12px;
+  color: var(--muted);
+  background: color-mix(in srgb, var(--brand-cream) 95%, var(--brand-navy));
+  font-size: 11px;
+  text-align: center;
+}
+
+.order-kanban-card {
+  min-width: 0;
+  display: grid;
+  gap: 11px;
+  padding: 14px;
+  border: 1px solid color-mix(in srgb, var(--brand-navy) 12%, var(--brand-cream));
+  border-radius: 13px;
+  background: var(--brand-cream);
+  box-shadow: 0 8px 20px rgb(6 47 94 / .055);
+}
+
+.order-kanban-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.order-kanban-card-head > div {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.order-kanban-card-head strong {
+  color: var(--brand-navy);
+  font-size: 15px;
+}
+
+.order-kanban-card-head time {
+  font-size: 9px;
+}
+
+.order-kanban-card .status-pill {
+  flex: 0 1 auto;
+  max-width: 58%;
+  white-space: normal;
+  text-align: center;
+}
+
+.order-kanban-person,
+.order-kanban-address,
+.order-kanban-meta,
+.order-kanban-finance > div {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.order-kanban-person span,
+.order-kanban-address span,
+.order-kanban-meta span,
+.order-kanban-finance span,
+.order-kanban-courier > span {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+.order-kanban-person strong,
+.order-kanban-address strong,
+.order-kanban-meta strong,
+.order-kanban-finance strong {
+  overflow-wrap: anywhere;
+  color: var(--brand-navy);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.order-kanban-person a {
+  width: fit-content;
+  color: var(--brand-orange);
+  font-size: 10px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.order-kanban-items {
+  display: grid;
+  gap: 5px;
+  margin: 0;
+  padding: 9px 10px;
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--brand-cream) 94%, var(--brand-orange));
+  list-style: none;
+}
+
+.order-kanban-items li {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 7px;
+  color: var(--brand-navy);
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.order-kanban-items li span {
+  overflow-wrap: anywhere;
+  color: var(--brand-navy);
+}
+
+.order-kanban-items b {
+  color: var(--brand-orange);
+}
+
+.order-kanban-note {
+  margin: 0;
+  padding: 8px 9px;
+  border-left: 3px solid var(--brand-orange);
+  color: var(--brand-navy);
+  background: color-mix(in srgb, var(--brand-cream) 92%, var(--brand-orange));
+  font-size: 10px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.order-kanban-finance {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.order-kanban-courier {
+  display: grid;
+  gap: 5px;
+}
+
+.order-kanban-courier select {
+  width: 100%;
+  min-height: 38px;
+  padding: 7px 9px;
+  border: 1px solid color-mix(in srgb, var(--brand-navy) 22%, var(--brand-cream));
+  border-radius: 8px;
+  outline: 0;
+  color: var(--brand-navy);
+  background: var(--brand-cream);
+}
+
+.order-kanban-courier select:focus {
+  border-color: var(--brand-orange);
+  box-shadow: 0 0 0 3px rgb(236 122 27 / .12);
+}
+
+.order-kanban-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  padding-top: 3px;
+}
+
+.order-kanban-actions button {
+  flex: 1 1 auto;
+}
+
+.courier-screen .admin-section {
+  margin-top: 18px;
+}
+
+.courier-screen .order-kanban {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@media (max-width: 1180px) {
+  .order-kanban {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .courier-screen .order-kanban {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 760px) {
+  .order-kanban {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .order-view-tabs {
+    width: 100%;
+  }
+
+  .order-view-tabs button {
+    flex: 1;
+  }
+
+  .order-kanban-finance {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 .login-attempt-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin: 20px 0; }
 .login-attempt-summary .stat-card { padding: 18px; border: 1px solid var(--border, var(--brand-cream)); border-radius: 12px; background: var(--surface, var(--brand-cream)); }
 .login-attempt-summary .stat-card span { display: block; color: var(--muted, var(--brand-navy)); font-size: .84rem; }

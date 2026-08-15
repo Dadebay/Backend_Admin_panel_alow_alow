@@ -210,6 +210,17 @@ their own staff account as the customer of an ordinary order.
 Only `SUPER_ADMIN` may manage another `SUPER_ADMIN`, and the system must retain
 at least one active `SUPER_ADMIN`.
 
+The admin order workspace defaults to a role-aware Kanban backed by the same
+paginated order API and mutation policy as the table. `OPERATOR`, `ACCOUNTANT`,
+`ADMIN`, and `SUPER_ADMIN` see the complete lifecycle; the cook sees only the
+kitchen queue, cooking, and ready lanes; the courier sees only their assigned,
+in-delivery, and cash-return lanes. Cook cards omit customer identity, address,
+and cash; accountant cards omit customer identity, delivery address, and dish
+composition. The detailed table is available only to `OPERATOR`, `ADMIN`, and
+`SUPER_ADMIN`. Hiding frontend navigation or card fields is usability and data
+minimization only—the NestJS guards, role scope, and order policy remain the
+authorization authority.
+
 ## Order state machine
 
 ```text
@@ -432,6 +443,11 @@ Current status:
   amount and nearest branch;
 - order details show the real status timeline plus the customer's five-star
   rating and comment returned by the API;
+- the live order workspace defaults to a responsive Kanban with role-specific
+  lanes, card fields, and actions. Operators/admins may switch to the detailed
+  TanStack table, cooks work only through kitchen lanes, accountants see the
+  complete lifecycle without customer PII, and couriers see all orders assigned
+  to them below the GPS-sharing control;
 - the dispatch map and courier GPS-sharing screen use Redis-backed tracking;
   accepted locations reach authorized dispatchers immediately through SSE,
   with the 30-second snapshot poll retained only as reconnect recovery;
@@ -581,6 +597,15 @@ Cloudflare Vite, Wrangler, Worker and platform-specific build output were
 removed from the development dependency tree. Vite now emits only
 `dist/client`, which the existing unprivileged Nginx image serves with SPA
 fallback; no browser runtime or request behavior changed.
+
+The 2026-08-15 role-aware Kanban build keeps the static SPA bootstrap at
+203.3 KB raw / 63.7 KB gzip. The lazy order-board chunk is 25.5 KB / 6.8 KB
+gzip, an increase of about 5.0 KB raw / 0.6 KB gzip for lanes, role-minimized
+cards, view switching, and real workflow actions. CSS is 103.3 KB / 22.4 KB
+gzip, an increase of about 5.5 KB raw / 0.8 KB gzip for the responsive
+three/two/one-column board. It adds no dependency or polling loop: the active
+view keeps one existing 12-second TanStack Query observer, with a server-side
+multi-status filter ensuring cook/courier queues are not displaced by history.
 
 ## Decision log
 
@@ -837,3 +862,13 @@ fallback; no browser runtime or request behavior changed.
   need `style.json`; JSON/vector endpoints remain optional and backward
   compatible. Courier/order/GPS data and OSRM routes still come only from the
   authenticated NestJS API and are rendered above the raster background.
+- 2026-08-15: order operations gained a role-aware Kanban as the default view.
+  Operator/accountant/admin roles can observe the whole lifecycle, cooks and
+  couriers receive only their operational lanes, and order cards minimize
+  unrelated personal and financial fields by role. Operator/admin roles retain
+  the detailed table switch; the courier screen combines GPS sharing with every
+  backend-scoped assigned order. All actions reuse the versioned NestJS order
+  mutations, while backend guards remain authoritative. The order list gained
+  a backward-compatible validated `statuses` query for one-request role queues.
+  Search and role constraints are composed with `AND`, preventing a cook search
+  from overriding the server visibility scope.

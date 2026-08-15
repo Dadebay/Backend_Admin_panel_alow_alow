@@ -639,6 +639,32 @@
             }
           },
           {
+            "name": "statuses",
+            "required": false,
+            "in": "query",
+            "description": "Comma-separated workflow statuses for one role-specific order queue; ignored when status is present",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "NEW",
+                  "CONFIRMED",
+                  "SENT_TO_KITCHEN",
+                  "COOKING",
+                  "READY",
+                  "ASSIGNED_TO_COURIER",
+                  "OUT_FOR_DELIVERY",
+                  "DELIVERED",
+                  "CASH_RETURNED",
+                  "COMPLETED",
+                  "RECONCILED",
+                  "CANCELLED"
+                ]
+              }
+            }
+          },
+          {
             "name": "branchId",
             "required": false,
             "in": "query",

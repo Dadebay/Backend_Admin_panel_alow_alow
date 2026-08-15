@@ -470,7 +470,7 @@ export class OrdersService {
   }
 
   async list(user: AuthUser, query: ListOrdersQueryDto) {
-    const roleFilter =
+    const roleFilter: Prisma.OrderWhereInput =
       user.role === Role.CUSTOMER
         ? { customerId: user.id }
         : user.role === Role.COURIER
@@ -485,43 +485,51 @@ export class OrdersService {
             : {};
     const search = query.search?.trim();
     const orderNumber = search && /^\d+$/.test(search) ? Number(search) : null;
-    const where = {
-      ...roleFilter,
-      ...(query.status ? { status: query.status } : {}),
-      ...(query.branchId ? { branchId: query.branchId } : {}),
-      ...(search
-        ? {
-            OR: [
-              ...(orderNumber ? [{ number: orderNumber }] : []),
-              { address: { contains: search, mode: "insensitive" as const } },
-              {
-                branchName: {
-                  contains: search,
-                  mode: "insensitive" as const,
-                },
+    const statusFilter: Prisma.OrderWhereInput = query.status
+      ? { status: query.status }
+      : query.statuses?.length
+        ? { status: { in: query.statuses } }
+        : {};
+    const searchFilter: Prisma.OrderWhereInput = search
+      ? {
+          OR: [
+            ...(orderNumber ? [{ number: orderNumber }] : []),
+            { address: { contains: search, mode: "insensitive" as const } },
+            {
+              branchName: {
+                contains: search,
+                mode: "insensitive" as const,
               },
-              {
-                customer: {
-                  OR: [
-                    { phone: { contains: search } },
-                    {
-                      firstName: {
-                        contains: search,
-                        mode: "insensitive" as const,
-                      },
+            },
+            {
+              customer: {
+                OR: [
+                  { phone: { contains: search } },
+                  {
+                    firstName: {
+                      contains: search,
+                      mode: "insensitive" as const,
                     },
-                    {
-                      lastName: {
-                        contains: search,
-                        mode: "insensitive" as const,
-                      },
+                  },
+                  {
+                    lastName: {
+                      contains: search,
+                      mode: "insensitive" as const,
                     },
-                  ],
-                },
+                  },
+                ],
               },
-            ],
-          }
-        : {}),
+            },
+          ],
+        }
+      : {};
+    const where: Prisma.OrderWhereInput = {
+      AND: [
+        roleFilter,
+        statusFilter,
+        query.branchId ? { branchId: query.branchId } : {},
+        searchFilter,
+      ],
     };
     const [items, total] = await this.prisma.$transaction([
       this.prisma.order.findMany({

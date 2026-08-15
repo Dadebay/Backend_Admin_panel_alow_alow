@@ -19,3 +19,15 @@ export {
   useOrder,
   useOrders,
 } from "./api/order-queries";
+export {
+  kanbanLanesForRole,
+  kanbanQueueStatusesForRole,
+  orderCardFieldsForRole,
+  orderKanbanLanes,
+  roleCanUseOrderTable,
+} from "./model/kanban";
+export type {
+  OrderCardField,
+  OrderKanbanLane,
+  OrderKanbanLaneId,
+} from "./model/kanban";

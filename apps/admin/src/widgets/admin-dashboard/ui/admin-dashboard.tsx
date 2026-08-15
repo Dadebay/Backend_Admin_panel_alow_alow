@@ -1,8 +1,13 @@
 import { lazy, Suspense, useState, type ReactNode } from "react";
-import { roleLabels, type Role } from "@/src/entities/order";
+import { roleLabels } from "@/src/entities/order";
 import { OtpLoginCard } from "@/src/features/otp-login";
 import { useSession } from "@/src/shared/auth";
 import { BrandLogo } from "@/src/shared/ui";
+import {
+  navigationForRole,
+  type AdminNavIconName,
+  type AdminView,
+} from "../model/admin-navigation";
 
 const OrderBoard = lazy(() =>
   import("@/src/widgets/order-board").then((module) => ({
@@ -50,118 +55,13 @@ const ContactManager = lazy(() =>
   })),
 );
 const LoginAttemptManager = lazy(() =>
-  import("@/src/widgets/login-attempt-manager").then((module) => ({ default: module.LoginAttemptManager })),
+  import("@/src/widgets/login-attempt-manager").then((module) => ({
+    default: module.LoginAttemptManager,
+  })),
 );
 
-type View =
-  | "orders"
-  | "kitchen"
-  | "map"
-  | "branches"
-  | "catalog"
-  | "marketing"
-  | "notifications"
-  | "staff"
-  | "cash"
-  | "contacts"
-  | "login-attempts";
-
-type NavIconName =
-  | "orders"
-  | "kitchen"
-  | "map"
-  | "branches"
-  | "catalog"
-  | "marketing"
-  | "notifications"
-  | "staff"
-  | "cash"
-  | "contacts"
-  | "login-attempts";
-
-const nav: Array<{
-  id: View;
-  label: string;
-  icon: NavIconName;
-  roles: Role[];
-}> = [
-  {
-    id: "login-attempts",
-    label: "Попытки входа",
-    icon: "login-attempts",
-    roles: ["ADMIN", "SUPER_ADMIN"],
-  },
-  {
-    id: "orders",
-    label: "Заказы",
-    icon: "orders",
-    roles: [
-      "OPERATOR",
-      "COOK",
-      "COURIER",
-      "ACCOUNTANT",
-      "ADMIN",
-      "SUPER_ADMIN",
-    ],
-  },
-  {
-    id: "kitchen",
-    label: "Кухня",
-    icon: "kitchen",
-    roles: ["COOK", "ADMIN", "SUPER_ADMIN"],
-  },
-  {
-    id: "map",
-    label: "Карта курьеров",
-    icon: "map",
-    roles: ["OPERATOR", "ADMIN", "SUPER_ADMIN"],
-  },
-  {
-    id: "branches",
-    label: "Филиалы",
-    icon: "branches",
-    roles: ["ADMIN", "SUPER_ADMIN"],
-  },
-  {
-    id: "catalog",
-    label: "Каталог кафе",
-    icon: "catalog",
-    roles: ["OPERATOR", "ADMIN", "SUPER_ADMIN"],
-  },
-  {
-    id: "marketing",
-    label: "Маркетинг",
-    icon: "marketing",
-    roles: ["OPERATOR", "ACCOUNTANT", "ADMIN", "SUPER_ADMIN"],
-  },
-  {
-    id: "notifications",
-    label: "Уведомления",
-    icon: "notifications",
-    roles: ["ADMIN", "SUPER_ADMIN"],
-  },
-  {
-    id: "staff",
-    label: "Команда",
-    icon: "staff",
-    roles: ["OPERATOR", "ACCOUNTANT", "ADMIN", "SUPER_ADMIN"],
-  },
-  {
-    id: "cash",
-    label: "Наличные",
-    icon: "cash",
-    roles: ["OPERATOR", "ACCOUNTANT", "ADMIN", "SUPER_ADMIN"],
-  },
-  {
-    id: "contacts",
-    label: "Контакты",
-    icon: "contacts",
-    roles: ["ADMIN", "SUPER_ADMIN"],
-  },
-];
-
-function NavIcon({ name }: { name: NavIconName }) {
-  const paths: Record<NavIconName, ReactNode> = {
+function NavIcon({ name }: { name: AdminNavIconName }) {
+  const paths: Record<AdminNavIconName, ReactNode> = {
     orders: <><rect x="5" y="3" width="14" height="18" rx="2" /><path d="M9 3h6v3H9zM9 11h6M9 15h4" /></>,
     kitchen: <><path d="M7 3v7M4 3v4a3 3 0 0 0 6 0V3M7 10v11M17 3v18M17 3c2.5 1.8 2.5 5.2 0 7" /></>,
     map: <><path d="m9 18-6 3V6l6-3 6 3 6-3v15l-6 3zM9 3v15M15 6v15" /></>,
@@ -189,7 +89,7 @@ function initials(firstName: string | null, lastName: string | null) {
 
 export function AdminDashboard() {
   const { session, ready, logout } = useSession();
-  const [view, setView] = useState<View>("orders");
+  const [view, setView] = useState<AdminView>("orders");
   const [isNavigationOpen, setIsNavigationOpen] = useState(false);
 
   if (!ready) {
@@ -258,9 +158,7 @@ export function AdminDashboard() {
     );
   }
 
-  const visibleNav = nav.filter((item) =>
-    item.roles.includes(session.user.role),
-  );
+  const visibleNav = navigationForRole(session.user.role);
   const activeView = visibleNav.some((item) => item.id === view)
     ? view
     : (visibleNav[0]?.id ?? "orders");
@@ -346,6 +244,7 @@ export function AdminDashboard() {
           {activeView === "orders" && <OrderBoard />}
           {activeView === "kitchen" && (
             <OrderBoard
+              defaultView="kanban"
               title="Кухня"
               description="Повар принимает переданные заказы, начинает готовить и отмечает готовность."
             />

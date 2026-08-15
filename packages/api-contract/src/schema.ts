@@ -2568,6 +2568,8 @@ export interface operations {
         parameters: {
             query?: {
                 status?: "NEW" | "CONFIRMED" | "SENT_TO_KITCHEN" | "COOKING" | "READY" | "ASSIGNED_TO_COURIER" | "OUT_FOR_DELIVERY" | "DELIVERED" | "CASH_RETURNED" | "COMPLETED" | "RECONCILED" | "CANCELLED";
+                /** @description Comma-separated workflow statuses for one role-specific order queue; ignored when status is present */
+                statuses?: ("NEW" | "CONFIRMED" | "SENT_TO_KITCHEN" | "COOKING" | "READY" | "ASSIGNED_TO_COURIER" | "OUT_FOR_DELIVERY" | "DELIVERED" | "CASH_RETURNED" | "COMPLETED" | "RECONCILED" | "CANCELLED")[];
                 /** @description Filter operational order queues by assigned branch */
                 branchId?: string;
                 /** @description Order number, customer phone/name, or delivery address */

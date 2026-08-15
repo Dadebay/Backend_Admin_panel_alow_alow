@@ -13,6 +13,7 @@ export const orderQueryKeys = {
     userId: string,
     params: {
       status?: OrderStatus;
+      statuses?: OrderStatus[];
       branchId?: string;
       search?: string;
       page: number;
@@ -27,6 +28,7 @@ export const orderQueryKeys = {
 
 export function useOrders(params: {
   status?: OrderStatus;
+  statuses?: OrderStatus[];
   branchId?: string;
   search?: string;
   page: number;
@@ -46,6 +48,9 @@ export function useOrders(params: {
         limit: String(normalized.limit),
       });
       if (normalized.status) query.set("status", normalized.status);
+      if (normalized.statuses?.length) {
+        query.set("statuses", normalized.statuses.join(","));
+      }
       if (normalized.branchId) query.set("branchId", normalized.branchId);
       if (normalized.search) query.set("search", normalized.search);
       return authorizedRequest<OrderList>(`/orders?${query}`, { signal });

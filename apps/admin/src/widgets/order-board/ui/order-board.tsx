@@ -1,13 +1,15 @@
-import { lazy, Suspense, useMemo, useState } from "react";
+import { lazy, Suspense, useCallback, useMemo, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useForm } from "react-hook-form";
 import { formatBranchDistance, useBranches } from "@/src/entities/branch";
 import {
   canCancel,
+  kanbanQueueStatusesForRole,
   nextOrderStatus,
   orderStatuses,
   ratingStars,
+  roleCanUseOrderTable,
   statusLabels,
   useCouriers,
   useOrders,
@@ -24,6 +26,7 @@ import {
   type OrderSearchFormValues,
 } from "../model/order-search-form";
 import { OrderDetailDialog } from "./order-detail-dialog";
+import { OrderKanban } from "./order-kanban";
 
 const AssistedOrderDialog = lazy(() => import("@/src/widgets/assisted-order"));
 
@@ -70,12 +73,20 @@ export function OrderBoard({
   fixedStatus,
   title = "Заказы",
   description = "Живая очередь из PostgreSQL, обновление каждые 12 секунд",
+  defaultView = "kanban",
 }: {
   fixedStatus?: OrderStatus;
   title?: string;
   description?: string;
+  defaultView?: "table" | "kanban";
 }) {
   const { session } = useSession();
+  const role = session?.user.role ?? "CUSTOMER";
+  const tableAllowed = roleCanUseOrderTable(role);
+  const [requestedView, setRequestedView] = useState<"table" | "kanban">(
+    defaultView,
+  );
+  const viewMode = tableAllowed ? requestedView : "kanban";
   const [status, setStatus] = useState<OrderStatus | "ALL">(
     fixedStatus ?? "ALL",
   );
@@ -96,16 +107,21 @@ export function OrderBoard({
     defaultValues: { search: "" },
   });
   const orders = useOrders({
-    status: fixedStatus ?? (status === "ALL" ? undefined : status),
+    status:
+      fixedStatus ??
+      (viewMode === "table" && status !== "ALL" ? status : undefined),
+    statuses:
+      !fixedStatus && viewMode === "kanban"
+        ? kanbanQueueStatusesForRole(role)
+        : undefined,
     branchId: branchId === "ALL" ? undefined : branchId,
     search,
     page,
-    limit: 25,
+    limit: viewMode === "kanban" ? 100 : 25,
   });
   const branches = useBranches();
   const couriers = useCouriers();
   const actions = useOrderActions();
-  const role = session?.user.role ?? "CUSTOMER";
   const pending =
     actions.transition.isPending ||
     actions.assignCourier.isPending ||
@@ -119,6 +135,19 @@ export function OrderBoard({
     setPage(1);
     setSearch(values.search);
   }
+
+  const cancelOrder = useCallback(
+    (order: Order) => {
+      const reason = window.prompt("Причина отмены заказа");
+      if (!reason?.trim()) return;
+      actions.cancel.mutate({
+        orderId: order.id,
+        reason: reason.trim(),
+        version: order.version,
+      });
+    },
+    [actions.cancel],
+  );
 
   const columns = useMemo<ColumnDef<Order, unknown>[]>(
     () => [
@@ -337,15 +366,7 @@ export function OrderBoard({
                 <button
                   className="danger-button compact"
                   disabled={pending}
-                  onClick={() => {
-                    const reason = window.prompt("Причина отмены заказа");
-                    if (!reason?.trim()) return;
-                    actions.cancel.mutate({
-                      orderId: order.id,
-                      reason: reason.trim(),
-                      version: order.version,
-                    });
-                  }}
+                  onClick={() => cancelOrder(order)}
                 >
                   Отменить
                 </button>
@@ -355,11 +376,11 @@ export function OrderBoard({
         },
       },
     ],
-    [actions, courierByOrder, couriers.data, pending, role],
+    [actions, cancelOrder, courierByOrder, couriers.data, pending, role],
   );
 
   return (
-    <section className="admin-section">
+    <section className="admin-section" data-testid="order-board">
       <header className="section-head">
         <div>
           <span className="eyebrow">РЕАЛЬНЫЙ BACKEND</span>
@@ -367,6 +388,40 @@ export function OrderBoard({
           <p>{description}</p>
         </div>
         <div className="header-actions">
+          {tableAllowed && (
+            <div
+              className="view-tabs order-view-tabs"
+              role="tablist"
+              aria-label="Вид заказов"
+            >
+              <button
+                type="button"
+                role="tab"
+                className={viewMode === "kanban" ? "active" : ""}
+                aria-selected={viewMode === "kanban"}
+                data-testid="orders-view-kanban"
+                onClick={() => {
+                  setRequestedView("kanban");
+                  setPage(1);
+                }}
+              >
+                Доска
+              </button>
+              <button
+                type="button"
+                role="tab"
+                className={viewMode === "table" ? "active" : ""}
+                aria-selected={viewMode === "table"}
+                data-testid="orders-view-table"
+                onClick={() => {
+                  setRequestedView("table");
+                  setPage(1);
+                }}
+              >
+                Таблица
+              </button>
+            </div>
+          )}
           {["OPERATOR", "ADMIN", "SUPER_ADMIN"].includes(role) && (
             <button
               className="primary-button"
@@ -379,6 +434,7 @@ export function OrderBoard({
           )}
           <button
             className="secondary-button"
+            data-testid="orders-refresh"
             type="button"
             onClick={() => void orders.refetch()}
           >
@@ -388,7 +444,7 @@ export function OrderBoard({
       </header>
 
       <div className="toolbar">
-        {!fixedStatus && (
+        {!fixedStatus && viewMode === "table" && (
           <label>
             <span>Статус</span>
             <select
@@ -461,19 +517,55 @@ export function OrderBoard({
         error={orders.error}
         onRetry={() => void orders.refetch()}
       >
-        <div className="table-card">
-          <DataTable
-            columns={columns}
-            data={orders.data?.items ?? []}
-            getRowId={(order) => order.id}
-            empty="Заказов по выбранным условиям нет"
-            label="Список заказов"
-            minWidth={1180}
-            variant="orders"
-          />
+        <div
+          className={viewMode === "table" ? "table-card" : "order-board-results"}
+        >
+          {viewMode === "kanban" ? (
+            <OrderKanban
+              orders={orders.data?.items ?? []}
+              role={role}
+              fixedStatus={fixedStatus}
+              couriers={couriers.data ?? []}
+              courierByOrder={courierByOrder}
+              pending={pending}
+              onCourierChange={(orderId, courierId) =>
+                setCourierByOrder((current) => ({
+                  ...current,
+                  [orderId]: courierId,
+                }))
+              }
+              onAssignCourier={(order, courierId) =>
+                actions.assignCourier.mutate({
+                  orderId: order.id,
+                  courierId,
+                  version: order.version,
+                })
+              }
+              onTransition={(order, nextStatus) =>
+                actions.transition.mutate({
+                  orderId: order.id,
+                  status: nextStatus,
+                  version: order.version,
+                })
+              }
+              onCancel={cancelOrder}
+              onOpenDetails={setSelectedOrderId}
+            />
+          ) : (
+            <DataTable
+              columns={columns}
+              data={orders.data?.items ?? []}
+              getRowId={(order) => order.id}
+              empty="Заказов по выбранным условиям нет"
+              label="Список заказов"
+              minWidth={1180}
+              variant="orders"
+            />
+          )}
           <footer className="table-pagination">
             <span>
-              Всего: {orders.data?.total ?? 0} · страница{" "}
+              Показано: {orders.data?.items.length ?? 0} из{" "}
+              {orders.data?.total ?? 0} · страница{" "}
               {orders.data?.page ?? page} из {orders.data?.pages || 1}
             </span>
             <div>

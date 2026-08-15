@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
 import test from "node:test";
 
 const clientHtmlUrl = new URL("../dist/client/index.html", import.meta.url);
@@ -19,6 +19,19 @@ test("builds a static React entry document", async () => {
   );
   assert.match(html, /<script type="module" crossorigin src="\/assets\/.+\.js">/);
   assert.doesNotMatch(html, /_next|__next|vinext|react-server-dom/);
+});
+
+test("production assets avoid HTTP-filtered semantic chunk names", async () => {
+  const assets = await readdir(
+    new URL("../dist/client/assets/", import.meta.url),
+  );
+
+  assert.ok(assets.some((asset) => asset.startsWith("chunk-")));
+  assert.equal(
+    assets.some((asset) => /runtime/i.test(asset)),
+    false,
+    "Telecom resets temporary HTTP requests whose URL contains runtime",
+  );
 });
 
 test("Sites adapter only forwards requests to static assets", async () => {

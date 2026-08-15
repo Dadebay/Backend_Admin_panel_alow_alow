@@ -26,6 +26,16 @@ export default defineConfig(async () => {
   const { cloudflare } = await import("@cloudflare/vite-plugin");
 
   return {
+    build: {
+      rollupOptions: {
+        output: {
+          // Turkmen Telecom's HTTP filter resets requests whose URL contains
+          // the literal word "runtime". Keep production chunk paths opaque so
+          // React's jsx-runtime chunk remains reachable before HTTPS is ready.
+          chunkFileNames: "assets/chunk-[hash].js",
+        },
+      },
+    },
     resolve: {
       alias: {
         "@": fileURLToPath(new URL(".", import.meta.url)),

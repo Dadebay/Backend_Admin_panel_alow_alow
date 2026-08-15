@@ -769,6 +769,12 @@ No dependency, polling loop, or route preload was added.
   HTTP and HTTPS configurations remain versioned side by side, with exactly one
   site enabled at a time. The temporary Swagger location preserves Helmet's CSP
   except for `upgrade-insecure-requests`, which would otherwise upgrade its
-  assets before TLS exists and render a blank page. The temporary site must be
-  removed and port 80 redirected to HTTPS as part of Telecom certificate
-  activation.
+  assets before TLS exists and render a blank page. Telecom also resets plain
+  HTTP asset requests whose path contains the literal word `runtime`, so the
+  Vite production build emits opaque `chunk-<hash>.js` filenames. Admin API and
+  map URLs stay relative (`/api/v1` and `/tiles`), allowing the exact build to
+  move from the temporary HTTP origin to the final HTTPS origin. Nginx rewrites
+  TileServer-generated `localhost` references inside JSON map contracts to the
+  current same-origin `/tiles` base; binary raster/vector tile payloads remain
+  untouched. The temporary site must be removed and port 80 redirected to
+  HTTPS as part of Telecom certificate activation.

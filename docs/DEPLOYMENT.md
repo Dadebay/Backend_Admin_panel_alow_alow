@@ -310,6 +310,15 @@ HTTP- и HTTPS-конфигурации хранятся параллельно,
 ещё не настроенного HTTPS и показывает пустую страницу. Финальная
 `alowalow-development.conf` сохраняет обычное принудительное HTTPS-поведение.
 
+Telecom также сбрасывает временные HTTP-запросы, если URL asset содержит слово
+`runtime`. Поэтому production-сборка React использует нейтральные имена
+`/assets/chunk-<hash>.js`; содержимое и разделение чанков не меняются. API и
+карта используют относительные same-origin пути `/api/v1` и `/tiles`, поэтому
+одна и та же сборка работает сейчас по HTTP IP и позже по HTTPS домену.
+Nginx переписывает создаваемые TileServer GL абсолютные `localhost` URL внутри
+JSON style/data contracts на текущий public origin с префиксом `/tiles`; PNG и
+PBF payloads при этом не преобразуются.
+
 Текущий HTTP-site устанавливается и включается так:
 
 ```bash

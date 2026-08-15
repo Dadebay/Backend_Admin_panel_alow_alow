@@ -3783,6 +3783,7 @@ button:disabled {
   overflow-y: auto;
   padding: 22px;
   border-radius: 20px;
+  background: var(--canvas);
 }
 
 .assisted-order-head {
@@ -3792,8 +3793,8 @@ button:disabled {
   align-items: flex-start;
   margin: -22px -22px 18px;
   padding: 22px;
-  border-bottom: 1px solid var(--brand-cream);
-  background: rgb(254 247 231 / 0.96);
+  border-bottom: 1px solid var(--line);
+  background: color-mix(in srgb, var(--canvas) 96%, transparent);
   backdrop-filter: blur(10px);
 }
 
@@ -3824,9 +3825,33 @@ button:disabled {
 .assisted-order-card {
   min-width: 0;
   padding: 16px;
-  border: 1px solid var(--brand-cream);
+  border: 1px solid var(--line);
   border-radius: 15px;
   background: var(--brand-cream);
+  box-shadow: 0 8px 24px rgb(6 47 94 / 0.07);
+}
+
+.assisted-order-modal input,
+.assisted-order-modal select,
+.assisted-order-modal textarea {
+  border-color: color-mix(in srgb, var(--brand-navy) 24%, var(--brand-cream));
+  color: var(--brand-navy);
+  background: color-mix(in srgb, var(--brand-cream) 92%, var(--brand-orange));
+  box-shadow: inset 0 1px 2px rgb(6 47 94 / 0.06);
+}
+
+.assisted-order-modal input::placeholder,
+.assisted-order-modal textarea::placeholder {
+  color: color-mix(in srgb, var(--brand-navy) 58%, var(--brand-cream));
+  opacity: 1;
+}
+
+.assisted-order-modal input:focus,
+.assisted-order-modal select:focus,
+.assisted-order-modal textarea:focus {
+  border-color: var(--brand-orange);
+  background: var(--brand-cream);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand-orange) 20%, var(--brand-cream));
 }
 
 .assisted-order-card > label,
@@ -3892,6 +3917,11 @@ button:disabled {
   gap: 9px;
 }
 
+.assisted-address-combobox {
+  position: relative;
+  z-index: 20;
+}
+
 .assisted-customer-search > button,
 .assisted-address-search > button {
   min-height: 42px;
@@ -3905,9 +3935,10 @@ button:disabled {
   gap: 6px;
   margin-top: 10px;
   padding: 6px;
-  border: 1px solid var(--brand-cream);
+  border: 1px solid var(--line);
   border-radius: 10px;
-  background: var(--brand-cream);
+  background: var(--canvas);
+  box-shadow: 0 12px 30px rgb(6 47 94 / 0.14);
 }
 
 .assisted-search-results > button {
@@ -3923,8 +3954,8 @@ button:disabled {
 
 .assisted-search-results > button:hover,
 .assisted-search-results > button.selected {
-  border-color: var(--brand-cream);
-  background: var(--brand-cream);
+  border-color: var(--brand-orange);
+  background: color-mix(in srgb, var(--brand-cream) 88%, var(--brand-orange));
 }
 
 .assisted-search-results strong,
@@ -3965,9 +3996,9 @@ button:disabled {
   align-items: center;
   gap: 10px;
   padding: 8px;
-  border: 1px solid var(--brand-cream);
+  border: 1px solid var(--line);
   border-radius: 11px;
-  background: var(--brand-cream);
+  background: var(--canvas);
 }
 
 .assisted-product-list article.selected {
@@ -4022,7 +4053,7 @@ button:disabled {
 .quantity-stepper button {
   width: 28px;
   height: 28px;
-  border: 1px solid var(--brand-cream);
+  border: 1px solid var(--line);
   border-radius: 8px;
   color: var(--brand-orange);
   background: var(--brand-cream);
@@ -4053,7 +4084,36 @@ button:disabled {
 }
 
 .assisted-address-results {
+  position: absolute;
+  top: calc(100% + 7px);
+  right: 0;
+  left: 0;
+  z-index: 1000;
   max-height: 210px;
+  margin-top: 0;
+}
+
+.assisted-selected-address {
+  display: grid;
+  gap: 3px;
+  margin: 12px 0 0;
+  padding: 10px 11px;
+  border-left: 3px solid var(--brand-orange);
+  border-radius: 8px;
+  color: var(--brand-navy);
+  background: color-mix(in srgb, var(--brand-cream) 86%, var(--brand-orange));
+}
+
+.assisted-selected-address span {
+  color: var(--muted);
+  font-size: 8px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.assisted-selected-address strong {
+  font-size: 10px;
+  line-height: 1.45;
 }
 
 .assisted-address-card > label > textarea {
@@ -4071,14 +4131,20 @@ button:disabled {
   font-size: 8px;
   line-height: 1.45;
   text-align: left;
-  cursor: pointer;
+  cursor: default;
+}
+
+.reverse-address-button strong {
+  color: var(--brand-navy);
 }
 
 .assisted-order-map-wrap {
+  position: relative;
   overflow: hidden;
   margin-top: 11px;
-  border: 1px solid var(--brand-cream);
+  border: 1px solid var(--line);
   border-radius: 13px;
+  box-shadow: 0 8px 24px rgb(6 47 94 / 0.12);
 }
 
 .assisted-order-map,
@@ -4101,6 +4167,42 @@ button:disabled {
     Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
     sans-serif;
   font-size: 9px;
+}
+
+.assisted-map-instruction,
+.assisted-map-status {
+  position: absolute;
+  z-index: 500;
+  padding: 7px 9px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--brand-navy);
+  background: color-mix(in srgb, var(--brand-cream) 94%, transparent);
+  box-shadow: 0 4px 14px rgb(6 47 94 / 0.15);
+  font-size: 8px;
+  font-weight: 700;
+  line-height: 1.35;
+  pointer-events: none;
+}
+
+.assisted-map-instruction {
+  top: 10px;
+  left: 52px;
+  max-width: min(270px, calc(100% - 130px));
+}
+
+.assisted-map-status {
+  top: 10px;
+  right: 10px;
+}
+
+.assisted-map-status.ready {
+  color: color-mix(in srgb, var(--brand-navy) 72%, var(--brand-orange));
+}
+
+.assisted-map-status.error {
+  color: var(--brand-orange);
+  border-color: var(--brand-orange);
 }
 
 .assisted-order-marker {
@@ -4134,7 +4236,7 @@ button:disabled {
   align-items: center;
   margin: 18px -22px -22px;
   padding: 15px 22px;
-  background: rgb(254 247 231 / 0.97);
+  background: color-mix(in srgb, var(--canvas) 97%, transparent);
   backdrop-filter: blur(10px);
 }
 

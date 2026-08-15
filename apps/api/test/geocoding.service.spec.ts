@@ -14,6 +14,17 @@ function config() {
   } as unknown as ConfigService<AppEnv, true>;
 }
 
+function internalConfig() {
+  const values: Partial<AppEnv> = {
+    GEOCODING_PRIMARY_URL: "http://geocoding:8080",
+    GEOCODING_FALLBACK_URL: "https://photon.example.test",
+    GEOCODING_USER_AGENT: "AlowAlow-Tests/1.0",
+  };
+  return {
+    get: vi.fn((key: keyof AppEnv) => values[key]),
+  } as unknown as ConfigService<AppEnv, true>;
+}
+
 function jsonResponse(value: unknown) {
   return {
     ok: true,
@@ -104,6 +115,20 @@ describe("geocoding service", () => {
     const fallbackUrl = fetchMock.mock.calls[1]?.[0] as unknown as URL;
     expect(fallbackUrl.hostname).toBe("photon.example.test");
     expect(fallbackUrl.searchParams.get("bbox")).toBe("52.4,35.1,66.7,42.8");
+  });
+
+  it("uses the self-hosted provider without waiting for an unreachable public fallback", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse([]));
+    vi.stubGlobal("fetch", fetchMock);
+    const service = new GeocodingService(internalConfig());
+
+    await expect(service.search("Garaşsyzlyk 60", 6)).resolves.toEqual([]);
+    await expect(service.reverseGeocode(37.96, 58.32)).resolves.toBeNull();
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    for (const [requestedUrl] of fetchMock.mock.calls as unknown as [[URL]]) {
+      expect(requestedUrl.hostname).toBe("geocoding");
+    }
   });
 
   it("drops provider results with invalid coordinates", async () => {

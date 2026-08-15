@@ -4,8 +4,10 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ChangeEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
 } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, useWatch } from "react-hook-form";
@@ -29,6 +31,7 @@ import { ApiError } from "@/src/shared/api/api-client";
 import { FormFieldError } from "@/src/shared/forms";
 import {
   assistedOrderFormSchema,
+  buildAssistedDeliveryAddress,
   type AssistedOrderCoordinates,
   type AssistedOrderFormInput,
   type AssistedOrderFormValues,
@@ -66,6 +69,10 @@ export default function AssistedOrderDialog({
   const actions = useAssistedOrderActions();
   const [submittedCustomerPhone, setSubmittedCustomerPhone] = useState("");
   const [submittedAddressQuery, setSubmittedAddressQuery] = useState("");
+  const [isAddressDropdownOpen, setIsAddressDropdownOpen] = useState(false);
+  const [activeAddressResultIndex, setActiveAddressResultIndex] = useState(0);
+  const [selectedAddressResult, setSelectedAddressResult] =
+    useState<GeocodeSearchResult | null>(null);
   const [selectedCustomer, setSelectedCustomer] =
     useState<AssistedCustomer | null>(null);
   const [coordinates, setCoordinates] =
@@ -78,6 +85,7 @@ export default function AssistedOrderDialog({
   const [customerSearchError, setCustomerSearchError] = useState("");
   const [addressSearchError, setAddressSearchError] = useState("");
   const [createdOrder, setCreatedOrder] = useState<Order | null>(null);
+  const addressComboboxRef = useRef<HTMLDivElement>(null);
   const customers = useAssistedCustomerSearch();
   const addressResults = useGeocodeSearch(submittedAddressQuery);
   const reverse = useReverseGeocode(
@@ -112,6 +120,7 @@ export default function AssistedOrderDialog({
   });
   const selectedAddressId = useWatch({ control, name: "addressId" });
   const customerPhoneField = register("customerPhone");
+  const addressSearchField = register("addressSearch");
 
   useEffect(() => {
     function closeOnEscape(event: KeyboardEvent) {
@@ -120,6 +129,20 @@ export default function AssistedOrderDialog({
     window.addEventListener("keydown", closeOnEscape);
     return () => window.removeEventListener("keydown", closeOnEscape);
   }, [onClose]);
+
+  useEffect(() => {
+    function closeAddressDropdown(event: PointerEvent) {
+      if (
+        event.target instanceof Node &&
+        !addressComboboxRef.current?.contains(event.target)
+      ) {
+        setIsAddressDropdownOpen(false);
+      }
+    }
+    document.addEventListener("pointerdown", closeAddressDropdown);
+    return () =>
+      document.removeEventListener("pointerdown", closeAddressDropdown);
+  }, []);
 
   const visibleProducts = useMemo(() => {
     const query = productSearch.trim().toLocaleLowerCase("ru-RU");
@@ -167,37 +190,50 @@ export default function AssistedOrderDialog({
     setValue("floor", "");
     setValue("apartment", "");
     setCoordinates(null);
+    setSelectedAddressResult(null);
   }, [setValue]);
 
-  const selectAddress = useCallback((address: AssistedCustomerAddress) => {
-    const selection = toSavedAddressSelection(address);
-    setValue("addressId", selection.values.addressId, { shouldValidate: true });
-    setValue("addressLabel", selection.values.addressLabel);
-    setValue("address", selection.values.address, { shouldValidate: true });
-    setValue("entrance", selection.values.entrance);
-    setValue("floor", selection.values.floor);
-    setValue("apartment", selection.values.apartment);
-    setCoordinates(selection.coordinates);
-    setSelectionError("");
-  }, [setValue]);
+  const selectAddress = useCallback(
+    (address: AssistedCustomerAddress) => {
+      const selection = toSavedAddressSelection(address);
+      setValue("addressId", selection.values.addressId, {
+        shouldValidate: true,
+      });
+      setValue("addressLabel", selection.values.addressLabel);
+      setValue("address", selection.values.address, { shouldValidate: true });
+      setValue("entrance", selection.values.entrance);
+      setValue("floor", selection.values.floor);
+      setValue("apartment", selection.values.apartment);
+      setCoordinates(selection.coordinates);
+      setSelectedAddressResult(null);
+      setIsAddressDropdownOpen(false);
+      setSelectionError("");
+    },
+    [setValue],
+  );
 
-  const selectCustomer = useCallback((customer: AssistedCustomer) => {
-    setSelectedCustomer(customer);
-    setValue("customerPhone", customer.phone, { shouldValidate: true });
-    setValue("customerFirstName", customer.firstName ?? "");
-    setValue("customerLastName", customer.lastName ?? "");
-    const preferredAddress = getPreferredAssistedAddress(customer);
-    if (preferredAddress) selectAddress(preferredAddress);
-    else clearSelectedAddress();
-  }, [clearSelectedAddress, selectAddress, setValue]);
+  const selectCustomer = useCallback(
+    (customer: AssistedCustomer) => {
+      setSelectedCustomer(customer);
+      setValue("customerPhone", customer.phone, { shouldValidate: true });
+      setValue("customerFirstName", customer.firstName ?? "");
+      setValue("customerLastName", customer.lastName ?? "");
+      const preferredAddress = getPreferredAssistedAddress(customer);
+      if (preferredAddress) selectAddress(preferredAddress);
+      else clearSelectedAddress();
+    },
+    [clearSelectedAddress, selectAddress, setValue],
+  );
 
   function selectSearchResult(result: GeocodeSearchResult) {
     setValue("addressId", "", { shouldValidate: true });
-    setValue("address", result.label, { shouldValidate: true });
+    setValue("addressSearch", result.label, { shouldValidate: true });
+    setSelectedAddressResult(result);
     setCoordinates({
       latitude: result.latitude,
       longitude: result.longitude,
     });
+    setIsAddressDropdownOpen(false);
     setSelectionError("");
   }
 
@@ -237,12 +273,57 @@ export default function AssistedOrderDialog({
       return;
     }
     setAddressSearchError("");
+    setActiveAddressResultIndex(0);
+    setIsAddressDropdownOpen(true);
+    if (query === submittedAddressQuery) {
+      void addressResults.refetch();
+      return;
+    }
     setSubmittedAddressQuery(query);
+  }
+
+  function editAddressSearch(event: ChangeEvent<HTMLInputElement>) {
+    void addressSearchField.onChange(event);
+    setSelectedAddressResult(null);
+    setIsAddressDropdownOpen(false);
+    setAddressSearchError("");
+  }
+
+  function handleAddressSearchKeyDown(
+    event: ReactKeyboardEvent<HTMLInputElement>,
+  ) {
+    const results = addressResults.data?.items ?? [];
+    if (event.key === "Escape" && isAddressDropdownOpen) {
+      event.preventDefault();
+      event.stopPropagation();
+      setIsAddressDropdownOpen(false);
+      return;
+    }
+    if (event.key === "ArrowDown" && isAddressDropdownOpen && results.length) {
+      event.preventDefault();
+      setActiveAddressResultIndex((current) =>
+        Math.min(results.length - 1, current + 1),
+      );
+      return;
+    }
+    if (event.key === "ArrowUp" && isAddressDropdownOpen && results.length) {
+      event.preventDefault();
+      setActiveAddressResultIndex((current) => Math.max(0, current - 1));
+      return;
+    }
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    if (isAddressDropdownOpen && results[activeAddressResultIndex]) {
+      selectSearchResult(results[activeAddressResultIndex]);
+      return;
+    }
+    findAddress();
   }
 
   function selectMapCoordinates(next: AssistedOrderCoordinates) {
     setValue("addressId", "", { shouldValidate: true });
     setCoordinates(next);
+    setSelectedAddressResult(null);
     setSelectionError("");
   }
 
@@ -268,7 +349,12 @@ export default function AssistedOrderDialog({
         ? { addressId: values.addressId }
         : {
             addressLabel: values.addressLabel,
-            address: values.address,
+            address: buildAssistedDeliveryAddress({
+              officialAddress:
+                selectedAddressResult?.label ?? reverse.data?.line,
+              unofficialAddress: values.address,
+              coordinates: coordinates!,
+            }),
             latitude: coordinates?.latitude,
             longitude: coordinates?.longitude,
             entrance: values.entrance,
@@ -293,6 +379,8 @@ export default function AssistedOrderDialog({
     setSelectedCustomer(null);
     setSubmittedCustomerPhone("");
     setSubmittedAddressQuery("");
+    setIsAddressDropdownOpen(false);
+    setSelectedAddressResult(null);
     setCoordinates(null);
     setQuantityByProduct({});
     setProductSearch("");
@@ -603,67 +691,123 @@ export default function AssistedOrderDialog({
                 )}
               </div>
               <p className="assisted-order-hint">
-                Ищите официальное название кнопкой или укажите неофициальный
-                ориентир вручную. Точная точка всегда определяется маркером.
+                Найдите официальный адрес и выберите его из списка. Если адреса
+                нет в базе карты, просто поставьте маркер. Неофициальный
+                ориентир заполняется только при необходимости.
               </p>
-              <div className="assisted-address-search">
-                <label>
-                  <span>Поиск места или улицы</span>
-                  <input
-                    data-testid="assisted-address-search-input"
-                    {...register("addressSearch")}
-                    placeholder="Например: Парахат 7, школа 26"
-                  />
-                  <FormFieldError message={errors.addressSearch?.message} />
-                </label>
-                <button
-                  className="secondary-button"
-                  data-testid="assisted-address-search-submit"
-                  type="button"
-                  onClick={findAddress}
-                >
-                  Найти
-                </button>
-              </div>
-              {addressSearchError && (
-                <p className="form-error">{addressSearchError}</p>
-              )}
-              {addressResults.isFetching && (
-                <p className="muted">Ищем на карте…</p>
-              )}
-              {addressResults.isError && (
-                <p className="form-error">{addressResults.error.message}</p>
-              )}
-              {addressResults.data && (
-                <div className="assisted-search-results assisted-address-results">
-                  {addressResults.data.items.map((result) => (
-                    <button
-                      data-testid={`assisted-address-result-${result.provider}-${result.latitude}-${result.longitude}`}
-                      key={`${result.provider}:${result.latitude}:${result.longitude}`}
-                      type="button"
-                      onClick={() => selectSearchResult(result)}
-                    >
-                      <strong>{result.label}</strong>
-                      {result.aliases.length > 0 && (
-                        <small>
-                          Также: {result.aliases.slice(0, 3).join(" · ")}
-                        </small>
-                      )}
-                    </button>
-                  ))}
-                  {!addressResults.data.items.length && (
-                    <p className="assisted-order-hint">
-                      Совпадений нет — введите ориентир вручную и поставьте
-                      маркер.
-                    </p>
-                  )}
-                  <small className="map-attribution">
-                    {addressResults.data.attribution}
-                  </small>
+              <div
+                className="assisted-address-combobox"
+                data-testid="assisted-address-combobox"
+                ref={addressComboboxRef}
+              >
+                <div className="assisted-address-search">
+                  <label>
+                    <span>Поиск официального адреса</span>
+                    <input
+                      {...addressSearchField}
+                      aria-autocomplete="list"
+                      aria-controls="assisted-address-listbox"
+                      aria-expanded={isAddressDropdownOpen}
+                      aria-haspopup="listbox"
+                      aria-activedescendant={
+                        isAddressDropdownOpen &&
+                        addressResults.data?.items[activeAddressResultIndex]
+                          ? `assisted-address-option-${activeAddressResultIndex}`
+                          : undefined
+                      }
+                      data-testid="assisted-address-search-input"
+                      onChange={editAddressSearch}
+                      onFocus={() => {
+                        if (
+                          addressResults.data &&
+                          getValues("addressSearch").trim() ===
+                            submittedAddressQuery
+                        ) {
+                          setIsAddressDropdownOpen(true);
+                        }
+                      }}
+                      onKeyDown={handleAddressSearchKeyDown}
+                      placeholder="Например: Garaşsyzlyk 60"
+                      role="combobox"
+                    />
+                    <FormFieldError message={errors.addressSearch?.message} />
+                  </label>
+                  <button
+                    className="secondary-button"
+                    data-testid="assisted-address-search-submit"
+                    type="button"
+                    onClick={findAddress}
+                  >
+                    Найти
+                  </button>
                 </div>
+                {addressSearchError && (
+                  <p className="form-error">{addressSearchError}</p>
+                )}
+                {isAddressDropdownOpen && (
+                  <div
+                    aria-busy={addressResults.isFetching}
+                    className="assisted-search-results assisted-address-results"
+                    data-testid="assisted-address-results"
+                    id="assisted-address-listbox"
+                    role="listbox"
+                  >
+                    {addressResults.isFetching && (
+                      <p className="assisted-order-hint">Ищем на карте…</p>
+                    )}
+                    {addressResults.isError && (
+                      <p className="form-error">
+                        {addressResults.error.message}
+                      </p>
+                    )}
+                    {addressResults.data?.items.map((result, index) => (
+                      <button
+                        aria-selected={index === activeAddressResultIndex}
+                        className={
+                          index === activeAddressResultIndex ? "selected" : ""
+                        }
+                        data-testid={`assisted-address-result-${result.provider}-${result.latitude}-${result.longitude}`}
+                        id={`assisted-address-option-${index}`}
+                        key={`${result.provider}:${result.latitude}:${result.longitude}`}
+                        role="option"
+                        type="button"
+                        onClick={() => selectSearchResult(result)}
+                        onMouseEnter={() => setActiveAddressResultIndex(index)}
+                      >
+                        <strong>{result.label}</strong>
+                        {result.aliases.length > 0 && (
+                          <small>
+                            Также: {result.aliases.slice(0, 3).join(" · ")}
+                          </small>
+                        )}
+                      </button>
+                    ))}
+                    {addressResults.data &&
+                      !addressResults.isFetching &&
+                      !addressResults.data.items.length && (
+                        <p className="assisted-order-hint">
+                          Совпадений нет — поставьте точный маркер на карте.
+                        </p>
+                      )}
+                    {addressResults.data && (
+                      <small className="map-attribution">
+                        {addressResults.data.attribution}
+                      </small>
+                    )}
+                  </div>
+                )}
+              </div>
+              {selectedAddressResult && (
+                <p
+                  className="assisted-selected-address"
+                  data-testid="assisted-selected-address"
+                >
+                  <span>Выбран адрес</span>
+                  <strong>{selectedAddressResult.label}</strong>
+                </p>
               )}
               <label>
-                <span>Адрес / неофициальный ориентир</span>
+                <span>Неофициальный адрес / ориентир (необязательно)</span>
                 <textarea
                   data-testid="assisted-order-address"
                   {...register("address")}
@@ -673,20 +817,16 @@ export default function AssistedOrderDialog({
                 />
                 <FormFieldError message={errors.address?.message} />
               </label>
-              {reverse.data?.line && !selectedAddressId && (
-                <button
-                  className="reverse-address-button"
-                  data-testid="assisted-address-use-reverse"
-                  type="button"
-                  onClick={() =>
-                    setValue("address", reverse.data.line ?? "", {
-                      shouldValidate: true,
-                    })
-                  }
-                >
-                  Подставить адрес точки: {reverse.data.line}
-                </button>
-              )}
+              {reverse.data?.line &&
+                !selectedAddressId &&
+                !selectedAddressResult && (
+                  <p
+                    className="reverse-address-button"
+                    data-testid="assisted-address-reverse"
+                  >
+                    Адрес выбранной точки: <strong>{reverse.data.line}</strong>
+                  </p>
+                )}
               <Suspense
                 fallback={
                   <div className="assisted-map-loading">Загружаем карту…</div>

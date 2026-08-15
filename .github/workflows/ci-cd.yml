@@ -367,6 +367,7 @@ jobs:
           MINIO_IMAGE: nexus.telecom.tm/minio/minio:latest@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e
           MINIO_MC_IMAGE: nexus.telecom.tm/minio/mc:latest@sha256:a7fe349ef4bd8521fb8497f55c6042871b2ae640607cf99d9bede5e9bdf11727
           TILESERVER_IMAGE: nexus.telecom.tm/maptiler/tileserver-gl:v5.6.0@sha256:3a9ccdb24820b6814c8119bcc8a4376c39867cb0ffe69d62919ef898b90c2427
+          GEOCODING_IMAGE: nexus.telecom.tm/mediagis/nominatim:5.3@sha256:7923a8e67197fc6d4f4ecb7c0e8bbedffeddcfdf4519596fe946e46a28f5a9f8
           API_PORT: ${{ vars.API_PORT || '4001' }}
           ADMIN_PORT: ${{ vars.ADMIN_PORT || '3001' }}
         run: |
@@ -396,6 +397,7 @@ jobs:
           printf 'ALOWALOW_MINIO_IMAGE=%s\n' "$MINIO_IMAGE" >> /tmp/alowalow-release.env
           printf 'ALOWALOW_MINIO_MC_IMAGE=%s\n' "$MINIO_MC_IMAGE" >> /tmp/alowalow-release.env
           printf 'ALOWALOW_TILESERVER_IMAGE=%s\n' "$TILESERVER_IMAGE" >> /tmp/alowalow-release.env
+          printf 'ALOWALOW_GEOCODING_IMAGE=%s\n' "$GEOCODING_IMAGE" >> /tmp/alowalow-release.env
           printf 'ALOWALOW_COMPOSE_PROJECT=alowalow-development\n' >> /tmp/alowalow-release.env
           printf 'ALOWALOW_ENV_FILE=.env.development\n' >> /tmp/alowalow-release.env
           printf 'ALOWALOW_COMPOSE_OVERRIDE=docker-compose.development.yml\n' >> /tmp/alowalow-release.env

@@ -19,6 +19,7 @@ import { notificationFormSchema } from "../src/widgets/notification-manager/mode
 import { staffFormSchema } from "../src/widgets/staff-manager/model/staff-form.ts";
 import {
   assistedOrderFormSchema,
+  buildAssistedDeliveryAddress,
   normalizeAssistedOrderCoordinates,
 } from "../src/widgets/assisted-order/model/assisted-order-form.ts";
 
@@ -186,7 +187,7 @@ test("notification schema accepts only internal application deep links", () => {
   );
 });
 
-test("assisted order validates the caller and keeps unofficial address text", () => {
+test("assisted order keeps the optional unofficial address and always builds a delivery label", () => {
   const parsed = assistedOrderFormSchema.parse({
     customerPhone: "+993 65 12 34 56",
     customerFirstName: " Aman ",
@@ -220,7 +221,21 @@ test("assisted order validates the caller and keeps unofficial address text", ()
       promoCode: "",
       addressSearch: "",
     }).success,
-    false,
+    true,
+  );
+  assert.equal(
+    buildAssistedDeliveryAddress({
+      officialAddress: "Garaşsyzlyk şaýoly 60",
+      unofficialAddress: "синий подъезд",
+      coordinates: { latitude: 37.96, longitude: 58.32 },
+    }),
+    "Garaşsyzlyk şaýoly 60 — ориентир: синий подъезд",
+  );
+  assert.equal(
+    buildAssistedDeliveryAddress({
+      coordinates: { latitude: 37.960123, longitude: 58.326789 },
+    }),
+    "Точка на карте: 37.96012, 58.32679",
   );
   assert.deepEqual(normalizeAssistedOrderCoordinates(37.960123456, 58.3261), {
     latitude: 37.9601235,

@@ -41,10 +41,7 @@ const customer = {
 };
 
 test("exact caller match selects their active saved address and all address fields", () => {
-  assert.equal(
-    findExactAssistedCustomer([customer], "+99365123456"),
-    customer,
-  );
+  assert.equal(findExactAssistedCustomer([customer], "+99365123456"), customer);
   assert.equal(findExactAssistedCustomer([customer], "123456"), null);
 
   const preferred = getPreferredAssistedAddress(customer);
@@ -96,7 +93,7 @@ test("phone order uses real typed APIs and is lazy-loaded from the order board",
   assert.match(customers, /\/orders\/assisted\/customers\?/);
 });
 
-test("address search is explicit and the large map remains a manual fallback", async () => {
+test("address search is an accessible dropdown and the large map remains a manual fallback", async () => {
   const dialog = await readFile(
     new URL(
       "../src/widgets/assisted-order/ui/assisted-order-dialog.tsx",
@@ -124,9 +121,20 @@ test("address search is explicit and the large map remains a manual fallback", a
   );
 
   assert.match(dialog, /onClick=\{findAddress\}/);
-  assert.match(dialog, /неофициальный ориентир/);
+  assert.match(dialog, /role="combobox"/);
+  assert.match(dialog, /role="listbox"/);
+  assert.match(dialog, /role="option"/);
+  assert.match(dialog, /Неофициальный адрес \/ ориентир \(необязательно\)/);
+  assert.match(dialog, /buildAssistedDeliveryAddress/);
   assert.match(map, /data-testid="assisted-order-map"/);
+  assert.match(map, /ResizeObserver/);
+  assert.match(map, /data-testid="assisted-map-status"/);
   assert.match(geocoding, /\/geocoding\/search\?/);
   assert.doesNotMatch(geocoding, /setTimeout|debounce/);
   assert.match(styles, /height: clamp\(390px, 48vh, 570px\)/);
+  assert.match(
+    styles,
+    /\.assisted-address-results \{[\s\S]*position: absolute/,
+  );
+  assert.match(styles, /\.assisted-order-modal input[\s\S]*border-color:/);
 });

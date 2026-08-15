@@ -9,19 +9,20 @@
 
 Все данные и процессы изолированы внутри одного каталога и Compose project:
 
-| Ресурс | A7-tagam DEV |
-| --- | --- |
-| Каталог | `/opt/alowalow/development` |
-| HTTP/HTTPS | `80` → HTTPS redirect; `443` — `https://a7-tagam.com.tm` |
-| SSH | `22` для администрирования; временно `443` для GitHub deploy |
-| React SPA | `127.0.0.1:3001` |
-| NestJS API | `127.0.0.1:4001` |
-| Карта | `127.0.0.1:8080`, наружу только через `/tiles/` |
-| OSRM | только Docker-сеть, без host-порта |
-| PostgreSQL | отдельный Docker volume, без host-порта |
-| Redis | отдельный TLS-контейнер, без host-порта |
-| MinIO | отдельный Docker volume, без host-порта |
-| Compose project | `alowalow-development` |
+| Ресурс          | A7-tagam DEV                                                 |
+| --------------- | ------------------------------------------------------------ |
+| Каталог         | `/opt/alowalow/development`                                  |
+| HTTP/HTTPS      | `80` → HTTPS redirect; `443` — `https://a7-tagam.com.tm`     |
+| SSH             | `22` для администрирования; временно `443` для GitHub deploy |
+| React SPA       | `127.0.0.1:3001`                                             |
+| NestJS API      | `127.0.0.1:4001`                                             |
+| Карта           | `127.0.0.1:8080`, наружу только через `/tiles/`              |
+| OSRM            | только Docker-сеть, без host-порта                           |
+| Nominatim       | только Docker-сеть, без host-порта                           |
+| PostgreSQL      | отдельный Docker volume, без host-порта                      |
+| Redis           | отдельный TLS-контейнер, без host-порта                      |
+| MinIO           | отдельный Docker volume, без host-порта                      |
+| Compose project | `alowalow-development`                                       |
 
 После установки сертификата от Turkmen Telecom Nginx на `443` проксирует `/api/v1/*`,
 `/docs` и `/docs-json` в NestJS, а остальные запросы — в статический React/Vite
@@ -37,13 +38,17 @@ variables; workflow передаёт их в Vite и в сборку стати�
 Публичная страница поставщика не показывается в интерфейсе и не используется
 как tile endpoint.
 
-TileServer GL и OSRM входят в DEV Compose. Базовая карта публикуется через
-`/tiles/`, а OSRM остаётся только во внутренней Docker-сети;
-`ROUTING_URL=http://routing:5000`. Подготовленные данные Turkmenistan занимают
+TileServer GL, OSRM и Nominatim входят в DEV Compose. Базовая карта публикуется
+через `/tiles/`, а OSRM и поиск адресов остаются только во внутренней
+Docker-сети: `ROUTING_URL=http://routing:5000` и
+`GEOCODING_PRIMARY_URL=http://geocoding:8080`. Nominatim один раз строит свой
+постоянный индекс из уже переданного `turkmenistan-latest.osm.pbf`; внешний
+интернет ему не нужен. Подготовленные map/routing-данные Turkmenistan занимают
 около 350 МБ. Измеренные значения: около 444 МБ RAM у TileServer после рендера
 и около 97 МБ у OSRM; одноразовая подготовка дорожного графа достигала примерно
-558 МБ. Runtime-данные передаются на сервер один раз и не включаются в Git или
-Docker images.
+558 МБ. Nominatim ограничен 1.5 ГБ на импорт и использует меньшие настройки
+PostgreSQL для VDS с 4 ГБ RAM. Runtime-данные передаются на сервер один раз и не
+включаются в Git или application images.
 
 ## Веточная схема
 
@@ -124,9 +129,11 @@ sudo swapon --show
 grep -F '/swapfile-alowalow' /etc/fstab
 ```
 
-DEV-контейнеры имеют жёсткие memory limits. PostgreSQL, Redis, MinIO и OSRM не
-публикуют порты на сервер. TileServer доступен только на loopback. Использование
-памяти и диска всё равно нужно наблюдать через `docker stats` и `df -h`.
+DEV-контейнеры имеют жёсткие memory limits. PostgreSQL, Redis, MinIO, OSRM и
+Nominatim не публикуют порты на сервер. TileServer доступен только на loopback.
+Первичный импорт Nominatim — самый тяжёлый одноразовый этап, поэтому swap должен
+быть включён до первого деплоя. Использование памяти и диска всё равно нужно
+наблюдать через `docker stats` и `df -h`.
 
 ## Одноразовая подготовка DEV
 
@@ -153,7 +160,7 @@ sudo sh /opt/alowalow/prepare-development-host.sh
 Скрипт создаёт только `/opt/alowalow/development` и внутренний CA/certificate
 для DNS-имени `redis`, а также пустые каталоги для карты и OSRM.
 
-### 3. Карта и маршрутизация
+### 3. Карта, маршрутизация и поиск адресов
 
 Сначала локально проверить подготовленные данные:
 
@@ -216,6 +223,11 @@ openssl rand -base64 32
 Нельзя повторно использовать один секрет для PostgreSQL, Redis, JWT,
 `OTP_PEPPER`, Android device token или MinIO. Настоящие значения не попадают в
 Git и GitHub Actions.
+
+`NOMINATIM_PASSWORD` также должен быть отдельным случайным секретом. Nominatim
+не публикуется наружу, а его volume `nominatim_data` сохраняет готовый индекс
+между деплоями. Чтобы загрузить обновлённый OSM PBF, требуется отдельная
+контролируемая переиндексация; обычный автодеплой volume не удаляет.
 
 Временный статический OTP для одного согласованного тестового номера включается
 только в server-side `.env.development`:

@@ -22,11 +22,11 @@ export type GeocodingSearchResult = {
 type CacheEntry<T> = { expiresAt: number; value: T };
 
 /**
- * Server-side OSM geocoding adapter. Search is explicit-submit only: the
- * public Nominatim service forbids autocomplete and limits an application to
- * one request per second. The queue and bounded cache enforce that contract
- * for the single-process DEV deployment; production can switch both provider
- * origins through environment variables without a mobile/admin release.
+ * Server-side OSM geocoding adapter. Public Nominatim search is explicit-submit
+ * only and goes through the one-request-per-second queue. The closed-network
+ * deployment instead selects its Docker-internal Nominatim origin; that origin
+ * skips both the public queue and the unreachable public fallback. Provider
+ * origins stay configurable without a mobile/admin release.
  */
 @Injectable()
 export class GeocodingService {
@@ -34,6 +34,7 @@ export class GeocodingService {
   private readonly primaryUrl: string;
   private readonly fallbackUrl: string;
   private readonly userAgent: string;
+  private readonly primaryIsInternal: boolean;
   private readonly searchCache = new Map<
     string,
     CacheEntry<GeocodingSearchResult[]>
@@ -46,6 +47,7 @@ export class GeocodingService {
     this.primaryUrl = config.get("GEOCODING_PRIMARY_URL", { infer: true });
     this.fallbackUrl = config.get("GEOCODING_FALLBACK_URL", { infer: true });
     this.userAgent = config.get("GEOCODING_USER_AGENT", { infer: true });
+    this.primaryIsInternal = isInternalGeocodingOrigin(this.primaryUrl);
   }
 
   async reverseGeocode(lat: number, lon: number): Promise<string | null> {
@@ -55,7 +57,7 @@ export class GeocodingService {
 
     const value =
       (await this.tryNominatimReverse(lat, lon)) ??
-      (await this.tryPhotonReverse(lat, lon));
+      (this.primaryIsInternal ? null : await this.tryPhotonReverse(lat, lon));
     this.writeCache(this.reverseCache, key, value);
     return value;
   }
@@ -68,7 +70,7 @@ export class GeocodingService {
 
     const primary = await this.tryNominatimSearch(normalized, limit);
     const fallback =
-      primary.length < limit
+      !this.primaryIsInternal && primary.length < limit
         ? await this.tryPhotonSearch(normalized, limit)
         : [];
     const items = this.deduplicate([...primary, ...fallback]).slice(0, limit);
@@ -227,6 +229,9 @@ export class GeocodingService {
   }
 
   private fetchPrimary(url: URL) {
+    if (this.primaryIsInternal) {
+      return this.fetchJson(url, { "user-agent": this.userAgent });
+    }
     const task = this.primaryQueue.then(async () => {
       const waitMs = Math.max(
         0,
@@ -301,6 +306,13 @@ export class GeocodingService {
     }
     cache.set(key, { expiresAt: Date.now() + CACHE_TTL_MS, value });
   }
+}
+
+function isInternalGeocodingOrigin(value: string) {
+  const hostname = new URL(value).hostname.toLocaleLowerCase("en-US");
+  return ["geocoding", "nominatim", "localhost", "127.0.0.1", "::1"].includes(
+    hostname,
+  );
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

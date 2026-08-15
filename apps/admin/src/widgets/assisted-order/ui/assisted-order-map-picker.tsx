@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   divIcon,
   type LatLngTuple,
@@ -9,6 +9,7 @@ import {
   Marker,
   TileLayer,
   Tooltip,
+  useMap,
   useMapEvents,
 } from "react-leaflet";
 import { MAP_ATTRIBUTION, MAP_TILE_URL } from "@/src/shared/map";
@@ -18,6 +19,24 @@ import {
 } from "../model/assisted-order-form";
 
 const ASHGABAT_CENTER: LatLngTuple = [37.9601, 58.3261];
+
+function MapResizeController() {
+  const map = useMap();
+
+  useEffect(() => {
+    const container = map.getContainer();
+    const resize = () => map.invalidateSize({ animate: false });
+    const frame = window.requestAnimationFrame(resize);
+    const observer = new ResizeObserver(resize);
+    observer.observe(container);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      observer.disconnect();
+    };
+  }, [map]);
+
+  return null;
+}
 
 function MapEvents({
   coordinates,
@@ -54,6 +73,9 @@ export default function AssistedOrderMapPicker({
   onChange: (coordinates: AssistedOrderCoordinates) => void;
 }) {
   const markerRef = useRef<LeafletMarker>(null);
+  const [mapStatus, setMapStatus] = useState<"loading" | "ready" | "error">(
+    "loading",
+  );
   const markerIcon = useMemo(
     () =>
       divIcon({
@@ -77,7 +99,16 @@ export default function AssistedOrderMapPicker({
         scrollWheelZoom
         zoom={14}
       >
-        <TileLayer attribution={MAP_ATTRIBUTION} url={MAP_TILE_URL} />
+        <TileLayer
+          attribution={MAP_ATTRIBUTION}
+          eventHandlers={{
+            load: () => setMapStatus("ready"),
+            loading: () => setMapStatus("loading"),
+            tileerror: () => setMapStatus("error"),
+          }}
+          url={MAP_TILE_URL}
+        />
+        <MapResizeController />
         <MapEvents coordinates={coordinates} onChange={onChange} />
         {coordinates && (
           <Marker
@@ -101,6 +132,18 @@ export default function AssistedOrderMapPicker({
           </Marker>
         )}
       </MapContainer>
+      <div className="assisted-map-instruction">
+        Нажмите на карту или перетащите маркер в точное место
+      </div>
+      <div
+        className={`assisted-map-status ${mapStatus}`}
+        data-testid="assisted-map-status"
+        role="status"
+      >
+        {mapStatus === "loading" && "Карта загружается…"}
+        {mapStatus === "ready" && "Карта готова"}
+        {mapStatus === "error" && "Не удалось загрузить слой карты"}
+      </div>
     </div>
   );
 }

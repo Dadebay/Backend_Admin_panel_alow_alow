@@ -57,10 +57,12 @@ the supplied hot-food delivery-bag mark and only its cream `#FEF7E7`, navy
   extract. NestJS is its only consumer and exposes normalized, authorized
   courier routes; mobile clients never call OSRM directly.
 - A server-side geocoding adapter provides explicit Turkmenistan place search
-  and reverse geocoding. Provider origins are environment-configurable;
-  low-volume development defaults to Nominatim with Photon fallback, bounded
-  caching, and serialized primary-provider requests. Public Nominatim is never
-  used for autocomplete.
+  and reverse geocoding. The closed-network VDS runs a private Nominatim 5.3
+  index from the same Turkmenistan PBF as OSRM; it is Docker-internal and only
+  NestJS may call it. Provider origins remain environment-configurable. Local
+  workstation development may use public Nominatim with Photon fallback,
+  bounded caching, and serialized primary-provider requests. Public Nominatim
+  is never used for autocomplete.
 - React 19, Vite 8, Swagger/OpenAPI-generated TypeScript schema.
 - Local Docker services: PostgreSQL, Redis, MinIO.
 - GitHub Actions CI/CD with GHCR API, migration and static admin images.
@@ -305,6 +307,10 @@ clients render the same base map and overlay their authorized dynamic markers.
 OSRM is a separate internal service and receives only the coordinates needed
 for an authorized route from NestJS. It is not exposed to mobile/web clients
 and never receives customer names, phones, tokens, or order payloads.
+Nominatim is another private internal service: it builds the address-search
+index from the checked Turkmenistan OSM PBF, receives only search text or map
+coordinates from NestJS, and is never exposed through Nginx. The API does not
+wait for an unreachable public fallback when this internal origin is selected.
 
 Collection points are active `Branch` records in PostgreSQL, never deployment
 environment variables. Each courier order exposes its own branch snapshot, and
@@ -357,8 +363,11 @@ heights; visual density must not be reduced to the previous pale compact map.
 - An operator/admin phone order resolves an existing active customer by phone
   or creates a `CUSTOMER` record without issuing OTP, JWT, or refresh tokens.
   A staff phone number or inactive customer is rejected. Staff may reuse one
-  of that customer's saved addresses or save a new map-selected address with
-  an editable official/unofficial description. Every such order is marked
+  of that customer's saved addresses or save a new map-selected address. An
+  official result is selected from the accessible search dropdown; the
+  unofficial address/landmark is optional. A marker is always sufficient: if
+  OSM has no address and the optional landmark is blank, a stable coordinate
+  label is stored with the address snapshot. Every such order is marked
   `STAFF_PHONE`, keeps the normal audit trail, prices/promos/branch rules, and
   remains otherwise identical to a customer-app order.
 - A new order is assigned inside its creation transaction to the nearest active
@@ -568,6 +577,13 @@ color into three palette tokens and their blends. The in-app/fav icon is a
 14 KB WebP; the 940 KB PNG master is reserved for download and social metadata.
 No dependency, polling loop, or route preload was added.
 
+The 2026-08-15 assisted-address UX build keeps the static SPA bootstrap at
+203.3 KB raw / 63.7 KB gzip. CSS is 97.8 KB / 21.6 KB gzip. The lazy assisted
+order chunk is 20.5 KB / 6.2 KB gzip, its map picker is 2.1 KB / 1.1 KB gzip,
+and Leaflet remains isolated. The increase covers the accessible listbox,
+keyboard handling, explicit map loading state and modal resize correction. It
+adds no dependency, keystroke autocomplete, polling loop or initial preload.
+
 ## Decision log
 
 - 2026-07-27: media moved to private S3-compatible storage.
@@ -704,6 +720,12 @@ No dependency, polling loop, or route preload was added.
   customer flow. Address lookup is explicit-submit server-side geocoding with
   a manual unofficial-landmark and draggable-map fallback; public Nominatim is
   rate-limited/cached and its endpoints are replaceable through environment.
+- 2026-08-15: the closed-network DEV address search moved to a private pinned
+  Nominatim 5.3 container using the existing Turkmenistan PBF and a persistent
+  PostgreSQL index volume. The assisted-order search now renders an accessible
+  keyboard-selectable dropdown, the map invalidates its size inside the modal,
+  and the manual unofficial landmark is optional because an exact marker can
+  provide the persisted coordinate fallback.
 - 2026-08-08: the customer-facing brand changed to `A7-tagam`. The React admin
   uses the supplied hot-food delivery-bag logo for login, navigation, courier,
   favicon, and social metadata. Its visual system is restricted to the logo's

@@ -84,6 +84,7 @@ test("admin and production ingress share the public raster XYZ contract", async 
   for (const nginx of [httpNginx, tlsNginx]) {
     assert.match(nginx, /location ~ "\^\/tile\/\(\[0-9\]\{1,2\}\)/);
     assert.match(nginx, /rewrite "\^\/tile\/.+" \/styles\/alowalow\/\$1\/\$2\/\$3\.png break;/);
+    assert.match(nginx, /proxy_hide_header Access-Control-Allow-Origin/);
     assert.match(nginx, /Access-Control-Allow-Origin "\*" always/);
   }
   assert.match(workflow, /VITE_MAP_TILE_URL:.*'\/tile\/\{z\}\/\{x\}\/\{y\}\.png'/);

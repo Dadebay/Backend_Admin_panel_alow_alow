@@ -12,7 +12,7 @@
 | Ресурс | A7-tagam DEV |
 | --- | --- |
 | Каталог | `/opt/alowalow/development` |
-| HTTP/HTTPS | `80` для ACME; приложение на `443` после trusted certificate |
+| HTTP/HTTPS | `80` → HTTPS redirect; `443` — `https://a7-tagam.com.tm` |
 | SSH | `22` для администрирования; временно `443` для GitHub deploy |
 | React SPA | `127.0.0.1:3001` |
 | NestJS API | `127.0.0.1:4001` |
@@ -23,7 +23,7 @@
 | MinIO | отдельный Docker volume, без host-порта |
 | Compose project | `alowalow-development` |
 
-После выпуска trusted certificate Nginx на `443` проксирует `/api/v1/*`,
+После установки сертификата от Turkmen Telecom Nginx на `443` проксирует `/api/v1/*`,
 `/docs` и `/docs-json` в NestJS, а остальные запросы — в статический React/Vite
 SPA-контейнер. Admin собран с
 `VITE_API_URL=/api/v1`, поэтому браузер обращается к API через тот же HTTPS
@@ -82,6 +82,26 @@ Docker endpoint `nexus.telecom.tm`; digest остаётся тем же и пр�
 хранится. Nexus npm proxy доступен по
 `https://nexus.telecom.tm/repository/npm-proxy/`, но сервер не выполняет
 `npm install`, поскольку Node.js-сборки происходят только в GitHub Actions.
+
+## Где хранятся ключи и токены
+
+- SSH private key `a7_tagam_deploy` хранится только на доверенной машине
+  разработчика с правами `600` и в зашифрованном GitHub Environment Secret
+  `DEPLOY_SSH_PRIVATE_KEY`. В панели Telecom и
+  `/home/ubuntu/.ssh/authorized_keys` хранится только безопасная публичная
+  часть. SSH key не имеет отношения к JWT приложения.
+- JWT signing secret находится только в
+  `/opt/alowalow/development/.env.development` с правами `600`; он не попадает
+  в Git, frontend, мобильное приложение или PostgreSQL.
+- Access token — подписанный JWT. Новые токены действуют 365 дней, содержат
+  идентификатор серверной сессии `sid` и не сохраняются backend как plaintext.
+- Refresh token действует 365 дней. Backend хранит в PostgreSQL только его
+  Argon2 hash и срок действия. Refresh атомарно отзывает старую сессию и
+  выпускает новую; logout отзывает сессию, поэтому связанный годовой access
+  token сразу перестаёт приниматься.
+- React admin хранит текущую пару только в `sessionStorage`, поэтому закрытие
+  вкладки удаляет локальную сессию. Android должен использовать защищённое
+  хранилище на базе Android Keystore, iOS — Keychain.
 
 ## Ресурсы сервера
 
@@ -206,7 +226,7 @@ DEV/production `PUSH_PROVIDER=fcm`; `console` разрешён только ло
 `CORS_ORIGINS` должен быть ровно:
 
 ```text
-https://216.250.12.132
+https://a7-tagam.com.tm
 ```
 
 ### 5. GitHub Environment
@@ -244,71 +264,37 @@ SSH-сервер и не VPN. Перед включением Nginx HTTPS пор
 `GITHUB_TOKEN` в `docker login` через SSH stdin и выполняет `docker logout` в
 cleanup trap. Постоянный GitHub token на сервере не хранится.
 
-## HTTPS по IP без домена
+## HTTPS домена через Turkmen Telecom
 
-Геолокация в браузере требует безопасный HTTPS context. DEV поэтому доступен
-по `https://216.250.12.132`, а HTTP используется только для ACME и redirect.
+Единый origin системы — `https://a7-tagam.com.tm`. Бесплатный IP-сертификат и
+Let’s Encrypt не входят в целевую схему: домен и SSL заказаны у Turkmen Telecom,
+а сайт предназначен для внутренней сети. Относительные пути уже позволяют
+разместить всё на одном домене:
 
-Let’s Encrypt выдаёт short-lived IP certificates. Нужен Certbot 5.4 или новее,
-HTTP-01 challenge и автоматическое продление. VDS не видит ACME API и Snap CDN,
-поэтому сам сертификаты не запрашивает. Certbot 5.7 запускается на доверенной
-рабочей машине для первого выпуска и затем в GitHub Actions. Auth/cleanup hooks
-передают на VDS по проверенному SSH только challenge token.
+```text
+/                       React admin
+/api/v1/                NestJS API и публичные media URL
+/docs, /docs-json       Swagger
+/tiles/                 TileServer GL
+```
 
-1. Создать отдельный webroot и установить ACME snippet:
+OSRM остаётся Docker-internal и доступен мобильным клиентам только через
+авторизованный backend routing contract.
 
-   ```bash
-   sudo install -d -m 755 /var/lib/alowalow-acme/.well-known/acme-challenge
-   ```
+1. DNS `A` для `a7-tagam.com.tm` направляется на `216.250.12.132`.
+2. Private key сертификата создаётся или устанавливается только на VDS. Целевые
+   пути Nginx: `/etc/nginx/ssl/a7-tagam.com.tm/fullchain.pem` и
+   `/etc/nginx/ssl/a7-tagam.com.tm/privkey.pem`; если Telecom использует другие
+   пути, конфигурация меняется до активации.
+3. До включения сайта Telecom должен подтвердить, кто продлевает сертификат и
+   что его SAN содержит ровно `a7-tagam.com.tm`.
+4. SSH освобождает `443`, после чего включается
+   `deploy/nginx/alowalow-development.conf`. Перед reload обязательны
+   `sudo nginx -t` и локальные healthchecks upstream-контейнеров.
+5. HTTP после активации используется только для redirect на HTTPS.
 
-2. Установить `deploy/nginx/alowalow-acme-bootstrap.conf` как временный
-   HTTP-only site. До reload обязательно:
-
-   ```bash
-   sudo nginx -t
-   ```
-
-3. На доверенной машине установить pinned Certbot в отдельное окружение и
-   проверить staging через SSH hooks:
-
-   ```bash
-   export DEPLOY_SSH_HOST=216.250.12.132
-   export DEPLOY_SSH_USER=ubuntu
-   export DEPLOY_SSH_KEY_FILE="$HOME/.ssh/a7_tagam_deploy"
-
-   certbot certonly \
-     --staging \
-     --preferred-profile shortlived \
-     --manual \
-     --preferred-challenges http \
-     --manual-auth-hook "$PWD/deploy/certbot-remote-auth.sh" \
-     --manual-cleanup-hook "$PWD/deploy/certbot-remote-cleanup.sh" \
-     --ip-address 216.250.12.132
-   ```
-
-4. После staging повторить без `--staging`, используя отдельный production
-   config-dir. Скопировать весь полученный ACME state в закрытый
-   `/opt/alowalow/acme-state`, а `/etc/letsencrypt` направить на этот каталог.
-   Затем отключить bootstrap site, включить
-   `deploy/nginx/alowalow-development.conf` и выполнить `sudo nginx -t` перед
-   reload.
-
-5. Workflow `.github/workflows/development-certificate.yml` каждые 12 часов
-   скачивает ACME state по SSH, выполняет `certbot renew`, атомарно возвращает
-   state, проверяет Nginx и делает reload. Certbot обновляет сертификат только
-   при достижении окна renewal. До первого успешного production-выпуска
-   `DEVELOPMENT_CERTIFICATE_RENEWAL_ENABLED=false`; после установки state
-   переменная переключается на `true`.
-
-IP-сертификат Let’s Encrypt действует около шести дней. Renewal и reload Nginx
-обязаны работать автоматически до передачи стенда мобильным разработчикам.
-
-Текущий сетевой аудит 2026-08-15: при двух staging-попытках два-три
-multi-perspective узла Let’s Encrypt успешно получили HTTP-01 token, но ещё один
-узел получил `connection refused`. Пока Telecom не исправит международный
-маршрут до порта `80`, trusted IP certificate не выпускается, bootstrap site
-остаётся включённым, а `DEVELOPMENT_CERTIFICATE_RENEWAL_ENABLED=false`. Нельзя
-выдавать self-signed сертификат за готовый публичный HTTPS.
+Старый ACME workflow остаётся выключенным и не должен активироваться для
+Telecom-сертификата.
 
 ## Автодеплой
 
@@ -329,10 +315,10 @@ Merge/push в `main`:
 Проверка:
 
 ```bash
-curl --fail https://216.250.12.132/api/v1/health
-curl --fail https://216.250.12.132/
-curl --fail https://216.250.12.132/docs-json
-curl --fail https://216.250.12.132/tiles/styles/alowalow/8/165/101.png
+curl --fail https://a7-tagam.com.tm/api/v1/health
+curl --fail https://a7-tagam.com.tm/
+curl --fail https://a7-tagam.com.tm/docs-json
+curl --fail https://a7-tagam.com.tm/tiles/styles/alowalow/8/165/101.png
 docker compose \
   --env-file /opt/alowalow/development/.release.env \
   --file /opt/alowalow/development/docker-compose.production.yml \

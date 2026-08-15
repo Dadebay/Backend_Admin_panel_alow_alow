@@ -2874,7 +2874,7 @@
           },
           "expiresInSeconds": {
             "type": "number",
-            "example": 900
+            "example": 31536000
           },
           "user": {
             "$ref": "#/components/schemas/AuthSessionUserDto"

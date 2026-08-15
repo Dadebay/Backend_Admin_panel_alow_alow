@@ -347,11 +347,19 @@ describe("backend security and critical workflow", () => {
     const session = successful?.body as SessionResponse;
     expect(session.accessToken).toEqual(expect.any(String));
     expect(session.refreshToken).toEqual(expect.any(String));
+    await request(server)
+      .get("/api/v1/users/me")
+      .set(bearer(session.accessToken))
+      .expect(200);
 
     const [tokenId] = session.refreshToken.split(".");
     await request(server)
       .post("/api/v1/auth/logout")
       .send({ refreshToken: `${tokenId}.wrong-secret` })
+      .expect(200);
+    await request(server)
+      .get("/api/v1/users/me")
+      .set(bearer(session.accessToken))
       .expect(200);
 
     const refreshed = await request(server)
@@ -359,6 +367,14 @@ describe("backend security and critical workflow", () => {
       .send({ refreshToken: session.refreshToken })
       .expect(200);
     const rotated = refreshed.body as SessionResponse;
+    await request(server)
+      .get("/api/v1/users/me")
+      .set(bearer(session.accessToken))
+      .expect(401);
+    await request(server)
+      .get("/api/v1/users/me")
+      .set(bearer(rotated.accessToken))
+      .expect(200);
 
     const rotations = await Promise.all([
       request(server)
@@ -369,6 +385,24 @@ describe("backend security and critical workflow", () => {
         .send({ refreshToken: rotated.refreshToken }),
     ]);
     expect(rotations.map(({ status }) => status).sort()).toEqual([200, 401]);
+    await request(server)
+      .get("/api/v1/users/me")
+      .set(bearer(rotated.accessToken))
+      .expect(401);
+    const latest = rotations.find(({ status }) => status === 200)
+      ?.body as SessionResponse;
+    await request(server)
+      .get("/api/v1/users/me")
+      .set(bearer(latest.accessToken))
+      .expect(200);
+    await request(server)
+      .post("/api/v1/auth/logout")
+      .send({ refreshToken: latest.refreshToken })
+      .expect(200);
+    await request(server)
+      .get("/api/v1/users/me")
+      .set(bearer(latest.accessToken))
+      .expect(401);
   });
 
   it("locks an OTP after five incorrect attempts", async () => {

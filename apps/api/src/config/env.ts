@@ -254,14 +254,35 @@ export function validateEnv(source: Record<string, unknown>): AppEnv {
   if (!Number.isInteger(port) || port < 1 || port > 65_535) {
     throw new Error("PORT must be an integer between 1 and 65535");
   }
+  const accessTokenTtl = text("ACCESS_TOKEN_TTL", "15m").trim();
+  const accessTtlMatch = /^(\d+)([smhd])$/.exec(accessTokenTtl);
+  const accessTtlUnitSeconds: Record<string, number> = {
+    s: 1,
+    m: 60,
+    h: 3_600,
+    d: 86_400,
+  };
+  const accessTtlSeconds = accessTtlMatch?.[1]
+    ? Number(accessTtlMatch[1]) *
+      (accessTtlUnitSeconds[accessTtlMatch[2] ?? ""] ?? 0)
+    : 0;
+  if (
+    !Number.isSafeInteger(accessTtlSeconds) ||
+    accessTtlSeconds < 60 ||
+    accessTtlSeconds > 365 * 86_400
+  ) {
+    throw new Error(
+      "ACCESS_TOKEN_TTL must use s, m, h or d and be between 60 seconds and 365 days",
+    );
+  }
   const refreshTokenTtlDays = number("REFRESH_TOKEN_TTL_DAYS", 30);
   if (
     !Number.isInteger(refreshTokenTtlDays) ||
     refreshTokenTtlDays < 1 ||
-    refreshTokenTtlDays > 90
+    refreshTokenTtlDays > 365
   ) {
     throw new Error(
-      "REFRESH_TOKEN_TTL_DAYS must be an integer between 1 and 90",
+      "REFRESH_TOKEN_TTL_DAYS must be an integer between 1 and 365",
     );
   }
   const maxImageBytes = number("MAX_IMAGE_BYTES", 5_242_880);
@@ -353,7 +374,7 @@ export function validateEnv(source: Record<string, unknown>): AppEnv {
     PUSH_PROVIDER: pushProvider as AppEnv["PUSH_PROVIDER"],
     FCM_SERVICE_ACCOUNT_BASE64: fcmServiceAccountBase64,
     PUSH_DISPATCH_INTERVAL_MS: pushDispatchIntervalMs,
-    ACCESS_TOKEN_TTL: text("ACCESS_TOKEN_TTL", "15m"),
+    ACCESS_TOKEN_TTL: accessTokenTtl,
     REFRESH_TOKEN_TTL_DAYS: refreshTokenTtlDays,
     CORS_ORIGINS: origins.join(","),
     MAX_IMAGE_BYTES: maxImageBytes,

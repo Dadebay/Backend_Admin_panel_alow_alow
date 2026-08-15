@@ -325,6 +325,13 @@ heights; visual density must not be reduced to the previous pale compact map.
 ## Customer and payment behavior
 
 - Login/registration is by phone OTP. First and last name are optional.
+- Access and rotating refresh tokens both have a 365-day maximum lifetime by
+  explicit product decision. Every newly issued access JWT contains a `sid`
+  bound to the Argon2-hashed PostgreSQL refresh-session record. Refresh rotation
+  and logout revoke that record, so the associated long-lived access JWT is
+  rejected immediately; inactive users are still rejected on every request.
+  Legacy signed access tokens without `sid` remain accepted only for rollout
+  compatibility and retain their originally signed expiry.
 - Production OTP SMS is sent by a dedicated Android device. The device polls
   `GET /api/v1/internal/sms-gateway/pull` with its bearer device token and
   acknowledges `SENT`, `DELIVERED`, or `FAILED` using the returned lease
@@ -697,7 +704,7 @@ No dependency, polling loop, or route preload was added.
   4 GB RAM and 60 GB SSD. One full stack runs under the isolated Compose project
   and directory `/opt/alowalow/development`: API, static admin, PostgreSQL,
   TLS-Redis, MinIO, TileServer GL and private OSRM. Nginx owns standard ports
-  `80`/`443`; public access is HTTPS on the IP, while application and tile
+  `80`/`443`; application and tile
   upstreams remain loopback-only and OSRM remains Docker-internal. A 2 GB swap
   is recommended for image updates and map-rendering peaks. Production remains
   disabled and requires a separate host or explicit capacity/security review.
@@ -738,3 +745,17 @@ No dependency, polling loop, or route preload was added.
   validated `DEPLOY_SSH_PORT=443`, short connection timeouts, the verified host
   key and the job-scoped GHCR token. Port `443` must be returned to Nginx and
   the deploy transport reviewed before trusted public HTTPS is enabled.
+- 2026-08-15: the ordered canonical origin is
+  `https://a7-tagam.com.tm`. Turkmen Telecom, not Let’s Encrypt, supplies and
+  renews its SSL certificate for the domestic-only service. Nginx serves the
+  React admin at `/`, NestJS and media at `/api/v1`, Swagger at `/docs`, and the
+  shared map at `/tiles`; private OSRM remains backend-only. The repository
+  prepares conventional certificate paths under
+  `/etc/nginx/ssl/a7-tagam.com.tm`, but activation waits for Telecom’s actual
+  certificate paths and renewal ownership. The previous ACME workflow remains
+  disabled.
+- 2026-08-15: access and refresh lifetimes were set to 365 days by explicit
+  product decision. Newly issued access JWTs are session-bound with `sid`; the
+  guard checks the current active user and unrevoked, unexpired PostgreSQL
+  session on every protected request. Refresh rotation or logout therefore
+  invalidates the related year-long access token immediately.

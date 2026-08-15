@@ -157,7 +157,7 @@ describe("security environment configuration", () => {
   it("rejects invalid environment names and unsafe numeric limits", () => {
     expect(() => validateEnv({ NODE_ENV: "staging" })).toThrow("NODE_ENV");
     expect(() => validateEnv({ PORT: 0 })).toThrow("PORT");
-    expect(() => validateEnv({ REFRESH_TOKEN_TTL_DAYS: 365 })).toThrow(
+    expect(() => validateEnv({ REFRESH_TOKEN_TTL_DAYS: 366 })).toThrow(
       "REFRESH_TOKEN_TTL_DAYS",
     );
     expect(() => validateEnv({ MAX_IMAGE_BYTES: Number.NaN })).toThrow(
@@ -168,6 +168,24 @@ describe("security environment configuration", () => {
     );
     expect(() => validateEnv({ PUSH_DISPATCH_INTERVAL_MS: 999 })).toThrow(
       "PUSH_DISPATCH_INTERVAL_MS",
+    );
+  });
+
+  it("accepts a one-year rotating refresh session", () => {
+    expect(
+      validateEnv({
+        ACCESS_TOKEN_TTL: "365d",
+        REFRESH_TOKEN_TTL_DAYS: 365,
+      }),
+    ).toMatchObject({
+      ACCESS_TOKEN_TTL: "365d",
+      REFRESH_TOKEN_TTL_DAYS: 365,
+    });
+    expect(() => validateEnv({ ACCESS_TOKEN_TTL: "366d" })).toThrow(
+      "ACCESS_TOKEN_TTL",
+    );
+    expect(() => validateEnv({ ACCESS_TOKEN_TTL: "one-year" })).toThrow(
+      "ACCESS_TOKEN_TTL",
     );
   });
 

@@ -17,19 +17,26 @@ export class RequestOtpDto {
   phone: string;
 
   @ApiPropertyOptional()
-  @IsOptional() @IsString() @MaxLength(255)
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
   installationId?: string;
 
   @ApiPropertyOptional()
-  @IsOptional() @IsString() @MaxLength(160)
+  @IsOptional()
+  @IsString()
+  @MaxLength(160)
   deviceName?: string;
 
   @ApiPropertyOptional({ enum: PushDevicePlatform })
-  @IsOptional() @IsEnum(PushDevicePlatform)
+  @IsOptional()
+  @IsEnum(PushDevicePlatform)
   platform?: PushDevicePlatform;
 
   @ApiPropertyOptional({ example: "1.0.0" })
-  @IsOptional() @IsString() @MaxLength(40)
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
   appVersion?: string;
 }
 
@@ -97,7 +104,7 @@ export class AuthSessionResponseDto {
   @ApiProperty()
   refreshToken: string;
 
-  @ApiProperty({ example: 900 })
+  @ApiProperty({ example: 31_536_000 })
   expiresInSeconds: number;
 
   @ApiProperty({ type: AuthSessionUserDto })

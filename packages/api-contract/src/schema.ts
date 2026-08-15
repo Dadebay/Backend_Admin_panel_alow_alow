@@ -1075,7 +1075,7 @@ export interface components {
         AuthSessionResponseDto: {
             accessToken: string;
             refreshToken: string;
-            /** @example 900 */
+            /** @example 31536000 */
             expiresInSeconds: number;
             user: components["schemas"]["AuthSessionUserDto"];
         };

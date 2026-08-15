@@ -180,15 +180,19 @@ export class AuthService {
     },
     store: PrismaService | Prisma.TransactionClient = this.prisma,
   ) {
-    const accessToken = await this.jwt.signAsync({
-      sub: user.id,
-      phone: user.phone,
-      role: user.role,
-    });
     const id = randomUUID();
     const secret = randomBytes(48).toString("base64url");
     const refreshToken = `${id}.${secret}`;
     const days = this.config.get("REFRESH_TOKEN_TTL_DAYS", { infer: true });
+    const accessToken = await this.jwt.signAsync({
+      sub: user.id,
+      phone: user.phone,
+      role: user.role,
+      // Bind the long-lived JWT to its revocable server-side session. Refresh
+      // rotation and logout revoke this row, invalidating the old access token
+      // immediately instead of waiting for its JWT expiry.
+      sid: id,
+    });
     await store.refreshToken.create({
       data: {
         id,
@@ -265,7 +269,7 @@ const TTL_UNIT_SECONDS: Record<string, number> = {
 };
 
 /** Mirrors the handful of `<number><unit>` forms `ACCESS_TOKEN_TTL` is ever
- * set to (eg. "15m", "365d") — the same string JwtModule signs tokens with,
+ * set to (for example "15m" or "365d") — the same string JwtModule signs tokens with,
  * kept in sync here so the session response's `expiresInSeconds` reports
  * the token's real lifetime instead of a stale hardcoded value. */
 function parseTtlSeconds(ttl: string): number {

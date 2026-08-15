@@ -1,8 +1,11 @@
+# Full production stack for the current single VDS. Database, cache, object
+# storage, map tiles, routing and geocoding remain private to this Compose
+# network; only API/admin/tiles loopback ports are exposed to host Nginx.
 services:
   postgres:
     image: ${ALOWALOW_POSTGRES_IMAGE:-postgres:18-alpine@sha256:9a8afca54e7861fd90fab5fdf4c42477a6b1cb7d293595148e674e0a3181de15}
     env_file:
-      - ${ALOWALOW_ENV_FILE:-.env.development}
+      - ${ALOWALOW_ENV_FILE:-.env.production}
     command:
       - postgres
       - -c
@@ -26,7 +29,7 @@ services:
     image: ${ALOWALOW_REDIS_IMAGE:-redis:8.8.0-alpine@sha256:9d317178eceac8454a2284a9e6df2466b93c745529947f0cd42a0fa9609d7005}
     user: "999:1000"
     env_file:
-      - ${ALOWALOW_ENV_FILE:-.env.development}
+      - ${ALOWALOW_ENV_FILE:-.env.production}
     command:
       - /bin/sh
       - -ec
@@ -68,7 +71,7 @@ services:
   minio:
     image: ${ALOWALOW_MINIO_IMAGE:-minio/minio:latest@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e}
     env_file:
-      - ${ALOWALOW_ENV_FILE:-.env.development}
+      - ${ALOWALOW_ENV_FILE:-.env.production}
     command: server /data
     restart: unless-stopped
     volumes:
@@ -88,7 +91,7 @@ services:
   minio-init:
     image: ${ALOWALOW_MINIO_MC_IMAGE:-minio/mc:latest@sha256:a7fe349ef4bd8521fb8497f55c6042871b2ae640607cf99d9bede5e9bdf11727}
     env_file:
-      - ${ALOWALOW_ENV_FILE:-.env.development}
+      - ${ALOWALOW_ENV_FILE:-.env.production}
     environment:
       MC_CONFIG_DIR: /tmp/.mc
     depends_on:
@@ -184,7 +187,7 @@ services:
     init: true
     restart: unless-stopped
     env_file:
-      - ${ALOWALOW_ENV_FILE:-.env.development}
+      - ${ALOWALOW_ENV_FILE:-.env.production}
     environment:
       PBF_PATH: /osm-data/turkmenistan-latest.osm.pbf
       UPDATE_MODE: none
@@ -262,5 +265,11 @@ services:
 
 volumes:
   postgres_data:
+    external: true
+    name: alowalow-production_postgres_data
   minio_data:
+    external: true
+    name: alowalow-production_minio_data
   nominatim_data:
+    external: true
+    name: alowalow-production_nominatim_data

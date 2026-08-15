@@ -7,21 +7,19 @@ port, service, volume, GitHub setting, registry or deployment branch changes.
 
 Last audited: 2026-08-15.
 
-## Current answer: is this production?
+## Current answer: production only
 
-The backend and admin are built with production toolchains and run as hardened
-production-mode containers. They are deployed to one real VDS and use real
-PostgreSQL, TLS Redis, MinIO, TileServer GL, OSRM and Nominatim services.
+The only active deployment is production. `main` builds hardened immutable
+containers and deploys them through the GitHub `production` Environment to the
+single VDS. The runtime declares both `NODE_ENV=production` and
+`DEPLOYMENT_ENVIRONMENT=production` and uses PostgreSQL, TLS Redis, MinIO,
+TileServer GL, OSRM and Nominatim on the private Compose network.
 
-The environment is nevertheless **not final production**:
-
-- the runtime declares `NODE_ENV=production` but
-  `DEPLOYMENT_ENVIRONMENT=development`;
-- traffic currently uses temporary plain HTTP on the server IP;
-- DNS and the Turkmen Telecom certificate for `a7-tagam.com.tm` are pending;
-- a scoped long-lived OTP exception is enabled only for customer testing;
-- there is no second production host, off-host backup schedule or external
-  monitoring/alerting yet.
+Production currently has an explicitly temporary transport limitation: traffic
+uses plain HTTP on the server IP until Turkmen Telecom supplies DNS and the
+ordered certificate for `a7-tagam.com.tm`. Static/long-lived OTP is disabled;
+all login codes must use the Android pull SMS gateway. Off-host backups and
+external monitoring/alerting still need to be completed.
 
 The repository contains the operations admin, not a customer web storefront.
 Android/iOS applications remain separate projects and consume this API/map
@@ -33,8 +31,8 @@ Cloudflare Workers are not deployment targets.
 ```mermaid
 flowchart LR
   U["Admin and mobile clients"] -->|"HTTP now; HTTPS target"| N["Host Nginx"]
-  N -->|"/"| A["Static React/Vite admin :3001"]
-  N -->|"/api/v1, /docs"| API["NestJS API :4001"]
+  N -->|"/"| A["Static React/Vite admin :3000"]
+  N -->|"/api/v1, /docs"| API["NestJS API :4000"]
   N -->|"/tiles"| T["TileServer GL :8080"]
   API --> PG["PostgreSQL volume"]
   API --> R["TLS Redis"]
@@ -58,15 +56,22 @@ never public client endpoints.
 | OS | Ubuntu 26.04 |
 | Capacity | 4 vCPU, 3910 MB RAM, 60 GB-class disk |
 | Swap | 2047 MB |
-| Deployment directory | `/opt/alowalow/development` |
-| Compose project | `alowalow-development` |
-| Runtime env | `.env.development`, owner `ubuntu`, mode `600` |
+| Deployment directory | `/opt/alowalow/production` |
+| Compose project | `alowalow-production` |
+| Runtime env | `.env.production`, owner `ubuntu`, mode `600` |
 | Release manifest | `.release.env`, immutable image digests, no secrets |
+| Pre-switch archive | `/opt/alowalow/archive-pre-production-20260815` |
 
 At the last audit, roughly 34 GB of the root disk was free and 2.6 GB RAM was
 available. Docker images used about 18 GB, of which about 5.6 GB was reported
 reclaimable. Cleanup must never remove named volumes or runtime map/routing
 directories.
+
+The pre-switch directory and the three legacy `alowalow-development_*` volumes
+are offline rollback snapshots, not an active DEV environment. They must not be
+started or treated as DEV. Keep them only until the production backup/restore
+procedure and customer acceptance are complete, then remove them through a
+separately approved cleanup.
 
 ## Host software
 
@@ -79,11 +84,10 @@ directories.
 | OpenSSL | `3.5.5` |
 | Certbot | isolated `5.7.0` virtual environment under `/opt/alowalow/tools/` |
 
-Certbot has no active renewal timer and
-`DEVELOPMENT_CERTIFICATE_RENEWAL_ENABLED=false`; the intended certificate is
-owned and installed by Turkmen Telecom. The VDS has no VPN and does not build
-the Node.js applications. GitHub Actions builds the images and the VDS only
-pulls immutable digests. No permanent GHCR credential is stored on the host.
+Certbot has no active renewal timer; the intended certificate is owned and
+installed by Turkmen Telecom. The VDS has no VPN and does not build the Node.js
+applications. GitHub Actions builds the images and the VDS only pulls immutable
+digests. No permanent GHCR credential is stored on the host.
 
 ## Public and internal URLs
 
@@ -118,8 +122,8 @@ image moves from HTTP/IP to HTTPS/domain without rebuilding business code.
 | `0.0.0.0:80` | host Nginx | temporary HTTP origin |
 | `0.0.0.0:22` | host sshd | administration |
 | `0.0.0.0:443` | host sshd | temporary GitHub deploy transport |
-| `127.0.0.1:3001` | admin container | host Nginx only |
-| `127.0.0.1:4001` | API container | host Nginx only |
+| `127.0.0.1:3000` | admin container | host Nginx only |
+| `127.0.0.1:4000` | API container | host Nginx only |
 | `127.0.0.1:8080` | TileServer GL | host Nginx only |
 | Docker network only | PostgreSQL, Redis, MinIO, OSRM, Nominatim | not public |
 
@@ -142,6 +146,10 @@ from sshd to Nginx and GitHub deploy must receive another reachable transport.
 | `routing` | private OSRM road routing | host routing runtime, read-only |
 | `geocoding` | private Nominatim search/reverse index | named volume |
 
+The three active production data volumes are declared `external` in Compose.
+This protects them from normal project replacement and `compose down
+--volumes`; `prepare-production-host.sh` creates them explicitly on a new host.
+
 All runtime images are pinned by digest. Repository-owned API, migration and
 admin images come from GHCR. Third-party images that the VDS cannot fetch from
 public Docker Hub are pulled through `nexus.telecom.tm` with their upstream
@@ -160,26 +168,24 @@ Workflow: `.github/workflows/ci-cd.yml`.
 Active branch flow:
 
 ```text
-feature branch -> pull request -> main -> quality gates -> GHCR -> development VDS
+feature branch -> pull request -> main -> quality gates -> GHCR -> production VDS
 ```
 
 Repository variables:
 
 | Name | Current value | Purpose |
 | --- | --- | --- |
-| `DEVELOPMENT_DEPLOY_ENABLED` | `true` | permit automatic DEV deployment |
-| `PRODUCTION_DEPLOY_ENABLED` | `false` | keep production deployment disabled |
+| `PRODUCTION_DEPLOY_ENABLED` | `true` | permit automatic production deployment |
 
-GitHub Environment `development` variables:
+GitHub Environment `production` variables:
 
 | Name | Current value |
 | --- | --- |
-| `API_PORT` | `4001` |
-| `ADMIN_PORT` | `3001` |
+| `API_PORT` | `4000` |
+| `ADMIN_PORT` | `3000` |
 | `DEPLOY_SSH_PORT` | `443` |
-| `DEVELOPMENT_CERTIFICATE_RENEWAL_ENABLED` | `false` |
 
-GitHub Environment `development` encrypted secrets:
+GitHub Environment `production` encrypted secrets:
 
 | Name | What it contains |
 | --- | --- |
@@ -193,14 +199,13 @@ deploy workflow. `GITHUB_TOKEN` is generated automatically for each job, is
 used for a short-lived GHCR login over SSH stdin, and is followed by
 `docker logout`; no permanent GHCR token is stored on the VDS.
 
-Both GitHub Environments `development` and `production` accept only `main`, but
-the production enable variable remains false and no production host is
-configured for release.
+Only the GitHub `production` Environment participates in deployment and it
+accepts only `main`. There is no active DEV Environment or DEV deploy job.
 
 ## Where application secrets live
 
 Real runtime values live only in
-`/opt/alowalow/development/.env.development` with mode `600`. GitHub receives
+`/opt/alowalow/production/.env.production` with mode `600`. GitHub receives
 only SSH connection secrets; frontend builds never receive backend secrets.
 
 The VDS env contains these secret categories:
@@ -213,7 +218,7 @@ The VDS env contains these secret categories:
 - S3/MinIO: `MINIO_*`, `S3_*`;
 - Firebase push: `FCM_SERVICE_ACCOUNT_BASE64`, `PUSH_PROVIDER`;
 - routing/geocoding provider origins and private Nominatim password;
-- a development-only, phone-scoped test OTP exception with explicit expiry.
+- production mode with the long-lived test OTP fields disabled.
 
 Never print, copy into documentation, commit, or send any value from this
 file. Rotation is done one secret at a time with a controlled API restart. JWT,
@@ -228,7 +233,7 @@ Every push to `main` must pass:
 2. Admin lint, production Vite build, smoke/contract tests and audits.
 3. Swagger contract regeneration with a clean Git diff.
 4. Hardened API, migration and static Nginx image builds.
-5. DEV Compose validation.
+5. Production single-host Compose validation.
 
 BuildKit publishes immutable digest references with provenance and SBOM. The
 deploy job copies only Compose/release files, performs GHCR login with the
@@ -258,11 +263,11 @@ curl --fail \
 Server checks:
 
 ```bash
-cd /opt/alowalow/development
+cd /opt/alowalow/production
 docker compose \
   --env-file .release.env \
   --file docker-compose.production.yml \
-  --file docker-compose.development.yml \
+  --file docker-compose.single-host.yml \
   ps
 docker stats --no-stream
 df -h /
@@ -271,22 +276,32 @@ sudo nginx -t
 ```
 
 Do not run `docker compose down --volumes`, `docker system prune --volumes`, or
-delete `maps-runtime`, `routing-runtime`, `.env.development`, `redis-tls`, or
+delete `maps-runtime`, `routing-runtime`, `.env.production`, `redis-tls`, or
 named volumes during routine deployment.
 
-## Before declaring final production
+## Remaining production hardening
 
 - DNS `a7-tagam.com.tm` resolves to the VDS inside the intended network.
 - Turkmen Telecom certificate is installed and its renewal owner is documented.
 - Nginx owns 443; HTTP redirects to HTTPS; mobile cleartext exceptions are
   removed.
 - GitHub deploy uses a reachable transport other than the HTTPS listener.
-- `DEPLOYMENT_ENVIRONMENT=production` and the long-lived test OTP is disabled.
-- Production has its own reviewed host/capacity and isolated secrets/data.
+- `DEPLOYMENT_ENVIRONMENT=production` remains enforced and the long-lived test
+  OTP remains disabled.
 - PostgreSQL and MinIO encrypted off-host backups and restore tests exist.
 - Monitoring, alerting, log retention and disk-capacity alarms exist.
 - Android/iOS production builds use the HTTPS API and MapLibre style URLs.
 - Security review, customer acceptance and rollback drill are complete.
+
+## Future DEV environment (not active)
+
+DEV must be added later as a separate deployment, never by changing the active
+production runtime back to development. It needs its own GitHub Environment and
+enable variable, deployment directory, Compose project, loopback ports,
+PostgreSQL/MinIO/Nominatim data, Redis secrets, S3 bucket, Android gateway
+identity and monitoring. A future branch policy can be chosen at that time;
+until then only `main → production` exists. Production secrets and named
+volumes must never be copied into DEV.
 
 Detailed provisioning and TLS commands remain in `docs/DEPLOYMENT.md`; mobile
 map integration remains in `docs/MOBILE_MAP_AND_ROUTING.md`.

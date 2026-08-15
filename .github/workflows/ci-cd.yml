@@ -190,19 +190,19 @@ jobs:
           test "$(docker image inspect alowalow-admin:ci --format '{{.Config.User}}')" = "101"
           test -n "$(docker image inspect alowalow-admin:ci --format '{{json .Config.Healthcheck}}')"
 
-      - name: Validate DEV Compose
+      - name: Validate production Compose
         run: |
           ALOWALOW_API_IMAGE=alowalow-api:ci \
           ALOWALOW_MIGRATION_IMAGE=alowalow-migration:ci \
           ALOWALOW_ADMIN_IMAGE=alowalow-admin:ci \
-          ALOWALOW_COMPOSE_PROJECT=alowalow-development \
-          ALOWALOW_ENV_FILE=development.env.example \
-          ALOWALOW_COMPOSE_OVERRIDE=compose.development.yml \
-          ALOWALOW_API_PORT=4001 \
-          ALOWALOW_ADMIN_PORT=3001 \
+          ALOWALOW_COMPOSE_PROJECT=alowalow-production \
+          ALOWALOW_ENV_FILE=production.env.example \
+          ALOWALOW_COMPOSE_OVERRIDE=compose.single-host.yml \
+          ALOWALOW_API_PORT=4000 \
+          ALOWALOW_ADMIN_PORT=3000 \
             docker compose \
               --file deploy/compose.production.yml \
-              --file deploy/compose.development.yml \
+              --file deploy/compose.single-host.yml \
               config --quiet
 
   publish_images:
@@ -238,7 +238,7 @@ jobs:
         run: |
           repository="ghcr.io/${GITHUB_REPOSITORY,,}"
           test "$GITHUB_REF" = "refs/heads/main"
-          deployment_channel="development"
+          deployment_channel="production"
           echo "api_image=${repository}-api" >> "$GITHUB_OUTPUT"
           echo "migration_image=${repository}-migration" >> "$GITHUB_OUTPUT"
           echo "admin_image=${repository}-admin" >> "$GITHUB_OUTPUT"
@@ -319,18 +319,18 @@ jobs:
         if: always()
         run: docker logout ghcr.io
 
-  deploy_development:
-    name: Deploy development stack
+  deploy_production:
+    name: Deploy production stack
     needs:
       - publish_images
     if: >-
       needs.publish_images.result == 'success'
-      && needs.publish_images.outputs.deployment_channel == 'development'
-      && vars.DEVELOPMENT_DEPLOY_ENABLED == 'true'
+      && needs.publish_images.outputs.deployment_channel == 'production'
+      && vars.PRODUCTION_DEPLOY_ENABLED == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment:
-      name: development
+      name: production
     permissions:
       contents: read
       packages: read
@@ -340,8 +340,8 @@ jobs:
 
       - name: Configure verified SSH access
         env:
-          SSH_PRIVATE_KEY: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY || secrets.DEVELOPMENT_SSH_PRIVATE_KEY }}
-          SSH_KNOWN_HOSTS: ${{ secrets.DEPLOY_SSH_KNOWN_HOSTS || secrets.DEVELOPMENT_SSH_KNOWN_HOSTS }}
+          SSH_PRIVATE_KEY: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.DEPLOY_SSH_KNOWN_HOSTS }}
         run: |
           test -n "$SSH_PRIVATE_KEY"
           test -n "$SSH_KNOWN_HOSTS"
@@ -365,8 +365,8 @@ jobs:
           MINIO_MC_IMAGE: nexus.telecom.tm/minio/mc:latest@sha256:a7fe349ef4bd8521fb8497f55c6042871b2ae640607cf99d9bede5e9bdf11727
           TILESERVER_IMAGE: nexus.telecom.tm/maptiler/tileserver-gl:v5.6.0@sha256:3a9ccdb24820b6814c8119bcc8a4376c39867cb0ffe69d62919ef898b90c2427
           GEOCODING_IMAGE: nexus.telecom.tm/mediagis/nominatim:5.3@sha256:7923a8e67197fc6d4f4ecb7c0e8bbedffeddcfdf4519596fe946e46a28f5a9f8
-          API_PORT: ${{ vars.API_PORT || '4001' }}
-          ADMIN_PORT: ${{ vars.ADMIN_PORT || '3001' }}
+          API_PORT: ${{ vars.API_PORT || '4000' }}
+          ADMIN_PORT: ${{ vars.ADMIN_PORT || '3000' }}
         run: |
           case "$API_PORT" in
             ''|*[!0-9]*) echo "API_PORT must be numeric" >&2; exit 1 ;;
@@ -395,16 +395,16 @@ jobs:
           printf 'ALOWALOW_MINIO_MC_IMAGE=%s\n' "$MINIO_MC_IMAGE" >> /tmp/alowalow-release.env
           printf 'ALOWALOW_TILESERVER_IMAGE=%s\n' "$TILESERVER_IMAGE" >> /tmp/alowalow-release.env
           printf 'ALOWALOW_GEOCODING_IMAGE=%s\n' "$GEOCODING_IMAGE" >> /tmp/alowalow-release.env
-          printf 'ALOWALOW_COMPOSE_PROJECT=alowalow-development\n' >> /tmp/alowalow-release.env
-          printf 'ALOWALOW_ENV_FILE=.env.development\n' >> /tmp/alowalow-release.env
-          printf 'ALOWALOW_COMPOSE_OVERRIDE=docker-compose.development.yml\n' >> /tmp/alowalow-release.env
+          printf 'ALOWALOW_COMPOSE_PROJECT=alowalow-production\n' >> /tmp/alowalow-release.env
+          printf 'ALOWALOW_ENV_FILE=.env.production\n' >> /tmp/alowalow-release.env
+          printf 'ALOWALOW_COMPOSE_OVERRIDE=docker-compose.single-host.yml\n' >> /tmp/alowalow-release.env
           printf 'ALOWALOW_API_PORT=%s\n' "$API_PORT" >> /tmp/alowalow-release.env
           printf 'ALOWALOW_ADMIN_PORT=%s\n' "$ADMIN_PORT" >> /tmp/alowalow-release.env
 
       - name: Deploy after successful migration
         env:
-          SSH_HOST: ${{ secrets.DEPLOY_SSH_HOST || secrets.DEVELOPMENT_SSH_HOST }}
-          SSH_USER: ${{ secrets.DEPLOY_SSH_USER || secrets.DEVELOPMENT_SSH_USER }}
+          SSH_HOST: ${{ secrets.DEPLOY_SSH_HOST }}
+          SSH_USER: ${{ secrets.DEPLOY_SSH_USER }}
           SSH_PORT: ${{ vars.DEPLOY_SSH_PORT || '22' }}
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -432,14 +432,14 @@ jobs:
             | "${ssh_command[@]}" "${SSH_USER}@${SSH_HOST}" \
               "docker login ghcr.io --username '$GITHUB_ACTOR' --password-stdin"
           "${ssh_command[@]}" "${SSH_USER}@${SSH_HOST}" \
-            'sudo install -d -m 750 -o "$USER" -g "$USER" /opt/alowalow/development'
+            'sudo install -d -m 750 -o "$USER" -g "$USER" /opt/alowalow/production'
           "${scp_command[@]}" deploy/compose.production.yml \
-            "${SSH_USER}@${SSH_HOST}:/opt/alowalow/development/docker-compose.production.yml"
-          "${scp_command[@]}" deploy/compose.development.yml \
-            "${SSH_USER}@${SSH_HOST}:/opt/alowalow/development/docker-compose.development.yml"
+            "${SSH_USER}@${SSH_HOST}:/opt/alowalow/production/docker-compose.production.yml"
+          "${scp_command[@]}" deploy/compose.single-host.yml \
+            "${SSH_USER}@${SSH_HOST}:/opt/alowalow/production/docker-compose.single-host.yml"
           "${scp_command[@]}" deploy/deploy-production.sh \
-            "${SSH_USER}@${SSH_HOST}:/opt/alowalow/development/deploy-production.sh"
+            "${SSH_USER}@${SSH_HOST}:/opt/alowalow/production/deploy-production.sh"
           "${scp_command[@]}" /tmp/alowalow-release.env \
-            "${SSH_USER}@${SSH_HOST}:/opt/alowalow/development/.release.pending.env"
+            "${SSH_USER}@${SSH_HOST}:/opt/alowalow/production/.release.pending.env"
           "${ssh_command[@]}" "${SSH_USER}@${SSH_HOST}" \
-            'sh /opt/alowalow/development/deploy-production.sh'
+            'sh /opt/alowalow/production/deploy-production.sh'

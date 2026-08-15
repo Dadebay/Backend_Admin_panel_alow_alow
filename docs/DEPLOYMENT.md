@@ -1,273 +1,124 @@
-# DEV-деплой A7-tagam на выделенном VDS
+# Production deployment of A7-tagam
 
-Текущее проверенное состояние сервера, список сервисов, портов, GitHub
-variables/secrets и production-readiness зафиксированы в
-[`INFRASTRUCTURE.md`](INFRASTRUCTURE.md). Этот документ содержит подробные
-команды подготовки и эксплуатации.
-
-На `216.250.12.132` разворачивается один полный тестовый стенд из ветки
-`main`. Приложения собираются и работают в production mode, но сам VDS остаётся
-единственным тестовым окружением до появления отдельного production-сервера.
-Сервер имеет 4 vCPU, 4 ГБ RAM и 60 ГБ SSD.
-
-## Граница безопасности
-
-Все данные и процессы изолированы внутри одного каталога и Compose project:
-
-| Ресурс          | Текущее A7-tagam DEV                                         |
-| --------------- | ------------------------------------------------------------ |
-| Каталог         | `/opt/alowalow/development`                                  |
-| HTTP            | `80` — временный единый origin `http://216.250.12.132`       |
-| HTTPS           | ещё не включён; ждёт DNS и сертификат Turkmen Telecom        |
-| SSH             | `22`; временно также `443` для GitHub deploy                 |
-| React SPA       | `127.0.0.1:3001`                                             |
-| NestJS API      | `127.0.0.1:4001`                                             |
-| Карта           | `127.0.0.1:8080`, наружу только через `/tiles/`              |
-| OSRM            | только Docker-сеть, без host-порта                           |
-| Nominatim       | только Docker-сеть, без host-порта                           |
-| PostgreSQL      | отдельный Docker volume, без host-порта                      |
-| Redis           | отдельный TLS-контейнер, без host-порта                      |
-| MinIO           | отдельный Docker volume, без host-порта                      |
-| Compose project | `alowalow-development`                                       |
-
-После установки сертификата от Turkmen Telecom Nginx на `443` проксирует `/api/v1/*`,
-`/docs` и `/docs-json` в NestJS, а остальные запросы — в статический React/Vite
-SPA-контейнер. Admin собран с
-`VITE_API_URL=/api/v1`, поэтому браузер обращается к API через тот же HTTPS
-origin. Внутри admin image нет Node.js frontend server: статические файлы
-раздаёт непривилегированный Nginx.
-
-Карта админки настраивается во время сборки SPA. `VITE_MAP_TILE_URL` содержит
-прямой XYZ-шаблон с `{z}/{x}/{y}`, а подпись слоя задаётся через
-`VITE_MAP_ATTRIBUTION`. Для GitHub Actions эти значения задаются как repository
-variables; workflow передаёт их в Vite и в сборку статического admin image.
-Публичная страница поставщика не показывается в интерфейсе и не используется
-как tile endpoint.
-
-TileServer GL, OSRM и Nominatim входят в DEV Compose. Базовая карта публикуется
-через `/tiles/`, а OSRM и поиск адресов остаются только во внутренней
-Docker-сети: `ROUTING_URL=http://routing:5000` и
-`GEOCODING_PRIMARY_URL=http://geocoding:8080`. Nominatim один раз строит свой
-постоянный индекс из уже переданного `turkmenistan-latest.osm.pbf`; внешний
-интернет ему не нужен. Подготовленные map/routing-данные Turkmenistan занимают
-около 350 МБ. Измеренные значения: около 444 МБ RAM у TileServer после рендера
-и около 97 МБ у OSRM; одноразовая подготовка дорожного графа достигала примерно
-558 МБ. Nominatim ограничен 1.5 ГБ на импорт и использует меньшие настройки
-PostgreSQL для VDS с 4 ГБ RAM. Runtime-данные передаются на сервер один раз и не
-включаются в Git или application images.
-
-## Веточная схема
+This repository has one active deployment path:
 
 ```text
-feature/* ── pull request ──> main ── CI ──> GHCR ──> test VDS
+main -> CI quality gates -> immutable GHCR images -> production VDS
 ```
 
-- Pull request в `main` запускает проверки без деплоя.
-- Merge/push в `main` публикует три immutable image: API, migration и admin.
-- DEV меняется только если repository variable
-  `DEVELOPMENT_DEPLOY_ENABLED=true`.
-- Отдельная `develop`-ветка пока не используется. Она будет введена вместе со
-  вторым окружением после текущего клиентского тестирования.
-- `PRODUCTION_DEPLOY_ENABLED` остаётся `false`.
+There is no active DEV branch, GitHub Environment, host directory or Compose
+stack. The future DEV design is recorded in `INFRASTRUCTURE.md` and must be
+implemented as isolated infrastructure when it is actually needed.
 
-Deployment всегда использует image digest, а не moving tag. Миграция должна
-успешно завершиться до переключения API. При неуспешном healthcheck скрипт
-возвращает предыдущие digest.
+The audited inventory, capacity, ports, services and secret boundaries are in
+[`INFRASTRUCTURE.md`](INFRASTRUCTURE.md). This document owns provisioning,
+deployment and recovery procedures.
 
-## Что проверяет CI
+## Production identity
 
-1. Backend lint, build, тесты, coverage и два dependency audit.
-2. Admin lint, production Vite build/tests и два dependency audit.
-3. Swagger → TypeScript contract без незакоммиченного diff.
-4. Сборку API, migration и статического React/Nginx admin image.
-5. Запуск контейнеров от непривилегированного пользователя и healthcheck.
-6. Полную валидацию DEV Compose.
+| Resource | Value |
+| --- | --- |
+| Git branch | `main` |
+| GitHub Environment | `production` |
+| VDS | `216.250.12.132`, user `ubuntu` |
+| Deployment directory | `/opt/alowalow/production` |
+| Compose project | `alowalow-production` |
+| Runtime env | `.env.production`, mode `600` |
+| API loopback | `127.0.0.1:4000` |
+| Admin loopback | `127.0.0.1:3000` |
+| TileServer loopback | `127.0.0.1:8080` |
+| Current origin | `http://216.250.12.132` |
+| Final origin | `https://a7-tagam.com.tm` |
 
-На сети VDS доступны Ubuntu APT, GitHub, GHCR и внутренний Telecom Nexus, но
-недоступны публичные Docker Hub, PyPI и Snap CDN. Pinned PostgreSQL, Redis,
-MinIO, MinIO Client и TileServer GL скачиваются через стандартный анонимный
-Docker endpoint `nexus.telecom.tm`; digest остаётся тем же и проверяется Docker.
-Наши API/migration/admin images скачиваются из GHCR. Короткоживущий
-`GITHUB_TOKEN` передаётся Docker Login через SSH stdin только на время деплоя и
-затем удаляется командой `docker logout`; постоянный registry token на VDS не
-хранится. Nexus npm proxy доступен по
-`https://nexus.telecom.tm/repository/npm-proxy/`, но сервер не выполняет
-`npm install`, поскольку Node.js-сборки происходят только в GitHub Actions.
+`NODE_ENV=production` and `DEPLOYMENT_ENVIRONMENT=production` are both
+mandatory. Production rejects console SMS, console push, insecure Redis and a
+long-lived/static OTP at application startup.
 
-## Где хранятся ключи и токены
+## Repository deployment files
 
-- SSH private key `a7_tagam_deploy` хранится только на доверенной машине
-  разработчика с правами `600` и в зашифрованном GitHub Environment Secret
-  `DEPLOY_SSH_PRIVATE_KEY`. В панели Telecom и
-  `/home/ubuntu/.ssh/authorized_keys` хранится только безопасная публичная
-  часть. SSH key не имеет отношения к JWT приложения.
-- JWT signing secret находится только в
-  `/opt/alowalow/development/.env.development` с правами `600`; он не попадает
-  в Git, frontend, мобильное приложение или PostgreSQL.
-- Access token — подписанный JWT. Новые токены действуют 365 дней, содержат
-  идентификатор серверной сессии `sid` и не сохраняются backend как plaintext.
-- Refresh token действует 365 дней. Backend хранит в PostgreSQL только его
-  Argon2 hash и срок действия. Refresh атомарно отзывает старую сессию и
-  выпускает новую; logout отзывает сессию, поэтому связанный годовой access
-  token сразу перестаёт приниматься.
-- React admin хранит текущую пару только в `sessionStorage`, поэтому закрытие
-  вкладки удаляет локальную сессию. Android должен использовать защищённое
-  хранилище на базе Android Keystore, iOS — Keychain.
+- `deploy/compose.production.yml`: hardened API, migration and static admin
+  containers.
+- `deploy/compose.single-host.yml`: private PostgreSQL, TLS Redis, MinIO,
+  TileServer GL, OSRM and Nominatim for the current single VDS.
+- `deploy/deploy-production.sh`: pull, migrate, health-check and rollback.
+- `deploy/prepare-production-host.sh`: one-time directories, Redis TLS and host
+  sysctl preparation.
+- `deploy/production.env.example`: key names/placeholders only.
+- `deploy/nginx/alowalow-http-temporary.conf`: temporary HTTP origin.
+- `deploy/nginx/alowalow-production.conf`: final Telecom TLS origin.
 
-## Ресурсы сервера
+## One-time host preparation
 
-На сервере 4 ГБ RAM. Перед запуском полного DEV рекомендуется swap 2 ГБ, чтобы
-одноразовая подготовка, обновление images или краткий пик TileServer не привели
-к OOM:
+Run only on a new production host after reviewing the target paths:
 
 ```bash
-sudo fallocate -l 2G /swapfile-alowalow
-sudo chmod 600 /swapfile-alowalow
-sudo mkswap /swapfile-alowalow
-sudo swapon /swapfile-alowalow
-echo '/swapfile-alowalow none swap sw 0 0' | sudo tee -a /etc/fstab
+sudo sh deploy/prepare-production-host.sh
 ```
 
-Перед добавлением строки следует проверить, что её ещё нет:
+The script creates only `/opt/alowalow/production`, its map/routing directories
+and a private Redis CA/key set. It also enables Redis's required
+`vm.overcommit_memory=1`. It does not create runtime secrets, download map data
+or start the application.
+
+The current Turkmenistan map and routing artifacts live under:
+
+```text
+/opt/alowalow/production/maps-runtime
+/opt/alowalow/production/routing-runtime/current
+```
+
+They are read-only inside application containers. Nominatim, PostgreSQL and
+MinIO use explicit external production volumes created by the preparation
+script. Never run Compose or Docker cleanup with `--volumes` against this host.
+
+## Runtime environment
+
+Create `/opt/alowalow/production/.env.production` from the example, replace
+every placeholder independently, then protect it:
 
 ```bash
-sudo swapon --show
-grep -F '/swapfile-alowalow' /etc/fstab
+sudo chown ubuntu:ubuntu /opt/alowalow/production/.env.production
+sudo chmod 600 /opt/alowalow/production/.env.production
 ```
 
-DEV-контейнеры имеют жёсткие memory limits. PostgreSQL, Redis, MinIO, OSRM и
-Nominatim не публикуют порты на сервер. TileServer доступен только на loopback.
-Первичный импорт Nominatim — самый тяжёлый одноразовый этап, поэтому swap должен
-быть включён до первого деплоя. Использование памяти и диска всё равно нужно
-наблюдать через `docker stats` и `df -h`.
+Required categories are PostgreSQL, TLS Redis, JWT/OTP pepper, Android pull SMS,
+Firebase FCM, MinIO/S3 and Nominatim. Real values never enter Git, GitHub build
+variables, the React bundle or documentation.
 
-## Одноразовая подготовка DEV
-
-### 1. Docker
-
-Нужны Docker Engine и Compose plugin. После установки:
-
-```bash
-sudo usermod -aG docker ubuntu
-docker version
-docker compose version
-```
-
-Новый group membership применяется после повторного SSH-входа.
-
-### 2. Каталог и внутренний TLS Redis
-
-Скопируйте и один раз выполните:
-
-```bash
-sudo sh /opt/alowalow/prepare-development-host.sh
-```
-
-Скрипт создаёт только `/opt/alowalow/development` и внутренний CA/certificate
-для DNS-имени `redis`, а также пустые каталоги для карты и OSRM.
-
-### 3. Карта, маршрутизация и поиск адресов
-
-Сначала локально проверить подготовленные данные:
-
-```bash
-test -s maps/runtime/config.json
-test -s maps/runtime/data/turkmenistan.mbtiles
-test -s routing/runtime/current/turkmenistan-latest.osrm.cells
-test -s routing/runtime/current/turkmenistan-latest.osrm.mldgr
-```
-
-Затем один раз передать только runtime-данные:
-
-```bash
-rsync -az --delete \
-  --exclude downloads/ \
-  --exclude .staging/ \
-  --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r \
-  maps/runtime/ \
-  ubuntu@216.250.12.132:/opt/alowalow/development/maps-runtime/
-rsync -az --delete \
-  --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r \
-  routing/runtime/current/ \
-  ubuntu@216.250.12.132:/opt/alowalow/development/routing-runtime/current/
-```
-
-`--chmod` гарантирует чтение файлов непривилегированными TileServer и OSRM,
-но старый macOS rsync может сохранить исходный режим уже существующего файла.
-Поэтому после передачи права явно нормализуются на сервере; скачанные архивы и
-staging-каталоги туда не передаются:
-
-```bash
-ssh ubuntu@216.250.12.132 \
-  'find /opt/alowalow/development/maps-runtime -type d -exec chmod 755 {} + && \
-   find /opt/alowalow/development/maps-runtime -type f -exec chmod 644 {} + && \
-   find /opt/alowalow/development/routing-runtime/current -type d -exec chmod 755 {} + && \
-   find /opt/alowalow/development/routing-runtime/current -type f -exec chmod 644 {} + && \
-   test -r /opt/alowalow/development/maps-runtime/config.json && \
-   test -r /opt/alowalow/development/routing-runtime/current/turkmenistan-latest.osrm.fileIndex'
-```
-
-### 4. Runtime secrets
-
-Создайте `/opt/alowalow/development/.env.development` на основе
-`deploy/development.env.example`. Права:
-
-```bash
-sudo chown ubuntu:ubuntu /opt/alowalow/development/.env.development
-sudo chmod 600 /opt/alowalow/development/.env.development
-```
-
-Для URL-safe секретов подходят отдельные значения:
-
-```bash
-openssl rand -hex 32
-openssl rand -hex 32
-openssl rand -hex 32
-openssl rand -base64 32
-```
-
-Нельзя повторно использовать один секрет для PostgreSQL, Redis, JWT,
-`OTP_PEPPER`, Android device token или MinIO. Настоящие значения не попадают в
-Git и GitHub Actions.
-
-`NOMINATIM_PASSWORD` также должен быть отдельным случайным секретом. Nominatim
-не публикуется наружу, а его volume `nominatim_data` сохраняет готовый индекс
-между деплоями. Чтобы загрузить обновлённый OSM PBF, требуется отдельная
-контролируемая переиндексация; обычный автодеплой volume не удаляет.
-
-Временный статический OTP для одного согласованного тестового номера включается
-только в server-side `.env.development`:
+The active production settings include:
 
 ```env
-DEPLOYMENT_ENVIRONMENT=development
-LONG_LIVED_TEST_OTP_ENABLED=true
-LONG_LIVED_TEST_OTP_PHONE=+993XXXXXXXX
-LONG_LIVED_TEST_OTP_CODE=<6 случайных цифр>
-LONG_LIVED_TEST_OTP_EXPIRES_AT=<ISO UTC не позднее чем через 366 дней>
+NODE_ENV=production
+DEPLOYMENT_ENVIRONMENT=production
+LONG_LIVED_TEST_OTP_ENABLED=false
+SMS_PROVIDER=android_pull
+PUSH_PROVIDER=fcm
+ACCESS_TOKEN_TTL=365d
+REFRESH_TOKEN_TTL_DAYS=365
+CORS_ORIGINS=https://a7-tagam.com.tm
 ```
 
-Код нельзя добавлять в Git, frontend или логи. Он не является бессрочным и не
-отменяет обычный OTP-флоу: перед каждой проверкой клиент вызывает request,
-получает отдельный 5-минутный Redis challenge, а успешная проверка потребляет
-его один раз. Для production обязательно
-`DEPLOYMENT_ENVIRONMENT=production` и `LONG_LIVED_TEST_OTP_ENABLED=false`;
-backend откажется запускаться при попытке включить исключение.
+The Android device must use the same `SMS_GATEWAY_DEVICE_ID`, bearer token and
+encryption key as the server env. Every OTP remains random, expires after five
+minutes and is consumed once; production has no reusable OTP exception.
 
-Для push-уведомлений DEV runtime также получает отдельный Firebase service
-account в `FCM_SERVICE_ACCOUNT_BASE64`. JSON кодируется одной строкой командой
-`base64 < firebase-service-account.json | tr -d '\n'`; исходный JSON и base64
-не коммитятся и не помещаются в frontend/GitHub build variables. В публичном
-DEV/production `PUSH_PROVIDER=fcm`; `console` разрешён только локально.
+## GitHub configuration
 
-`CORS_ORIGINS` должен быть ровно:
+Repository variable:
 
 ```text
-https://a7-tagam.com.tm
+PRODUCTION_DEPLOY_ENABLED=true
 ```
 
-### 5. GitHub Environment
+GitHub Environment `production` variables:
 
-В Environment `development` нужны:
+```text
+API_PORT=4000
+ADMIN_PORT=3000
+DEPLOY_SSH_PORT=443
+```
+
+Encrypted Environment secrets:
 
 ```text
 DEPLOY_SSH_HOST
@@ -276,139 +127,109 @@ DEPLOY_SSH_PRIVATE_KEY
 DEPLOY_SSH_KNOWN_HOSTS
 ```
 
-Environment variables:
+Use a dedicated ED25519 deployment key. The Ubuntu password is not a GitHub
+secret. `DEPLOY_SSH_KNOWN_HOSTS` contains verified host keys for the configured
+port. The workflow uses the automatically generated job-scoped `GITHUB_TOKEN`
+for GHCR login over SSH stdin and logs out after deployment, so the VDS stores
+no permanent registry token.
+
+Telecom currently blocks GitHub-hosted runners on SSH port 22, so the same
+hardened sshd temporarily also listens on 443. Before activating HTTPS, move
+deployment SSH to another reachable transport and return port 443 to Nginx.
+
+## Automatic release
+
+Every push to `main` must first pass backend/admin lint, builds, tests, coverage,
+dependency audits, Swagger contract verification and hardened container checks.
+The workflow then:
+
+1. Builds API, migration and admin images with provenance and SBOM.
+2. Publishes a `production` tag plus immutable commit tags to GHCR.
+3. Resolves and transfers immutable digest references only.
+4. Copies the two Compose files and deployment script into the production
+   directory.
+5. Pulls all referenced images before mutating the active release manifest.
+6. Runs `prisma migrate deploy` and starts the stack.
+7. Waits for service health checks.
+8. Restores the previous digest manifest if the new release is unhealthy.
+
+The active and previous release references are:
 
 ```text
-API_PORT=4001
-ADMIN_PORT=3001
-DEPLOY_SSH_PORT=443
-DEVELOPMENT_CERTIFICATE_RENEWAL_ENABLED=false
+/opt/alowalow/production/.release.env
+/opt/alowalow/production/.release.previous.env
 ```
 
-Используется отдельный deploy SSH key. Пароль Ubuntu не сохраняется в GitHub.
-Host key должен быть проверен заранее и сохранён целиком в
-`DEPLOY_SSH_KNOWN_HOSTS`. Для нестандартного порта запись имеет вид
-`[216.250.12.132]:443 ssh-ed25519 ...`; secret содержит записи и для `22`, и
-для `443`.
+They contain image references and Compose metadata, not application secrets.
 
-Международный маршрут Telecom не пропускает SSH GitHub-hosted runner на порт
-`22`, поэтому deploy временно использует тот же sshd на `443`. Это не второй
-SSH-сервер и не VPN. Маршрут иногда отвечает `connection refused`; безопасный
-повтор только failed deploy job может получить другой runner и не выполняет
-мутаций приложения до установления SSH-соединения. Перед включением Nginx
-HTTPS порт `443` надо вернуть Nginx, а deploy перевести на доступный отдельный
-transport.
+## HTTP now, HTTPS later
 
-Если GHCR images приватные, deploy job передаёт свой короткоживущий
-`GITHUB_TOKEN` в `docker login` через SSH stdin и выполняет `docker logout` в
-cleanup trap. Постоянный GitHub token на сервере не хранится.
+The temporary HTTP site exposes the admin, API, Swagger and map through one
+origin. It is an explicitly temporary production transport exception while
+Telecom prepares the certificate; credentials and OTP are not protected on the
+wire and browser geolocation is unavailable in an insecure context.
 
-## HTTPS домена через Turkmen Telecom
-
-Единый origin системы — `https://a7-tagam.com.tm`. Бесплатный IP-сертификат и
-Let’s Encrypt не входят в целевую схему: домен и SSL заказаны у Turkmen Telecom,
-а сайт предназначен для внутренней сети. Относительные пути уже позволяют
-разместить всё на одном домене:
+Current routes:
 
 ```text
 /                       React admin
-/api/v1/                NestJS API и публичные media URL
+/api/v1/                NestJS API and media
 /docs, /docs-json       Swagger
 /tiles/                 TileServer GL
 ```
 
-OSRM остаётся Docker-internal и доступен мобильным клиентам только через
-авторизованный backend routing contract.
+OSRM and Nominatim are never public. NestJS is the authorized route/geocoding
+boundary.
 
-1. DNS `A` для `a7-tagam.com.tm` направляется на `216.250.12.132`.
-2. Private key сертификата создаётся или устанавливается только на VDS. Целевые
-   пути Nginx: `/etc/nginx/ssl/a7-tagam.com.tm/fullchain.pem` и
-   `/etc/nginx/ssl/a7-tagam.com.tm/privkey.pem`; если Telecom использует другие
-   пути, конфигурация меняется до активации.
-3. До включения сайта Telecom должен подтвердить, кто продлевает сертификат и
-   что его SAN содержит ровно `a7-tagam.com.tm`.
-4. SSH освобождает `443`, после чего включается
-   `deploy/nginx/alowalow-development.conf`. Перед reload обязательны
-   `sudo nginx -t` и локальные healthchecks upstream-контейнеров.
-5. HTTP после активации используется только для redirect на HTTPS.
+When Telecom supplies the certificate:
 
-Старый ACME workflow остаётся выключенным и не должен активироваться для
-Telecom-сертификата.
+1. Confirm DNS points `a7-tagam.com.tm` to the VDS inside the intended network.
+2. Install the certificate/key under the reviewed Nginx paths.
+3. Move sshd away from port 443 and update `DEPLOY_SSH_PORT`/known hosts.
+4. Install `deploy/nginx/alowalow-production.conf` into `sites-available`.
+5. Run `sudo nginx -t` before switching the enabled symlink.
+6. Reload Nginx, verify HTTPS and leave port 80 only as an HTTPS redirect.
+7. Remove mobile cleartext HTTP exceptions.
 
-### Временный HTTP до установки SSL
+Turkmen Telecom owns certificate issuance and renewal. The old external ACME
+workflow is intentionally absent.
 
-По явному решению заказчика внутреннее тестирование временно доступно на
-`http://216.250.12.132` через
-`deploy/nginx/alowalow-http-temporary.conf`. Конфигурация проксирует admin,
-API, Swagger и tiles через один origin и добавляет диагностический заголовок
-`X-A7-Temporary-HTTP: true`.
+## Verification
 
-HTTP- и HTTPS-конфигурации хранятся параллельно, но в Nginx активируется только
-одна из них. Во временном HTTP-site для `/docs` сохраняется строгий CSP без
-`upgrade-insecure-requests`; иначе браузер пытается загрузить Swagger assets с
-ещё не настроенного HTTPS и показывает пустую страницу. Финальная
-`alowalow-development.conf` сохраняет обычное принудительное HTTPS-поведение.
-
-Telecom также сбрасывает временные HTTP-запросы, если URL asset содержит слово
-`runtime`. Поэтому production-сборка React использует нейтральные имена
-`/assets/chunk-<hash>.js`; содержимое и разделение чанков не меняются. API и
-карта используют относительные same-origin пути `/api/v1` и `/tiles`, поэтому
-одна и та же сборка работает сейчас по HTTP IP и позже по HTTPS домену.
-Nginx переписывает создаваемые TileServer GL абсолютные `localhost` URL внутри
-JSON style/data contracts на текущий public origin с префиксом `/tiles`; PNG и
-PBF payloads при этом не преобразуются.
-
-Текущий HTTP-site устанавливается и включается так:
+Public checks during the temporary HTTP period:
 
 ```bash
-sudo install -m 0644 deploy/nginx/alowalow-http-temporary.conf \
-  /etc/nginx/sites-available/a7-tagam-http-temporary.conf
-sudo ln -sfn /etc/nginx/sites-available/a7-tagam-http-temporary.conf \
-  /etc/nginx/sites-enabled/a7-tagam-http-temporary.conf
-sudo nginx -t
-sudo systemctl reload nginx
+curl --fail http://216.250.12.132/
+curl --fail http://216.250.12.132/api/v1/health
+curl --fail http://216.250.12.132/docs-json
+curl --fail http://216.250.12.132/tiles/styles/alowalow/style.json
 ```
 
-После получения сертификата конфигурация HTTPS сначала устанавливается в
-`sites-available`, затем HTTP symlink удаляется, HTTPS symlink включается, и
-только после успешного `nginx -t` выполняется reload. Файлы application stack и
-данные Compose при этом не меняются.
-
-Это не production TLS: токены и OTP не защищены на транспортном уровне, а
-browser geolocation не работает в insecure context. При установке сертификата
-временный site удаляется, включается `alowalow-development.conf`, а порт `80`
-оставляется только для HTTPS redirect.
-
-## Автодеплой
-
-После подготовки сервера и успешной ручной проверки DEV:
-
-```text
-DEVELOPMENT_DEPLOY_ENABLED=true
-```
-
-Merge/push в `main`:
-
-1. прогоняет все проверки;
-2. публикует API, migration и admin images в GHCR;
-3. передаёт серверу только Compose-файлы и immutable digest-ссылки;
-4. запускает `/opt/alowalow/development/deploy-production.sh`;
-5. ожидает healthcheck API и статической админки.
-
-Проверка:
+Server checks:
 
 ```bash
-curl --fail https://a7-tagam.com.tm/api/v1/health
-curl --fail https://a7-tagam.com.tm/
-curl --fail https://a7-tagam.com.tm/docs-json
-curl --fail https://a7-tagam.com.tm/tiles/styles/alowalow/8/165/101.png
+cd /opt/alowalow/production
 docker compose \
-  --env-file /opt/alowalow/development/.release.env \
-  --file /opt/alowalow/development/docker-compose.production.yml \
-  --file /opt/alowalow/development/docker-compose.development.yml \
+  --env-file .release.env \
+  --file docker-compose.production.yml \
+  --file docker-compose.single-host.yml \
   ps
+docker stats --no-stream
+sudo nginx -t
+df -h /
+free -h
 ```
 
-Production на этом сервере не запускается. К ней можно вернуться только после
-выделения отдельного production host или отдельного согласованного capacity и
-security review.
+Do not use `docker compose down --volumes`, `docker system prune --volumes` or
+delete `.env.production`, `redis-tls`, `maps-runtime`, `routing-runtime` or
+named volumes. PostgreSQL and MinIO still need encrypted off-host backups and a
+tested restore procedure; Docker volumes alone are not backups.
+
+## Future DEV, deliberately not implemented
+
+Future DEV must have separate infrastructure: GitHub Environment and enable
+variable, host/directory, Compose project, ports, databases, volumes, bucket,
+secrets, Android gateway identity and monitoring. It must never reuse
+production data or convert `/opt/alowalow/production` back to development.
+Branch policy will be selected when that infrastructure is approved. Until
+then, `main → production` is the only deployment path.

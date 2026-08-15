@@ -9,7 +9,7 @@ production dependency trees проверялись отдельно.
 apps/api                 NestJS, Prisma, Redis, S3, SMS gateway и FCM push
 apps/admin               React/Vite operations admin
 packages/api-contract    генерируемые TypeScript-типы OpenAPI
-deploy                   DEV/PROD Compose и deployment script
+deploy                   production Compose и deployment script
 maps                     отдельный self-hosted OpenStreetMap tile server
 routing                  приватный OSRM для маршрутов по дорогам
 ```
@@ -199,21 +199,22 @@ ghcr.io/<owner>/<repository>-migration:sha-<commit>
 ghcr.io/<owner>/<repository>-admin:sha-<commit>
 ```
 
-Образы получают тег `development`, но deployment использует только immutable
+Образы получают тег `production`, но deployment использует только immutable
 digest. BuildKit добавляет provenance и SBOM. Проверенная статическая сборка
 админки также сохраняется как отдельный artifact. Если repository variable
-`DEVELOPMENT_DEPLOY_ENABLED=true`, тот же workflow автоматически обновляет
-единственный тестовый VDS через GitHub Environment `development`.
+`PRODUCTION_DEPLOY_ENABLED=true`, тот же workflow автоматически обновляет
+единственный VDS через GitHub Environment `production`.
 
 Веточная схема автодеплоя API:
 
 ```text
-feature/* → PR → main → CI → GHCR → development VDS
+feature/* → PR → main → CI → GHCR → production VDS
 ```
 
-Отдельной `develop`-ветки сейчас нет. Приложения собираются в production mode,
-но окружение остаётся тестовым: `DEPLOYMENT_ENVIRONMENT=development`, временный
-HTTP без SSL и тестовое OTP-исключение. Production automation отключена.
+Отдельной `develop`-ветки и DEV-инфраструктуры сейчас нет. Активное окружение
+имеет `DEPLOYMENT_ENVIRONMENT=production`; статический/долгоживущий OTP в нём
+запрещён. Временный HTTP сохраняется только до установки заказанного Telecom
+SSL и не превращает runtime обратно в DEV.
 
 Полная настройка веток, GitHub secrets/variables, сервера и reverse proxy:
 [`docs/INFRASTRUCTURE.md`](docs/INFRASTRUCTURE.md) и
@@ -229,10 +230,10 @@ ALOWALOW_MIGRATION_IMAGE=ghcr.io/owner/repository-migration@sha256:... \
 docker compose --file deploy/compose.production.yml up -d --wait
 ```
 
-На текущем сервере DEV API слушает только `127.0.0.1:4001`, admin —
-`127.0.0.1:3001`, TileServer — `127.0.0.1:8080`; наружу их публикует host Nginx.
+На текущем сервере production API слушает только `127.0.0.1:4000`, admin —
+`127.0.0.1:3000`, TileServer — `127.0.0.1:8080`; наружу их публикует host Nginx.
 PostgreSQL, TLS Redis, MinIO, OSRM и Nominatim не имеют публичных host-портов.
-Runtime-секреты находятся только в защищённом `.env.development` на VDS.
+Runtime-секреты находятся только в защищённом `.env.production` на VDS.
 
 ## Безопасность
 

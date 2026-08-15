@@ -26,9 +26,10 @@ The React admin is served only by the static Nginx container on the dedicated
 VDS. ChatGPT Sites and Cloudflare Workers are not deployment targets. CI/CD
 produces immutable API, migration and static Nginx admin images. The accepted
 dedicated VDS target is `216.250.12.132` (4 vCPU, 4 GB RAM, 60 GB SSD) and
-hosts one full DEV stack, including TileServer GL and private OSRM. Production
-remains disabled until it receives a separate host or an explicit capacity
-review.
+hosts the only active production stack, including TileServer GL, private OSRM
+and Nominatim. There is no deployed DEV environment yet; it will be introduced
+later with isolated compute, data, secrets, ports and a separate deployment
+policy.
 
 The customer-facing brand is `A7-tagam`. Existing repository, package, service,
 deployment-directory, map-style, and storage identifiers named `alowalow`
@@ -67,10 +68,10 @@ the supplied hot-food delivery-bag mark and only its cream `#FEF7E7`, navy
 - React 19, Vite 8, Swagger/OpenAPI-generated TypeScript schema.
 - Local Docker services: PostgreSQL, Redis, MinIO.
 - GitHub Actions CI/CD with GHCR API, migration and static admin images.
-  During the initial customer-testing phase, `main` deploys production-mode
-  builds to the single isolated `development` environment. A separate
-  `develop` branch and production host are deferred; production automation
-  remains deny-by-default and disabled.
+  `main` is the only deployment branch and automatically deploys immutable
+  images to the GitHub `production` Environment and the single production VDS
+  after every successful quality gate. DEV infrastructure is deferred and must
+  not reuse production data or secrets when it is added.
 
 Durable business data belongs in PostgreSQL. Temporary OTP data belongs in
 Redis. Images belong in S3-compatible storage.
@@ -88,8 +89,7 @@ alowalow/
 ├── .github/
 │   ├── dependabot.yml
 │   └── workflows/
-│       ├── ci-cd.yml
-│       └── development-certificate.yml
+│       └── ci-cd.yml
 ├── docs/
 │   ├── ANDROID_SMS_GATEWAY.md
 │   ├── DEPLOYMENT.md
@@ -99,17 +99,12 @@ alowalow/
 │   └── PROJECT_CONTEXT.md
 ├── deploy/
 │   ├── nginx/
-│   │   ├── alowalow-acme-bootstrap.conf
-│   │   ├── alowalow-acme-location.conf
 │   │   ├── alowalow-http-temporary.conf
-│   │   └── alowalow-development.conf
-│   ├── compose.development.yml
+│   │   └── alowalow-production.conf
 │   ├── compose.production.yml
-│   ├── certbot-remote-auth.sh
-│   ├── certbot-remote-cleanup.sh
-│   ├── development.env.example
+│   ├── compose.single-host.yml
 │   ├── deploy-production.sh
-│   ├── prepare-development-host.sh
+│   ├── prepare-production-host.sh
 │   └── production.env.example
 ├── maps/
 │   ├── compose.yml         # isolated local TileServer GL
@@ -345,14 +340,9 @@ heights; visual density must not be reduced to the previous pale compact map.
   receipt. Pulling itself refreshes the device heartbeat.
 - OTP TTL is 5 minutes, resend cooldown 60 seconds, maximum 5 sends/hour and
   5 verification attempts. Successful verification is atomic and one-time.
-- During the explicitly marked single-server development/customer-test phase,
-  one configured phone may use a server-only static test code for no more than
-  366 days. It is disabled by default and configuration validation rejects it
-  in a production deployment. The client must still request every login: each
-  request creates a fresh 5-minute Redis challenge with the normal cooldown,
-  hourly limit, attempt limit and one-time consumption. The static code is not
-  sent to the Android SMS queue, returned by the production-safe API, logged,
-  or committed. All other phone numbers keep the normal random SMS OTP flow.
+- The active production deployment never permits a static or long-lived OTP.
+  Every login uses a fresh random OTP delivered through the authenticated
+  Android pull gateway and consumed once from Redis.
 - Outbound SMS jobs are AES-256-GCM encrypted in Redis, expire after the OTP,
   are claimed atomically, and are retried at most three times after missing
   acknowledgements. A final failure cancels only the matching OTP request.
@@ -510,8 +500,8 @@ The 2026-07-30 pure React/Vite migration removes Next.js, vinext, RSC,
 hydration, and the Node frontend runtime. The static SPA bootstrap is 199.9 KB
 raw / 63.1 KB gzip, with 60.4 KB / 17.0 KB gzip of CSS. Dashboard sections
 remain split, and the Leaflet canvas remains a separate 156.4 KB / 46.1 KB
-gzip chunk. The server container uses unprivileged Nginx with a 64 MB DEV
-memory limit.
+gzip chunk. The server container uses unprivileged Nginx with a 64 MB
+production memory limit.
 
 The 2026-08-02 multi-branch build keeps the static SPA bootstrap at 199.9 KB
 raw / 63.1 KB gzip. Branch management is a separate 6.2 KB / 2.4 KB gzip
@@ -830,5 +820,12 @@ fallback; no browser runtime or request behavior changed.
   boundaries, public URLs, persistent data, release flow, recovery commands and
   production-readiness gaps were consolidated in `docs/INFRASTRUCTURE.md`.
   Infrastructure tasks must update that inventory without recording secret
-  values; `README.md` was corrected to the active `main → development VDS`
-  flow.
+  values; `README.md` was corrected to the then-active
+  `main → development VDS` flow.
+- 2026-08-15: the customer superseded the temporary DEV-labelled deployment
+  decision. `main` is now the only active branch and deploys directly to the
+  GitHub `production` Environment and `/opt/alowalow/production` Compose stack.
+  The active runtime uses `DEPLOYMENT_ENVIRONMENT=production`, production image
+  tags, ports `4000`/`3000`, and no long-lived OTP exception. A future DEV must
+  be built as separate infrastructure with its own environment, directory,
+  Compose project, ports, data and secrets; it is not active now.

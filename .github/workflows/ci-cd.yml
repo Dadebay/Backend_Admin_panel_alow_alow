@@ -448,6 +448,7 @@ jobs:
           "${ssh_command[@]}" "${SSH_USER}@${SSH_HOST}" \
             'sh /opt/alowalow/production/deploy-production.sh'
           "${ssh_command[@]}" "${SSH_USER}@${SSH_HOST}" '
+            set -eu
             sudo install -m 644 \
               /opt/alowalow/production/alowalow-http-temporary.conf \
               /etc/nginx/sites-available/a7-tagam-http-temporary.conf

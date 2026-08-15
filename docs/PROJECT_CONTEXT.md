@@ -97,6 +97,7 @@ alowalow/
 │   ├── nginx/
 │   │   ├── alowalow-acme-bootstrap.conf
 │   │   ├── alowalow-acme-location.conf
+│   │   ├── alowalow-http-temporary.conf
 │   │   └── alowalow-development.conf
 │   ├── compose.development.yml
 │   ├── compose.production.yml
@@ -759,3 +760,11 @@ No dependency, polling loop, or route preload was added.
   guard checks the current active user and unrevoked, unexpired PostgreSQL
   session on every protected request. Refresh rotation or logout therefore
   invalidates the related year-long access token immediately.
+- 2026-08-15: while Turkmen Telecom prepares DNS and SSL for
+  `a7-tagam.com.tm`, the customer explicitly authorized temporary plain HTTP
+  access on `216.250.12.132` for domestic testing. The temporary Nginx gateway
+  proxies the admin, API, Swagger and tiles through one origin and advertises
+  `X-A7-Temporary-HTTP: true`. It is an accepted short-lived exception only:
+  browser geolocation is unavailable and credentials are not transport-secure.
+  The site must be removed and port 80 redirected to HTTPS as part of Telecom
+  certificate activation.

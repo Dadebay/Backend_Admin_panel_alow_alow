@@ -93,6 +93,7 @@ alowalow/
 ├── docs/
 │   ├── ANDROID_SMS_GATEWAY.md
 │   ├── DEPLOYMENT.md
+│   ├── INFRASTRUCTURE.md
 │   ├── MOBILE_MAP_AND_ROUTING.md
 │   ├── MOBILE_PUSH_NOTIFICATIONS.md
 │   └── PROJECT_CONTEXT.md
@@ -825,3 +826,9 @@ fallback; no browser runtime or request behavior changed.
   static React/Vite SPA deployed only as the Nginx image in the VDS release;
   no Sites project may be created, updated or published without a new explicit
   product decision.
+- 2026-08-15: the deployed topology, GitHub Environment settings, secret
+  boundaries, public URLs, persistent data, release flow, recovery commands and
+  production-readiness gaps were consolidated in `docs/INFRASTRUCTURE.md`.
+  Infrastructure tasks must update that inventory without recording secret
+  values; `README.md` was corrected to the active `main → development VDS`
+  flow.

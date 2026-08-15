@@ -179,8 +179,8 @@ npm run build               # контракт и production builds обоих �
 
 ## CI/CD
 
-Workflow `.github/workflows/ci-cd.yml` запускается для pull request в
-`develop`/`main`, push в эти ветки и вручную. До публикации он обязательно:
+Workflow `.github/workflows/ci-cd.yml` запускается для pull request в `main`,
+push в `main` и вручную. До публикации он обязательно:
 
 - проверяет lint, production build, тесты и coverage backend;
 - проверяет lint, production build и тесты админки;
@@ -191,7 +191,7 @@ Workflow `.github/workflows/ci-cd.yml` запускается для pull reques
   runtime-контейнеры, а также отдельный контейнер миграций;
 - проверяет production Compose.
 
-После успешного push в `develop` workflow публикует в GHCR три образа:
+После успешного push в `main` workflow публикует в GHCR три образа:
 
 ```text
 ghcr.io/<owner>/<repository>-api:sha-<commit>
@@ -201,21 +201,22 @@ ghcr.io/<owner>/<repository>-admin:sha-<commit>
 
 Образы получают тег `development`, но deployment использует только immutable
 digest. BuildKit добавляет provenance и SBOM. Проверенная статическая сборка
-админки также сохраняется как отдельный artifact. Push в `main` пока выполняет
-проверки, но production images и deployment не создаёт.
+админки также сохраняется как отдельный artifact. Если repository variable
+`DEVELOPMENT_DEPLOY_ENABLED=true`, тот же workflow автоматически обновляет
+единственный тестовый VDS через GitHub Environment `development`.
 
 Веточная схема автодеплоя API:
 
 ```text
-feature/* → PR → develop → DEV
-                    ↓ PR
-                   main → только проверки
+feature/* → PR → main → CI → GHCR → development VDS
 ```
 
-DEV изолирован отдельными server-каталогом, Compose project, портами,
-PostgreSQL, Redis, S3 и секретами. Production automation отключена.
+Отдельной `develop`-ветки сейчас нет. Приложения собираются в production mode,
+но окружение остаётся тестовым: `DEPLOYMENT_ENVIRONMENT=development`, временный
+HTTP без SSL и тестовое OTP-исключение. Production automation отключена.
 
 Полная настройка веток, GitHub secrets/variables, сервера и reverse proxy:
+[`docs/INFRASTRUCTURE.md`](docs/INFRASTRUCTURE.md) и
 [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
 
 При деплое сначала выполняется `prisma migrate deploy`. Новый API запускается
@@ -228,10 +229,10 @@ ALOWALOW_MIGRATION_IMAGE=ghcr.io/owner/repository-migration@sha256:... \
 docker compose --file deploy/compose.production.yml up -d --wait
 ```
 
-На сервере PROD слушает `127.0.0.1:4000`, DEV — `127.0.0.1:4001`. Публичный TLS
-и проксирование `/api` должны выполнять Caddy, Nginx или управляемый ingress.
-PostgreSQL, TLS Redis, S3 и секреты SMS-шлюза передаются приложению только через
-отдельные `.env.production` и `.env.development`.
+На текущем сервере DEV API слушает только `127.0.0.1:4001`, admin —
+`127.0.0.1:3001`, TileServer — `127.0.0.1:8080`; наружу их публикует host Nginx.
+PostgreSQL, TLS Redis, MinIO, OSRM и Nominatim не имеют публичных host-портов.
+Runtime-секреты находятся только в защищённом `.env.development` на VDS.
 
 ## Безопасность
 

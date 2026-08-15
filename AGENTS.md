@@ -6,11 +6,14 @@ specific `AGENTS.md` files extend them for their directory.
 ## Start every task by restoring context
 
 1. Read `docs/PROJECT_CONTEXT.md`.
-2. Read the nearest nested `AGENTS.md` for every area being changed:
+2. For CI/CD, Docker, VDS, domain, TLS, map infrastructure, runtime secrets,
+   or deployment work, also read `docs/INFRASTRUCTURE.md` and
+   `docs/DEPLOYMENT.md`.
+3. Read the nearest nested `AGENTS.md` for every area being changed:
    - `apps/api/AGENTS.md` for NestJS, Prisma, Redis, S3, auth, or backend tests.
    - `apps/admin/AGENTS.md` for React, Vite, admin UI, or frontend architecture.
-3. Inspect `git status` and preserve unrelated user changes.
-4. Confirm the current schema and policies in code instead of relying only on
+4. Inspect `git status` and preserve unrelated user changes.
+5. Confirm the current schema and policies in code instead of relying only on
    chat history.
 
 If a new requirement changes a role, permission, order status, cancellation
@@ -21,6 +24,11 @@ future sessions and context compaction.
 If a task adds, removes, renames, or moves a major backend module or frontend
 FSD slice, update the repository tree in `docs/PROJECT_CONTEXT.md` as part of
 the same change.
+
+If a task changes a host, public URL, port, container, persistent volume,
+GitHub Environment secret/variable name, registry, ingress, TLS ownership, or
+deployment branch, update `docs/INFRASTRUCTURE.md` in the same change. Never
+put a secret value in that document.
 
 ## Sources of truth
 

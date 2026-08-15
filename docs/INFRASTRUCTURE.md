@@ -62,10 +62,10 @@ never public client endpoints.
 | Release manifest | `.release.env`, immutable image digests, no secrets |
 | Pre-switch archive | `/opt/alowalow/archive-pre-production-20260815` |
 
-At the last audit, roughly 34 GB of the root disk was free and 2.6 GB RAM was
-available. Docker images used about 18 GB, of which about 5.6 GB was reported
-reclaimable. Cleanup must never remove named volumes or runtime map/routing
-directories.
+After the production cutover, roughly 29 GB of the root disk was free and
+2.7 GB RAM was available. Retained immutable images and the offline migration
+snapshot intentionally consume additional temporary space. Cleanup must never
+remove named volumes or runtime map/routing directories.
 
 The pre-switch directory and the three legacy `alowalow-development_*` volumes
 are offline rollback snapshots, not an active DEV environment. They must not be

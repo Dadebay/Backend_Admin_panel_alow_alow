@@ -17,18 +17,32 @@ development Mac's LAN address:
 
 ```text
 API_BASE_URL=http://192.168.1.20:4000/api/v1
-MAP_STYLE_URL=http://192.168.1.20:8080/styles/alowalow/style.json
+MAP_TILE_URL=http://192.168.1.20:8080/styles/alowalow/{z}/{x}/{y}.png
 ```
 
-For a deployed server, use its HTTPS host or IP reverse-proxy endpoints. The
-mobile MapLibre client loads `MAP_STYLE_URL`; it must not use raster PNG unless
-the client library cannot render vector maps.
+For the current production server, mobile uses one simple raster XYZ URL:
 
-`style.json` is not an order or route response. It is MapLibre's standard map
-style contract: it tells the SDK where to load vector PBF tiles, sprites and
-fonts, and how to draw roads, buildings, labels and colors. Android and iOS
-load that URL once and MapLibre downloads the visible map resources itself.
-Business data stays in the authenticated NestJS API.
+```dart
+final String mapApi =
+    "http://216.250.12.132/tile/{z}/{x}/{y}.png";
+```
+
+After Telecom activates the domain certificate, change only the origin:
+
+```dart
+final String mapApi =
+    "https://a7-tagam.com.tm/tile/{z}/{x}/{y}.png";
+```
+
+The map SDK replaces `{z}`, `{x}` and `{y}` for every visible tile. No JSON or
+`style.json` is required. This is the same raster OpenStreetMap background used
+by the React admin and it contains the Turkmenistan regional extract. Areas
+outside the extract may render empty. Keep the attribution text
+`© OpenStreetMap contributors` visible.
+
+This URL contains only static roads, buildings and labels. Business data stays
+in the authenticated NestJS API: courier GPS, branches, customer stops and the
+OSRM route are drawn as markers/GeoJSON above the raster background.
 
 ## Courier flow
 
@@ -80,8 +94,8 @@ Authorization: Bearer <courier-access-token>
 
 `stops` always contains the courier's active assigned orders. When
 `routingStatus` is `READY`, `route.geometry` is a GeoJSON `LineString` whose
-coordinate pairs are `[longitude, latitude]`; render it as a MapLibre line
-source/layer. `route.waypoints` identifies courier, pickup, and delivery points.
+coordinate pairs are `[longitude, latitude]`; render it as a polyline above the
+PNG tile layer. `route.waypoints` identifies courier, pickup, and delivery points.
 `route.nextWaypoints` is the next one to three actionable pickup/delivery
 points, while `stops` still contains every active order; mobile must never hide
 the remaining assigned work. `route.planId` fingerprints the ordered inputs and

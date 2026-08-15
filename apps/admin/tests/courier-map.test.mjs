@@ -61,3 +61,31 @@ test("dispatch applies authenticated server-pushed GPS events to TanStack cache"
   assert.match(panel, /useCourierRoute/);
   assert.match(panel, /dispatch-route-summary/);
 });
+
+test("admin and production ingress share the public raster XYZ contract", async () => {
+  const adminConfig = await readFile(
+    new URL("../src/shared/map/config.ts", import.meta.url),
+    "utf8",
+  );
+  const httpNginx = await readFile(
+    new URL("../../../deploy/nginx/alowalow-http-temporary.conf", import.meta.url),
+    "utf8",
+  );
+  const tlsNginx = await readFile(
+    new URL("../../../deploy/nginx/alowalow-production.conf", import.meta.url),
+    "utf8",
+  );
+  const workflow = await readFile(
+    new URL("../../../.github/workflows/ci-cd.yml", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(adminConfig, /DEFAULT_TILE_URL = "\/tile\/\{z\}\/\{x\}\/\{y\}\.png"/);
+  for (const nginx of [httpNginx, tlsNginx]) {
+    assert.match(nginx, /location ~ \^\/tile\/\(\[0-9\]\{1,2\}\)/);
+    assert.match(nginx, /\/styles\/alowalow\/\$1\/\$2\/\$3\.png break;/);
+    assert.match(nginx, /Access-Control-Allow-Origin "\*" always/);
+  }
+  assert.match(workflow, /VITE_MAP_TILE_URL:.*'\/tile\/\{z\}\/\{x\}\/\{y\}\.png'/);
+  assert.match(workflow, /sudo systemctl reload nginx/);
+});

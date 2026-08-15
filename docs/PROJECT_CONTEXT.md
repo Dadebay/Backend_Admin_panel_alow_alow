@@ -52,9 +52,10 @@ the supplied hot-food delivery-bag mark and only its cream `#FEF7E7`, navy
 - Private S3-compatible object storage; MinIO locally.
 - An independently deployable self-hosted OpenStreetMap base-map service for
   Turkmenistan: Geofabrik Shortbread MBTiles, local VersaTiles assets, and an
-  isolated TileServer GL container shared by web and mobile clients. MapLibre
-  style/vector tiles are the canonical mobile contract; raster PNG tiles exist
-  only for current Leaflet compatibility.
+  isolated TileServer GL container shared by web and mobile clients. The
+  canonical current admin/mobile base-map contract is the simple raster XYZ
+  URL `/tile/{z}/{x}/{y}.png`; JSON/MapLibre vector contracts remain optional
+  advanced endpoints and are not required by mobile.
 - A private OSRM driving engine built from the Turkmenistan OpenStreetMap
   extract. NestJS is its only consumer and exposes normalized, authorized
   courier routes; mobile clients never call OSRM directly.
@@ -829,3 +830,10 @@ fallback; no browser runtime or request behavior changed.
   tags, ports `4000`/`3000`, and no long-lived OTP exception. A future DEV must
   be built as separate infrastructure with its own environment, directory,
   Compose project, ports, data and secrets; it is not active now.
+- 2026-08-15: the customer selected a single raster XYZ base-map contract for
+  both the Leaflet admin and mobile applications:
+  `/tile/{z}/{x}/{y}.png`. Host Nginx maps it to the private TileServer GL
+  `alowalow` PNG style backed by the Turkmenistan-only extract. Mobile does not
+  need `style.json`; JSON/vector endpoints remain optional and backward
+  compatible. Courier/order/GPS data and OSRM routes still come only from the
+  authenticated NestJS API and are rendered above the raster background.

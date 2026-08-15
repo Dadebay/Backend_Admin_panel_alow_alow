@@ -1,5 +1,4 @@
-const DEFAULT_TILE_URL =
-  "http://127.0.0.1:8080/styles/alowalow/{z}/{x}/{y}.png";
+const DEFAULT_TILE_URL = "/tile/{z}/{x}/{y}.png";
 const DEFAULT_ATTRIBUTION = "© OpenStreetMap contributors";
 
 function configuredValue(value: string | undefined, fallback: string) {

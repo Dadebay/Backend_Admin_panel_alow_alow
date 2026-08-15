@@ -175,6 +175,7 @@ Current routes:
 /                       React admin
 /api/v1/                NestJS API and media
 /docs, /docs-json       Swagger
+/tile/{z}/{x}/{y}.png   admin/mobile raster map of Turkmenistan
 /tiles/                 TileServer GL
 ```
 
@@ -202,7 +203,8 @@ Public checks during the temporary HTTP period:
 curl --fail http://216.250.12.132/
 curl --fail http://216.250.12.132/api/v1/health
 curl --fail http://216.250.12.132/docs-json
-curl --fail http://216.250.12.132/tiles/styles/alowalow/style.json
+curl --fail --output /tmp/a7-tagam-map-tile.png \
+  http://216.250.12.132/tile/10/677/395.png
 ```
 
 Server checks:

@@ -33,6 +33,7 @@ flowchart LR
   U["Admin and mobile clients"] -->|"HTTP now; HTTPS target"| N["Host Nginx"]
   N -->|"/"| A["Static React/Vite admin :3000"]
   N -->|"/api/v1, /docs"| API["NestJS API :4000"]
+  N -->|"/tile/{z}/{x}/{y}.png"| T
   N -->|"/tiles"| T["TileServer GL :8080"]
   API --> PG["PostgreSQL volume"]
   API --> R["TLS Redis"]
@@ -98,8 +99,8 @@ Admin:          http://216.250.12.132/
 API:            http://216.250.12.132/api/v1
 Swagger:        http://216.250.12.132/docs
 OpenAPI JSON:   http://216.250.12.132/docs-json
+Raster XYZ:     http://216.250.12.132/tile/{z}/{x}/{y}.png
 MapLibre style: http://216.250.12.132/tiles/styles/alowalow/style.json
-Raster XYZ:     http://216.250.12.132/tiles/styles/alowalow/{z}/{x}/{y}.png
 ```
 
 Final same-origin target after Telecom installs DNS and SSL:
@@ -109,11 +110,15 @@ https://a7-tagam.com.tm/
 https://a7-tagam.com.tm/api/v1
 https://a7-tagam.com.tm/docs
 https://a7-tagam.com.tm/docs-json
+https://a7-tagam.com.tm/tile/{z}/{x}/{y}.png
 https://a7-tagam.com.tm/tiles/styles/alowalow/style.json
 ```
 
-The application build uses relative `/api/v1` and `/tiles` paths, so the same
-image moves from HTTP/IP to HTTPS/domain without rebuilding business code.
+The admin and mobile base-map contract is the simple PNG XYZ `/tile/` URL. The
+application build uses relative `/api/v1` and `/tile` paths, so the same image
+moves from HTTP/IP to HTTPS/domain without rebuilding business code. The source
+map extract covers Turkmenistan; JSON/vector endpoints remain available for
+advanced clients but are not required by the current admin/mobile integration.
 
 ## Ports and ingress
 
@@ -257,7 +262,8 @@ curl --fail http://216.250.12.132/api/v1/health
 curl --fail http://216.250.12.132/
 curl --fail http://216.250.12.132/docs-json
 curl --fail \
-  http://216.250.12.132/tiles/styles/alowalow/style.json
+  --output /tmp/a7-tagam-map-tile.png \
+  http://216.250.12.132/tile/10/677/395.png
 ```
 
 Server checks:

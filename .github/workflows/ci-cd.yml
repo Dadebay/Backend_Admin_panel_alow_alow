@@ -19,7 +19,7 @@ permissions:
 env:
   NODE_VERSION: 24.18.0
   NPM_VERSION: 11.6.2
-  VITE_MAP_TILE_URL: ${{ vars.VITE_MAP_TILE_URL || '/tiles/styles/alowalow/{z}/{x}/{y}.png' }}
+  VITE_MAP_TILE_URL: ${{ vars.VITE_MAP_TILE_URL || '/tile/{z}/{x}/{y}.png' }}
   VITE_MAP_ATTRIBUTION: ${{ vars.VITE_MAP_ATTRIBUTION || '© OpenStreetMap contributors' }}
 
 jobs:
@@ -439,7 +439,23 @@ jobs:
             "${SSH_USER}@${SSH_HOST}:/opt/alowalow/production/docker-compose.single-host.yml"
           "${scp_command[@]}" deploy/deploy-production.sh \
             "${SSH_USER}@${SSH_HOST}:/opt/alowalow/production/deploy-production.sh"
+          "${scp_command[@]}" deploy/nginx/alowalow-http-temporary.conf \
+            "${SSH_USER}@${SSH_HOST}:/opt/alowalow/production/alowalow-http-temporary.conf"
+          "${scp_command[@]}" deploy/nginx/alowalow-production.conf \
+            "${SSH_USER}@${SSH_HOST}:/opt/alowalow/production/alowalow-production.conf"
           "${scp_command[@]}" /tmp/alowalow-release.env \
             "${SSH_USER}@${SSH_HOST}:/opt/alowalow/production/.release.pending.env"
           "${ssh_command[@]}" "${SSH_USER}@${SSH_HOST}" \
             'sh /opt/alowalow/production/deploy-production.sh'
+          "${ssh_command[@]}" "${SSH_USER}@${SSH_HOST}" '
+            sudo install -m 644 \
+              /opt/alowalow/production/alowalow-http-temporary.conf \
+              /etc/nginx/sites-available/a7-tagam-http-temporary.conf
+            sudo install -m 644 \
+              /opt/alowalow/production/alowalow-production.conf \
+              /etc/nginx/sites-available/a7-tagam-production.conf
+            test -e /etc/nginx/sites-enabled/a7-tagam-http-temporary.conf \
+              || test -e /etc/nginx/sites-enabled/a7-tagam-production.conf
+            sudo nginx -t
+            sudo systemctl reload nginx
+          '

@@ -766,5 +766,9 @@ No dependency, polling loop, or route preload was added.
   proxies the admin, API, Swagger and tiles through one origin and advertises
   `X-A7-Temporary-HTTP: true`. It is an accepted short-lived exception only:
   browser geolocation is unavailable and credentials are not transport-secure.
-  The site must be removed and port 80 redirected to HTTPS as part of Telecom
-  certificate activation.
+  HTTP and HTTPS configurations remain versioned side by side, with exactly one
+  site enabled at a time. The temporary Swagger location preserves Helmet's CSP
+  except for `upgrade-insecure-requests`, which would otherwise upgrade its
+  assets before TLS exists and render a blank page. The temporary site must be
+  removed and port 80 redirected to HTTPS as part of Telecom certificate
+  activation.

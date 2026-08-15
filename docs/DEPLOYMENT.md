@@ -304,6 +304,28 @@ Telecom-сертификата.
 API, Swagger и tiles через один origin и добавляет диагностический заголовок
 `X-A7-Temporary-HTTP: true`.
 
+HTTP- и HTTPS-конфигурации хранятся параллельно, но в Nginx активируется только
+одна из них. Во временном HTTP-site для `/docs` сохраняется строгий CSP без
+`upgrade-insecure-requests`; иначе браузер пытается загрузить Swagger assets с
+ещё не настроенного HTTPS и показывает пустую страницу. Финальная
+`alowalow-development.conf` сохраняет обычное принудительное HTTPS-поведение.
+
+Текущий HTTP-site устанавливается и включается так:
+
+```bash
+sudo install -m 0644 deploy/nginx/alowalow-http-temporary.conf \
+  /etc/nginx/sites-available/a7-tagam-http-temporary.conf
+sudo ln -sfn /etc/nginx/sites-available/a7-tagam-http-temporary.conf \
+  /etc/nginx/sites-enabled/a7-tagam-http-temporary.conf
+sudo nginx -t
+sudo systemctl reload nginx
+```
+
+После получения сертификата конфигурация HTTPS сначала устанавливается в
+`sites-available`, затем HTTP symlink удаляется, HTTPS symlink включается, и
+только после успешного `nginx -t` выполняется reload. Файлы application stack и
+данные Compose при этом не меняются.
+
 Это не production TLS: токены и OTP не защищены на транспортном уровне, а
 browser geolocation не работает в insecure context. При установке сертификата
 временный site удаляется, включается `alowalow-development.conf`, а порт `80`

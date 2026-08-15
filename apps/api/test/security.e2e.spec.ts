@@ -1723,6 +1723,18 @@ describe("backend security and critical workflow", () => {
     for (const response of responses.slice(0, 3)) {
       expect(response.body).not.toHaveProperty("devCode");
     }
+
+    const staticCodeSession = await request(server)
+      .post("/api/v1/auth/otp/verify")
+      .send({ phone: "+99365000301", code: "042697" })
+      .expect(200);
+    const staticCodeSessionBody = staticCodeSession.body as SessionResponse;
+    expect(typeof staticCodeSessionBody.accessToken).toBe("string");
+    expect(typeof staticCodeSessionBody.refreshToken).toBe("string");
+    await request(server)
+      .post("/api/v1/auth/otp/verify")
+      .send({ phone: "+99365000301", code: "042697" })
+      .expect(401);
   });
 
   it("enforces a per-phone resend cooldown in Redis", async () => {

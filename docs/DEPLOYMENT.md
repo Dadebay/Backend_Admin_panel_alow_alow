@@ -217,6 +217,24 @@ openssl rand -base64 32
 `OTP_PEPPER`, Android device token или MinIO. Настоящие значения не попадают в
 Git и GitHub Actions.
 
+Временный статический OTP для одного согласованного тестового номера включается
+только в server-side `.env.development`:
+
+```env
+DEPLOYMENT_ENVIRONMENT=development
+LONG_LIVED_TEST_OTP_ENABLED=true
+LONG_LIVED_TEST_OTP_PHONE=+993XXXXXXXX
+LONG_LIVED_TEST_OTP_CODE=<6 случайных цифр>
+LONG_LIVED_TEST_OTP_EXPIRES_AT=<ISO UTC не позднее чем через 366 дней>
+```
+
+Код нельзя добавлять в Git, frontend или логи. Он не является бессрочным и не
+отменяет обычный OTP-флоу: перед каждой проверкой клиент вызывает request,
+получает отдельный 5-минутный Redis challenge, а успешная проверка потребляет
+его один раз. Для production обязательно
+`DEPLOYMENT_ENVIRONMENT=production` и `LONG_LIVED_TEST_OTP_ENABLED=false`;
+backend откажется запускаться при попытке включить исключение.
+
 Для push-уведомлений DEV runtime также получает отдельный Firebase service
 account в `FCM_SERVICE_ACCOUNT_BASE64`. JSON кодируется одной строкой командой
 `base64 < firebase-service-account.json | tr -d '\n'`; исходный JSON и base64

@@ -1,5 +1,6 @@
 export type AppEnv = {
   NODE_ENV: "development" | "test" | "production";
+  DEPLOYMENT_ENVIRONMENT: "development" | "production";
   PORT: number;
   DATABASE_URL: string;
   REDIS_URL: string;
@@ -10,6 +11,10 @@ export type AppEnv = {
   GEOCODING_USER_AGENT: string;
   JWT_ACCESS_SECRET: string;
   OTP_PEPPER: string;
+  LONG_LIVED_TEST_OTP_ENABLED: boolean;
+  LONG_LIVED_TEST_OTP_PHONE: string;
+  LONG_LIVED_TEST_OTP_CODE: string;
+  LONG_LIVED_TEST_OTP_EXPIRES_AT: string;
   SMS_PROVIDER: "android_pull" | "console";
   SMS_GATEWAY_DEVICE_ID: string;
   SMS_GATEWAY_DEVICE_TOKEN: string;
@@ -55,6 +60,15 @@ export function validateEnv(source: Record<string, unknown>): AppEnv {
     throw new Error("NODE_ENV must be development, test or production");
   }
   const isProduction = nodeEnv === "production";
+  const deploymentEnvironment = text(
+    "DEPLOYMENT_ENVIRONMENT",
+    isProduction ? "production" : "development",
+  ).trim();
+  if (!["development", "production"].includes(deploymentEnvironment)) {
+    throw new Error(
+      "DEPLOYMENT_ENVIRONMENT must be development or production",
+    );
+  }
   const databaseUrl = text(
     "DATABASE_URL",
     isProduction
@@ -69,6 +83,22 @@ export function validateEnv(source: Record<string, unknown>): AppEnv {
     "OTP_PEPPER",
     isProduction ? "" : "dev-only-otp-pepper-change-before-production",
   );
+  const longLivedTestOtpEnabled = boolean(
+    "LONG_LIVED_TEST_OTP_ENABLED",
+    false,
+  );
+  const longLivedTestOtpPhone = text(
+    "LONG_LIVED_TEST_OTP_PHONE",
+    "",
+  ).trim();
+  const longLivedTestOtpCode = text(
+    "LONG_LIVED_TEST_OTP_CODE",
+    "",
+  ).trim();
+  const longLivedTestOtpExpiresAt = text(
+    "LONG_LIVED_TEST_OTP_EXPIRES_AT",
+    "",
+  ).trim();
   const redisUrl = text(
     "REDIS_URL",
     isProduction ? "" : "redis://localhost:6379/0",
@@ -113,6 +143,33 @@ export function validateEnv(source: Record<string, unknown>): AppEnv {
     throw new Error(
       "DATABASE_URL and REDIS_URL are required and JWT_ACCESS_SECRET and OTP_PEPPER must each contain at least 32 characters",
     );
+  }
+  if (longLivedTestOtpEnabled) {
+    if (deploymentEnvironment !== "development") {
+      throw new Error(
+        "LONG_LIVED_TEST_OTP_ENABLED is only allowed in the development deployment",
+      );
+    }
+    if (!/^\+993\d{8}$/.test(longLivedTestOtpPhone)) {
+      throw new Error(
+        "LONG_LIVED_TEST_OTP_PHONE must be a Turkmen phone number in E.164 format",
+      );
+    }
+    if (!/^\d{6}$/.test(longLivedTestOtpCode)) {
+      throw new Error("LONG_LIVED_TEST_OTP_CODE must contain exactly 6 digits");
+    }
+    const expiresAt = Date.parse(longLivedTestOtpExpiresAt);
+    const now = Date.now();
+    const maximumExpiry = now + 366 * 86_400_000;
+    if (
+      !Number.isFinite(expiresAt) ||
+      expiresAt <= now ||
+      expiresAt > maximumExpiry
+    ) {
+      throw new Error(
+        "LONG_LIVED_TEST_OTP_EXPIRES_AT must be a future ISO timestamp no more than 366 days away",
+      );
+    }
   }
   let parsedRoutingUrl: URL;
   try {
@@ -356,6 +413,8 @@ export function validateEnv(source: Record<string, unknown>): AppEnv {
   if (!s3Bucket) throw new Error("S3_BUCKET is required");
   return {
     NODE_ENV: nodeEnv as AppEnv["NODE_ENV"],
+    DEPLOYMENT_ENVIRONMENT:
+      deploymentEnvironment as AppEnv["DEPLOYMENT_ENVIRONMENT"],
     PORT: port,
     DATABASE_URL: databaseUrl,
     REDIS_URL: redisUrl,
@@ -366,6 +425,10 @@ export function validateEnv(source: Record<string, unknown>): AppEnv {
     GEOCODING_USER_AGENT: geocodingUserAgent,
     JWT_ACCESS_SECRET: jwtSecret,
     OTP_PEPPER: otpPepper,
+    LONG_LIVED_TEST_OTP_ENABLED: longLivedTestOtpEnabled,
+    LONG_LIVED_TEST_OTP_PHONE: longLivedTestOtpPhone,
+    LONG_LIVED_TEST_OTP_CODE: longLivedTestOtpCode,
+    LONG_LIVED_TEST_OTP_EXPIRES_AT: longLivedTestOtpExpiresAt,
     SMS_PROVIDER: smsProvider as AppEnv["SMS_PROVIDER"],
     SMS_GATEWAY_DEVICE_ID: smsGatewayDeviceId,
     SMS_GATEWAY_DEVICE_TOKEN: smsGatewayDeviceToken,

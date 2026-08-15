@@ -12,6 +12,7 @@ const fcmServiceAccount = Buffer.from(
 
 const productionSecrets = {
   NODE_ENV: "production",
+  DEPLOYMENT_ENVIRONMENT: "production",
   DATABASE_URL: "postgresql://app:secret@db.example/alowalow",
   REDIS_URL: "rediss://default:secret@redis.example:6379/0",
   JWT_ACCESS_SECRET: "j".repeat(32),
@@ -24,6 +25,9 @@ const productionSecrets = {
   FCM_SERVICE_ACCOUNT_BASE64: fcmServiceAccount,
   CORS_ORIGINS: "https://admin.example.com,https://app.example.com",
 };
+
+const futureTestOtpExpiry = () =>
+  new Date(Date.now() + 365 * 86_400_000).toISOString();
 
 describe("security environment configuration", () => {
   it("uses the AWS credential chain in production when static keys are absent", () => {
@@ -112,6 +116,53 @@ describe("security environment configuration", () => {
         SMS_GATEWAY_ENCRYPTION_KEY: "not-a-32-byte-key",
       }),
     ).toThrow("SMS_GATEWAY_ENCRYPTION_KEY");
+  });
+
+  it("allows a long-lived test OTP only in an explicit development deployment", () => {
+    const development = validateEnv({
+      ...productionSecrets,
+      DEPLOYMENT_ENVIRONMENT: "development",
+      LONG_LIVED_TEST_OTP_ENABLED: true,
+      LONG_LIVED_TEST_OTP_PHONE: "+99362969614",
+      LONG_LIVED_TEST_OTP_CODE: "042697",
+      LONG_LIVED_TEST_OTP_EXPIRES_AT: futureTestOtpExpiry(),
+    });
+    expect(development).toMatchObject({
+      DEPLOYMENT_ENVIRONMENT: "development",
+      LONG_LIVED_TEST_OTP_ENABLED: true,
+      LONG_LIVED_TEST_OTP_PHONE: "+99362969614",
+    });
+
+    expect(() =>
+      validateEnv({
+        ...productionSecrets,
+        LONG_LIVED_TEST_OTP_ENABLED: true,
+        LONG_LIVED_TEST_OTP_PHONE: "+99362969614",
+        LONG_LIVED_TEST_OTP_CODE: "042697",
+        LONG_LIVED_TEST_OTP_EXPIRES_AT: futureTestOtpExpiry(),
+      }),
+    ).toThrow("only allowed in the development deployment");
+  });
+
+  it("rejects malformed or overlong test OTP exceptions", () => {
+    const development = {
+      ...productionSecrets,
+      DEPLOYMENT_ENVIRONMENT: "development",
+      LONG_LIVED_TEST_OTP_ENABLED: true,
+      LONG_LIVED_TEST_OTP_PHONE: "+99362969614",
+      LONG_LIVED_TEST_OTP_CODE: "not-six-digits",
+      LONG_LIVED_TEST_OTP_EXPIRES_AT: futureTestOtpExpiry(),
+    };
+    expect(() => validateEnv(development)).toThrow("exactly 6 digits");
+    expect(() =>
+      validateEnv({
+        ...development,
+        LONG_LIVED_TEST_OTP_CODE: "042697",
+        LONG_LIVED_TEST_OTP_EXPIRES_AT: new Date(
+          Date.now() + 367 * 86_400_000,
+        ).toISOString(),
+      }),
+    ).toThrow("no more than 366 days away");
   });
 
   it("requires a complete FCM service account in production", () => {

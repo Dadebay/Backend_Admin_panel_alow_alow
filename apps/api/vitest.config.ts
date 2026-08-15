@@ -5,6 +5,9 @@ const testDatabaseUrl =
   "postgresql://alofood:alofood@localhost:5432/alofood_test";
 const testRedisUrl = process.env.TEST_REDIS_URL ?? "redis://localhost:6379/15";
 const testS3Endpoint = process.env.TEST_S3_ENDPOINT ?? "http://localhost:9000";
+const testOtpExpiry = new Date(
+  Date.now() + 365 * 86_400_000,
+).toISOString();
 
 export default defineConfig({
   test: {
@@ -17,10 +20,15 @@ export default defineConfig({
     hookTimeout: 60_000,
     env: {
       NODE_ENV: "test",
+      DEPLOYMENT_ENVIRONMENT: "development",
       DATABASE_URL: testDatabaseUrl,
       REDIS_URL: testRedisUrl,
       JWT_ACCESS_SECRET: "test-jwt-secret-with-at-least-32-characters",
       OTP_PEPPER: "test-otp-pepper-with-at-least-32-characters",
+      LONG_LIVED_TEST_OTP_ENABLED: "true",
+      LONG_LIVED_TEST_OTP_PHONE: "+99365000301",
+      LONG_LIVED_TEST_OTP_CODE: "042697",
+      LONG_LIVED_TEST_OTP_EXPIRES_AT: testOtpExpiry,
       SMS_PROVIDER: "console",
       SMS_GATEWAY_DEVICE_ID: "android-test",
       SMS_GATEWAY_DEVICE_TOKEN:

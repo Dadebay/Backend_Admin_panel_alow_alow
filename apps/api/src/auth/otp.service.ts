@@ -74,16 +74,39 @@ export type OtpVerification = "valid" | "incorrect" | "unavailable";
 export class OtpService {
   private readonly logger = new Logger(OtpService.name);
   private readonly pepper: string;
+  private readonly longLivedTestOtp: {
+    phone: string;
+    code: string;
+    expiresAt: number;
+  } | null;
 
   constructor(
     private readonly redis: RedisService,
     config: ConfigService<AppEnv, true>,
   ) {
     this.pepper = config.get("OTP_PEPPER", { infer: true });
+    this.longLivedTestOtp = config.get("LONG_LIVED_TEST_OTP_ENABLED", {
+      infer: true,
+    })
+      ? {
+          phone: config.get("LONG_LIVED_TEST_OTP_PHONE", { infer: true }),
+          code: config.get("LONG_LIVED_TEST_OTP_CODE", { infer: true }),
+          expiresAt: Date.parse(
+            config.get("LONG_LIVED_TEST_OTP_EXPIRES_AT", { infer: true }),
+          ),
+        }
+      : null;
   }
 
   async issue(phone: string) {
-    const code = String(randomInt(100_000, 1_000_000));
+    const usesLongLivedTestCode = Boolean(
+      this.longLivedTestOtp &&
+        this.longLivedTestOtp.phone === phone &&
+        this.longLivedTestOtp.expiresAt > Date.now(),
+    );
+    const code = usesLongLivedTestCode
+      ? this.longLivedTestOtp!.code
+      : String(randomInt(100_000, 1_000_000));
     const requestId = randomUUID();
     const keys = this.keys(phone);
     let result: number;
@@ -113,7 +136,12 @@ export class OtpService {
         HttpStatus.TOO_MANY_REQUESTS,
       );
     }
-    return { code, requestId, expiresInSeconds: OTP_TTL_SECONDS };
+    return {
+      code,
+      requestId,
+      expiresInSeconds: OTP_TTL_SECONDS,
+      usesLongLivedTestCode,
+    };
   }
 
   async verify(phone: string, code: string): Promise<OtpVerification> {

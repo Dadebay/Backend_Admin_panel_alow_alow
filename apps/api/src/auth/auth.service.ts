@@ -42,28 +42,34 @@ export class AuthService {
     const challenge = await this.otp.issue(phone);
     const isDevelopment =
       this.config.get("NODE_ENV", { infer: true }) === "development";
-    try {
-      await this.sms.sendOtp(
-        phone,
-        challenge.code,
-        challenge.requestId,
-        challenge.expiresInSeconds,
+    if (challenge.usesLongLivedTestCode) {
+      this.logger.warn(
+        "Configured long-lived test OTP challenge issued without SMS delivery",
       );
-    } catch (error) {
-      if (!isDevelopment) {
-        await this.otp.cancel(phone, challenge.requestId);
-        throw new ServiceUnavailableException(
-          "The verification code could not be sent",
+    } else {
+      try {
+        await this.sms.sendOtp(
+          phone,
+          challenge.code,
+          challenge.requestId,
+          challenge.expiresInSeconds,
+        );
+      } catch (error) {
+        if (!isDevelopment) {
+          await this.otp.cancel(phone, challenge.requestId);
+          throw new ServiceUnavailableException(
+            "The verification code could not be sent",
+          );
+        }
+        // In development the code is still handed back below via `devCode`,
+        // so a down SMS gateway (eg. the android_pull phone being offline)
+        // doesn't block testing the login flow — only production requires
+        // delivery to actually succeed.
+        const detail = error instanceof Error ? error.message : "unknown error";
+        this.logger.warn(
+          `SMS delivery failed for ${phone}, continuing in development mode: ${detail}`,
         );
       }
-      // In development the code is still handed back below via `devCode`,
-      // so a down SMS gateway (eg. the android_pull phone being offline)
-      // doesn't block testing the login flow — only production requires
-      // delivery to actually succeed.
-      const detail = error instanceof Error ? error.message : "unknown error";
-      this.logger.warn(
-        `SMS delivery failed for ${phone}, continuing in development mode: ${detail}`,
-      );
     }
 
     await this.prisma.loginAttempt.create({

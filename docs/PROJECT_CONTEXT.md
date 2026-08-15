@@ -339,6 +339,14 @@ heights; visual density must not be reduced to the previous pale compact map.
   receipt. Pulling itself refreshes the device heartbeat.
 - OTP TTL is 5 minutes, resend cooldown 60 seconds, maximum 5 sends/hour and
   5 verification attempts. Successful verification is atomic and one-time.
+- During the explicitly marked single-server development/customer-test phase,
+  one configured phone may use a server-only static test code for no more than
+  366 days. It is disabled by default and configuration validation rejects it
+  in a production deployment. The client must still request every login: each
+  request creates a fresh 5-minute Redis challenge with the normal cooldown,
+  hourly limit, attempt limit and one-time consumption. The static code is not
+  sent to the Android SMS queue, returned by the production-safe API, logged,
+  or committed. All other phone numbers keep the normal random SMS OTP flow.
 - Outbound SMS jobs are AES-256-GCM encrypted in Redis, expire after the OTP,
   are claimed atomically, and are retried at most three times after missing
   acknowledgements. A final failure cancels only the matching OTP request.
@@ -778,3 +786,9 @@ No dependency, polling loop, or route preload was added.
   current same-origin `/tiles` base; binary raster/vector tile payloads remain
   untouched. The temporary site must be removed and port 80 redirected to
   HTTPS as part of Telecom certificate activation.
+- 2026-08-15: the customer explicitly requested a reusable one-year test OTP
+  for one admin phone during customer testing. The exception is server-env
+  configured, expires within 366 days, is allowed only when
+  `DEPLOYMENT_ENVIRONMENT=development`, and never bypasses request throttling or
+  the fresh one-time 5-minute Redis challenge. Production deployment validation
+  rejects the exception; every other number continues through Android SMS.

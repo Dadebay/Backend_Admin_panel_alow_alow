@@ -71,7 +71,7 @@ Deployment всегда использует image digest, а не moving tag. �
 ## Что проверяет CI
 
 1. Backend lint, build, тесты, coverage и два dependency audit.
-2. Admin lint, Sites build/tests и два dependency audit.
+2. Admin lint, production Vite build/tests и два dependency audit.
 3. Swagger → TypeScript contract без незакоммиченного diff.
 4. Сборку API, migration и статического React/Nginx admin image.
 5. Запуск контейнеров от непривилегированного пользователя и healthcheck.

@@ -22,12 +22,13 @@ requests. Separate backend/admin repositories are not parallel sources of
 truth. Android applications remain separate because they have an independent
 toolchain and release lifecycle.
 
-The private Sites URL publishes the static admin frontend only. The NestJS
-backend is currently a local/deployable service. CI/CD produces immutable API,
-migration and static Nginx admin images. The accepted dedicated VDS target is
-`216.250.12.132` (4 vCPU, 4 GB RAM, 60 GB SSD) and hosts one full DEV stack,
-including TileServer GL and private OSRM. Production remains disabled until it
-receives a separate host or an explicit capacity review.
+The React admin is served only by the static Nginx container on the dedicated
+VDS. ChatGPT Sites and Cloudflare Workers are not deployment targets. CI/CD
+produces immutable API, migration and static Nginx admin images. The accepted
+dedicated VDS target is `216.250.12.132` (4 vCPU, 4 GB RAM, 60 GB SSD) and
+hosts one full DEV stack, including TileServer GL and private OSRM. Production
+remains disabled until it receives a separate host or an explicit capacity
+review.
 
 The customer-facing brand is `A7-tagam`. Existing repository, package, service,
 deployment-directory, map-style, and storage identifiers named `alowalow`
@@ -151,7 +152,6 @@ alowalow/
 │       ├── index.html     # Vite browser entry document
 │       ├── nginx.conf     # static assets, cache policy, SPA route fallback
 │       ├── package-lock.json # isolated frontend dependency/security tree
-│       ├── .openai/hosting.json # existing private Sites project
 │       ├── src/            # FSD product layers
 │       │   ├── app/        # SPA bootstrap, routes, providers, global styles
 │       │   ├── widgets/    # boards/maps/managers, incl. assisted phone order
@@ -159,8 +159,7 @@ alowalow/
 │       │   ├── entities/   # typed queries/models, incl. customer/geocoding
 │       │   └── shared/     # HTTP/query clients, auth, Zod form helpers, UI
 │       ├── public/
-│       ├── tests/
-│       └── worker/         # static Sites asset adapter; never renders UI
+│       └── tests/
 ├── packages/
 │   └── api-contract/
 │       └── src/schema.ts   # generated from apps/api/openapi.json
@@ -584,6 +583,13 @@ and Leaflet remains isolated. The increase covers the accessible listbox,
 keyboard handling, explicit map loading state and modal resize correction. It
 adds no dependency, keystroke autocomplete, polling loop or initial preload.
 
+The 2026-08-15 Sites retirement keeps the same browser payload: the static SPA
+bootstrap is 203.3 KB raw / 63.7 KB gzip and CSS is 97.8 KB / 21.6 KB gzip.
+Cloudflare Vite, Wrangler, Worker and platform-specific build output were
+removed from the development dependency tree. Vite now emits only
+`dist/client`, which the existing unprivileged Nginx image serves with SPA
+fallback; no browser runtime or request behavior changed.
+
 ## Decision log
 
 - 2026-07-27: media moved to private S3-compatible storage.
@@ -615,7 +621,7 @@ adds no dependency, keystroke autocomplete, polling loop or initial preload.
 - 2026-07-28: CI/CD was defined as deny-on-failure GitHub Actions checks,
   Swagger contract drift detection, immutable GHCR API/migration images with
   provenance and SBOM, and an optional protected-environment Linux deployment.
-  The existing private Sites project remains the only admin hosting target.
+  The static Nginx admin image is deployed with the same VDS release.
 - 2026-07-28: production OTP delivery moved to a dedicated Android SIM gateway
   using authenticated HTTPS pull, encrypted Redis jobs, atomic leases,
   delivery receipts, heartbeat/offline rejection, bounded retry, and
@@ -684,8 +690,7 @@ adds no dependency, keystroke autocomplete, polling loop or initial preload.
   changed.
 - 2026-07-30: the admin deployment was corrected to pure React/Vite SPA.
   Next.js, vinext, React Server Components, SSR, hydration, and the Node
-  frontend server were removed. Browser routes use a static index fallback;
-  the Sites Worker only forwards static assets and performs no rendering.
+  frontend server were removed. Browser routes use Nginx static index fallback.
 - 2026-08-02: the unused Twilio fallback and its credentials were removed.
   Production OTP delivery is Android pull only; local development keeps the
   non-delivering console mode.
@@ -814,3 +819,9 @@ adds no dependency, keystroke autocomplete, polling loop or initial preload.
   `DEPLOYMENT_ENVIRONMENT=development`, and never bypasses request throttling or
   the fresh one-time 5-minute Redis challenge. Production deployment validation
   rejects the exception; every other number continues through Android SMS.
+- 2026-08-15: ChatGPT Sites was retired as an admin deployment target by
+  explicit product decision. Its repository binding, Cloudflare Worker,
+  Wrangler dependencies and CI artifact metadata were removed. The admin is a
+  static React/Vite SPA deployed only as the Nginx image in the VDS release;
+  no Sites project may be created, updated or published without a new explicit
+  product decision.

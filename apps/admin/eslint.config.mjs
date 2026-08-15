@@ -10,7 +10,6 @@ export default tseslint.config(
       "dist/**",
       ".next/**",
       ".vinext/**",
-      ".wrangler/**",
       "node_modules/**",
     ],
   },

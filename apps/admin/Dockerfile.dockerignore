@@ -8,7 +8,6 @@
 
 apps/admin/.env*
 apps/admin/.idea
-apps/admin/.wrangler
 apps/admin/coverage
 apps/admin/dist
 apps/admin/node_modules

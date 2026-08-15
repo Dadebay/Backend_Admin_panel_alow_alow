@@ -48,7 +48,6 @@ transitions, or cancellation. The backend must enforce every rule.
 - `docker-compose.yml`: local PostgreSQL, Redis, and MinIO only.
 - `maps/`: optional isolated local OpenStreetMap assets and TileServer GL;
   downloaded map data must remain ignored and separate from application data.
-- `apps/admin/.openai/hosting.json`: existing private Sites project for the admin.
 
 Do not introduce a second API client, a second role enum, or duplicate order
 state machines in unrelated files.
@@ -106,5 +105,6 @@ migration against local PostgreSQL plus the isolated test database.
 - The worktree contains no accidental files or unrelated edits.
 - Local development processes and Docker services are stopped at handoff unless
   the user asks to keep them running.
-- If frontend runtime code changed, validate and privately publish the existing
-  Sites project unless the user explicitly requests local-only work.
+- Frontend releases use only the repository's VDS/GitHub Actions flow. Do not
+  create, update, save, or publish a ChatGPT Sites project unless the user
+  explicitly requests it.

@@ -3088,6 +3088,96 @@
           "createdAt"
         ]
       },
+      "CatalogProductVariantImageResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "productVariantId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "url": {
+            "type": "string"
+          },
+          "alt": {
+            "type": "string",
+            "nullable": true
+          },
+          "sortOrder": {
+            "type": "number"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "productVariantId",
+          "url",
+          "alt",
+          "sortOrder",
+          "createdAt"
+        ]
+      },
+      "CatalogProductVariantResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "productId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "price": {
+            "type": "number"
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "sortOrder": {
+            "type": "number"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "images": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CatalogProductVariantImageResponseDto"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "productId",
+          "name",
+          "description",
+          "price",
+          "isActive",
+          "sortOrder",
+          "createdAt",
+          "updatedAt",
+          "images"
+        ]
+      },
       "CatalogCategorySummaryResponseDto": {
         "type": "object",
         "properties": {
@@ -3154,6 +3244,20 @@
           "price": {
             "type": "number"
           },
+          "minPrice": {
+            "type": "number"
+          },
+          "hasVariants": {
+            "type": "boolean"
+          },
+          "variantLabel": {
+            "type": "string",
+            "nullable": true
+          },
+          "displayImageUrl": {
+            "type": "string",
+            "nullable": true
+          },
           "isActive": {
             "type": "boolean"
           },
@@ -3174,6 +3278,12 @@
               "$ref": "#/components/schemas/CatalogProductImageResponseDto"
             }
           },
+          "variants": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CatalogProductVariantResponseDto"
+            }
+          },
           "category": {
             "$ref": "#/components/schemas/CatalogCategorySummaryResponseDto"
           }
@@ -3185,11 +3295,16 @@
           "slug",
           "description",
           "price",
+          "minPrice",
+          "hasVariants",
+          "variantLabel",
+          "displayImageUrl",
           "isActive",
           "sortOrder",
           "createdAt",
           "updatedAt",
-          "images"
+          "images",
+          "variants"
         ]
       },
       "CatalogCategoryResponseDto": {
@@ -3290,6 +3405,48 @@
           }
         }
       },
+      "ProductVariantInputDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Existing variant ID when updating a product"
+          },
+          "name": {
+            "type": "string",
+            "example": "Маленькая, 25 см"
+          },
+          "description": {
+            "type": "string",
+            "example": "На тонком тесте"
+          },
+          "price": {
+            "type": "number",
+            "example": 55
+          },
+          "isActive": {
+            "type": "boolean",
+            "default": true
+          },
+          "sortOrder": {
+            "type": "number",
+            "default": 0
+          },
+          "imageUrls": {
+            "maxItems": 10,
+            "description": "Ordered WebP paths used only for this product variant",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "name",
+          "price"
+        ]
+      },
       "CreateProductDto": {
         "type": "object",
         "properties": {
@@ -3307,7 +3464,20 @@
           },
           "price": {
             "type": "number",
-            "example": 49.9
+            "example": 49.9,
+            "description": "Base price for products without variants; when active variants exist the backend stores and returns their minimum price"
+          },
+          "variantLabel": {
+            "type": "string",
+            "example": "Размер",
+            "description": "Customer-facing selector label, for example Size or Cutting method"
+          },
+          "variants": {
+            "maxItems": 30,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProductVariantInputDto"
+            }
           },
           "isActive": {
             "type": "boolean",
@@ -3355,7 +3525,20 @@
           },
           "price": {
             "type": "number",
-            "example": 49.9
+            "example": 49.9,
+            "description": "Base price for products without variants; when active variants exist the backend stores and returns their minimum price"
+          },
+          "variantLabel": {
+            "type": "string",
+            "example": "Размер",
+            "description": "Customer-facing selector label, for example Size or Cutting method"
+          },
+          "variants": {
+            "maxItems": 30,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProductVariantInputDto"
+            }
           },
           "isActive": {
             "type": "boolean",
@@ -3403,6 +3586,11 @@
         "properties": {
           "productId": {
             "type": "string"
+          },
+          "variantId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Selected product variant. When omitted, the backend uses the cheapest active variant for backward compatibility."
           },
           "quantity": {
             "type": "number",
@@ -3556,8 +3744,17 @@
             "type": "string",
             "format": "uuid"
           },
+          "productVariantId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
           "productName": {
             "type": "string"
+          },
+          "variantName": {
+            "type": "string",
+            "nullable": true
           },
           "productImageUrl": {
             "type": "string",
@@ -3577,7 +3774,9 @@
           "id",
           "orderId",
           "productId",
+          "productVariantId",
           "productName",
+          "variantName",
           "productImageUrl",
           "unitPrice",
           "quantity",
@@ -4368,12 +4567,17 @@
           "productName": {
             "type": "string"
           },
+          "variantName": {
+            "type": "string",
+            "nullable": true
+          },
           "quantity": {
             "type": "number"
           }
         },
         "required": [
           "productName",
+          "variantName",
           "quantity"
         ]
       },
@@ -5634,12 +5838,17 @@
           "productName": {
             "type": "string"
           },
+          "variantName": {
+            "type": "string",
+            "nullable": true
+          },
           "quantity": {
             "type": "number"
           }
         },
         "required": [
           "productName",
+          "variantName",
           "quantity"
         ]
       },

@@ -115,17 +115,17 @@ model User {
 }
 
 model LoginAttempt {
-  id             String             @id @default(uuid()) @db.Uuid
-  phone          String             @db.VarChar(24)
-  installationId String?            @db.VarChar(255)
-  deviceName     String?            @db.VarChar(160)
+  id             String              @id @default(uuid()) @db.Uuid
+  phone          String              @db.VarChar(24)
+  installationId String?             @db.VarChar(255)
+  deviceName     String?             @db.VarChar(160)
   platform       PushDevicePlatform?
-  appVersion     String?            @db.VarChar(40)
-  status         LoginAttemptStatus @default(REQUESTED)
-  userId         String?            @db.Uuid
-  createdAt      DateTime           @default(now())
+  appVersion     String?             @db.VarChar(40)
+  status         LoginAttemptStatus  @default(REQUESTED)
+  userId         String?             @db.Uuid
+  createdAt      DateTime            @default(now())
   verifiedAt     DateTime?
-  user           User?              @relation(fields: [userId], references: [id], onDelete: SetNull)
+  user           User?               @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([status, createdAt])
   @@index([phone, createdAt])
@@ -179,20 +179,22 @@ model Category {
 }
 
 model Product {
-  id          String         @id @default(uuid()) @db.Uuid
-  categoryId  String         @db.Uuid
-  name        String         @db.VarChar(160)
-  slug        String         @unique @db.VarChar(180)
-  description String         @db.Text
-  price       Decimal        @db.Decimal(12, 2)
-  isActive    Boolean        @default(true)
-  sortOrder   Int            @default(0)
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
-  category    Category       @relation(fields: [categoryId], references: [id], onDelete: Restrict)
-  images      ProductImage[]
-  orderItems  OrderItem[]
-  favorites   Favorite[]
+  id           String           @id @default(uuid()) @db.Uuid
+  categoryId   String           @db.Uuid
+  name         String           @db.VarChar(160)
+  slug         String           @unique @db.VarChar(180)
+  description  String           @db.Text
+  price        Decimal          @db.Decimal(12, 2)
+  variantLabel String?          @db.VarChar(80)
+  isActive     Boolean          @default(true)
+  sortOrder    Int              @default(0)
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+  category     Category         @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  images       ProductImage[]
+  variants     ProductVariant[]
+  orderItems   OrderItem[]
+  favorites    Favorite[]
 
   @@index([categoryId, isActive, sortOrder])
 }
@@ -207,6 +209,37 @@ model ProductImage {
   product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@index([productId, sortOrder])
+}
+
+model ProductVariant {
+  id          String                @id @default(uuid()) @db.Uuid
+  productId   String                @db.Uuid
+  name        String                @db.VarChar(120)
+  description String?               @db.VarChar(300)
+  price       Decimal               @db.Decimal(12, 2)
+  isActive    Boolean               @default(true)
+  sortOrder   Int                   @default(0)
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+  product     Product               @relation(fields: [productId], references: [id], onDelete: Cascade)
+  images      ProductVariantImage[]
+  orderItems  OrderItem[]
+
+  @@unique([productId, name])
+  @@index([productId, isActive, sortOrder])
+  @@index([productId, isActive, price])
+}
+
+model ProductVariantImage {
+  id               String         @id @default(uuid()) @db.Uuid
+  productVariantId String         @db.Uuid
+  url              String
+  alt              String?        @db.VarChar(180)
+  sortOrder        Int            @default(0)
+  createdAt        DateTime       @default(now())
+  productVariant   ProductVariant @relation(fields: [productVariantId], references: [id], onDelete: Cascade)
+
+  @@index([productVariantId, sortOrder])
 }
 
 model Favorite {
@@ -354,17 +387,21 @@ model Order {
 }
 
 model OrderItem {
-  id          String  @id @default(uuid()) @db.Uuid
-  orderId     String  @db.Uuid
-  productId   String  @db.Uuid
-  productName String  @db.VarChar(160)
-  unitPrice   Decimal @db.Decimal(12, 2)
-  quantity    Int
-  lineTotal   Decimal @db.Decimal(12, 2)
-  order       Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  product     Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+  id               String          @id @default(uuid()) @db.Uuid
+  orderId          String          @db.Uuid
+  productId        String          @db.Uuid
+  productVariantId String?         @db.Uuid
+  productName      String          @db.VarChar(160)
+  variantName      String?         @db.VarChar(120)
+  unitPrice        Decimal         @db.Decimal(12, 2)
+  quantity         Int
+  lineTotal        Decimal         @db.Decimal(12, 2)
+  order            Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product          Product         @relation(fields: [productId], references: [id], onDelete: Restrict)
+  productVariant   ProductVariant? @relation(fields: [productVariantId], references: [id], onDelete: Restrict)
 
   @@index([orderId])
+  @@index([productVariantId])
 }
 
 model OrderTransition {

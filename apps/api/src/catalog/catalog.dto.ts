@@ -13,6 +13,7 @@ import {
   Matches,
   MaxLength,
   Min,
+  ValidateNested,
 } from "class-validator";
 
 const MEDIA_IMAGE_PATH =
@@ -48,6 +49,61 @@ export class CreateCategoryDto {
 
 export class UpdateCategoryDto extends PartialType(CreateCategoryDto) {}
 
+export class ProductVariantInputDto {
+  @ApiPropertyOptional({
+    format: "uuid",
+    description: "Existing variant ID when updating a product",
+  })
+  @IsOptional()
+  @IsUUID()
+  id?: string;
+
+  @ApiProperty({ example: "Маленькая, 25 см" })
+  @IsString()
+  @MaxLength(120)
+  name: string;
+
+  @ApiPropertyOptional({ example: "На тонком тесте" })
+  @IsOptional()
+  @IsString()
+  @MaxLength(300)
+  description?: string;
+
+  @ApiProperty({ example: 55 })
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  price: number;
+
+  @ApiPropertyOptional({ default: true })
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
+
+  @ApiPropertyOptional({ default: 0 })
+  @IsOptional()
+  @IsInt()
+  sortOrder?: number;
+
+  @ApiPropertyOptional({
+    type: [String],
+    maxItems: 10,
+    description: "Ordered WebP paths used only for this product variant",
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(10)
+  @ArrayUnique()
+  @IsString({ each: true })
+  @MaxLength(1000, { each: true })
+  @Matches(MEDIA_IMAGE_PATH, {
+    each: true,
+    message:
+      "each variant image URL must be a WebP path returned by the media API",
+  })
+  imageUrls?: string[];
+}
+
 export class CreateProductDto {
   @ApiProperty()
   @IsUUID()
@@ -68,11 +124,33 @@ export class CreateProductDto {
   @MaxLength(4000)
   description: string;
 
-  @ApiProperty({ example: 49.9 })
+  @ApiProperty({
+    example: 49.9,
+    description:
+      "Base price for products without variants; when active variants exist the backend stores and returns their minimum price",
+  })
   @Type(() => Number)
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
   price: number;
+
+  @ApiPropertyOptional({
+    example: "Размер",
+    description:
+      "Customer-facing selector label, for example Size or Cutting method",
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  variantLabel?: string;
+
+  @ApiPropertyOptional({ type: () => [ProductVariantInputDto], maxItems: 30 })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(30)
+  @ValidateNested({ each: true })
+  @Type(() => ProductVariantInputDto)
+  variants?: ProductVariantInputDto[];
 
   @ApiPropertyOptional({ default: true })
   @IsOptional()

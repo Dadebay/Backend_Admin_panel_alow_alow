@@ -97,3 +97,11 @@ export function ratingStars(score: number) {
   const filled = Math.max(0, Math.min(5, Math.round(score)));
   return `${"★".repeat(filled)}${"☆".repeat(5 - filled)}`;
 }
+
+export function orderItemLabel(
+  item: Pick<Order["items"][number], "productName" | "variantName">,
+) {
+  return item.variantName
+    ? `${item.productName} · ${item.variantName}`
+    : item.productName;
+}

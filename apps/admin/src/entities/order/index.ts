@@ -1,6 +1,7 @@
 export {
   canCancel,
   nextOrderStatus,
+  orderItemLabel,
   orderStatuses,
   ratingStars,
   roleLabels,

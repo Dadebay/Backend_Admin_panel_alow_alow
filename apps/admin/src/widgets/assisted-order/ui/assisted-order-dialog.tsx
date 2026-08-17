@@ -11,7 +11,7 @@ import {
 } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, useWatch } from "react-hook-form";
-import { useAdminProducts } from "@/src/entities/catalog";
+import { useAdminProducts, type Product } from "@/src/entities/catalog";
 import {
   useAssistedCustomerSearch,
   type AssistedCustomer,
@@ -27,7 +27,7 @@ import {
   type CreateAssistedOrderBody,
   useAssistedOrderActions,
 } from "@/src/features/assisted-order";
-import { ApiError } from "@/src/shared/api/api-client";
+import { ApiError, resolveApiUrl } from "@/src/shared/api/api-client";
 import { FormFieldError } from "@/src/shared/forms";
 import {
   assistedOrderFormSchema,
@@ -60,6 +60,27 @@ function mutationMessage(error: unknown) {
   return error instanceof Error ? error.message : "Не удалось создать заказ";
 }
 
+function activeVariants(product: Product) {
+  return product.variants
+    .filter(({ isActive }) => isActive)
+    .sort(
+      (left, right) =>
+        left.price - right.price ||
+        left.sortOrder - right.sortOrder ||
+        left.name.localeCompare(right.name),
+    );
+}
+
+function selectionKey(productId: string, variantId?: string) {
+  return `${productId}:${variantId ?? "base"}`;
+}
+
+type SelectedProductItem = {
+  product: Product;
+  variant: Product["variants"][number] | null;
+  quantity: number;
+};
+
 export default function AssistedOrderDialog({
   onClose,
 }: {
@@ -77,8 +98,11 @@ export default function AssistedOrderDialog({
     useState<AssistedCustomer | null>(null);
   const [coordinates, setCoordinates] =
     useState<AssistedOrderCoordinates | null>(null);
-  const [quantityByProduct, setQuantityByProduct] = useState<
+  const [quantityBySelection, setQuantityBySelection] = useState<
     Record<string, number>
+  >({});
+  const [selectedVariantByProduct, setSelectedVariantByProduct] = useState<
+    Record<string, string>
   >({});
   const [productSearch, setProductSearch] = useState("");
   const [selectionError, setSelectionError] = useState("");
@@ -156,28 +180,43 @@ export default function AssistedOrderDialog({
     );
   }, [productSearch, products.data]);
 
-  const selectedItems = useMemo(
-    () =>
-      (products.data ?? []).flatMap((product) => {
-        const quantity = quantityByProduct[product.id] ?? 0;
-        return quantity > 0 ? [{ product, quantity }] : [];
-      }),
-    [products.data, quantityByProduct],
-  );
+  const selectedItems = useMemo<SelectedProductItem[]>(() => {
+    const items: SelectedProductItem[] = [];
+    for (const product of products.data ?? []) {
+      const variants = activeVariants(product);
+      if (!variants.length) {
+        const quantity = quantityBySelection[selectionKey(product.id)] ?? 0;
+        if (quantity > 0) items.push({ product, variant: null, quantity });
+        continue;
+      }
+      for (const variant of variants) {
+        const quantity =
+          quantityBySelection[selectionKey(product.id, variant.id)] ?? 0;
+        if (quantity > 0) items.push({ product, variant, quantity });
+      }
+    }
+    return items;
+  }, [products.data, quantityBySelection]);
   const estimatedSubtotal = selectedItems.reduce(
-    (sum, item) => sum + item.product.price * item.quantity,
+    (sum, item) =>
+      sum + (item.variant?.price ?? item.product.price) * item.quantity,
     0,
   );
 
-  function changeQuantity(productId: string, delta: number) {
-    setQuantityByProduct((current) => {
-      const next = Math.max(0, Math.min(50, (current[productId] ?? 0) + delta));
+  function changeQuantity(
+    productId: string,
+    variantId: string | undefined,
+    delta: number,
+  ) {
+    const key = selectionKey(productId, variantId);
+    setQuantityBySelection((current) => {
+      const next = Math.max(0, Math.min(50, (current[key] ?? 0) + delta));
       if (next === 0) {
         const nextQuantities = { ...current };
-        delete nextQuantities[productId];
+        delete nextQuantities[key];
         return nextQuantities;
       }
-      return { ...current, [productId]: next };
+      return { ...current, [key]: next };
     });
     setSelectionError("");
   }
@@ -341,8 +380,9 @@ export default function AssistedOrderDialog({
       customerPhone: values.customerPhone,
       customerFirstName: values.customerFirstName,
       customerLastName: values.customerLastName,
-      items: selectedItems.map(({ product, quantity }) => ({
+      items: selectedItems.map(({ product, variant, quantity }) => ({
         productId: product.id,
+        ...(variant ? { variantId: variant.id } : {}),
         quantity,
       })),
       ...(values.addressId
@@ -382,7 +422,8 @@ export default function AssistedOrderDialog({
     setIsAddressDropdownOpen(false);
     setSelectedAddressResult(null);
     setCoordinates(null);
-    setQuantityByProduct({});
+    setQuantityBySelection({});
+    setSelectedVariantByProduct({});
     setProductSearch("");
     setSelectionError("");
     reset();
@@ -611,18 +652,39 @@ export default function AssistedOrderDialog({
               )}
               <div className="assisted-product-list">
                 {visibleProducts.map((product) => {
-                  const quantity = quantityByProduct[product.id] ?? 0;
+                  const variants = activeVariants(product);
+                  const selectedVariant =
+                    variants.find(
+                      ({ id }) => selectedVariantByProduct[product.id] === id,
+                    ) ?? variants[0];
+                  const currentSelectionKey = selectionKey(
+                    product.id,
+                    selectedVariant?.id,
+                  );
+                  const quantity =
+                    quantityBySelection[currentSelectionKey] ?? 0;
+                  const selectedVariantItems = variants.filter(
+                    ({ id }) =>
+                      (quantityBySelection[selectionKey(product.id, id)] ?? 0) >
+                      0,
+                  );
+                  const displayImageUrl =
+                    selectedVariant?.images[0]?.url ?? product.displayImageUrl;
                   return (
                     <article
-                      className={quantity ? "selected" : ""}
+                      className={
+                        selectedVariantItems.length || quantity
+                          ? "selected"
+                          : ""
+                      }
                       key={product.id}
                     >
-                      {product.images[0] ? (
+                      {displayImageUrl ? (
                         <img
-                          alt={product.images[0].alt ?? product.name}
+                          alt={selectedVariant?.name ?? product.name}
                           height="52"
                           loading="lazy"
-                          src={product.images[0].url}
+                          src={resolveApiUrl(displayImageUrl)}
                           width="52"
                         />
                       ) : (
@@ -638,7 +700,45 @@ export default function AssistedOrderDialog({
                         <small>
                           {product.category?.name ?? "Без категории"}
                         </small>
-                        <b>{product.price.toFixed(2)} TMT</b>
+                        {variants.length > 0 && (
+                          <label className="assisted-product-variant">
+                            <span>{product.variantLabel ?? "Вариант"}</span>
+                            <select
+                              data-testid={`assisted-product-variant-${product.id}`}
+                              value={selectedVariant?.id}
+                              onChange={(event) =>
+                                setSelectedVariantByProduct((current) => ({
+                                  ...current,
+                                  [product.id]: event.target.value,
+                                }))
+                              }
+                            >
+                              {variants.map((variant) => (
+                                <option key={variant.id} value={variant.id}>
+                                  {variant.name} — {variant.price.toFixed(2)}{" "}
+                                  TMT
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                        )}
+                        <b>
+                          {selectedVariant
+                            ? selectedVariant.price.toFixed(2)
+                            : product.price.toFixed(2)}{" "}
+                          TMT
+                        </b>
+                        {selectedVariantItems.length > 0 && (
+                          <small className="assisted-selected-variants">
+                            Добавлено:{" "}
+                            {selectedVariantItems
+                              .map(
+                                (variant) =>
+                                  `${variant.name} ×${quantityBySelection[selectionKey(product.id, variant.id)]}`,
+                              )
+                              .join(", ")}
+                          </small>
+                        )}
                       </div>
                       <div
                         className="quantity-stepper"
@@ -647,7 +747,9 @@ export default function AssistedOrderDialog({
                         <button
                           data-testid={`assisted-product-minus-${product.id}`}
                           type="button"
-                          onClick={() => changeQuantity(product.id, -1)}
+                          onClick={() =>
+                            changeQuantity(product.id, selectedVariant?.id, -1)
+                          }
                         >
                           −
                         </button>
@@ -655,7 +757,9 @@ export default function AssistedOrderDialog({
                         <button
                           data-testid={`assisted-product-plus-${product.id}`}
                           type="button"
-                          onClick={() => changeQuantity(product.id, 1)}
+                          onClick={() =>
+                            changeQuantity(product.id, selectedVariant?.id, 1)
+                          }
                         >
                           +
                         </button>

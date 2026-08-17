@@ -126,6 +126,9 @@ test("address search is an accessible dropdown and the large map remains a manua
   assert.match(dialog, /role="option"/);
   assert.match(dialog, /Неофициальный адрес \/ ориентир \(необязательно\)/);
   assert.match(dialog, /buildAssistedDeliveryAddress/);
+  assert.match(dialog, /variantId: variant\.id/);
+  assert.match(dialog, /assisted-product-variant-/);
+  assert.match(dialog, /activeVariants\(product\)/);
   assert.match(map, /data-testid="assisted-order-map"/);
   assert.match(map, /ResizeObserver/);
   assert.match(map, /data-testid="assisted-map-status"/);

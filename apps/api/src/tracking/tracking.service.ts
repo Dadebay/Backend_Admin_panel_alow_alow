@@ -125,7 +125,9 @@ export class TrackingService {
       select: { courierId: true },
     });
     if (!order) {
-      throw new UnprocessableEntityException("Order is not available for this customer");
+      throw new UnprocessableEntityException(
+        "Order is not available for this customer",
+      );
     }
     const location = order.courierId
       ? await this.getCourierLocation(order.courierId)
@@ -170,7 +172,11 @@ export class TrackingService {
                 },
               },
               items: {
-                select: { productName: true, quantity: true },
+                select: {
+                  productName: true,
+                  variantName: true,
+                  quantity: true,
+                },
                 orderBy: { productName: "asc" },
               },
             },

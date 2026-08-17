@@ -361,7 +361,8 @@ heights; visual density must not be reduced to the previous pale compact map.
 - A user may store up to 20 addresses.
 - A newly created or selected address becomes active.
 - The address used by the latest order becomes the active/default address.
-- Orders keep an immutable snapshot of address and product price/name data.
+- Orders keep immutable snapshots of the address plus product/variant name and
+  price data. Later catalog edits never rewrite historical order lines.
 - An operator/admin phone order resolves an existing active customer by phone
   or creates a `CUSTOMER` record without issuing OTP, JWT, or refresh tokens.
   A staff phone number or inactive customer is rejected. Staff may reuse one
@@ -394,11 +395,27 @@ Images are validated, converted to WebP, and stored privately in S3-compatible
 storage. Product availability, current price, promo limits, discount, delivery
 fee, final total, and branch assignment are validated by the backend.
 
-A product may have up to 10 ordered images. Product image references must be
-WebP paths returned by the media API, and the first image is the primary
-catalog image. Admin product create/update may replace the ordered image set;
-the backend enforces the same limit for the single-image compatibility
-endpoint.
+A product may optionally define one customer-facing variant selector label,
+such as `Размер` or `Способ нарезки`, and up to 30 generic sellable variants.
+Every variant has its own name, optional description, price, active state,
+ordering, and up to 10 ordered images. This supports pizza sizes, hand/machine
+meat cutting, and future choices without dish-specific database fields. The
+public product `price` and `minPrice` are the cheapest active variant price when
+active variants exist. `displayImageUrl` prefers that variant's first image and
+falls back to the common product image.
+
+Product and variant image references must be private WebP paths returned by the
+media API. A product may have up to 10 common ordered images, and every variant
+may independently have up to 10. Removed persisted variants are soft-disabled
+so historical order references remain valid. The backend enforces the same
+common-image limit for the single-image compatibility endpoint.
+
+New order clients send `variantId` for a configured variant. For backward
+compatibility, omitting it selects the cheapest active variant; an ID belonging
+to another product or an inactive variant is rejected. Products without active
+variants use their base price. The selected variant ID, name, unit price, and
+line total are snapshotted on `OrderItem`, and its first image is preferred in
+order responses.
 
 ## Customer notifications
 
@@ -436,7 +453,7 @@ Current status:
 - operators/admins can open a lazy phone-order flow from the order board, find
   a caller by phone, automatically select an exact phone match, prefill the
   active or last-used saved address while still offering every saved address,
-  select active catalog items,
+  select active catalog items and their configured variants,
   perform an explicit OSM address search, edit an unofficial landmark, or put
   a draggable marker on the large map. TanStack Query owns all remote data,
   React Hook Form/Zod validate the form, and the backend computes the final
@@ -453,7 +470,9 @@ Current status:
   with the 30-second snapshot poll retained only as reconnect recovery;
 - media forms upload validated WebP images to S3-compatible storage;
 - the catalog editor creates and updates a dish with category, name, slug,
-  description, price, availability, ordering, and up to 10 S3 images;
+  description, base price, availability, ordering, and up to 10 common S3
+  images; it also configures a generic selector with variant-specific prices,
+  availability, ordering, descriptions, and up to 10 S3 images per variant;
 - Swagger response DTOs generate the TypeScript contract used by the frontend;
 - TanStack Query owns server state and TanStack Table renders admin lists;
 - React Hook Form owns all admin form state and Zod schemas validate values
@@ -512,6 +531,12 @@ shell at 6.9 KB raw / 2.3 KB gzip. The dynamically loaded catalog editor is
 11.7 KB / 3.2 KB, plus its existing catalog-mutation chunk at 1.5 KB / 0.6 KB.
 The added local form state creates no polling or background request; media
 uploads start only when an administrator saves the dish.
+
+The 2026-08-17 variant catalog build keeps both affected workflows lazy. The
+catalog editor chunk is 23.6 KB raw / 5.8 KB gzip and the phone-assisted order
+chunk is 21.8 KB raw / 6.7 KB gzip. Variant selection reuses the cached catalog
+query, adds no polling, and uploads variant images only when the admin saves the
+product.
 
 The 2026-07-30 pure React/Vite migration removes Next.js, vinext, RSC,
 hydration, and the Node frontend runtime. The static SPA bootstrap is 199.9 KB

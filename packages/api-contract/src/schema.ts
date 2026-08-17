@@ -1134,6 +1134,33 @@ export interface components {
             /** Format: date-time */
             createdAt: string;
         };
+        CatalogProductVariantImageResponseDto: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            productVariantId: string;
+            url: string;
+            alt: string | null;
+            sortOrder: number;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        CatalogProductVariantResponseDto: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            productId: string;
+            name: string;
+            description: string | null;
+            price: number;
+            isActive: boolean;
+            sortOrder: number;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+            images: components["schemas"]["CatalogProductVariantImageResponseDto"][];
+        };
         CatalogCategorySummaryResponseDto: {
             /** Format: uuid */
             id: string;
@@ -1156,6 +1183,10 @@ export interface components {
             slug: string;
             description: string;
             price: number;
+            minPrice: number;
+            hasVariants: boolean;
+            variantLabel: string | null;
+            displayImageUrl: string | null;
             isActive: boolean;
             sortOrder: number;
             /** Format: date-time */
@@ -1163,6 +1194,7 @@ export interface components {
             /** Format: date-time */
             updatedAt: string;
             images: components["schemas"]["CatalogProductImageResponseDto"][];
+            variants: components["schemas"]["CatalogProductVariantResponseDto"][];
             category?: components["schemas"]["CatalogCategorySummaryResponseDto"];
         };
         CatalogCategoryResponseDto: {
@@ -1197,13 +1229,41 @@ export interface components {
             /** @default true */
             isActive: boolean;
         };
+        ProductVariantInputDto: {
+            /**
+             * Format: uuid
+             * @description Existing variant ID when updating a product
+             */
+            id?: string;
+            /** @example Маленькая, 25 см */
+            name: string;
+            /** @example На тонком тесте */
+            description?: string;
+            /** @example 55 */
+            price: number;
+            /** @default true */
+            isActive: boolean;
+            /** @default 0 */
+            sortOrder: number;
+            /** @description Ordered WebP paths used only for this product variant */
+            imageUrls?: string[];
+        };
         CreateProductDto: {
             categoryId: string;
             name: string;
             slug: string;
             description: string;
-            /** @example 49.9 */
+            /**
+             * @description Base price for products without variants; when active variants exist the backend stores and returns their minimum price
+             * @example 49.9
+             */
             price: number;
+            /**
+             * @description Customer-facing selector label, for example Size or Cutting method
+             * @example Размер
+             */
+            variantLabel?: string;
+            variants?: components["schemas"]["ProductVariantInputDto"][];
             /** @default true */
             isActive: boolean;
             /** @default 0 */
@@ -1222,8 +1282,17 @@ export interface components {
             name?: string;
             slug?: string;
             description?: string;
-            /** @example 49.9 */
+            /**
+             * @description Base price for products without variants; when active variants exist the backend stores and returns their minimum price
+             * @example 49.9
+             */
             price?: number;
+            /**
+             * @description Customer-facing selector label, for example Size or Cutting method
+             * @example Размер
+             */
+            variantLabel?: string;
+            variants?: components["schemas"]["ProductVariantInputDto"][];
             /** @default true */
             isActive: boolean;
             /** @default 0 */
@@ -1246,6 +1315,11 @@ export interface components {
         };
         CreateOrderItemDto: {
             productId: string;
+            /**
+             * Format: uuid
+             * @description Selected product variant. When omitted, the backend uses the cheapest active variant for backward compatibility.
+             */
+            variantId?: string;
             quantity: number;
         };
         CreateOrderDto: {
@@ -1300,7 +1374,10 @@ export interface components {
             orderId: string;
             /** Format: uuid */
             productId: string;
+            /** Format: uuid */
+            productVariantId: string | null;
             productName: string;
+            variantName: string | null;
             productImageUrl: string | null;
             unitPrice: number;
             quantity: number;
@@ -1517,6 +1594,7 @@ export interface components {
         };
         CourierRouteItemResponseDto: {
             productName: string;
+            variantName: string | null;
             quantity: number;
         };
         CourierRouteStopResponseDto: {
@@ -1883,6 +1961,7 @@ export interface components {
         };
         DispatchOrderItemDto: {
             productName: string;
+            variantName: string | null;
             quantity: number;
         };
         DispatchOrderDto: {

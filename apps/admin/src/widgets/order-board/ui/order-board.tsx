@@ -7,6 +7,7 @@ import {
   canCancel,
   kanbanQueueStatusesForRole,
   nextOrderStatus,
+  orderItemLabel,
   orderStatuses,
   ratingStars,
   roleCanUseOrderTable,
@@ -220,7 +221,7 @@ export function OrderBoard({
           <div className="order-items-cell">
             {row.original.items.map((item) => (
               <span key={item.id}>
-                <b>{item.quantity}×</b> {item.productName}
+                <b>{item.quantity}×</b> {orderItemLabel(item)}
               </span>
             ))}
           </div>
@@ -518,7 +519,9 @@ export function OrderBoard({
         onRetry={() => void orders.refetch()}
       >
         <div
-          className={viewMode === "table" ? "table-card" : "order-board-results"}
+          className={
+            viewMode === "table" ? "table-card" : "order-board-results"
+          }
         >
           {viewMode === "kanban" ? (
             <OrderKanban
@@ -565,8 +568,8 @@ export function OrderBoard({
           <footer className="table-pagination">
             <span>
               Показано: {orders.data?.items.length ?? 0} из{" "}
-              {orders.data?.total ?? 0} · страница{" "}
-              {orders.data?.page ?? page} из {orders.data?.pages || 1}
+              {orders.data?.total ?? 0} · страница {orders.data?.page ?? page}{" "}
+              из {orders.data?.pages || 1}
             </span>
             <div>
               <button

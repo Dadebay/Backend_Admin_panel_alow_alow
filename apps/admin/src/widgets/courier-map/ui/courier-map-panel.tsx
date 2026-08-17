@@ -5,6 +5,7 @@ import {
   useDispatchSnapshot,
   type DispatchCourier,
 } from "@/src/entities/courier";
+import { orderItemLabel } from "@/src/entities/order";
 import { OtpLoginCard } from "@/src/features/otp-login";
 import { useSession } from "@/src/shared/auth";
 
@@ -299,8 +300,10 @@ export function CourierMapPanel() {
                         </a>
                         <ul>
                           {order.items.map((item) => (
-                            <li key={item.productName}>
-                              {item.productName} × {item.quantity}
+                            <li
+                              key={`${item.productName}:${item.variantName ?? "base"}`}
+                            >
+                              {orderItemLabel(item)} × {item.quantity}
                             </li>
                           ))}
                         </ul>

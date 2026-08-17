@@ -117,6 +117,122 @@ test("catalog schemas reject invalid slug and money precision", () => {
       slug: "margarita",
       description: "Пицца",
       price: 49.999,
+      variantLabel: "",
+      variants: [],
+      sortOrder: 0,
+      isActive: true,
+    }).success,
+    false,
+  );
+  assert.equal(
+    productFormSchema.safeParse({
+      categoryId: "2d807991-e99f-4f17-9b9f-cc2fb7478820",
+      name: "Маргарита",
+      slug: "margarita",
+      description: "Пицца",
+      price: 50,
+      variantLabel: "Размер",
+      variants: [
+        {
+          name: "Маленькая",
+          description: "25 см",
+          price: 50,
+          sortOrder: 0,
+          isActive: true,
+          imageUrls: [],
+        },
+        {
+          name: "Большая",
+          description: "35 см",
+          price: 75,
+          sortOrder: 1,
+          isActive: true,
+          imageUrls: [],
+        },
+      ],
+      sortOrder: 0,
+      isActive: true,
+    }).success,
+    true,
+  );
+  assert.equal(
+    productFormSchema.safeParse({
+      categoryId: "2d807991-e99f-4f17-9b9f-cc2fb7478820",
+      name: "Нарезка",
+      slug: "cutting",
+      description: "Мясо",
+      price: 50,
+      variantLabel: "",
+      variants: [
+        {
+          name: "Вручную",
+          description: "",
+          price: 50,
+          sortOrder: 0,
+          isActive: true,
+          imageUrls: [],
+        },
+      ],
+      sortOrder: 0,
+      isActive: true,
+    }).success,
+    false,
+  );
+});
+
+test("product variant schema rejects duplicate names and excess images", () => {
+  assert.equal(
+    productFormSchema.safeParse({
+      categoryId: "2d807991-e99f-4f17-9b9f-cc2fb7478820",
+      name: "Пицца",
+      slug: "duplicate-sizes",
+      description: "Повторяющиеся размеры",
+      price: 50,
+      variantLabel: "Размер",
+      variants: [
+        {
+          name: "Маленькая",
+          description: "",
+          price: 50,
+          sortOrder: 0,
+          isActive: true,
+          imageUrls: [],
+        },
+        {
+          name: " маленькая ",
+          description: "",
+          price: 55,
+          sortOrder: 1,
+          isActive: true,
+          imageUrls: [],
+        },
+      ],
+      sortOrder: 0,
+      isActive: true,
+    }).success,
+    false,
+  );
+  assert.equal(
+    productFormSchema.safeParse({
+      categoryId: "2d807991-e99f-4f17-9b9f-cc2fb7478820",
+      name: "Пицца",
+      slug: "too-many-variant-images",
+      description: "Слишком много изображений",
+      price: 50,
+      variantLabel: "Размер",
+      variants: [
+        {
+          name: "Маленькая",
+          description: "",
+          price: 50,
+          sortOrder: 0,
+          isActive: true,
+          imageUrls: Array.from(
+            { length: 11 },
+            (_, index) => `/api/v1/media/${index}.webp`,
+          ),
+        },
+      ],
       sortOrder: 0,
       isActive: true,
     }).success,

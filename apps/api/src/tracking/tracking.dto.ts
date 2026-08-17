@@ -147,6 +147,9 @@ export class DispatchOrderItemDto {
   @ApiProperty()
   productName: string;
 
+  @ApiProperty({ type: String, nullable: true })
+  variantName: string | null;
+
   @ApiProperty()
   quantity: number;
 }

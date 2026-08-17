@@ -86,8 +86,14 @@ export class OrderItemResponseDto {
   @ApiProperty({ format: "uuid" })
   productId: string;
 
+  @ApiProperty({ type: String, format: "uuid", nullable: true })
+  productVariantId: string | null;
+
   @ApiProperty()
   productName: string;
+
+  @ApiProperty({ type: String, nullable: true })
+  variantName: string | null;
 
   @ApiProperty({ type: String, nullable: true })
   productImageUrl: string | null;
@@ -382,6 +388,9 @@ export class CourierRouteCustomerResponseDto {
 export class CourierRouteItemResponseDto {
   @ApiProperty()
   productName: string;
+
+  @ApiProperty({ type: String, nullable: true })
+  variantName: string | null;
 
   @ApiProperty()
   quantity: number;

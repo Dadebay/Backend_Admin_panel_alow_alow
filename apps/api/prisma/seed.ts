@@ -141,7 +141,7 @@ async function main() {
     where: { slug: "alo-burger" },
     data: { name: "AlowAlow Burger", slug: "alowalow-burger" },
   });
-  await prisma.product.upsert({
+  const margherita = await prisma.product.upsert({
     where: { slug: "alowalow-burger" },
     create: {
       categoryId: burgers.id,
@@ -166,13 +166,39 @@ async function main() {
       slug: "margherita",
       description: "Томаты, моцарелла и базилик на тонком тесте.",
       price: 65,
+      variantLabel: "Размер",
     },
     update: {
       categoryId: pizza.id,
       price: 65,
+      variantLabel: "Размер",
       isActive: true,
     },
   });
+  for (const [sortOrder, variant] of [
+    { name: "Маленькая, 25 см", price: 65 },
+    { name: "Средняя, 30 см", price: 85 },
+    { name: "Большая, 35 см", price: 105 },
+  ].entries()) {
+    await prisma.productVariant.upsert({
+      where: {
+        productId_name: {
+          productId: margherita.id,
+          name: variant.name,
+        },
+      },
+      create: {
+        productId: margherita.id,
+        ...variant,
+        sortOrder,
+      },
+      update: {
+        price: variant.price,
+        sortOrder,
+        isActive: true,
+      },
+    });
+  }
 
   const turkmenProducts = [
     {

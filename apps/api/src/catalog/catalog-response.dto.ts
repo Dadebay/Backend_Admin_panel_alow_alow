@@ -20,6 +20,58 @@ export class CatalogProductImageResponseDto {
   createdAt: string;
 }
 
+export class CatalogProductVariantImageResponseDto {
+  @ApiProperty({ format: "uuid" })
+  id: string;
+
+  @ApiProperty({ format: "uuid" })
+  productVariantId: string;
+
+  @ApiProperty()
+  url: string;
+
+  @ApiProperty({ type: String, nullable: true })
+  alt: string | null;
+
+  @ApiProperty()
+  sortOrder: number;
+
+  @ApiProperty({ format: "date-time" })
+  createdAt: string;
+}
+
+export class CatalogProductVariantResponseDto {
+  @ApiProperty({ format: "uuid" })
+  id: string;
+
+  @ApiProperty({ format: "uuid" })
+  productId: string;
+
+  @ApiProperty()
+  name: string;
+
+  @ApiProperty({ type: String, nullable: true })
+  description: string | null;
+
+  @ApiProperty()
+  price: number;
+
+  @ApiProperty()
+  isActive: boolean;
+
+  @ApiProperty()
+  sortOrder: number;
+
+  @ApiProperty({ format: "date-time" })
+  createdAt: string;
+
+  @ApiProperty({ format: "date-time" })
+  updatedAt: string;
+
+  @ApiProperty({ type: [CatalogProductVariantImageResponseDto] })
+  images: CatalogProductVariantImageResponseDto[];
+}
+
 export class CatalogCategorySummaryResponseDto {
   @ApiProperty({ format: "uuid" })
   id: string;
@@ -66,6 +118,18 @@ export class CatalogProductResponseDto {
   price: number;
 
   @ApiProperty()
+  minPrice: number;
+
+  @ApiProperty()
+  hasVariants: boolean;
+
+  @ApiProperty({ type: String, nullable: true })
+  variantLabel: string | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  displayImageUrl: string | null;
+
+  @ApiProperty()
   isActive: boolean;
 
   @ApiProperty()
@@ -79,6 +143,9 @@ export class CatalogProductResponseDto {
 
   @ApiProperty({ type: [CatalogProductImageResponseDto] })
   images: CatalogProductImageResponseDto[];
+
+  @ApiProperty({ type: [CatalogProductVariantResponseDto] })
+  variants: CatalogProductVariantResponseDto[];
 
   @ApiPropertyOptional({ type: CatalogCategorySummaryResponseDto })
   category?: CatalogCategorySummaryResponseDto;

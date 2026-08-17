@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { formatBranchDistance } from "@/src/entities/branch";
 import {
+  orderItemLabel,
   ratingStars,
   roleLabels,
   statusLabels,
@@ -20,10 +21,7 @@ function formatDate(value: string) {
 }
 
 function staffName(
-  person: Pick<
-    Order["transitions"][number]["actor"],
-    "firstName" | "lastName"
-  >,
+  person: Pick<Order["transitions"][number]["actor"], "firstName" | "lastName">,
 ) {
   return [person.firstName, person.lastName].filter(Boolean).join(" ");
 }
@@ -119,7 +117,7 @@ function OrderDetails({ order }: { order: Order }) {
         <ul className="order-detail-items">
           {order.items.map((item) => (
             <li key={item.id}>
-              <span>{item.productName}</span>
+              <span>{orderItemLabel(item)}</span>
               <strong>× {item.quantity}</strong>
             </li>
           ))}

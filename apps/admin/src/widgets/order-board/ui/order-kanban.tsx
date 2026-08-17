@@ -3,6 +3,7 @@ import {
   canCancel,
   kanbanLanesForRole,
   nextOrderStatus,
+  orderItemLabel,
   orderCardFieldsForRole,
   roleCanUseOrderTable,
   statusLabels,
@@ -144,7 +145,9 @@ export function OrderKanban({
                   </div>
 
                   {order.source === "STAFF_PHONE" && (
-                    <span className="order-source-label">Заказ по телефону</span>
+                    <span className="order-source-label">
+                      Заказ по телефону
+                    </span>
                   )}
 
                   {fields.has("customer") && (
@@ -173,11 +176,14 @@ export function OrderKanban({
                   )}
 
                   {fields.has("items") && (
-                    <ul className="order-kanban-items" aria-label="Состав заказа">
+                    <ul
+                      className="order-kanban-items"
+                      aria-label="Состав заказа"
+                    >
                       {order.items.map((item) => (
                         <li key={item.id}>
                           <b>{item.quantity}×</b>
-                          <span>{item.productName}</span>
+                          <span>{orderItemLabel(item)}</span>
                         </li>
                       ))}
                     </ul>
@@ -226,8 +232,8 @@ export function OrderKanban({
                         <option value="">Выберите курьера</option>
                         {couriers.map((courier) => (
                           <option key={courier.id} value={courier.id}>
-                            {personName(courier)} · {courier.courierOrders.length} в
-                            работе
+                            {personName(courier)} ·{" "}
+                            {courier.courierOrders.length} в работе
                           </option>
                         ))}
                       </select>

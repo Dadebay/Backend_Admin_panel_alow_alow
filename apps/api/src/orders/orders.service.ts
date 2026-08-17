@@ -52,11 +52,12 @@ const detailInclude = {
   },
   items: {
     include: {
-      // Only the item's own row fields go to the client (see
-      // `withItemImages`) — the current product photo is looked up at read
-      // time rather than snapshotted, since (unlike price) showing today's
-      // photo for a past order is exactly what a customer expects.
       product: {
+        include: {
+          images: { orderBy: { sortOrder: "asc" as const }, take: 1 },
+        },
+      },
+      productVariant: {
         include: {
           images: { orderBy: { sortOrder: "asc" as const }, take: 1 },
         },
@@ -79,15 +80,15 @@ type OrderWithDetails = Prisma.OrderGetPayload<{
   include: typeof detailInclude;
 }>;
 
-/** Flattens each item's joined `product.images` down to the single
- * `productImageUrl` the client actually needs, instead of shipping the
- * whole nested product/image objects. */
+/** Returns the current selected-variant image first, then the common product
+ * image. Prices and names remain immutable snapshots on the order item. */
 function withItemImages<T extends OrderWithDetails>(order: T) {
   return {
     ...order,
-    items: order.items.map(({ product, ...item }) => ({
+    items: order.items.map(({ product, productVariant, ...item }) => ({
       ...item,
-      productImageUrl: product.images[0]?.url ?? null,
+      productImageUrl:
+        productVariant?.images[0]?.url ?? product.images[0]?.url ?? null,
     })),
   };
 }
@@ -309,28 +310,70 @@ export class OrdersService {
     },
   ) {
     const { actorId, customerId, dto, source } = input;
-    const quantityByProduct = new Map<string, number>();
-    for (const item of dto.items) {
-      quantityByProduct.set(
-        item.productId,
-        (quantityByProduct.get(item.productId) ?? 0) + item.quantity,
-      );
-    }
-
+    const productIds = [
+      ...new Set(dto.items.map(({ productId }) => productId)),
+    ];
     const products = await tx.product.findMany({
       where: {
-        id: { in: [...quantityByProduct.keys()] },
+        id: { in: productIds },
         isActive: true,
         category: { isActive: true },
       },
+      include: { variants: true },
     });
-    if (products.length !== quantityByProduct.size) {
+    if (products.length !== productIds.length) {
       throw new BadRequestException("One or more products are unavailable");
     }
-
-    const subtotal = products.reduce(
-      (sum, product) =>
-        sum + Number(product.price) * (quantityByProduct.get(product.id) ?? 0),
+    const productsById = new Map(
+      products.map((product) => [product.id, product]),
+    );
+    const resolvedBySelection = new Map<
+      string,
+      {
+        product: (typeof products)[number];
+        variant: (typeof products)[number]["variants"][number] | null;
+        quantity: number;
+      }
+    >();
+    for (const item of dto.items) {
+      const product = productsById.get(item.productId);
+      if (!product) {
+        throw new BadRequestException("One or more products are unavailable");
+      }
+      const activeVariants = product.variants
+        .filter(({ isActive }) => isActive)
+        .sort(
+          (left, right) =>
+            Number(left.price) - Number(right.price) ||
+            left.sortOrder - right.sortOrder ||
+            left.name.localeCompare(right.name),
+        );
+      const variant = item.variantId
+        ? activeVariants.find(({ id }) => id === item.variantId)
+        : activeVariants[0];
+      if (item.variantId && !variant) {
+        throw new BadRequestException(
+          "One or more product variants are unavailable",
+        );
+      }
+      const selectionKey = `${product.id}:${variant?.id ?? "base"}`;
+      const existingSelection = resolvedBySelection.get(selectionKey);
+      const quantity = (existingSelection?.quantity ?? 0) + item.quantity;
+      if (quantity > 50) {
+        throw new BadRequestException(
+          "A product variant quantity cannot exceed 50",
+        );
+      }
+      resolvedBySelection.set(selectionKey, {
+        product,
+        variant: variant ?? null,
+        quantity,
+      });
+    }
+    const resolvedItems = [...resolvedBySelection.values()];
+    const subtotal = resolvedItems.reduce(
+      (sum, { product, variant, quantity }) =>
+        sum + Number(variant?.price ?? product.price) * quantity,
       0,
     );
     const now = new Date();
@@ -423,14 +466,16 @@ export class OrdersService {
         branchDistanceMeters: nearest.distanceMeters,
         customerNote: dto.customerNote,
         items: {
-          create: products.map((product) => {
-            const quantity = quantityByProduct.get(product.id) ?? 0;
+          create: resolvedItems.map(({ product, variant, quantity }) => {
+            const unitPrice = variant?.price ?? product.price;
             return {
               productId: product.id,
+              productVariantId: variant?.id,
               productName: product.name,
-              unitPrice: product.price,
+              variantName: variant?.name,
+              unitPrice,
               quantity,
-              lineTotal: Number(product.price) * quantity,
+              lineTotal: Number(unitPrice) * quantity,
             };
           }),
         },
@@ -910,8 +955,9 @@ export class OrdersService {
         : null,
       customer: order.customer,
       itemCount: order.items.reduce((sum, item) => sum + item.quantity, 0),
-      items: order.items.map(({ productName, quantity }) => ({
+      items: order.items.map(({ productName, variantName, quantity }) => ({
         productName,
+        variantName,
         quantity,
       })),
       cashToCollect: order.total,

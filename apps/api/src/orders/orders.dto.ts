@@ -26,6 +26,15 @@ export class CreateOrderItemDto {
   @IsUUID()
   productId: string;
 
+  @ApiPropertyOptional({
+    format: "uuid",
+    description:
+      "Selected product variant. When omitted, the backend uses the cheapest active variant for backward compatibility.",
+  })
+  @IsOptional()
+  @IsUUID()
+  variantId?: string;
+
   @ApiProperty({ minimum: 1, maximum: 50 })
   @IsInt()
   @Min(1)

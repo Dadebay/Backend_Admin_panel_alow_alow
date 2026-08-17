@@ -59,6 +59,18 @@ type OrderResponse = {
   branchName: string | null;
   branchAddress: string | null;
   branchDistanceMeters: number | null;
+  subtotal?: number;
+  total?: number;
+  items?: Array<{
+    productId: string;
+    productVariantId: string | null;
+    productName: string;
+    variantName: string | null;
+    unitPrice: number;
+    quantity: number;
+    lineTotal: number;
+    productImageUrl: string | null;
+  }>;
   cashSettlement?: { status: string } | null;
   rating?: { score: number; comment: string | null } | null;
   transitions?: Array<{ toStatus: OrderStatus }>;
@@ -71,7 +83,20 @@ type CatalogProductResponse = {
   slug: string;
   description: string;
   price: number;
+  minPrice: number;
+  hasVariants: boolean;
+  variantLabel: string | null;
+  displayImageUrl: string | null;
   images: Array<{ url: string; sortOrder: number }>;
+  variants: Array<{
+    id: string;
+    name: string;
+    description: string | null;
+    price: number;
+    isActive: boolean;
+    sortOrder: number;
+    images: Array<{ url: string; sortOrder: number }>;
+  }>;
 };
 
 type BranchResponse = {
@@ -465,6 +490,43 @@ describe("backend security and critical workflow", () => {
         imageUrls: ["https://example.com/not-private-storage.jpg"],
       })
       .expect(400);
+    await request(server)
+      .post("/api/v1/catalog/products")
+      .set(bearer(tokens.admin))
+      .send({
+        categoryId,
+        name: "Duplicate variant names",
+        slug: "duplicate-variant-names",
+        description: "Names are unique without case sensitivity",
+        price: 45,
+        variantLabel: "Размер",
+        variants: [
+          { name: "Small", price: 45 },
+          { name: " small ", price: 55 },
+        ],
+      })
+      .expect(400);
+    await request(server)
+      .post("/api/v1/catalog/products")
+      .set(bearer(tokens.admin))
+      .send({
+        categoryId,
+        name: "Too many variant images",
+        slug: "too-many-variant-images",
+        description: "Each variant has an independent image limit",
+        price: 45,
+        variantLabel: "Размер",
+        variants: [
+          {
+            name: "Маленькая",
+            price: 45,
+            imageUrls: Array.from({ length: 11 }, (_, index) =>
+              mediaUrl(index + 80),
+            ),
+          },
+        ],
+      })
+      .expect(400);
 
     await request(server)
       .post("/api/v1/catalog/products")
@@ -548,6 +610,300 @@ describe("backend security and critical workflow", () => {
       .set(bearer(tokens.admin))
       .send({ url: mediaUrl(99) })
       .expect(409);
+
+    const variantImageUrls = [mediaUrl(70), mediaUrl(71)];
+    await request(server)
+      .post("/api/v1/catalog/products")
+      .set(bearer(tokens.admin))
+      .send({
+        categoryId,
+        name: "Variant without selector",
+        slug: "variant-without-selector",
+        description: "A selector label is required",
+        price: 45,
+        variants: [{ name: "Small", price: 45 }],
+      })
+      .expect(400);
+    await request(server)
+      .post("/api/v1/catalog/products")
+      .set(bearer(tokens.admin))
+      .send({
+        categoryId,
+        name: "External variant image",
+        slug: "external-variant-image",
+        description: "Variant images must come from private media storage",
+        price: 45,
+        variantLabel: "Размер",
+        variants: [
+          {
+            name: "Маленькая",
+            price: 45,
+            imageUrls: ["https://example.com/external.webp"],
+          },
+        ],
+      })
+      .expect(400);
+
+    const variantProductResponse = await request(server)
+      .post("/api/v1/catalog/products")
+      .set(bearer(tokens.admin))
+      .send({
+        categoryId,
+        name: "Pizza with sizes",
+        slug: "pizza-with-sizes",
+        description: "The cheapest active size is the displayed price",
+        price: 999,
+        variantLabel: "Размер",
+        variants: [
+          {
+            name: "Большая, 35 см",
+            description: "Для компании",
+            price: 75,
+            sortOrder: 1,
+            imageUrls: [variantImageUrls[1]],
+          },
+          {
+            name: "Маленькая, 25 см",
+            price: 45,
+            sortOrder: 0,
+            imageUrls: [variantImageUrls[0]],
+          },
+        ],
+      })
+      .expect(201);
+    const variantProduct =
+      variantProductResponse.body as CatalogProductResponse;
+    expect(variantProduct).toMatchObject({
+      price: 45,
+      minPrice: 45,
+      hasVariants: true,
+      variantLabel: "Размер",
+      displayImageUrl: variantImageUrls[0],
+    });
+    expect(variantProduct.variants.map(({ name }) => name)).toEqual([
+      "Маленькая, 25 см",
+      "Большая, 35 см",
+    ]);
+    const smallVariant = variantProduct.variants[0];
+    const largeVariant = variantProduct.variants[1];
+    await request(server)
+      .patch(`/api/v1/catalog/products/${variantProduct.id}`)
+      .set(bearer(tokens.admin))
+      .send({ variantLabel: "" })
+      .expect(400);
+    const variantDelivery = {
+      addressLabel: "Variant test",
+      address: "Variant street 1",
+      latitude: 37.95021,
+      longitude: 58.38021,
+    };
+
+    const explicitVariantOrderResponse = await request(server)
+      .post("/api/v1/orders")
+      .set(bearer(tokens.customer))
+      .send({
+        items: [
+          {
+            productId: variantProduct.id,
+            variantId: largeVariant.id,
+            quantity: 2,
+          },
+        ],
+        ...variantDelivery,
+      })
+      .expect(201);
+    const explicitVariantOrder =
+      explicitVariantOrderResponse.body as OrderResponse;
+    expect(explicitVariantOrder.subtotal).toBe(150);
+    expect(explicitVariantOrder.items?.[0]).toMatchObject({
+      productId: variantProduct.id,
+      productVariantId: largeVariant.id,
+      variantName: "Большая, 35 см",
+      unitPrice: 75,
+      quantity: 2,
+      lineTotal: 150,
+      productImageUrl: variantImageUrls[1],
+    });
+
+    const compatibleOrderResponse = await request(server)
+      .post("/api/v1/orders")
+      .set(bearer(tokens.customer))
+      .send({
+        items: [{ productId: variantProduct.id, quantity: 1 }],
+        ...variantDelivery,
+      })
+      .expect(201);
+    const compatibleOrder = compatibleOrderResponse.body as OrderResponse;
+    expect(compatibleOrder.subtotal).toBe(45);
+    expect(compatibleOrder.items?.[0]).toMatchObject({
+      productVariantId: smallVariant.id,
+      variantName: "Маленькая, 25 см",
+      unitPrice: 45,
+      productImageUrl: variantImageUrls[0],
+    });
+
+    await request(server)
+      .post("/api/v1/orders")
+      .set(bearer(tokens.customer))
+      .send({
+        items: [
+          {
+            productId: createdProduct.id,
+            variantId: smallVariant.id,
+            quantity: 1,
+          },
+        ],
+        ...variantDelivery,
+      })
+      .expect(400);
+
+    await request(server)
+      .patch(`/api/v1/catalog/products/${variantProduct.id}`)
+      .set(bearer(tokens.admin))
+      .send({
+        variants: [
+          {
+            id: largeVariant.id,
+            name: smallVariant.name,
+            price: largeVariant.price,
+            sortOrder: largeVariant.sortOrder,
+            isActive: true,
+          },
+        ],
+      })
+      .expect(400);
+
+    const updatedVariantProductResponse = await request(server)
+      .patch(`/api/v1/catalog/products/${variantProduct.id}`)
+      .set(bearer(tokens.admin))
+      .send({
+        variantLabel: "Размер",
+        variants: [
+          {
+            id: smallVariant.id,
+            name: smallVariant.name,
+            description: smallVariant.description ?? undefined,
+            price: smallVariant.price,
+            sortOrder: smallVariant.sortOrder,
+            isActive: false,
+            imageUrls: variantImageUrls.slice(0, 1),
+          },
+          {
+            id: largeVariant.id,
+            name: largeVariant.name,
+            description: largeVariant.description ?? undefined,
+            price: 70,
+            sortOrder: largeVariant.sortOrder,
+            isActive: true,
+            imageUrls: variantImageUrls.slice(1),
+          },
+        ],
+      })
+      .expect(200);
+    const updatedVariantProduct =
+      updatedVariantProductResponse.body as CatalogProductResponse;
+    expect(updatedVariantProduct).toMatchObject({ price: 70, minPrice: 70 });
+    expect(
+      updatedVariantProduct.variants.find(({ id }) => id === smallVariant.id)
+        ?.isActive,
+    ).toBe(false);
+    await request(server)
+      .post("/api/v1/orders")
+      .set(bearer(tokens.customer))
+      .send({
+        items: [
+          {
+            productId: variantProduct.id,
+            variantId: smallVariant.id,
+            quantity: 1,
+          },
+        ],
+        ...variantDelivery,
+      })
+      .expect(400);
+
+    const publicVariantProducts = await request(server)
+      .get(`/api/v1/catalog/products?categoryId=${categoryId}`)
+      .expect(200);
+    const publicVariantProduct = (
+      publicVariantProducts.body as CatalogProductResponse[]
+    ).find(({ id }) => id === variantProduct.id);
+    expect(publicVariantProduct?.variants).toHaveLength(1);
+    expect(publicVariantProduct?.variants[0]).toMatchObject({
+      id: largeVariant.id,
+      price: 70,
+    });
+  });
+
+  it("prices multiple variants independently and aggregates duplicate selections", async () => {
+    const category = await prisma.category.create({
+      data: {
+        name: "Variant order category",
+        slug: "variant-order-category",
+      },
+    });
+    const product = await prisma.product.create({
+      data: {
+        categoryId: category.id,
+        name: "Variant order product",
+        slug: "variant-order-product",
+        description: "Used to verify independent variant order lines",
+        price: 40,
+        variantLabel: "Размер",
+        variants: {
+          create: [
+            { name: "Маленькая", price: 40, sortOrder: 0 },
+            { name: "Большая", price: 80, sortOrder: 1 },
+          ],
+        },
+      },
+      include: { variants: { orderBy: { sortOrder: "asc" } } },
+    });
+    const [small, large] = product.variants;
+    const delivery = {
+      addressLabel: "Variant aggregation",
+      address: "Variant aggregation street",
+      latitude: 37.95021,
+      longitude: 58.38021,
+    };
+
+    const response = await request(server)
+      .post("/api/v1/orders")
+      .set(bearer(tokens.customer))
+      .send({
+        items: [
+          { productId: product.id, variantId: small.id, quantity: 1 },
+          { productId: product.id, variantId: large.id, quantity: 2 },
+          { productId: product.id, variantId: small.id, quantity: 2 },
+        ],
+        ...delivery,
+      })
+      .expect(201);
+    const order = response.body as OrderResponse;
+    expect(order.subtotal).toBe(280);
+    expect(order.items).toHaveLength(2);
+    expect(
+      order.items?.find(
+        ({ productVariantId }) => productVariantId === small.id,
+      ),
+    ).toMatchObject({ quantity: 3, unitPrice: 40, lineTotal: 120 });
+    expect(
+      order.items?.find(
+        ({ productVariantId }) => productVariantId === large.id,
+      ),
+    ).toMatchObject({ quantity: 2, unitPrice: 80, lineTotal: 160 });
+
+    await request(server)
+      .post("/api/v1/orders")
+      .set(bearer(tokens.customer))
+      .send({
+        items: [
+          { productId: product.id, variantId: small.id, quantity: 30 },
+          { productId: product.id, variantId: small.id, quantity: 21 },
+        ],
+        ...delivery,
+      })
+      .expect(400);
   });
 
   it("allows only administrators to manage branches", async () => {
@@ -957,9 +1313,7 @@ describe("backend security and critical workflow", () => {
     });
 
     const queue = await request(server)
-      .get(
-        "/api/v1/orders?statuses=SENT_TO_KITCHEN,COOKING,READY&limit=100",
-      )
+      .get("/api/v1/orders?statuses=SENT_TO_KITCHEN,COOKING,READY&limit=100")
       .set(bearer(tokens.cook))
       .expect(200);
     const queueItems = (queue.body as { items: OrderResponse[] }).items;

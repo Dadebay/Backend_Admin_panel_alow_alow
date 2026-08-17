@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import type { ColumnDef } from "@tanstack/react-table";
-import { useForm } from "react-hook-form";
+import { useFieldArray, useForm, useWatch } from "react-hook-form";
 import {
   canAddProductImages,
   MAX_PRODUCT_IMAGES,
@@ -67,6 +67,7 @@ export function CatalogManager() {
     reset: resetProduct,
     getValues: getProductValues,
     setValue: setProductValue,
+    control: productControl,
     formState: { errors: productErrors },
   } = useForm<ProductFormValues>({
     resolver: zodResolver(productFormSchema),
@@ -77,10 +78,23 @@ export function CatalogManager() {
       slug: "",
       description: "",
       price: 0,
+      variantLabel: "",
+      variants: [],
       sortOrder: 0,
       isActive: true,
     },
   });
+  const {
+    fields: productVariantFields,
+    append: appendProductVariant,
+    remove: removeProductVariant,
+  } = useFieldArray({
+    control: productControl,
+    name: "variants",
+    keyName: "formKey",
+  });
+  const watchedProductVariants =
+    useWatch({ control: productControl, name: "variants" }) ?? [];
   const canEdit = Boolean(
     session &&
       ["ADMIN", "SUPER_ADMIN"].includes(session.user.role),
@@ -195,36 +209,39 @@ export function CatalogManager() {
     () => [
       {
         header: "Товар",
-        cell: ({ row }) => (
-          <div className="media-cell">
-            {row.original.images.length ? (
-              <div
-                className="product-image-stack"
-                aria-label={`Изображений: ${row.original.images.length}`}
-              >
-                {row.original.images.slice(0, 3).map((image) => (
+        cell: ({ row }) => {
+          const imageCount =
+            row.original.images.length +
+            row.original.variants.reduce(
+              (sum, variant) => sum + variant.images.length,
+              0,
+            );
+          return (
+            <div className="media-cell">
+              {row.original.displayImageUrl ? (
+                <div
+                  className="product-image-stack"
+                  aria-label={`Изображений: ${imageCount}`}
+                >
                   <img
-                    key={image.id}
-                    src={resolveApiUrl(image.url)}
-                    alt={image.alt ?? ""}
+                    src={resolveApiUrl(row.original.displayImageUrl)}
+                    alt=""
                     loading="lazy"
                     width={48}
                     height={48}
                   />
-                ))}
-                {row.original.images.length > 3 && (
-                  <span>+{row.original.images.length - 3}</span>
-                )}
+                  {imageCount > 1 && <span>+{imageCount - 1}</span>}
+                </div>
+              ) : (
+                <span className="media-placeholder">◫</span>
+              )}
+              <div className="primary-cell">
+                <strong>{row.original.name}</strong>
+                <small>{row.original.description}</small>
               </div>
-            ) : (
-              <span className="media-placeholder">◫</span>
-            )}
-            <div className="primary-cell">
-              <strong>{row.original.name}</strong>
-              <small>{row.original.description}</small>
             </div>
-          </div>
-        ),
+          );
+        },
       },
       {
         header: "Категория",
@@ -232,7 +249,19 @@ export function CatalogManager() {
       },
       {
         header: "Цена",
-        cell: ({ row }) => `${Number(row.original.price).toFixed(2)} TMT`,
+        cell: ({ row }) => (
+          <div className="primary-cell">
+            <strong>
+              {row.original.hasVariants ? "от " : ""}
+              {Number(row.original.minPrice).toFixed(2)} TMT
+            </strong>
+            {row.original.hasVariants && (
+              <small>
+                {row.original.variantLabel}: {row.original.variants.length}
+              </small>
+            )}
+          </div>
+        ),
       },
       {
         header: "Статус",
@@ -261,6 +290,17 @@ export function CatalogManager() {
                     slug: row.original.slug,
                     description: row.original.description,
                     price: Number(row.original.price),
+                    variantLabel: row.original.variantLabel ?? "",
+                    variants: row.original.variants.map((variant) => ({
+                      id: variant.id,
+                      name: variant.name,
+                      description: variant.description ?? "",
+                      price: Number(variant.price),
+                      sortOrder: variant.sortOrder,
+                      isActive: variant.isActive,
+                      imageUrls: variant.images.map(({ url }) => url),
+                      imageFiles: undefined,
+                    })),
                     sortOrder: row.original.sortOrder,
                     isActive: row.original.isActive,
                   });
@@ -330,6 +370,17 @@ export function CatalogManager() {
       );
       return;
     }
+    for (const variant of values.variants) {
+      const files = Array.from(
+        (variant.imageFiles as FileList | undefined) ?? [],
+      );
+      if (!canAddProductImages(variant.imageUrls.length, files.length)) {
+        setProductImageError(
+          `У варианта «${variant.name}» может быть не больше ${MAX_PRODUCT_IMAGES} изображений.`,
+        );
+        return;
+      }
+    }
     const uploadedImages = selectedProductFiles.length
       ? await actions.uploadImages.mutateAsync(selectedProductFiles)
       : [];
@@ -337,8 +388,32 @@ export function CatalogManager() {
       ...storedProductImages.map(({ url }) => url),
       ...uploadedImages.map(({ url }) => url),
     ];
+    const variants = await Promise.all(
+      values.variants.map(async ({ imageFiles, ...variant }) => {
+        const files = Array.from((imageFiles as FileList | undefined) ?? []);
+        const uploaded = files.length
+          ? await actions.uploadImages.mutateAsync(files)
+          : [];
+        return {
+          ...variant,
+          description: variant.description || undefined,
+          imageUrls: [
+            ...variant.imageUrls,
+            ...uploaded.map(({ url }) => url),
+          ],
+        };
+      }),
+    );
     const body = {
-      ...values,
+      categoryId: values.categoryId,
+      name: values.name,
+      slug: values.slug,
+      description: values.description,
+      price: values.price,
+      variantLabel: values.variantLabel || undefined,
+      variants,
+      sortOrder: values.sortOrder,
+      isActive: values.isActive,
       imageUrls,
     };
     if (productEdit) {
@@ -408,6 +483,8 @@ export function CatalogManager() {
                   slug: "",
                   description: "",
                   price: 0,
+                  variantLabel: "",
+                  variants: [],
                   sortOrder: 0,
                   isActive: true,
                 });
@@ -652,7 +729,7 @@ export function CatalogManager() {
               <FormFieldError message={productErrors.slug?.message} />
             </label>
             <label>
-              <span>Цена TMT</span>
+              <span>Базовая цена TMT</span>
               <input
                 data-testid="product-price"
                 {...registerProduct("price", { valueAsNumber: true })}
@@ -662,6 +739,10 @@ export function CatalogManager() {
                 step="0.01"
               />
               <FormFieldError message={productErrors.price?.message} />
+              <small>
+                Используется без вариантов. С вариантами цена блюда считается
+                по самому дешёвому активному варианту.
+              </small>
             </label>
             <label>
               <span>Порядок</span>
@@ -673,6 +754,189 @@ export function CatalogManager() {
               />
               <FormFieldError message={productErrors.sortOrder?.message} />
             </label>
+            <section
+              className="wide-field product-variants-editor"
+              data-testid="product-variants-editor"
+            >
+              <div className="product-variants-heading">
+                <div>
+                  <strong>Варианты блюда</strong>
+                  <small>
+                    Размер пиццы, способ нарезки или любой другой выбор с
+                    отдельной ценой и фотографиями.
+                  </small>
+                </div>
+                <button
+                  className="secondary-button compact"
+                  data-testid="product-variant-add"
+                  type="button"
+                  onClick={() =>
+                    appendProductVariant({
+                      name: "",
+                      description: "",
+                      price: getProductValues("price") || 0,
+                      sortOrder: productVariantFields.length,
+                      isActive: true,
+                      imageUrls: [],
+                      imageFiles: undefined,
+                    })
+                  }
+                >
+                  + Добавить вариант
+                </button>
+              </div>
+              {productVariantFields.length > 0 && (
+                <label className="product-variant-label-field">
+                  <span>Название выбора для клиента</span>
+                  <input
+                    data-testid="product-variant-label"
+                    {...registerProduct("variantLabel")}
+                    aria-invalid={Boolean(productErrors.variantLabel)}
+                    placeholder="Например: Размер или Способ нарезки"
+                    maxLength={80}
+                  />
+                  <FormFieldError message={productErrors.variantLabel?.message} />
+                </label>
+              )}
+              <div className="product-variant-list">
+                {productVariantFields.map((field, index) => {
+                  const variant = watchedProductVariants[index];
+                  const storedUrls = variant?.imageUrls ?? [];
+                  const selectedFiles = Array.from(
+                    (variant?.imageFiles as FileList | undefined) ?? [],
+                  );
+                  const variantError = productErrors.variants?.[index];
+                  const variantTestId = variant?.id ?? field.formKey;
+                  return (
+                    <article
+                      className="product-variant-card"
+                      data-testid={`product-variant-card-${variantTestId}`}
+                      key={field.formKey}
+                    >
+                      <header>
+                        <strong>Вариант {index + 1}</strong>
+                        <button
+                          className="text-button danger"
+                          data-testid={`product-variant-toggle-${variantTestId}`}
+                          type="button"
+                          onClick={() => {
+                            if (variant?.id) {
+                              setProductValue(
+                                `variants.${index}.isActive`,
+                                !variant.isActive,
+                                { shouldDirty: true },
+                              );
+                            } else {
+                              removeProductVariant(index);
+                            }
+                          }}
+                        >
+                          {variant?.id
+                            ? variant.isActive
+                              ? "Убрать из продажи"
+                              : "Вернуть в продажу"
+                            : "Удалить"}
+                        </button>
+                      </header>
+                      <div className="product-variant-fields">
+                        <label>
+                          <span>Название</span>
+                          <input
+                            data-testid={`product-variant-name-${variantTestId}`}
+                            {...registerProduct(`variants.${index}.name`)}
+                            aria-invalid={Boolean(variantError?.name)}
+                            placeholder="Маленькая, 25 см"
+                            maxLength={120}
+                          />
+                          <FormFieldError message={variantError?.name?.message} />
+                        </label>
+                        <label>
+                          <span>Цена TMT</span>
+                          <input
+                            data-testid={`product-variant-price-${variantTestId}`}
+                            {...registerProduct(`variants.${index}.price`, { valueAsNumber: true })}
+                            aria-invalid={Boolean(variantError?.price)}
+                            type="number"
+                            min="0"
+                            step="0.01"
+                          />
+                          <FormFieldError message={variantError?.price?.message} />
+                        </label>
+                        <label>
+                          <span>Порядок</span>
+                          <input
+                            data-testid={`product-variant-sort-${variantTestId}`}
+                            {...registerProduct(`variants.${index}.sortOrder`, { valueAsNumber: true })}
+                            aria-invalid={Boolean(variantError?.sortOrder)}
+                            type="number"
+                          />
+                          <FormFieldError message={variantError?.sortOrder?.message} />
+                        </label>
+                        <label className="check-field">
+                          <input
+                            data-testid={`product-variant-active-${variantTestId}`}
+                            {...registerProduct(`variants.${index}.isActive`)}
+                            type="checkbox"
+                          />
+                          В продаже
+                        </label>
+                        <label className="wide-field">
+                          <span>Описание варианта (необязательно)</span>
+                          <input
+                            data-testid={`product-variant-description-${variantTestId}`}
+                            {...registerProduct(`variants.${index}.description`)}
+                            aria-invalid={Boolean(variantError?.description)}
+                            maxLength={300}
+                          />
+                          <FormFieldError message={variantError?.description?.message} />
+                        </label>
+                      </div>
+                      {storedUrls.length > 0 && (
+                        <div className="product-variant-images">
+                          {storedUrls.map((url, imageIndex) => (
+                            <div key={`${url}-${imageIndex}`}>
+                              <img src={resolveApiUrl(url)} alt="" loading="lazy" width={88} height={64} />
+                              <button
+                                className="text-button"
+                                data-testid={`product-variant-image-remove-${variantTestId}-${imageIndex}`}
+                                type="button"
+                                aria-label={`Убрать фото варианта ${imageIndex + 1}`}
+                                onClick={() =>
+                                  setProductValue(
+                                    `variants.${index}.imageUrls`,
+                                    storedUrls.filter((_, candidateIndex) => candidateIndex !== imageIndex),
+                                    { shouldDirty: true },
+                                  )
+                                }
+                              >
+                                ×
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      <label className="product-file-picker">
+                        <span>
+                          Фото варианта: {storedUrls.length + selectedFiles.length}/{MAX_PRODUCT_IMAGES}
+                        </span>
+                        <input
+                          data-testid={`product-variant-images-${variantTestId}`}
+                          {...registerProduct(`variants.${index}.imageFiles`)}
+                          type="file"
+                          accept="image/*"
+                          multiple
+                        />
+                      </label>
+                      {selectedFiles.length > 0 && (
+                        <small className="product-variant-file-names">
+                          Будут добавлены: {selectedFiles.map(({ name }) => name).join(", ")}
+                        </small>
+                      )}
+                    </article>
+                  );
+                })}
+              </div>
+            </section>
             <div className="wide-field product-image-editor">
               <div className="product-image-heading">
                 <span>Изображения блюда</span>

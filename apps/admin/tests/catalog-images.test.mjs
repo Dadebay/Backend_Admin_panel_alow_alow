@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 import {
   canAddProductImages,
@@ -15,4 +16,19 @@ test("catalog image selection accepts up to the backend limit", () => {
 test("catalog image selection rejects invalid counts", () => {
   assert.equal(canAddProductImages(-1, 1), false);
   assert.equal(canAddProductImages(1, -1), false);
+});
+
+test("catalog editor configures generic variants with separate images", async () => {
+  const source = await readFile(
+    new URL(
+      "../src/widgets/catalog-manager/ui/catalog-manager.tsx",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  assert.match(source, /useFieldArray/);
+  assert.match(source, /data-testid="product-variant-add"/);
+  assert.match(source, /variants\.\$\{index\}\.imageFiles/);
+  assert.match(source, /variantLabel: values\.variantLabel/);
+  assert.match(source, /variant\.imageUrls/);
 });

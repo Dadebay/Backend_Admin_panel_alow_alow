@@ -13,26 +13,68 @@ export const categoryFormSchema = z.object({
   image: z.unknown().optional(),
 });
 
-export const productFormSchema = z.object({
-  categoryId: z.uuid("Выберите категорию"),
+const productVariantSchema = z.object({
+  id: z.uuid().optional(),
   name: z
     .string()
     .trim()
-    .min(1, "Укажите название блюда")
-    .max(160, "Не больше 160 символов"),
-  slug: slugSchema.max(180, "Не больше 180 символов"),
-  description: z
-    .string()
-    .trim()
-    .min(1, "Добавьте описание")
-    .max(4000, "Не больше 4000 символов"),
+    .min(1, "Укажите название варианта")
+    .max(120, "Не больше 120 символов"),
+  description: z.string().trim().max(300, "Не больше 300 символов"),
   price: z
-    .number({ error: "Укажите цену" })
+    .number({ error: "Укажите цену варианта" })
     .min(0, "Цена не может быть отрицательной")
     .multipleOf(0.01, "Не больше двух знаков после запятой"),
   sortOrder: z.number({ error: "Укажите порядок" }).int("Введите целое число"),
   isActive: z.boolean(),
+  imageUrls: z.array(z.string()).max(10),
+  imageFiles: z.unknown().optional(),
 });
+
+export const productFormSchema = z
+  .object({
+    categoryId: z.uuid("Выберите категорию"),
+    name: z
+      .string()
+      .trim()
+      .min(1, "Укажите название блюда")
+      .max(160, "Не больше 160 символов"),
+    slug: slugSchema.max(180, "Не больше 180 символов"),
+    description: z
+      .string()
+      .trim()
+      .min(1, "Добавьте описание")
+      .max(4000, "Не больше 4000 символов"),
+    price: z
+      .number({ error: "Укажите цену" })
+      .min(0, "Цена не может быть отрицательной")
+      .multipleOf(0.01, "Не больше двух знаков после запятой"),
+    variantLabel: z.string().trim().max(80, "Не больше 80 символов"),
+    variants: z.array(productVariantSchema).max(30, "Не больше 30 вариантов"),
+    sortOrder: z
+      .number({ error: "Укажите порядок" })
+      .int("Введите целое число"),
+    isActive: z.boolean(),
+  })
+  .superRefine((values, context) => {
+    if (values.variants.length && !values.variantLabel) {
+      context.addIssue({
+        code: "custom",
+        path: ["variantLabel"],
+        message: "Укажите название выбора: например, Размер",
+      });
+    }
+    const names = values.variants.map(({ name }) =>
+      name.trim().toLocaleLowerCase("ru-RU"),
+    );
+    if (new Set(names).size !== names.length) {
+      context.addIssue({
+        code: "custom",
+        path: ["variants"],
+        message: "Названия вариантов не должны повторяться",
+      });
+    }
+  });
 
 export type CategoryFormValues = z.infer<typeof categoryFormSchema>;
 export type ProductFormValues = z.infer<typeof productFormSchema>;

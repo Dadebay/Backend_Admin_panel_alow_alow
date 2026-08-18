@@ -23,7 +23,7 @@ import {
   normalizeAssistedOrderCoordinates,
 } from "../src/widgets/assisted-order/model/assisted-order-form.ts";
 
-test("OTP schemas validate Turkmen phone and six-digit verification code", () => {
+test("OTP schemas validate Turkmen phone and four- or six-digit verification code", () => {
   assert.equal(
     otpRequestSchema.parse({ phone: "+993 65 12 34 56", code: "" }).phone,
     "+99365123456",
@@ -35,6 +35,10 @@ test("OTP schemas validate Turkmen phone and six-digit verification code", () =>
   assert.equal(
     otpVerifySchema.safeParse({ phone: "+99365123456", code: "123456" })
       .success,
+    true,
+  );
+  assert.equal(
+    otpVerifySchema.safeParse({ phone: "+99365123456", code: "1111" }).success,
     true,
   );
   assert.equal(

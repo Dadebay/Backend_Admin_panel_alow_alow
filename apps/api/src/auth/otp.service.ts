@@ -75,7 +75,7 @@ export class OtpService {
   private readonly logger = new Logger(OtpService.name);
   private readonly pepper: string;
   private readonly longLivedTestOtp: {
-    phone: string;
+    phones: Set<string>;
     code: string;
     expiresAt: number;
   } | null;
@@ -89,7 +89,13 @@ export class OtpService {
       infer: true,
     })
       ? {
-          phone: config.get("LONG_LIVED_TEST_OTP_PHONE", { infer: true }),
+          phones: new Set(
+            config
+              .get("LONG_LIVED_TEST_OTP_PHONES", { infer: true })
+              .split(",")
+              .map((phone) => phone.trim())
+              .filter(Boolean),
+          ),
           code: config.get("LONG_LIVED_TEST_OTP_CODE", { infer: true }),
           expiresAt: Date.parse(
             config.get("LONG_LIVED_TEST_OTP_EXPIRES_AT", { infer: true }),
@@ -101,7 +107,7 @@ export class OtpService {
   async issue(phone: string) {
     const usesLongLivedTestCode = Boolean(
       this.longLivedTestOtp &&
-        this.longLivedTestOtp.phone === phone &&
+        this.longLivedTestOtp.phones.has(phone) &&
         this.longLivedTestOtp.expiresAt > Date.now(),
     );
     const code = usesLongLivedTestCode

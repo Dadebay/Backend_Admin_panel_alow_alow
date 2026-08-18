@@ -13,8 +13,10 @@ export type AppEnv = {
   OTP_PEPPER: string;
   LONG_LIVED_TEST_OTP_ENABLED: boolean;
   LONG_LIVED_TEST_OTP_PHONE: string;
+  LONG_LIVED_TEST_OTP_PHONES: string;
   LONG_LIVED_TEST_OTP_CODE: string;
   LONG_LIVED_TEST_OTP_EXPIRES_AT: string;
+  LONG_LIVED_TEST_OTP_PRODUCTION_ACKNOWLEDGED: boolean;
   SMS_PROVIDER: "android_pull" | "console";
   SMS_GATEWAY_DEVICE_ID: string;
   SMS_GATEWAY_DEVICE_TOKEN: string;
@@ -91,6 +93,10 @@ export function validateEnv(source: Record<string, unknown>): AppEnv {
     "LONG_LIVED_TEST_OTP_PHONE",
     "",
   ).trim();
+  const longLivedTestOtpPhones = text(
+    "LONG_LIVED_TEST_OTP_PHONES",
+    "",
+  ).trim();
   const longLivedTestOtpCode = text(
     "LONG_LIVED_TEST_OTP_CODE",
     "",
@@ -99,6 +105,10 @@ export function validateEnv(source: Record<string, unknown>): AppEnv {
     "LONG_LIVED_TEST_OTP_EXPIRES_AT",
     "",
   ).trim();
+  const longLivedTestOtpProductionAcknowledged = boolean(
+    "LONG_LIVED_TEST_OTP_PRODUCTION_ACKNOWLEDGED",
+    false,
+  );
   const redisUrl = text(
     "REDIS_URL",
     isProduction ? "" : "redis://localhost:6379/0",
@@ -145,29 +155,52 @@ export function validateEnv(source: Record<string, unknown>): AppEnv {
     );
   }
   if (longLivedTestOtpEnabled) {
-    if (deploymentEnvironment !== "development") {
+    if (longLivedTestOtpPhone && longLivedTestOtpPhones) {
       throw new Error(
-        "LONG_LIVED_TEST_OTP_ENABLED is only allowed in the development deployment",
+        "Set LONG_LIVED_TEST_OTP_PHONES or the legacy LONG_LIVED_TEST_OTP_PHONE, not both",
       );
     }
-    if (!/^\+993\d{8}$/.test(longLivedTestOtpPhone)) {
+    const configuredPhones = (longLivedTestOtpPhones || longLivedTestOtpPhone)
+      .split(",")
+      .map((phone) => phone.trim())
+      .filter(Boolean);
+    if (configuredPhones.length < 1 || configuredPhones.length > 10) {
       throw new Error(
-        "LONG_LIVED_TEST_OTP_PHONE must be a Turkmen phone number in E.164 format",
+        "LONG_LIVED_TEST_OTP_PHONES must contain between 1 and 10 Turkmen phone numbers",
       );
     }
-    if (!/^\d{6}$/.test(longLivedTestOtpCode)) {
-      throw new Error("LONG_LIVED_TEST_OTP_CODE must contain exactly 6 digits");
+    if (configuredPhones.some((phone) => !/^\+993\d{8}$/.test(phone))) {
+      throw new Error(
+        "LONG_LIVED_TEST_OTP_PHONES must contain Turkmen phone numbers in E.164 format",
+      );
+    }
+    if (new Set(configuredPhones).size !== configuredPhones.length) {
+      throw new Error("LONG_LIVED_TEST_OTP_PHONES must not contain duplicates");
+    }
+    if (!/^(?:\d{4}|\d{6})$/.test(longLivedTestOtpCode)) {
+      throw new Error(
+        "LONG_LIVED_TEST_OTP_CODE must contain exactly 4 or 6 digits",
+      );
+    }
+    if (
+      deploymentEnvironment === "production" &&
+      !longLivedTestOtpProductionAcknowledged
+    ) {
+      throw new Error(
+        "LONG_LIVED_TEST_OTP_PRODUCTION_ACKNOWLEDGED must be true for a production test OTP exception",
+      );
     }
     const expiresAt = Date.parse(longLivedTestOtpExpiresAt);
     const now = Date.now();
-    const maximumExpiry = now + 366 * 86_400_000;
+    const maximumDays = deploymentEnvironment === "production" ? 32 : 366;
+    const maximumExpiry = now + maximumDays * 86_400_000;
     if (
       !Number.isFinite(expiresAt) ||
       expiresAt <= now ||
       expiresAt > maximumExpiry
     ) {
       throw new Error(
-        "LONG_LIVED_TEST_OTP_EXPIRES_AT must be a future ISO timestamp no more than 366 days away",
+        `LONG_LIVED_TEST_OTP_EXPIRES_AT must be a future ISO timestamp no more than ${maximumDays} days away`,
       );
     }
   }
@@ -427,8 +460,12 @@ export function validateEnv(source: Record<string, unknown>): AppEnv {
     OTP_PEPPER: otpPepper,
     LONG_LIVED_TEST_OTP_ENABLED: longLivedTestOtpEnabled,
     LONG_LIVED_TEST_OTP_PHONE: longLivedTestOtpPhone,
+    LONG_LIVED_TEST_OTP_PHONES:
+      longLivedTestOtpPhones || longLivedTestOtpPhone,
     LONG_LIVED_TEST_OTP_CODE: longLivedTestOtpCode,
     LONG_LIVED_TEST_OTP_EXPIRES_AT: longLivedTestOtpExpiresAt,
+    LONG_LIVED_TEST_OTP_PRODUCTION_ACKNOWLEDGED:
+      longLivedTestOtpProductionAcknowledged,
     SMS_PROVIDER: smsProvider as AppEnv["SMS_PROVIDER"],
     SMS_GATEWAY_DEVICE_ID: smsGatewayDeviceId,
     SMS_GATEWAY_DEVICE_TOKEN: smsGatewayDeviceToken,

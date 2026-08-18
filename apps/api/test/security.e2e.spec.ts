@@ -2142,17 +2142,26 @@ describe("backend security and critical workflow", () => {
       expect(response.body).not.toHaveProperty("devCode");
     }
 
-    const staticCodeSession = await request(server)
+    const firstStaticCodeSession = await request(server)
       .post("/api/v1/auth/otp/verify")
-      .send({ phone: "+99365000301", code: "042697" })
+      .send({ phone: "+99365000301", code: "1111" })
       .expect(200);
-    const staticCodeSessionBody = staticCodeSession.body as SessionResponse;
-    expect(typeof staticCodeSessionBody.accessToken).toBe("string");
-    expect(typeof staticCodeSessionBody.refreshToken).toBe("string");
+    const firstStaticCodeSessionBody =
+      firstStaticCodeSession.body as SessionResponse;
+    expect(typeof firstStaticCodeSessionBody.accessToken).toBe("string");
+    expect(typeof firstStaticCodeSessionBody.refreshToken).toBe("string");
     await request(server)
       .post("/api/v1/auth/otp/verify")
-      .send({ phone: "+99365000301", code: "042697" })
+      .send({ phone: "+99365000301", code: "1111" })
       .expect(401);
+
+    const secondStaticCodeSession = await request(server)
+      .post("/api/v1/auth/otp/verify")
+      .send({ phone: "+99365000302", code: "1111" })
+      .expect(200);
+    const secondStaticCodeSessionBody =
+      secondStaticCodeSession.body as SessionResponse;
+    expect(typeof secondStaticCodeSessionBody.accessToken).toBe("string");
   });
 
   it("enforces a per-phone resend cooldown in Redis", async () => {

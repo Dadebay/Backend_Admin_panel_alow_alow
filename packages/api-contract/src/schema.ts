@@ -1055,7 +1055,10 @@ export interface components {
             platform?: "ANDROID" | "IOS";
             /** @example 1.0.0 */
             appVersion?: string;
-            /** @example 123456 */
+            /**
+             * @description Six-digit SMS code, or a four-digit code for an explicitly configured time-boxed test account
+             * @example 123456
+             */
             code: string;
             /** @example Aman */
             firstName?: string;

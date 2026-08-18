@@ -31,8 +31,10 @@ deployment and recovery procedures.
 | Final origin | `https://a7-tagam.com.tm` |
 
 `NODE_ENV=production` and `DEPLOYMENT_ENVIRONMENT=production` are both
-mandatory. Production rejects console SMS, console push, insecure Redis and a
-long-lived/static OTP at application startup.
+mandatory. Production rejects console SMS, console push and insecure Redis.
+A test OTP exception is rejected unless it has a phone allowlist, a four- or
+six-digit env-only code, a future expiry within 32 days and an explicit
+production acknowledgement.
 
 ## Repository deployment files
 
@@ -91,6 +93,7 @@ The active production settings include:
 NODE_ENV=production
 DEPLOYMENT_ENVIRONMENT=production
 LONG_LIVED_TEST_OTP_ENABLED=false
+LONG_LIVED_TEST_OTP_PRODUCTION_ACKNOWLEDGED=false
 SMS_PROVIDER=android_pull
 PUSH_PROVIDER=fcm
 ACCESS_TOKEN_TTL=365d
@@ -99,8 +102,17 @@ CORS_ORIGINS=https://a7-tagam.com.tm
 ```
 
 The Android device must use the same `SMS_GATEWAY_DEVICE_ID`, bearer token and
-encryption key as the server env. Every OTP remains random, expires after five
-minutes and is consumed once; production has no reusable OTP exception.
+encryption key as the server env. Normal OTPs remain random, expire after five
+minutes and are consumed once.
+
+During the approved customer-testing window, production may configure up to ten
+phone numbers in `LONG_LIVED_TEST_OTP_PHONES` and enable the exception with
+`LONG_LIVED_TEST_OTP_PRODUCTION_ACKNOWLEDGED=true`. The current window covers
+two accounts and ends on 2026-09-18. Phone numbers and the code are never stored
+in Git or documentation. The reusable value only replaces SMS delivery: every
+login still needs a rate-limited request, a one-time five-minute Redis challenge
+and succeeds once. Expired allowlisted entries automatically fall back to the
+Android gateway. Disable and clear all exception fields when testing ends.
 
 ## GitHub configuration
 

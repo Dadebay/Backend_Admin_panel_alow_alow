@@ -41,10 +41,14 @@ export class RequestOtpDto {
 }
 
 export class VerifyOtpDto extends RequestOtpDto {
-  @ApiProperty({ example: "123456" })
+  @ApiProperty({
+    example: "123456",
+    description:
+      "Six-digit SMS code, or a four-digit code for an explicitly configured time-boxed test account",
+  })
   @IsString()
-  @Length(6, 6)
-  @Matches(/^\d{6}$/)
+  @Length(4, 6)
+  @Matches(/^(?:\d{4}|\d{6})$/)
   code: string;
 
   @ApiPropertyOptional({ example: "Aman" })

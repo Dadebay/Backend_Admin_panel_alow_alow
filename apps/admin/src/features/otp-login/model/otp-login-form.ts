@@ -7,7 +7,9 @@ export const otpRequestSchema = z.object({
 });
 
 export const otpVerifySchema = otpRequestSchema.extend({
-  code: z.string().regex(/^\d{6}$/, "Введите 6 цифр из SMS"),
+  code: z
+    .string()
+    .regex(/^(?:\d{4}|\d{6})$/, "Введите 4 или 6 цифр кода"),
 });
 
 export type OtpLoginFormValues = z.infer<typeof otpRequestSchema>;

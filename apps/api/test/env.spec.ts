@@ -28,6 +28,8 @@ const productionSecrets = {
 
 const futureTestOtpExpiry = () =>
   new Date(Date.now() + 365 * 86_400_000).toISOString();
+const monthlyTestOtpExpiry = () =>
+  new Date(Date.now() + 31 * 86_400_000).toISOString();
 
 describe("security environment configuration", () => {
   it("uses the AWS credential chain in production when static keys are absent", () => {
@@ -118,30 +120,44 @@ describe("security environment configuration", () => {
     ).toThrow("SMS_GATEWAY_ENCRYPTION_KEY");
   });
 
-  it("allows a long-lived test OTP only in an explicit development deployment", () => {
+  it("allows an allowlisted test OTP in development and an acknowledged short production window", () => {
     const development = validateEnv({
       ...productionSecrets,
       DEPLOYMENT_ENVIRONMENT: "development",
       LONG_LIVED_TEST_OTP_ENABLED: true,
-      LONG_LIVED_TEST_OTP_PHONE: "+99362969614",
-      LONG_LIVED_TEST_OTP_CODE: "042697",
+      LONG_LIVED_TEST_OTP_PHONES: "+99365000301,+99365000302",
+      LONG_LIVED_TEST_OTP_CODE: "1111",
       LONG_LIVED_TEST_OTP_EXPIRES_AT: futureTestOtpExpiry(),
     });
     expect(development).toMatchObject({
       DEPLOYMENT_ENVIRONMENT: "development",
       LONG_LIVED_TEST_OTP_ENABLED: true,
-      LONG_LIVED_TEST_OTP_PHONE: "+99362969614",
+      LONG_LIVED_TEST_OTP_PHONES: "+99365000301,+99365000302",
+    });
+
+    const production = validateEnv({
+      ...productionSecrets,
+      LONG_LIVED_TEST_OTP_ENABLED: true,
+      LONG_LIVED_TEST_OTP_PHONES: "+99365000301,+99365000302",
+      LONG_LIVED_TEST_OTP_CODE: "1111",
+      LONG_LIVED_TEST_OTP_EXPIRES_AT: monthlyTestOtpExpiry(),
+      LONG_LIVED_TEST_OTP_PRODUCTION_ACKNOWLEDGED: true,
+    });
+    expect(production).toMatchObject({
+      DEPLOYMENT_ENVIRONMENT: "production",
+      LONG_LIVED_TEST_OTP_ENABLED: true,
+      LONG_LIVED_TEST_OTP_PRODUCTION_ACKNOWLEDGED: true,
     });
 
     expect(() =>
       validateEnv({
         ...productionSecrets,
         LONG_LIVED_TEST_OTP_ENABLED: true,
-        LONG_LIVED_TEST_OTP_PHONE: "+99362969614",
-        LONG_LIVED_TEST_OTP_CODE: "042697",
-        LONG_LIVED_TEST_OTP_EXPIRES_AT: futureTestOtpExpiry(),
+        LONG_LIVED_TEST_OTP_PHONES: "+99365000301,+99365000302",
+        LONG_LIVED_TEST_OTP_CODE: "1111",
+        LONG_LIVED_TEST_OTP_EXPIRES_AT: monthlyTestOtpExpiry(),
       }),
-    ).toThrow("only allowed in the development deployment");
+    ).toThrow("PRODUCTION_ACKNOWLEDGED");
   });
 
   it("rejects malformed or overlong test OTP exceptions", () => {
@@ -149,11 +165,18 @@ describe("security environment configuration", () => {
       ...productionSecrets,
       DEPLOYMENT_ENVIRONMENT: "development",
       LONG_LIVED_TEST_OTP_ENABLED: true,
-      LONG_LIVED_TEST_OTP_PHONE: "+99362969614",
-      LONG_LIVED_TEST_OTP_CODE: "not-six-digits",
+      LONG_LIVED_TEST_OTP_PHONES: "+99365000301,+99365000302",
+      LONG_LIVED_TEST_OTP_CODE: "12345",
       LONG_LIVED_TEST_OTP_EXPIRES_AT: futureTestOtpExpiry(),
     };
-    expect(() => validateEnv(development)).toThrow("exactly 6 digits");
+    expect(() => validateEnv(development)).toThrow("exactly 4 or 6 digits");
+    expect(() =>
+      validateEnv({
+        ...development,
+        LONG_LIVED_TEST_OTP_CODE: "1111",
+        LONG_LIVED_TEST_OTP_PHONES: "+99365000301,+99365000301",
+      }),
+    ).toThrow("must not contain duplicates");
     expect(() =>
       validateEnv({
         ...development,
@@ -163,6 +186,18 @@ describe("security environment configuration", () => {
         ).toISOString(),
       }),
     ).toThrow("no more than 366 days away");
+    expect(() =>
+      validateEnv({
+        ...productionSecrets,
+        LONG_LIVED_TEST_OTP_ENABLED: true,
+        LONG_LIVED_TEST_OTP_PHONES: "+99365000301",
+        LONG_LIVED_TEST_OTP_CODE: "1111",
+        LONG_LIVED_TEST_OTP_EXPIRES_AT: new Date(
+          Date.now() + 33 * 86_400_000,
+        ).toISOString(),
+        LONG_LIVED_TEST_OTP_PRODUCTION_ACKNOWLEDGED: true,
+      }),
+    ).toThrow("no more than 32 days away");
   });
 
   it("requires a complete FCM service account in production", () => {

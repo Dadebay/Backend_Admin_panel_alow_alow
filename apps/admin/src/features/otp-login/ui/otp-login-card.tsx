@@ -50,7 +50,9 @@ export function OtpLoginCard({
         const verified = otpVerifySchema.safeParse(values);
         if (!verified.success) {
           setError("code", {
-            message: verified.error.issues[0]?.message ?? "Введите код из SMS",
+            message:
+              verified.error.issues[0]?.message ??
+              "Введите код подтверждения",
           });
           return;
         }
@@ -89,7 +91,7 @@ export function OtpLoginCard({
       </label>
       {codeRequested && (
         <label>
-          <span>Код из SMS</span>
+          <span>Код подтверждения</span>
           <input
             data-testid="otp-login-code"
             {...register("code", {
@@ -103,7 +105,7 @@ export function OtpLoginCard({
             aria-invalid={Boolean(errors.code)}
             inputMode="numeric"
             maxLength={6}
-            placeholder="000000"
+            placeholder="0000 или 000000"
             autoComplete="one-time-code"
           />
           <FormFieldError message={errors.code?.message} />

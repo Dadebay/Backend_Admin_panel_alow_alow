@@ -5,7 +5,7 @@ infrastructure. It records names, responsibilities and recovery procedures,
 never secret values. Update it in the same commit whenever a host, public URL,
 port, service, volume, GitHub setting, registry or deployment branch changes.
 
-Last audited: 2026-08-15.
+Last audited: 2026-08-18.
 
 ## Current answer: production only
 
@@ -17,9 +17,12 @@ TileServer GL, OSRM and Nominatim on the private Compose network.
 
 Production currently has an explicitly temporary transport limitation: traffic
 uses plain HTTP on the server IP until Turkmen Telecom supplies DNS and the
-ordered certificate for `a7-tagam.com.tm`. Static/long-lived OTP is disabled;
-all login codes must use the Android pull SMS gateway. Off-host backups and
-external monitoring/alerting still need to be completed.
+ordered certificate for `a7-tagam.com.tm`. During customer testing, two
+env-only allowlisted accounts have a time-boxed reusable OTP exception through
+2026-09-18; its phone numbers and code exist only in the protected server env.
+All other accounts use the Android pull SMS gateway, and the allowlisted
+accounts return to it automatically after expiry. Off-host backups and external
+monitoring/alerting still need to be completed.
 
 The repository contains the operations admin, not a customer web storefront.
 Android/iOS applications remain separate projects and consume this API/map
@@ -223,7 +226,8 @@ The VDS env contains these secret categories:
 - S3/MinIO: `MINIO_*`, `S3_*`;
 - Firebase push: `FCM_SERVICE_ACCOUNT_BASE64`, `PUSH_PROVIDER`;
 - routing/geocoding provider origins and private Nominatim password;
-- production mode with the long-lived test OTP fields disabled.
+- an optional time-boxed test OTP allowlist, code, expiry and explicit
+  production acknowledgement; values exist only during approved testing.
 
 Never print, copy into documentation, commit, or send any value from this
 file. Rotation is done one secret at a time with a controlled API restart. JWT,
@@ -292,8 +296,8 @@ named volumes during routine deployment.
 - Nginx owns 443; HTTP redirects to HTTPS; mobile cleartext exceptions are
   removed.
 - GitHub deploy uses a reachable transport other than the HTTPS listener.
-- `DEPLOYMENT_ENVIRONMENT=production` remains enforced and the long-lived test
-  OTP remains disabled.
+- `DEPLOYMENT_ENVIRONMENT=production` remains enforced and the temporary test
+  OTP exception is removed no later than 2026-09-18.
 - PostgreSQL and MinIO encrypted off-host backups and restore tests exist.
 - Monitoring, alerting, log retention and disk-capacity alarms exist.
 - Android/iOS production builds use the HTTPS API and MapLibre style URLs.

@@ -50,6 +50,8 @@ production acknowledgement.
 - `deploy/production.env.example`: key names/placeholders only.
 - `deploy/nginx/alowalow-http-temporary.conf`: temporary HTTP origin.
 - `deploy/nginx/alowalow-production.conf`: final Telecom TLS origin.
+- `.github/workflows/production-ops.yml`: manual read-only bounded API
+  diagnostics for incidents where direct bootstrap-password SSH is disabled.
 
 ## One-time host preparation
 

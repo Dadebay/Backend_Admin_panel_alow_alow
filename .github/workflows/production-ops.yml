@@ -1,0 +1,58 @@
+name: Production operations
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: Safe production operation
+        required: true
+        type: choice
+        options:
+          - diagnose-api
+
+concurrency:
+  group: production-operations
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose-api:
+    if: inputs.action == 'diagnose-api'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment:
+      name: production
+    steps:
+      - name: Configure verified SSH access
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.DEPLOY_SSH_KNOWN_HOSTS }}
+        run: |
+          test -n "$SSH_PRIVATE_KEY"
+          test -n "$SSH_KNOWN_HOSTS"
+          install -d -m 700 "$HOME/.ssh"
+          printf '%s\n' "$SSH_PRIVATE_KEY" > "$HOME/.ssh/id_ed25519"
+          chmod 600 "$HOME/.ssh/id_ed25519"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/known_hosts"
+
+      - name: Read bounded API diagnostics
+        env:
+          SSH_HOST: ${{ secrets.DEPLOY_SSH_HOST }}
+          SSH_USER: ${{ secrets.DEPLOY_SSH_USER }}
+          SSH_PORT: ${{ vars.DEPLOY_SSH_PORT || '22' }}
+        run: |
+          test -n "$SSH_HOST"
+          test -n "$SSH_USER"
+          case "$SSH_PORT" in
+            ''|*[!0-9]*) echo "SSH_PORT must be numeric" >&2; exit 1 ;;
+          esac
+          ssh -p "$SSH_PORT" -o ConnectTimeout=30 -o ConnectionAttempts=2 \
+            "${SSH_USER}@${SSH_HOST}" '
+              set -eu
+              container=alowalow-production-api-1
+              docker inspect --format="status={{.State.Status}} health={{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}} exit={{.State.ExitCode}}" "$container"
+              docker logs --tail 120 "$container" 2>&1
+            '

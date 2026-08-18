@@ -213,6 +213,10 @@ when testing ends. `GITHUB_TOKEN` is generated automatically for each job, is
 used for a short-lived GHCR login over SSH stdin, and is followed by
 `docker logout`; no permanent GHCR token is stored on the VDS.
 
+The manually dispatched `Production operations` workflow is read-only: it can
+inspect bounded API container status/logs through the same verified deploy key.
+It cannot change env values, restart containers or deploy a release.
+
 Only the GitHub `production` Environment participates in deployment and it
 accepts only `main`. There is no active DEV Environment or DEV deploy job.
 

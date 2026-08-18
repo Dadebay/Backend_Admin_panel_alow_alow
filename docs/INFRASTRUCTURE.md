@@ -201,9 +201,15 @@ GitHub Environment `production` encrypted secrets:
 | `DEPLOY_SSH_USER` | non-root deployment user |
 | `DEPLOY_SSH_PRIVATE_KEY` | dedicated ED25519 private key |
 | `DEPLOY_SSH_KNOWN_HOSTS` | verified host keys for ports 22 and 443 |
+| `LONG_LIVED_TEST_OTP_PHONES` | temporary encrypted production test allowlist |
+| `LONG_LIVED_TEST_OTP_CODE` | temporary encrypted reusable test code |
+| `LONG_LIVED_TEST_OTP_EXPIRES_AT` | approved ISO expiry for the temporary exception |
 
-There are currently no custom repository-level secret values required by the
-deploy workflow. `GITHUB_TOKEN` is generated automatically for each job, is
+The three `LONG_LIVED_TEST_OTP_*` secrets exist only for the approved testing
+window. The deploy job validates the complete set, transfers it in a mode-600
+temporary file, atomically updates the protected VDS env and deletes the
+temporary file. Delete the three Environment secrets and clear the VDS fields
+when testing ends. `GITHUB_TOKEN` is generated automatically for each job, is
 used for a short-lived GHCR login over SSH stdin, and is followed by
 `docker logout`; no permanent GHCR token is stored on the VDS.
 
@@ -212,9 +218,11 @@ accepts only `main`. There is no active DEV Environment or DEV deploy job.
 
 ## Where application secrets live
 
-Real runtime values live only in
-`/opt/alowalow/production/.env.production` with mode `600`. GitHub receives
-only SSH connection secrets; frontend builds never receive backend secrets.
+Real runtime values live in `/opt/alowalow/production/.env.production` with
+mode `600`. The only application values also held by GitHub are the three
+temporary encrypted test-OTP Environment secrets described above; they are
+available only to the protected production deploy job. Frontend builds never
+receive backend secrets.
 
 The VDS env contains these secret categories:
 

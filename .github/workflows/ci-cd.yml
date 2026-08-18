@@ -407,6 +407,9 @@ jobs:
           SSH_USER: ${{ secrets.DEPLOY_SSH_USER }}
           SSH_PORT: ${{ vars.DEPLOY_SSH_PORT || '22' }}
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TEST_OTP_PHONES: ${{ secrets.LONG_LIVED_TEST_OTP_PHONES }}
+          TEST_OTP_CODE: ${{ secrets.LONG_LIVED_TEST_OTP_CODE }}
+          TEST_OTP_EXPIRES_AT: ${{ secrets.LONG_LIVED_TEST_OTP_EXPIRES_AT }}
         run: |
           test -n "$SSH_HOST"
           test -n "$SSH_USER"
@@ -427,7 +430,23 @@ jobs:
             "${ssh_command[@]}" "${SSH_USER}@${SSH_HOST}" \
               'docker logout ghcr.io >/dev/null 2>&1 || true'
           }
-          trap cleanup_registry_login EXIT
+          runtime_secret_file=/tmp/alowalow-test-otp.env
+          cleanup() {
+            rm -f "$runtime_secret_file"
+            cleanup_registry_login
+          }
+          trap cleanup EXIT
+          if [ -n "$TEST_OTP_PHONES" ] || [ -n "$TEST_OTP_CODE" ] || [ -n "$TEST_OTP_EXPIRES_AT" ]; then
+            test -n "$TEST_OTP_PHONES"
+            test -n "$TEST_OTP_CODE"
+            test -n "$TEST_OTP_EXPIRES_AT"
+            umask 077
+            {
+              printf 'LONG_LIVED_TEST_OTP_PHONES=%s\n' "$TEST_OTP_PHONES"
+              printf 'LONG_LIVED_TEST_OTP_CODE=%s\n' "$TEST_OTP_CODE"
+              printf 'LONG_LIVED_TEST_OTP_EXPIRES_AT=%s\n' "$TEST_OTP_EXPIRES_AT"
+            } > "$runtime_secret_file"
+          fi
           printf '%s' "$GHCR_TOKEN" \
             | "${ssh_command[@]}" "${SSH_USER}@${SSH_HOST}" \
               "docker login ghcr.io --username '$GITHUB_ACTOR' --password-stdin"
@@ -439,12 +458,20 @@ jobs:
             "${SSH_USER}@${SSH_HOST}:/opt/alowalow/production/docker-compose.single-host.yml"
           "${scp_command[@]}" deploy/deploy-production.sh \
             "${SSH_USER}@${SSH_HOST}:/opt/alowalow/production/deploy-production.sh"
+          "${scp_command[@]}" deploy/sync-test-otp-env.sh \
+            "${SSH_USER}@${SSH_HOST}:/opt/alowalow/production/sync-test-otp-env.sh"
           "${scp_command[@]}" deploy/nginx/alowalow-http-temporary.conf \
             "${SSH_USER}@${SSH_HOST}:/opt/alowalow/production/alowalow-http-temporary.conf"
           "${scp_command[@]}" deploy/nginx/alowalow-production.conf \
             "${SSH_USER}@${SSH_HOST}:/opt/alowalow/production/alowalow-production.conf"
           "${scp_command[@]}" /tmp/alowalow-release.env \
             "${SSH_USER}@${SSH_HOST}:/opt/alowalow/production/.release.pending.env"
+          if [ -s "$runtime_secret_file" ]; then
+            "${scp_command[@]}" "$runtime_secret_file" \
+              "${SSH_USER}@${SSH_HOST}:/opt/alowalow/production/.test-otp.pending.env"
+            "${ssh_command[@]}" "${SSH_USER}@${SSH_HOST}" \
+              'sh /opt/alowalow/production/sync-test-otp-env.sh'
+          fi
           "${ssh_command[@]}" "${SSH_USER}@${SSH_HOST}" \
             'sh /opt/alowalow/production/deploy-production.sh'
           "${ssh_command[@]}" "${SSH_USER}@${SSH_HOST}" '

@@ -908,4 +908,8 @@ multi-status filter ensuring cook/courier queues are not displaced by history.
   acknowledgement, the expiry is capped at 32 days, and every use retains the
   normal request cooldown, hourly limit, five-minute Redis challenge,
   five-attempt limit and one-time consumption. After expiry, Android SMS is
-  automatically authoritative again.
+  automatically authoritative again. Because the hardened host no longer
+  accepts its bootstrap password, the three temporary values are delivered by
+  the existing protected GitHub `production` deploy key from encrypted
+  Environment secrets into the mode-600 VDS env; the workflow never prints or
+  includes them in images.

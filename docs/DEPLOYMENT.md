@@ -43,6 +43,8 @@ production acknowledgement.
 - `deploy/compose.single-host.yml`: private PostgreSQL, TLS Redis, MinIO,
   TileServer GL, OSRM and Nominatim for the current single VDS.
 - `deploy/deploy-production.sh`: pull, migrate, health-check and rollback.
+- `deploy/sync-test-otp-env.sh`: validates and atomically installs the optional
+  encrypted test-OTP secret bundle without printing its values.
 - `deploy/prepare-production-host.sh`: one-time directories, Redis TLS and host
   sysctl preparation.
 - `deploy/production.env.example`: key names/placeholders only.
@@ -137,7 +139,15 @@ DEPLOY_SSH_HOST
 DEPLOY_SSH_USER
 DEPLOY_SSH_PRIVATE_KEY
 DEPLOY_SSH_KNOWN_HOSTS
+LONG_LIVED_TEST_OTP_PHONES
+LONG_LIVED_TEST_OTP_CODE
+LONG_LIVED_TEST_OTP_EXPIRES_AT
 ```
+
+The three `LONG_LIVED_TEST_OTP_*` secrets are temporary and must be supplied as
+a complete set. They are copied only to the protected VDS env, never to an
+image or frontend artifact. Remove them and clear the corresponding VDS env
+fields after the approved test window.
 
 Use a dedicated ED25519 deployment key. The Ubuntu password is not a GitHub
 secret. `DEPLOY_SSH_KNOWN_HOSTS` contains verified host keys for the configured
@@ -158,8 +168,8 @@ The workflow then:
 1. Builds API, migration and admin images with provenance and SBOM.
 2. Publishes a `production` tag plus immutable commit tags to GHCR.
 3. Resolves and transfers immutable digest references only.
-4. Copies the two Compose files and deployment script into the production
-   directory.
+4. Copies the Compose/deployment files and, when configured, atomically syncs
+   the protected test-OTP values into `.env.production`.
 5. Pulls all referenced images before mutating the active release manifest.
 6. Runs `prisma migrate deploy` and starts the stack.
 7. Waits for service health checks.

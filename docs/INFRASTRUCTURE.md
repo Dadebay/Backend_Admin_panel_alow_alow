@@ -19,7 +19,8 @@ Production currently has an explicitly temporary transport limitation: traffic
 uses plain HTTP on the server IP until Turkmen Telecom supplies DNS and the
 ordered certificate for `a7-tagam.com.tm`. During customer testing, two
 env-only allowlisted accounts have a time-boxed reusable OTP exception through
-2026-09-18; its phone numbers and code exist only in the protected server env.
+2026-09-17; its phone numbers and code exist only in the protected server env
+and encrypted GitHub `production` Environment secrets.
 All other accounts use the Android pull SMS gateway, and the allowlisted
 accounts return to it automatically after expiry. Off-host backups and external
 monitoring/alerting still need to be completed.
@@ -309,7 +310,10 @@ named volumes during routine deployment.
   removed.
 - GitHub deploy uses a reachable transport other than the HTTPS listener.
 - `DEPLOYMENT_ENVIRONMENT=production` remains enforced and the temporary test
-  OTP exception is removed no later than 2026-09-18.
+  OTP exception is removed no later than 2026-09-17.
+- The VDS clock is synchronized with an approved Telecom-reachable NTP source;
+  on 2026-08-18 `systemd-timesyncd` reported `NTPSynchronized=no` and the host
+  clock was approximately two days behind.
 - PostgreSQL and MinIO encrypted off-host backups and restore tests exist.
 - Monitoring, alerting, log retention and disk-capacity alarms exist.
 - Android/iOS production builds use the HTTPS API and MapLibre style URLs.

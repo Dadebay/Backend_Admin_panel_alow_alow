@@ -355,7 +355,7 @@ heights; visual density must not be reduced to the previous pale compact map.
 - A temporary production test exception may be enabled only for an env-only
   allowlist of up to ten Turkmen phone numbers, with an explicit production
   acknowledgement and an expiry no more than 32 days away. The current
-  customer-testing exception covers two accounts through 2026-09-18; phone
+  customer-testing exception covers two accounts through 2026-09-17; phone
   numbers and the code never enter Git or documentation. Each login still
   requires a throttled request, creates a fresh one-time five-minute Redis
   challenge and permits at most five verification attempts. After expiry those
@@ -903,7 +903,7 @@ multi-status filter ensuring cook/courier queues are not displaced by history.
   Search and role constraints are composed with `AND`, preventing a cook search
   from overriding the server visibility scope.
 - 2026-08-18: customer testing gained a narrowly scoped production OTP
-  exception for two env-only allowlisted numbers through 2026-09-18. The
+  exception for two env-only allowlisted numbers through 2026-09-17. The
   reusable value is never committed, production requires an explicit
   acknowledgement, the expiry is capped at 32 days, and every use retains the
   normal request cooldown, hourly limit, five-minute Redis challenge,
@@ -912,4 +912,7 @@ multi-status filter ensuring cook/courier queues are not displaced by history.
   accepts its bootstrap password, the three temporary values are delivered by
   the existing protected GitHub `production` deploy key from encrypted
   Environment secrets into the mode-600 VDS env; the workflow never prints or
-  includes them in images.
+  includes them in images. The originally planned 2026-09-18 expiry was moved
+  one day earlier after the VDS was found approximately two days behind with
+  NTP enabled but unsynchronized; the shorter date preserves the production
+  32-day safety cap until Telecom-reachable time synchronization is fixed.

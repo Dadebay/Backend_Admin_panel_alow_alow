@@ -32,3 +32,30 @@ test("catalog editor configures generic variants with separate images", async ()
   assert.match(source, /variantLabel: values\.variantLabel/);
   assert.match(source, /variant\.imageUrls/);
 });
+
+test("catalog editor fields remain visually distinct from cream panels", async () => {
+  const styles = await readFile(
+    new URL("../src/app/styles/globals.css", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(styles, /--catalog-canvas-surface:\s*color-mix\(/);
+  assert.match(styles, /--catalog-field-surface:\s*color-mix\(/);
+  assert.match(styles, /--catalog-field-border:\s*color-mix\(/);
+  assert.match(
+    styles,
+    /\.catalog-editor-modal \.form-grid input:not\(\[type="checkbox"\]\),[\s\S]*?background: var\(--catalog-field-surface\);/,
+  );
+  assert.match(
+    styles,
+    /\.catalog-editor-modal \.form-grid select:focus,[\s\S]*?border-color: var\(--brand-orange\);/,
+  );
+  assert.match(
+    styles,
+    /input\[type="file"\]::file-selector-button[\s\S]*?border: 1px solid var\(--brand-orange\);/,
+  );
+  assert.match(
+    styles,
+    /@media \(max-width: 620px\)[\s\S]*?\.catalog-editor-modal \.form-grid\s*\{[^}]*grid-template-columns: minmax\(0, 1fr\);/,
+  );
+});

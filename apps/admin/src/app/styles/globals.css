@@ -3740,13 +3740,29 @@ button:disabled {
 }
 
 .catalog-editor-modal {
+  --catalog-panel-surface: var(--brand-cream);
+  --catalog-canvas-surface: color-mix(
+    in srgb,
+    var(--brand-cream) 94%,
+    var(--brand-navy)
+  );
+  --catalog-field-surface: color-mix(
+    in srgb,
+    var(--brand-cream) 88%,
+    var(--brand-navy)
+  );
+  --catalog-field-border: color-mix(
+    in srgb,
+    var(--brand-navy) 32%,
+    var(--brand-cream)
+  );
   box-sizing: border-box;
   width: min(920px, 100vw);
   max-height: 100dvh;
   overflow-y: auto;
   border-radius: 24px 0 0 24px;
   box-shadow: -20px 0 60px rgb(6 47 94 / 0.28);
-  background: var(--brand-cream);
+  background: var(--catalog-canvas-surface);
 }
 
 .catalog-category-modal { width: min(580px, 100vw); }
@@ -3760,9 +3776,10 @@ button:disabled {
 .catalog-editor-modal .product-image-editor,
 .catalog-editor-modal .product-variants-editor {
   padding: 12px;
-  border: 1px solid var(--brand-cream);
+  border: 1px solid var(--line);
   border-radius: 12px;
-  background: var(--brand-cream);
+  background: var(--catalog-panel-surface);
+  box-shadow: 0 2px 9px rgb(6 47 94 / 0.045);
 }
 
 .catalog-editor-modal .form-grid > label.check-field {
@@ -3776,8 +3793,12 @@ button:disabled {
   margin: -20px -20px 0;
   align-items: center;
   padding: 17px 20px;
-  background: linear-gradient(110deg, var(--brand-cream), var(--brand-cream) 55%);
-  border-bottom: 1px solid var(--brand-cream);
+  background: linear-gradient(
+    110deg,
+    color-mix(in srgb, var(--brand-cream) 90%, var(--brand-orange)),
+    var(--brand-cream) 55%
+  );
+  border-bottom: 1px solid var(--line);
 }
 
 .catalog-editor-title h2 { margin-top: 3px; font-size: 20px; }
@@ -3787,7 +3808,7 @@ button:disabled {
   width: 34px;
   height: 34px;
   place-items: center;
-  border: 1px solid var(--brand-cream);
+  border: 1px solid var(--catalog-field-border);
   border-radius: 10px;
   color: var(--brand-navy);
   background: var(--brand-cream);
@@ -3795,7 +3816,76 @@ button:disabled {
   line-height: 1;
   cursor: pointer;
 }
-.catalog-editor-close:hover { color: var(--brand-orange); border-color: var(--brand-cream); background: var(--brand-cream); }
+.catalog-editor-close:hover {
+  color: var(--brand-orange);
+  border-color: var(--brand-orange);
+  background: color-mix(in srgb, var(--brand-cream) 92%, var(--brand-orange));
+}
+
+/* The catalogue editor has three visible surface levels: the drawer canvas,
+   raised form sections, and controls. Keeping controls on a separate tinted
+   surface prevents cream inputs from disappearing into cream cards. */
+.catalog-editor-modal .form-grid input:not([type="checkbox"]),
+.catalog-editor-modal .form-grid select,
+.catalog-editor-modal .form-grid textarea {
+  width: 100%;
+  color: var(--brand-navy);
+  border-color: var(--catalog-field-border);
+  background: var(--catalog-field-surface);
+  box-shadow: inset 0 1px 2px rgb(6 47 94 / 0.07);
+}
+
+.catalog-editor-modal .form-grid input::placeholder,
+.catalog-editor-modal .form-grid textarea::placeholder {
+  color: color-mix(in srgb, var(--brand-navy) 62%, var(--brand-cream));
+  opacity: 1;
+}
+
+.catalog-editor-modal .form-grid input:not([type="checkbox"]):hover,
+.catalog-editor-modal .form-grid select:hover,
+.catalog-editor-modal .form-grid textarea:hover {
+  border-color: color-mix(
+    in srgb,
+    var(--brand-navy) 52%,
+    var(--brand-cream)
+  );
+}
+
+.catalog-editor-modal .form-grid input:not([type="checkbox"]):focus,
+.catalog-editor-modal .form-grid select:focus,
+.catalog-editor-modal .form-grid textarea:focus {
+  border-color: var(--brand-orange);
+  background: var(--brand-cream);
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--brand-cream) 72%, var(--brand-orange)),
+    inset 0 1px 2px rgb(6 47 94 / 0.05);
+}
+
+.catalog-editor-modal .form-grid select option {
+  color: var(--brand-navy);
+  background: var(--brand-cream);
+}
+
+.catalog-editor-modal .form-grid input[type="file"] {
+  padding: 6px;
+}
+
+.catalog-editor-modal .form-grid input[type="file"]::file-selector-button {
+  min-height: 32px;
+  margin-right: 10px;
+  padding: 6px 11px;
+  border: 1px solid var(--brand-orange);
+  border-radius: 7px;
+  color: var(--brand-navy);
+  background: var(--brand-cream);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.catalog-editor-modal .form-grid input[type="file"]::file-selector-button:hover {
+  color: var(--brand-cream);
+  background: var(--brand-orange);
+}
 
 .catalog-editor-modal > .primary-button {
   position: sticky;
@@ -5112,6 +5202,10 @@ button:disabled {
 }
 
 @media (max-width: 620px) {
+  .catalog-editor-modal .form-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .product-variants-heading { align-items: stretch; flex-direction: column; }
   .product-variant-fields { grid-template-columns: minmax(0, 1fr); }
   .product-variant-fields > .wide-field { grid-column: auto; }

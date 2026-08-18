@@ -40,8 +40,8 @@ test("catalog editor fields remain visually distinct from cream panels", async (
   );
 
   assert.match(styles, /--catalog-canvas-surface:\s*color-mix\(/);
-  assert.match(styles, /--catalog-field-surface:\s*color-mix\(/);
-  assert.match(styles, /--catalog-field-border:\s*color-mix\(/);
+  assert.match(styles, /--catalog-field-surface:\s*var\(--field-surface\);/);
+  assert.match(styles, /--catalog-field-border:\s*var\(--field-border\);/);
   assert.match(
     styles,
     /\.catalog-editor-modal \.form-grid input:not\(\[type="checkbox"\]\),[\s\S]*?background: var\(--catalog-field-surface\);/,

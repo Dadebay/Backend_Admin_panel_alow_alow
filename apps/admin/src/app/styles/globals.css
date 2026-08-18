@@ -316,16 +316,30 @@
   width: 100%;
   min-height: 38px;
   padding: 7px 9px;
-  border: 1px solid color-mix(in srgb, var(--brand-navy) 22%, var(--brand-cream));
+  border: 1px solid var(--field-border);
   border-radius: 8px;
   outline: 0;
   color: var(--brand-navy);
-  background: var(--brand-cream);
+  background: var(--field-surface);
+  box-shadow: inset 0 1px 2px rgb(6 47 94 / 0.07);
+}
+
+.order-kanban-courier select:hover {
+  border-color: var(--field-border-hover);
+  background: var(--field-surface-hover);
 }
 
 .order-kanban-courier select:focus {
   border-color: var(--brand-orange);
-  box-shadow: 0 0 0 3px rgb(236 122 27 / .12);
+  background: var(--brand-cream);
+  box-shadow:
+    0 0 0 3px var(--field-focus-ring),
+    inset 0 1px 2px rgb(6 47 94 / 0.05);
+}
+
+.order-kanban-courier select option {
+  color: var(--brand-navy);
+  background: var(--brand-cream);
 }
 
 .order-kanban-actions {
@@ -393,6 +407,41 @@
   --line: color-mix(in srgb, var(--brand-cream) 82%, var(--brand-navy));
   --paper: var(--brand-cream);
   --canvas: color-mix(in srgb, var(--brand-cream) 94%, var(--brand-orange));
+  --field-surface: color-mix(
+    in srgb,
+    var(--brand-cream) 88%,
+    var(--brand-navy)
+  );
+  --field-surface-hover: color-mix(
+    in srgb,
+    var(--brand-cream) 84%,
+    var(--brand-navy)
+  );
+  --field-surface-disabled: color-mix(
+    in srgb,
+    var(--brand-cream) 82%,
+    var(--brand-navy)
+  );
+  --field-border: color-mix(
+    in srgb,
+    var(--brand-navy) 60%,
+    var(--brand-cream)
+  );
+  --field-border-hover: color-mix(
+    in srgb,
+    var(--brand-navy) 72%,
+    var(--brand-cream)
+  );
+  --field-placeholder: color-mix(
+    in srgb,
+    var(--brand-navy) 75%,
+    var(--brand-cream)
+  );
+  --field-focus-ring: color-mix(
+    in srgb,
+    var(--brand-cream) 72%,
+    var(--brand-orange)
+  );
   --orange: var(--brand-orange);
   --orange-dark: var(--brand-orange);
   --cream: var(--brand-cream);
@@ -705,9 +754,14 @@ h1 {
   align-items: center;
   gap: 8px;
   padding: 0 6px 0 13px;
-  border: 1px solid var(--brand-cream);
+  border: 1px solid var(--field-border);
   border-radius: 10px;
-  background: var(--brand-cream);
+  background: var(--field-surface);
+}
+
+.role-switch:focus-within {
+  border-color: var(--brand-orange);
+  box-shadow: 0 0 0 3px var(--field-focus-ring);
 }
 
 .role-switch span {
@@ -995,9 +1049,15 @@ h1 {
   align-items: center;
   gap: 8px;
   padding: 0 8px 0 11px;
-  border: 1px solid var(--brand-cream);
+  border: 1px solid var(--field-border);
   border-radius: 9px;
+  background: var(--field-surface);
+}
+
+.search-box:focus-within {
+  border-color: var(--brand-orange);
   background: var(--brand-cream);
+  box-shadow: 0 0 0 3px var(--field-focus-ring);
 }
 
 .search-box span {
@@ -2124,7 +2184,7 @@ td small {
 .modal-head > button {
   width: 34px;
   height: 34px;
-  border: 1px solid var(--brand-cream);
+  border: 1px solid var(--field-border);
   border-radius: 9px;
   background: var(--brand-cream);
   font-size: 18px;
@@ -2145,23 +2205,42 @@ td small {
   font-weight: 680;
 }
 
-.modal input,
+.modal input:not([type="checkbox"]):not([type="radio"]),
 .modal select,
 .modal textarea {
   width: 100%;
   min-height: 42px;
   padding: 0 12px;
-  border: 1px solid var(--brand-cream);
+  border: 1px solid var(--field-border);
   border-radius: 9px;
   outline: none;
-  background: var(--brand-cream);
+  color: var(--brand-navy);
+  background: var(--field-surface);
+  box-shadow: inset 0 1px 2px rgb(6 47 94 / 0.07);
   font-size: 10px;
 }
 
-.modal input:focus,
+.modal input:not([type="checkbox"]):not([type="radio"])::placeholder,
+.modal textarea::placeholder {
+  color: var(--field-placeholder);
+  opacity: 1;
+}
+
+.modal input:not([type="checkbox"]):hover,
+.modal select:hover,
+.modal textarea:hover {
+  border-color: var(--field-border-hover);
+  background: var(--field-surface-hover);
+}
+
+.modal input:not([type="checkbox"]):not([type="radio"]):focus,
+.modal select:focus,
 .modal textarea:focus {
   border-color: var(--brand-orange);
-  box-shadow: 0 0 0 3px var(--brand-cream);
+  background: var(--brand-cream);
+  box-shadow:
+    0 0 0 3px var(--field-focus-ring),
+    inset 0 1px 2px rgb(6 47 94 / 0.05);
 }
 
 .modal textarea {
@@ -2185,10 +2264,10 @@ td small {
   justify-content: center;
   gap: 5px;
   margin-top: 15px;
-  border: 1px dashed var(--brand-cream);
+  border: 1px dashed var(--brand-orange);
   border-radius: 10px;
   color: var(--brand-navy);
-  background: var(--brand-cream);
+  background: color-mix(in srgb, var(--brand-cream) 94%, var(--brand-orange));
   cursor: pointer;
 }
 
@@ -2284,16 +2363,32 @@ textarea[aria-invalid="true"] {
   width: 100%;
   height: 39px;
   padding: 0 11px;
-  border: 1px solid var(--brand-cream);
+  border: 1px solid var(--field-border);
   border-radius: 9px;
   outline: none;
+  color: var(--brand-navy);
+  background: var(--field-surface);
+  box-shadow: inset 0 1px 2px rgb(6 47 94 / 0.07);
   font: inherit;
   font-size: 10px;
 }
 
+.otp-card input::placeholder {
+  color: var(--field-placeholder);
+  opacity: 1;
+}
+
+.otp-card input:hover {
+  border-color: var(--field-border-hover);
+  background: var(--field-surface-hover);
+}
+
 .otp-card input:focus {
   border-color: var(--brand-orange);
-  box-shadow: 0 0 0 3px var(--brand-cream);
+  background: var(--brand-cream);
+  box-shadow:
+    0 0 0 3px var(--field-focus-ring),
+    inset 0 1px 2px rgb(6 47 94 / 0.05);
 }
 
 .otp-card .primary-button {
@@ -2715,26 +2810,95 @@ textarea[aria-invalid="true"] {
 .toolbar input,
 .toolbar select,
 .data-table select,
-.form-grid input,
+.form-grid input:not([type="checkbox"]):not([type="radio"]),
 .form-grid select,
 .form-grid textarea,
 .otp-card input {
   min-height: 40px;
   padding: 8px 11px;
-  border: 1px solid var(--brand-cream);
+  border: 1px solid var(--field-border);
   border-radius: 9px;
   outline: 0;
-  background: var(--brand-cream);
+  color: var(--brand-navy);
+  background: var(--field-surface);
+  box-shadow: inset 0 1px 2px rgb(6 47 94 / 0.07);
+}
+
+.toolbar input::placeholder,
+.form-grid input::placeholder,
+.form-grid textarea::placeholder,
+.otp-card input::placeholder {
+  color: var(--field-placeholder);
+  opacity: 1;
+}
+
+.toolbar input:hover,
+.toolbar select:hover,
+.data-table select:hover,
+.form-grid input:not([type="checkbox"]):not([type="radio"]):hover,
+.form-grid select:hover,
+.form-grid textarea:hover,
+.otp-card input:hover {
+  border-color: var(--field-border-hover);
+  background: var(--field-surface-hover);
 }
 
 .toolbar input:focus,
 .toolbar select:focus,
-.form-grid input:focus,
+.data-table select:focus,
+.form-grid input:not([type="checkbox"]):not([type="radio"]):focus,
 .form-grid select:focus,
 .form-grid textarea:focus,
 .otp-card input:focus {
   border-color: var(--orange);
-  box-shadow: 0 0 0 3px rgb(236 122 27 / 0.1);
+  background: var(--brand-cream);
+  box-shadow:
+    0 0 0 3px var(--field-focus-ring),
+    inset 0 1px 2px rgb(6 47 94 / 0.05);
+}
+
+.toolbar :is(input, select):disabled,
+.data-table select:disabled,
+.form-grid :is(input, select, textarea):disabled,
+.otp-card input:disabled,
+.otp-card input:read-only {
+  color: var(--muted);
+  border-color: var(--field-border);
+  background: var(--field-surface-disabled);
+  cursor: not-allowed;
+}
+
+.toolbar select option,
+.data-table select option,
+.form-grid select option,
+.modal select option,
+.role-switch select option {
+  color: var(--brand-navy);
+  background: var(--brand-cream);
+}
+
+.form-grid input[type="file"],
+.modal input[type="file"] {
+  padding: 6px;
+}
+
+.form-grid input[type="file"]::file-selector-button,
+.modal input[type="file"]::file-selector-button {
+  min-height: 32px;
+  margin-right: 10px;
+  padding: 6px 11px;
+  border: 1px solid var(--brand-orange);
+  border-radius: 7px;
+  color: var(--brand-navy);
+  background: var(--brand-cream);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.form-grid input[type="file"]::file-selector-button:hover,
+.modal input[type="file"]::file-selector-button:hover {
+  color: var(--brand-cream);
+  background: var(--brand-orange);
 }
 
 .search-form {
@@ -3746,16 +3910,8 @@ button:disabled {
     var(--brand-cream) 94%,
     var(--brand-navy)
   );
-  --catalog-field-surface: color-mix(
-    in srgb,
-    var(--brand-cream) 88%,
-    var(--brand-navy)
-  );
-  --catalog-field-border: color-mix(
-    in srgb,
-    var(--brand-navy) 32%,
-    var(--brand-cream)
-  );
+  --catalog-field-surface: var(--field-surface);
+  --catalog-field-border: var(--field-border);
   box-sizing: border-box;
   width: min(920px, 100vw);
   max-height: 100dvh;
@@ -3837,18 +3993,14 @@ button:disabled {
 
 .catalog-editor-modal .form-grid input::placeholder,
 .catalog-editor-modal .form-grid textarea::placeholder {
-  color: color-mix(in srgb, var(--brand-navy) 62%, var(--brand-cream));
+  color: var(--field-placeholder);
   opacity: 1;
 }
 
 .catalog-editor-modal .form-grid input:not([type="checkbox"]):hover,
 .catalog-editor-modal .form-grid select:hover,
 .catalog-editor-modal .form-grid textarea:hover {
-  border-color: color-mix(
-    in srgb,
-    var(--brand-navy) 52%,
-    var(--brand-cream)
-  );
+  border-color: var(--field-border-hover);
 }
 
 .catalog-editor-modal .form-grid input:not([type="checkbox"]):focus,
@@ -3857,7 +4009,7 @@ button:disabled {
   border-color: var(--brand-orange);
   background: var(--brand-cream);
   box-shadow:
-    0 0 0 3px color-mix(in srgb, var(--brand-cream) 72%, var(--brand-orange)),
+    0 0 0 3px var(--field-focus-ring),
     inset 0 1px 2px rgb(6 47 94 / 0.05);
 }
 
@@ -3909,19 +4061,25 @@ button:disabled {
   gap: 14px;
   margin: 20px 0;
   padding: 16px 18px;
-  border: 1px solid var(--brand-cream);
+  border: 1px solid var(--line);
   border-radius: 16px;
-  background: linear-gradient(110deg, var(--brand-cream), var(--brand-cream) 54%);
+  background: linear-gradient(
+    110deg,
+    color-mix(in srgb, var(--brand-cream) 94%, var(--brand-navy)),
+    var(--brand-cream) 54%
+  );
 }
 
 .catalog-search-panel strong { display: block; margin-top: 4px; color: var(--brand-navy); font-size: 14px; }
-.catalog-search-input { display: flex; align-items: center; min-height: 44px; gap: 9px; padding: 0 12px; border: 1px solid var(--brand-cream); border-radius: 11px; background: var(--brand-cream); }
-.catalog-search-input:focus-within { border-color: var(--brand-orange); box-shadow: 0 0 0 3px var(--brand-cream); }
+.catalog-search-input { display: flex; align-items: center; min-height: 44px; gap: 9px; padding: 0 12px; border: 1px solid var(--field-border); border-radius: 11px; background: var(--field-surface); }
+.catalog-search-input:focus-within { border-color: var(--brand-orange); background: var(--brand-cream); box-shadow: 0 0 0 3px var(--field-focus-ring); }
 .catalog-search-input > span { color: var(--brand-orange); font-size: 20px; line-height: 1; }
 .catalog-search-input input { width: 100%; border: 0; outline: 0; color: var(--brand-navy); background: transparent; }
+.catalog-search-input input::placeholder { color: var(--field-placeholder); opacity: 1; }
 .catalog-search-input button { border: 0; color: var(--brand-navy); background: transparent; font-size: 20px; cursor: pointer; }
 .catalog-category-filter { display: grid; gap: 6px; color: var(--brand-navy); font-size: 11px; font-weight: 650; }
-.catalog-category-filter select { min-height: 44px; padding: 0 11px; border: 1px solid var(--brand-cream); border-radius: 11px; color: var(--brand-navy); background: var(--brand-cream); }
+.catalog-category-filter select { min-height: 44px; padding: 0 11px; border: 1px solid var(--field-border); border-radius: 11px; outline: 0; color: var(--brand-navy); background: var(--field-surface); }
+.catalog-category-filter select:focus { border-color: var(--brand-orange); background: var(--brand-cream); box-shadow: 0 0 0 3px var(--field-focus-ring); }
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
 
 @media (max-width: 760px) {
@@ -3966,7 +4124,12 @@ button:disabled {
 }
 
 .form-grid .check-field input {
+  width: 18px;
+  height: 18px;
   min-height: 0;
+  padding: 0;
+  accent-color: var(--brand-orange);
+  cursor: pointer;
 }
 
 .notification-editor {
@@ -4214,15 +4377,15 @@ button:disabled {
 .assisted-order-modal input,
 .assisted-order-modal select,
 .assisted-order-modal textarea {
-  border-color: color-mix(in srgb, var(--brand-navy) 24%, var(--brand-cream));
+  border-color: var(--field-border);
   color: var(--brand-navy);
-  background: color-mix(in srgb, var(--brand-cream) 92%, var(--brand-orange));
-  box-shadow: inset 0 1px 2px rgb(6 47 94 / 0.06);
+  background: var(--field-surface);
+  box-shadow: inset 0 1px 2px rgb(6 47 94 / 0.07);
 }
 
 .assisted-order-modal input::placeholder,
 .assisted-order-modal textarea::placeholder {
-  color: color-mix(in srgb, var(--brand-navy) 58%, var(--brand-cream));
+  color: var(--field-placeholder);
   opacity: 1;
 }
 
@@ -4231,7 +4394,9 @@ button:disabled {
 .assisted-order-modal textarea:focus {
   border-color: var(--brand-orange);
   background: var(--brand-cream);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand-orange) 20%, var(--brand-cream));
+  box-shadow:
+    0 0 0 3px var(--field-focus-ring),
+    inset 0 1px 2px rgb(6 47 94 / 0.05);
 }
 
 .assisted-order-card > label,

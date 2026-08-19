@@ -29,7 +29,8 @@ dedicated VDS target is `216.250.12.132` (4 vCPU, 4 GB RAM, 60 GB SSD) and
 hosts the only active production stack, including TileServer GL, private OSRM
 and Nominatim. There is no deployed DEV environment yet; it will be introduced
 later with isolated compute, data, secrets, ports and a separate deployment
-policy.
+policy. Production is served at `https://a7-tagam.com.tm`; Nginx owns ports 80
+and 443, with port 80 redirecting to HTTPS, while SSH remains on port 22.
 
 The customer-facing brand is `A7-tagam`. Existing repository, package, service,
 deployment-directory, map-style, and storage identifiers named `alowalow`
@@ -950,3 +951,15 @@ multi-status filter ensuring cook/courier queues are not displaced by history.
   payload change. This accepted exception exposes OTP jobs and their status
   mutation to every client with network access and must be removed after the
   mobile integration is complete.
+- 2026-08-19: the Telecom-issued Sectigo certificate for `a7-tagam.com.tm` and
+  `www.a7-tagam.com.tm` was validated against its CA bundle and matching private
+  key, then activated on the production VDS. Nginx now owns 443 and serves the
+  admin, API, Swagger and map through one HTTPS origin; port 80 permanently
+  redirects to it. SSH returned to port 22 only, and GitHub deployment metadata
+  was updated accordingly. The certificate expires on 2027-03-05; Telecom owns
+  renewal issuance and A7-tagam operations owns validation/installation. During
+  activation, Chrony reported a valid reference while the system clock was
+  120,495 seconds slow; the clock and RTC were stepped to the trusted NTP time
+  before TLS verification. GitHub-hosted runners still cannot reach domestic
+  SSH port 22, so unattended deploy requires a domestic self-hosted runner or
+  another Telecom-approved transport and must never reclaim HTTPS port 443.

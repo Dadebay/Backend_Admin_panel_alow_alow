@@ -217,9 +217,13 @@ feature/* → PR → main → CI → GHCR → production VDS
 ```
 
 Отдельной `develop`-ветки и DEV-инфраструктуры сейчас нет. Активное окружение
-имеет `DEPLOYMENT_ENVIRONMENT=production`; статический/долгоживущий OTP в нём
-запрещён. Временный HTTP сохраняется только до установки заказанного Telecom
-SSL и не превращает runtime обратно в DEV.
+имеет `DEPLOYMENT_ENVIRONMENT=production`; неограниченный статический OTP в нём
+запрещён, а временное тестовое исключение ограничено allowlist и датой. Заказанный
+Telecom SSL установлен: production работает через
+`https://a7-tagam.com.tm`, а HTTP оставлен только для перенаправления на HTTPS.
+GitHub-hosted runner пока не достигает domestic SSH-порта 22, поэтому для
+полного автодеплоя ещё нужен доступный из Telecom сети self-hosted runner или
+согласованный транспорт; это не превращает runtime обратно в DEV.
 
 Полная настройка веток, GitHub secrets/variables, сервера и reverse proxy:
 [`docs/INFRASTRUCTURE.md`](docs/INFRASTRUCTURE.md) и

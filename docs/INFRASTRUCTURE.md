@@ -5,22 +5,24 @@ infrastructure. It records names, responsibilities and recovery procedures,
 never secret values. Update it in the same commit whenever a host, public URL,
 port, service, volume, GitHub setting, registry or deployment branch changes.
 
-Last audited: 2026-08-18.
+Last audited: 2026-08-19.
 
 ## Current answer: production only
 
 The only active deployment is production. `main` builds hardened immutable
-containers and deploys them through the GitHub `production` Environment to the
-single VDS. The runtime declares both `NODE_ENV=production` and
+containers and targets the single VDS through the GitHub `production`
+Environment. Hosted-runner deployment is currently blocked at the domestic SSH
+boundary, so the active release used the audited workstation fallback described
+below. The runtime declares both `NODE_ENV=production` and
 `DEPLOYMENT_ENVIRONMENT=production` and uses PostgreSQL, TLS Redis, MinIO,
 TileServer GL, OSRM and Nominatim on the private Compose network.
 
-Production currently has an explicitly temporary transport limitation: traffic
-uses plain HTTP on the server IP until Turkmen Telecom supplies DNS and the
-ordered certificate for `a7-tagam.com.tm`. During customer testing, two
-env-only allowlisted accounts have a time-boxed reusable OTP exception through
-2026-09-17; its phone numbers and code exist only in the protected server env
-and encrypted GitHub `production` Environment secrets.
+Production traffic uses the Telecom-issued certificate at
+`https://a7-tagam.com.tm`; port 80 only redirects to that canonical HTTPS
+origin. During customer testing, two env-only allowlisted accounts have a
+time-boxed reusable OTP exception through 2026-09-17; its phone numbers and code
+exist only in the protected server env and encrypted GitHub `production`
+Environment secrets.
 All other accounts use the Android pull SMS gateway, and the allowlisted
 accounts return to it automatically after expiry. Off-host backups and external
 monitoring/alerting still need to be completed.
@@ -34,7 +36,7 @@ Cloudflare Workers are not deployment targets.
 
 ```mermaid
 flowchart LR
-  U["Admin and mobile clients"] -->|"HTTP now; HTTPS target"| N["Host Nginx"]
+  U["Admin and mobile clients"] -->|"HTTPS"| N["Host Nginx"]
   N -->|"/"| A["Static React/Vite admin :3000"]
   N -->|"/api/v1, /docs"| API["NestJS API :4000"]
   N -->|"/tile/{z}/{x}/{y}.png"| T
@@ -89,25 +91,18 @@ separately approved cleanup.
 | OpenSSL | `3.5.5` |
 | Certbot | isolated `5.7.0` virtual environment under `/opt/alowalow/tools/` |
 
-Certbot has no active renewal timer; the intended certificate is owned and
-installed by Turkmen Telecom. The VDS has no VPN and does not build the Node.js
+Certbot has no active renewal timer. Turkmen Telecom owns certificate issuance
+and renewal; A7-tagam operations validates and installs the supplied files on
+the VDS. The active Sectigo certificate covers `a7-tagam.com.tm` and
+`www.a7-tagam.com.tm`, is valid from 2026-08-19 through 2027-03-05, and is
+installed as root-owned files under `/etc/nginx/ssl/a7-tagam.com.tm/` with the
+private key at mode `600`. The VDS has no VPN and does not build the Node.js
 applications. GitHub Actions builds the images and the VDS only pulls immutable
 digests. No permanent GHCR credential is stored on the host.
 
 ## Public and internal URLs
 
-Temporary domestic testing:
-
-```text
-Admin:          http://216.250.12.132/
-API:            http://216.250.12.132/api/v1
-Swagger:        http://216.250.12.132/docs
-OpenAPI JSON:   http://216.250.12.132/docs-json
-Raster XYZ:     http://216.250.12.132/tile/{z}/{x}/{y}.png
-MapLibre style: http://216.250.12.132/tiles/styles/alowalow/style.json
-```
-
-Final same-origin target after Telecom installs DNS and SSL:
+Active same-origin production URLs:
 
 ```text
 https://a7-tagam.com.tm/
@@ -119,26 +114,26 @@ https://a7-tagam.com.tm/tiles/styles/alowalow/style.json
 ```
 
 The admin and mobile base-map contract is the simple PNG XYZ `/tile/` URL. The
-application build uses relative `/api/v1` and `/tile` paths, so the same image
-moves from HTTP/IP to HTTPS/domain without rebuilding business code. The source
-map extract covers Turkmenistan; JSON/vector endpoints remain available for
+application build uses relative `/api/v1` and `/tile` paths. The source map
+extract covers Turkmenistan; JSON/vector endpoints remain available for
 advanced clients but are not required by the current admin/mobile integration.
+Plain HTTP on the domain or server IP redirects to the canonical HTTPS domain.
 
 ## Ports and ingress
 
 | Port/binding | Owner | Exposure |
 | --- | --- | --- |
-| `0.0.0.0:80` | host Nginx | temporary HTTP origin |
+| `0.0.0.0:80` | host Nginx | redirect to canonical HTTPS |
 | `0.0.0.0:22` | host sshd | administration |
-| `0.0.0.0:443` | host sshd | temporary GitHub deploy transport |
+| `0.0.0.0:443` | host Nginx | production HTTPS origin |
 | `127.0.0.1:3000` | admin container | host Nginx only |
 | `127.0.0.1:4000` | API container | host Nginx only |
 | `127.0.0.1:8080` | TileServer GL | host Nginx only |
 | Docker network only | PostgreSQL, Redis, MinIO, OSRM, Nominatim | not public |
 
-The active Nginx site is currently
-`a7-tagam-http-temporary.conf`. Before HTTPS activation, port `443` must move
-from sshd to Nginx and GitHub deploy must receive another reachable transport.
+The active Nginx site is `a7-tagam-production.conf`. The versioned
+`a7-tagam-http-temporary.conf` is retained only as historical rollback context
+and must not be enabled while the TLS site is active. SSH listens only on 22.
 
 ## Runtime services and persistence
 
@@ -192,7 +187,7 @@ GitHub Environment `production` variables:
 | --- | --- |
 | `API_PORT` | `4000` |
 | `ADMIN_PORT` | `3000` |
-| `DEPLOY_SSH_PORT` | `443` |
+| `DEPLOY_SSH_PORT` | `22` |
 
 GitHub Environment `production` encrypted secrets:
 
@@ -201,7 +196,7 @@ GitHub Environment `production` encrypted secrets:
 | `DEPLOY_SSH_HOST` | deployment host address |
 | `DEPLOY_SSH_USER` | non-root deployment user |
 | `DEPLOY_SSH_PRIVATE_KEY` | dedicated ED25519 private key |
-| `DEPLOY_SSH_KNOWN_HOSTS` | verified host keys for ports 22 and 443 |
+| `DEPLOY_SSH_KNOWN_HOSTS` | verified host key for port 22 |
 | `LONG_LIVED_TEST_OTP_PHONES` | temporary encrypted production test allowlist |
 | `LONG_LIVED_TEST_OTP_CODE` | temporary encrypted reusable test code |
 | `LONG_LIVED_TEST_OTP_EXPIRES_AT` | approved ISO expiry for the temporary exception |
@@ -265,17 +260,19 @@ health checks. `.release.env` becomes active only after pulls succeed. If the
 new stack is unhealthy, `deploy-production.sh` restores the previous release
 manifest and starts the previous digests.
 
-Telecom routing to SSH port 443 can intermittently return `connection refused`
-for a GitHub-hosted runner. A retry of only the failed deploy job is safe when
-all quality/image jobs are already green; it may receive a runner with a
-working route. Do not disable security controls, store a permanent registry
-token or expose Docker to work around this network issue.
+Telecom does not currently expose SSH port 22 to GitHub-hosted runners. Port
+443 belongs exclusively to Nginx and must never be reused for deployment. A
+domestic self-hosted runner or another Telecom-approved authenticated transport
+is required before unattended deployment can succeed. Do not disable security
+controls, store a permanent registry token or expose Docker to work around this
+network issue.
 
 On 2026-08-19 run `32238857443` published all three immutable GHCR images for
 commit `890703c`, but hosted runners received `connection refused` on port 443
 twice and timed out on a temporary port-22 attempt. The production Environment
-variable was restored to `DEPLOY_SSH_PORT=443`. The same commit was therefore
-built for `linux/amd64` on the trusted domestic workstation, every image label
+variable is now `DEPLOY_SSH_PORT=22`; port 443 is reserved for HTTPS. The same
+commit was therefore built for `linux/amd64` on the trusted domestic
+workstation, every image label
 was checked against the full Git SHA, and one checksum-verified Docker archive
 was transferred over the existing ED25519 SSH access. No registry credential
 was stored on the VDS. A local Compose override sets `pull_policy: never` only
@@ -289,15 +286,15 @@ domestic runner or Telecom-approved inbound transport is still required.
 
 ## Operational checks
 
-Public checks during temporary HTTP testing:
+Public HTTPS checks:
 
 ```bash
-curl --fail http://216.250.12.132/api/v1/health
-curl --fail http://216.250.12.132/
-curl --fail http://216.250.12.132/docs-json
+curl --fail https://a7-tagam.com.tm/api/v1/health
+curl --fail https://a7-tagam.com.tm/
+curl --fail https://a7-tagam.com.tm/docs-json
 curl --fail \
   --output /tmp/a7-tagam-map-tile.png \
-  http://216.250.12.132/tile/10/677/395.png
+  https://a7-tagam.com.tm/tile/10/677/395.png
 ```
 
 Server checks:
@@ -321,16 +318,14 @@ named volumes during routine deployment.
 
 ## Remaining production hardening
 
-- DNS `a7-tagam.com.tm` resolves to the VDS inside the intended network.
-- Turkmen Telecom certificate is installed and its renewal owner is documented.
-- Nginx owns 443; HTTP redirects to HTTPS; mobile cleartext exceptions are
-  removed.
 - GitHub deploy uses a reachable transport other than the HTTPS listener.
 - `DEPLOYMENT_ENVIRONMENT=production` remains enforced and the temporary test
   OTP exception is removed no later than 2026-09-17.
-- The VDS clock is synchronized with an approved Telecom-reachable NTP source;
-  on 2026-08-18 `systemd-timesyncd` reported `NTPSynchronized=no` and the host
-  clock was approximately two days behind.
+- Renew and install the Telecom certificate before 2027-03-05, then repeat the
+  key-pair, chain, Nginx and external TLS checks.
+- Monitor Chrony synchronization and clock drift. During TLS activation on
+  2026-08-19, Chrony had valid NTS sources but the host clock was 120,495
+  seconds slow; `chronyc makestep` corrected it and the RTC was updated.
 - PostgreSQL and MinIO encrypted off-host backups and restore tests exist.
 - Monitoring, alerting, log retention and disk-capacity alarms exist.
 - Android/iOS production builds use the HTTPS API and MapLibre style URLs.

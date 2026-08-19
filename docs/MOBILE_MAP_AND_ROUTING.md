@@ -20,16 +20,12 @@ API_BASE_URL=http://192.168.1.20:4000/api/v1
 MAP_TILE_URL=http://192.168.1.20:8080/styles/alowalow/{z}/{x}/{y}.png
 ```
 
-For the current production server, mobile uses one simple raster XYZ URL:
+For production, mobile uses the HTTPS API and one simple raster XYZ URL on the
+same origin:
 
 ```dart
-final String mapApi =
-    "http://216.250.12.132/tile/{z}/{x}/{y}.png";
-```
-
-After Telecom activates the domain certificate, change only the origin:
-
-```dart
+final String apiBaseUrl =
+    "https://a7-tagam.com.tm/api/v1";
 final String mapApi =
     "https://a7-tagam.com.tm/tile/{z}/{x}/{y}.png";
 ```

@@ -27,8 +27,7 @@ deployment and recovery procedures.
 | API loopback | `127.0.0.1:4000` |
 | Admin loopback | `127.0.0.1:3000` |
 | TileServer loopback | `127.0.0.1:8080` |
-| Current origin | `http://216.250.12.132` |
-| Final origin | `https://a7-tagam.com.tm` |
+| Production origin | `https://a7-tagam.com.tm` |
 
 `NODE_ENV=production` and `DEPLOYMENT_ENVIRONMENT=production` are both
 mandatory. Production rejects console SMS, console push and insecure Redis.
@@ -48,8 +47,9 @@ production acknowledgement.
 - `deploy/prepare-production-host.sh`: one-time directories, Redis TLS and host
   sysctl preparation.
 - `deploy/production.env.example`: key names/placeholders only.
-- `deploy/nginx/alowalow-http-temporary.conf`: temporary HTTP origin.
-- `deploy/nginx/alowalow-production.conf`: final Telecom TLS origin.
+- `deploy/nginx/alowalow-http-temporary.conf`: inactive historical HTTP
+  rollback configuration; do not enable in production.
+- `deploy/nginx/alowalow-production.conf`: active Telecom TLS origin.
 - `.github/workflows/production-ops.yml`: manual read-only bounded API
   diagnostics for incidents where direct bootstrap-password SSH is disabled.
 
@@ -135,7 +135,7 @@ GitHub Environment `production` variables:
 ```text
 API_PORT=4000
 ADMIN_PORT=3000
-DEPLOY_SSH_PORT=443
+DEPLOY_SSH_PORT=22
 ```
 
 Encrypted Environment secrets:
@@ -161,9 +161,10 @@ port. The workflow uses the automatically generated job-scoped `GITHUB_TOKEN`
 for GHCR login over SSH stdin and logs out after deployment, so the VDS stores
 no permanent registry token.
 
-Telecom currently blocks GitHub-hosted runners on SSH port 22, so the same
-hardened sshd temporarily also listens on 443. Before activating HTTPS, move
-deployment SSH to another reachable transport and return port 443 to Nginx.
+Telecom currently blocks GitHub-hosted runners on SSH port 22. SSH remains on
+22 for domestic administration and port 443 belongs exclusively to Nginx. Use
+a domestic self-hosted runner or another Telecom-approved authenticated
+transport before enabling unattended deployment; never move SSH back to 443.
 
 ## Automatic release
 
@@ -185,10 +186,10 @@ The workflow then:
 
 On 2026-08-19 the quality, contract, container and GHCR publication jobs for
 commit `890703c` succeeded, while every hosted-runner SSH deploy failed at the
-Telecom boundary (`443` refused; a bounded `22` test timed out). Port 443
-remains the configured GitHub deployment port. Production was updated from the
-trusted domestic workstation using freshly built `linux/amd64` images of the
-same Git commit, verified revision labels, a resumable checksum-verified
+Telecom boundary (`443` refused; a bounded `22` test timed out). Port 443 now
+serves HTTPS and GitHub deployment metadata uses port 22. Production was
+updated from the trusted domestic workstation using freshly built `linux/amd64`
+images of the same Git commit, verified revision labels, a resumable checksum-verified
 archive, the existing ED25519 deploy key and a local `pull_policy: never`
 override. The fallback retained `.release.previous.env`, ran migration, waited
 for all service health checks and stored no GHCR token on the VDS. The active
@@ -242,12 +243,11 @@ orders, or the pre-existing banner set. Products with no image in the package
 do not lose an image later added through the admin. The importer preserves
 existing variants and keeps product price at the cheapest active variant.
 
-## HTTP now, HTTPS later
+## Active HTTPS and certificate renewal
 
-The temporary HTTP site exposes the admin, API, Swagger and map through one
-origin. It is an explicitly temporary production transport exception while
-Telecom prepares the certificate; credentials and OTP are not protected on the
-wire and browser geolocation is unavailable in an insecure context.
+Nginx terminates TLS for the admin, API, Swagger and map through one origin.
+Port 80 has no application routes and returns a permanent redirect to
+`https://a7-tagam.com.tm`.
 
 Current routes:
 
@@ -262,29 +262,49 @@ Current routes:
 OSRM and Nominatim are never public. NestJS is the authorized route/geocoding
 boundary.
 
-When Telecom supplies the certificate:
+The active certificate was issued by Sectigo through Turkmen Telecom for
+`a7-tagam.com.tm` and `www.a7-tagam.com.tm`. It is valid from 2026-08-19 through
+2027-03-05. Files are installed as:
 
-1. Confirm DNS points `a7-tagam.com.tm` to the VDS inside the intended network.
-2. Install the certificate/key under the reviewed Nginx paths.
-3. Move sshd away from port 443 and update `DEPLOY_SSH_PORT`/known hosts.
-4. Install `deploy/nginx/alowalow-production.conf` into `sites-available`.
-5. Run `sudo nginx -t` before switching the enabled symlink.
-6. Reload Nginx, verify HTTPS and leave port 80 only as an HTTPS redirect.
-7. Remove mobile cleartext HTTP exceptions.
+```text
+/etc/nginx/ssl/a7-tagam.com.tm/fullchain.pem  root:root 0644
+/etc/nginx/ssl/a7-tagam.com.tm/privkey.pem    root:root 0600
+```
 
-Turkmen Telecom owns certificate issuance and renewal. The old external ACME
-workflow is intentionally absent.
+Turkmen Telecom owns issuance and renewal; A7-tagam operations installs each
+renewal. The private key is never committed, printed, put in a container image,
+or stored as a GitHub secret. For renewal:
+
+1. Verify SANs, validity and issuer with `openssl x509`; verify the leaf against
+   the supplied CA bundle with `openssl verify`.
+2. Compare SHA-256 hashes of the certificate public key and the public key
+   derived from the private key. Stop if they differ.
+3. Build `fullchain.pem` in leaf-first order, back up the current root-only TLS
+   directory and stage the new files outside any served path.
+4. Install the full chain at mode `0644` and private key at `0600` using
+   `sudo install`; keep SSH on port 22.
+5. Run `sudo nginx -t`. Reload Nginx only after it succeeds; restore the backup
+   immediately if validation or reload fails.
+6. Verify the external SNI chain, hostname, expiry, HTTP redirect, API health,
+   Swagger and one map tile. `openssl s_client` must report
+   `Verify return code: 0 (ok)`.
+
+The old external ACME workflow is intentionally absent.
 
 ## Verification
 
-Public checks during the temporary HTTP period:
+Public HTTPS checks:
 
 ```bash
-curl --fail http://216.250.12.132/
-curl --fail http://216.250.12.132/api/v1/health
-curl --fail http://216.250.12.132/docs-json
+curl --fail https://a7-tagam.com.tm/
+curl --fail https://a7-tagam.com.tm/api/v1/health
+curl --fail https://a7-tagam.com.tm/docs-json
 curl --fail --output /tmp/a7-tagam-map-tile.png \
-  http://216.250.12.132/tile/10/677/395.png
+  https://a7-tagam.com.tm/tile/10/677/395.png
+printf '' | openssl s_client \
+  -connect a7-tagam.com.tm:443 \
+  -servername a7-tagam.com.tm \
+  -verify_return_error
 ```
 
 Server checks:

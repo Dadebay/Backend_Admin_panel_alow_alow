@@ -271,6 +271,22 @@ all quality/image jobs are already green; it may receive a runner with a
 working route. Do not disable security controls, store a permanent registry
 token or expose Docker to work around this network issue.
 
+On 2026-08-19 run `32238857443` published all three immutable GHCR images for
+commit `890703c`, but hosted runners received `connection refused` on port 443
+twice and timed out on a temporary port-22 attempt. The production Environment
+variable was restored to `DEPLOY_SSH_PORT=443`. The same commit was therefore
+built for `linux/amd64` on the trusted domestic workstation, every image label
+was checked against the full Git SHA, and one checksum-verified Docker archive
+was transferred over the existing ED25519 SSH access. No registry credential
+was stored on the VDS. A local Compose override sets `pull_policy: never` only
+for API, migration and admin; `.release.previous.env` remains the rollback
+manifest. Migration and every Compose health check passed before Nginx reload.
+The active `.release.env` temporarily references the three
+`alowalow-local-*:sha-890703c...` images. The next successful standard GitHub
+deploy will replace those references with GHCR digests. This is an audited
+one-release fallback, not the new automatic deployment design; a stable
+domestic runner or Telecom-approved inbound transport is still required.
+
 ## Operational checks
 
 Public checks during temporary HTTP testing:

@@ -181,6 +181,21 @@ The workflow then:
 7. Waits for service health checks.
 8. Restores the previous digest manifest if the new release is unhealthy.
 
+### Temporary domestic fallback record
+
+On 2026-08-19 the quality, contract, container and GHCR publication jobs for
+commit `890703c` succeeded, while every hosted-runner SSH deploy failed at the
+Telecom boundary (`443` refused; a bounded `22` test timed out). Port 443
+remains the configured GitHub deployment port. Production was updated from the
+trusted domestic workstation using freshly built `linux/amd64` images of the
+same Git commit, verified revision labels, a resumable checksum-verified
+archive, the existing ED25519 deploy key and a local `pull_policy: never`
+override. The fallback retained `.release.previous.env`, ran migration, waited
+for all service health checks and stored no GHCR token on the VDS. The active
+release references are temporarily local SHA tags; a later successful standard
+deploy replaces them with immutable GHCR digests. Do not repeat this fallback
+without the same checksum, revision, rollback and health-check controls.
+
 The active and previous release references are:
 
 ```text

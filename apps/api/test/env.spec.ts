@@ -20,6 +20,7 @@ const productionSecrets = {
   SMS_PROVIDER: "android_pull",
   SMS_GATEWAY_DEVICE_ID: "android-primary",
   SMS_GATEWAY_DEVICE_TOKEN: "d".repeat(48),
+  SMS_GATEWAY_AUTH_REQUIRED: true,
   SMS_GATEWAY_ENCRYPTION_KEY: Buffer.alloc(32, 7).toString("base64"),
   PUSH_PROVIDER: "fcm",
   FCM_SERVICE_ACCOUNT_BASE64: fcmServiceAccount,
@@ -92,7 +93,14 @@ describe("security environment configuration", () => {
     ).toThrow("android_pull or console");
   });
 
-  it("accepts Android pull SMS only with independent device secrets", () => {
+  it("supports temporary tokenless Android pull and validates the opt-in device secret", () => {
+    const tokenless = validateEnv({
+      ...productionSecrets,
+      SMS_GATEWAY_AUTH_REQUIRED: false,
+      SMS_GATEWAY_DEVICE_TOKEN: "",
+    });
+    expect(tokenless.SMS_GATEWAY_AUTH_REQUIRED).toBe(false);
+
     const android = validateEnv({
       ...productionSecrets,
       SMS_PROVIDER: "android_pull",
@@ -100,7 +108,10 @@ describe("security environment configuration", () => {
       SMS_GATEWAY_DEVICE_TOKEN: "d".repeat(48),
       SMS_GATEWAY_ENCRYPTION_KEY: Buffer.alloc(32, 7).toString("base64"),
     });
-    expect(android.SMS_PROVIDER).toBe("android_pull");
+    expect(android).toMatchObject({
+      SMS_PROVIDER: "android_pull",
+      SMS_GATEWAY_AUTH_REQUIRED: true,
+    });
 
     expect(() =>
       validateEnv({

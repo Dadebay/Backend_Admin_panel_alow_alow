@@ -11,7 +11,6 @@ import {
   UseGuards,
 } from "@nestjs/common";
 import {
-  ApiBearerAuth,
   ApiNoContentResponse,
   ApiOkResponse,
   ApiOperation,
@@ -30,7 +29,6 @@ import { SmsGatewayGuard } from "./sms-gateway.guard";
 import { SmsGatewayService } from "./sms-gateway.service";
 
 @ApiTags("sms-gateway")
-@ApiBearerAuth("sms-device")
 @Public()
 @UseGuards(SmsGatewayGuard)
 @Throttle({ default: { limit: 90, ttl: 60_000 } })

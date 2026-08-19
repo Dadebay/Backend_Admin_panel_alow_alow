@@ -160,11 +160,6 @@
             }
           }
         },
-        "security": [
-          {
-            "sms-device": []
-          }
-        ],
         "summary": "Mark the configured Android SMS device online",
         "tags": [
           "sms-gateway"
@@ -190,11 +185,6 @@
             "description": "No SMS job is currently available"
           }
         },
-        "security": [
-          {
-            "sms-device": []
-          }
-        ],
         "summary": "Atomically claim the next outbound SMS job",
         "tags": [
           "sms-gateway"
@@ -236,11 +226,6 @@
             }
           }
         },
-        "security": [
-          {
-            "sms-device": []
-          }
-        ],
         "summary": "Acknowledge Android SMS delivery state",
         "tags": [
           "sms-gateway"
@@ -2693,7 +2678,7 @@
     }
   },
   "info": {
-    "title": "AlowAlow Delivery API",
+    "title": "A7-tagam Delivery API",
     "description": "SMS phone authentication backed by Redis, food catalog, marketing, role-gated order workflow, courier tracking and routes, cash handover and reconciliation.",
     "version": "1.0",
     "contact": {}
@@ -2746,11 +2731,6 @@
       "bearer": {
         "scheme": "bearer",
         "bearerFormat": "JWT",
-        "type": "http"
-      },
-      "sms-device": {
-        "scheme": "bearer",
-        "bearerFormat": "Android device token",
         "type": "http"
       }
     },

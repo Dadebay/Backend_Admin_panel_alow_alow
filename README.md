@@ -106,8 +106,12 @@ GeoJSON-линию дорог, расстояние, время и манёвр�
 
 ```http
 GET /api/v1/internal/sms-gateway/pull
-Authorization: Bearer <SMS_GATEWAY_DEVICE_TOKEN>
 ```
+
+На время интеграционного тестирования эти три внутренние ручки работают без
+access token и без device token (`SMS_GATEWAY_AUTH_REQUIRED=false`). Защищённый
+режим уже сохранён в backend и позже включается значением `true`; тогда Android
+передаёт `Authorization: Bearer <SMS_GATEWAY_DEVICE_TOKEN>`.
 
 При отсутствии задания API отвечает `204 No Content`. Полученное задание
 содержит `id`, `phone`, `message`, `expiresAt` и одноразовый lease `receipt`.
@@ -116,8 +120,9 @@ Authorization: Bearer <SMS_GATEWAY_DEVICE_TOKEN>
 `DELIVERED` или `FAILED`.
 
 Pull-задания AES-256-GCM-зашифрованы в Redis. Для production задайте
-`SMS_PROVIDER=android_pull`, независимый случайный
-`SMS_GATEWAY_DEVICE_TOKEN` и ключ из `openssl rand -base64 32`. Первый pull
+`SMS_PROVIDER=android_pull` и ключ из `openssl rand -base64 32`. Секрет
+`SMS_GATEWAY_DEVICE_TOKEN` хранится на сервере для последующего включения
+защиты. Первый pull
 или `POST /api/v1/internal/sms-gateway/heartbeat` отмечает телефон онлайн.
 Других production SMS-провайдеров backend не поддерживает.
 Полная инструкция для готовой Android-программы, включая JSON-контракт,

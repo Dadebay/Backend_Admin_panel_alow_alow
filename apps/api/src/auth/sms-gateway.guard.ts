@@ -12,9 +12,13 @@ import type { AppEnv } from "../config/env";
 @Injectable()
 export class SmsGatewayGuard implements CanActivate {
   private readonly expectedTokenHash: Buffer;
+  private readonly authRequired: boolean;
   private readonly allowUnauthenticatedLocal: boolean;
 
   constructor(config: ConfigService<AppEnv, true>) {
+    this.authRequired = config.get("SMS_GATEWAY_AUTH_REQUIRED", {
+      infer: true,
+    });
     this.allowUnauthenticatedLocal = config.get(
       "SMS_GATEWAY_ALLOW_UNAUTHENTICATED_LOCAL",
       { infer: true },
@@ -25,7 +29,7 @@ export class SmsGatewayGuard implements CanActivate {
   }
 
   canActivate(context: ExecutionContext) {
-    if (this.allowUnauthenticatedLocal) return true;
+    if (!this.authRequired || this.allowUnauthenticatedLocal) return true;
     const request = context.switchToHttp().getRequest<Request>();
     const [scheme, token, extra] = String(
       request.headers.authorization ?? "",

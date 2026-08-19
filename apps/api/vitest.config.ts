@@ -15,6 +15,7 @@ export default defineConfig({
     include: ["test/**/*.spec.ts"],
     passWithNoTests: false,
     fileParallelism: false,
+    maxWorkers: 1,
     globalSetup: ["./test/global-setup.ts"],
     testTimeout: 20_000,
     hookTimeout: 60_000,
@@ -33,6 +34,7 @@ export default defineConfig({
       SMS_GATEWAY_DEVICE_ID: "android-test",
       SMS_GATEWAY_DEVICE_TOKEN:
         "test-android-device-token-with-at-least-32-characters",
+      SMS_GATEWAY_AUTH_REQUIRED: "false",
       SMS_GATEWAY_ENCRYPTION_KEY:
         "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=",
       CORS_ORIGINS: "http://localhost:3000",

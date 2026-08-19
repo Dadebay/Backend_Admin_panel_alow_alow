@@ -20,6 +20,7 @@ export type AppEnv = {
   SMS_PROVIDER: "android_pull" | "console";
   SMS_GATEWAY_DEVICE_ID: string;
   SMS_GATEWAY_DEVICE_TOKEN: string;
+  SMS_GATEWAY_AUTH_REQUIRED: boolean;
   SMS_GATEWAY_ALLOW_UNAUTHENTICATED_LOCAL: boolean;
   SMS_GATEWAY_ENCRYPTION_KEY: string;
   PUSH_PROVIDER: "fcm" | "console";
@@ -135,6 +136,7 @@ export function validateEnv(source: Record<string, unknown>): AppEnv {
     "android-primary",
   ).trim();
   const smsGatewayDeviceToken = text("SMS_GATEWAY_DEVICE_TOKEN", "");
+  const smsGatewayAuthRequired = boolean("SMS_GATEWAY_AUTH_REQUIRED", false);
   const allowUnauthenticatedLocalGateway = boolean(
     "SMS_GATEWAY_ALLOW_UNAUTHENTICATED_LOCAL",
     false,
@@ -291,6 +293,7 @@ export function validateEnv(source: Record<string, unknown>): AppEnv {
   }
   if (
     smsProvider === "android_pull" &&
+    smsGatewayAuthRequired &&
     !allowUnauthenticatedLocalGateway &&
     smsGatewayDeviceToken.length < 32
   ) {
@@ -469,6 +472,7 @@ export function validateEnv(source: Record<string, unknown>): AppEnv {
     SMS_PROVIDER: smsProvider as AppEnv["SMS_PROVIDER"],
     SMS_GATEWAY_DEVICE_ID: smsGatewayDeviceId,
     SMS_GATEWAY_DEVICE_TOKEN: smsGatewayDeviceToken,
+    SMS_GATEWAY_AUTH_REQUIRED: smsGatewayAuthRequired,
     SMS_GATEWAY_ALLOW_UNAUTHENTICATED_LOCAL: allowUnauthenticatedLocalGateway,
     SMS_GATEWAY_ENCRYPTION_KEY: smsGatewayEncryptionKey,
     PUSH_PROVIDER: pushProvider as AppEnv["PUSH_PROVIDER"],

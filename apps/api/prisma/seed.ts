@@ -12,7 +12,7 @@ const prisma = new PrismaClient({ adapter });
 const staff = [
   {
     phone: "+99365000000",
-    firstName: "AlowAlow",
+    firstName: "A7-tagam",
     lastName: "Owner",
     role: Role.SUPER_ADMIN,
   },
@@ -66,14 +66,14 @@ async function main() {
     where: { id: "00000000-0000-4000-8000-000000000001" },
     create: {
       id: "00000000-0000-4000-8000-000000000001",
-      name: "AlowAlow Demo",
+      name: "A7-tagam Demo",
       address: "Ashgabat (local demo)",
       latitude: 37.9601,
       longitude: 58.3261,
       isPrimary: true,
     },
     update: {
-      name: "AlowAlow Demo",
+      name: "A7-tagam Demo",
       address: "Ashgabat (local demo)",
       latitude: 37.9601,
       longitude: 58.3261,
@@ -139,26 +139,26 @@ async function main() {
 
   await prisma.product.updateMany({
     where: { slug: "alo-burger" },
-    data: { name: "AlowAlow Burger", slug: "alowalow-burger" },
+    data: { name: "A7-tagam Burger", slug: "alowalow-burger" },
   });
-  const margherita = await prisma.product.upsert({
+  await prisma.product.upsert({
     where: { slug: "alowalow-burger" },
     create: {
       categoryId: burgers.id,
-      name: "AlowAlow Burger",
+      name: "A7-tagam Burger",
       slug: "alowalow-burger",
       description: "Говяжья котлета, чеддер, свежие овощи и фирменный соус.",
       price: 48,
     },
     update: {
       categoryId: burgers.id,
-      name: "AlowAlow Burger",
+      name: "A7-tagam Burger",
       description: "Говяжья котлета, чеддер, свежие овощи и фирменный соус.",
       price: 48,
       isActive: true,
     },
   });
-  await prisma.product.upsert({
+  const margherita = await prisma.product.upsert({
     where: { slug: "margherita" },
     create: {
       categoryId: pizza.id,

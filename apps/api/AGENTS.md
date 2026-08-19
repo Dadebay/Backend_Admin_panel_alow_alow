@@ -103,8 +103,11 @@ instructions.
   use generated object names, and store objects in private S3-compatible
   storage.
 - Local development uses MinIO; production uses S3/IAM-compatible credentials.
-- Local SMS may use `console`; production must use the authenticated Android
-  pull gateway.
+- Local SMS may use `console`; production uses the Android pull gateway. During
+  the explicitly accepted temporary single-phone integration window its three
+  device endpoints are tokenless with `SMS_GATEWAY_AUTH_REQUIRED=false`.
+  Preserve and test the bearer guard so setting the flag to `true` restores
+  device authentication without changing the queue protocol.
 - Android pull jobs must be encrypted at rest, atomically leased to one device,
   acknowledged with the matching receipt, and cancelled against the original
   OTP request when delivery fails.

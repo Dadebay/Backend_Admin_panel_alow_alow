@@ -1965,9 +1965,7 @@ describe("backend security and critical workflow", () => {
       .expect(204);
   });
 
-  it("authenticates Android pull, claims once and cancels failed OTP delivery", async () => {
-    const deviceToken = "test-android-device-token-with-at-least-32-characters";
-    const deviceBearer = { Authorization: `Bearer ${deviceToken}` };
+  it("allows temporary tokenless Android pull, claims once and cancels failed OTP delivery", async () => {
     const phone = "+99365000320";
     const challenge = await otp.issue(phone);
 
@@ -1982,14 +1980,6 @@ describe("backend security and critical workflow", () => {
 
     await request(server)
       .post("/api/v1/internal/sms-gateway/heartbeat")
-      .expect(401);
-    await request(server)
-      .post("/api/v1/internal/sms-gateway/heartbeat")
-      .set("Authorization", "Bearer wrong-device-token")
-      .expect(401);
-    await request(server)
-      .post("/api/v1/internal/sms-gateway/heartbeat")
-      .set(deviceBearer)
       .expect(200)
       .expect(({ body }) => {
         expect(body).toMatchObject({
@@ -2006,12 +1996,8 @@ describe("backend security and critical workflow", () => {
       challenge.expiresInSeconds,
     );
     const pulls = await Promise.all([
-      request(server)
-        .get("/api/v1/internal/sms-gateway/pull")
-        .set(deviceBearer),
-      request(server)
-        .get("/api/v1/internal/sms-gateway/pull")
-        .set(deviceBearer),
+      request(server).get("/api/v1/internal/sms-gateway/pull"),
+      request(server).get("/api/v1/internal/sms-gateway/pull"),
     ]);
     expect(pulls.map(({ status }) => status).sort()).toEqual([200, 204]);
     const claimed = pulls.find(({ status }) => status === 200);
@@ -2033,7 +2019,6 @@ describe("backend security and critical workflow", () => {
 
     await request(server)
       .post(`/api/v1/internal/sms-gateway/jobs/${job.id}/status`)
-      .set(deviceBearer)
       .send({
         receipt: "00000000-0000-4000-8000-000000000001",
         status: SmsGatewayJobStatus.FAILED,
@@ -2042,7 +2027,6 @@ describe("backend security and critical workflow", () => {
 
     await request(server)
       .post(`/api/v1/internal/sms-gateway/jobs/${job.id}/status`)
-      .set(deviceBearer)
       .send({
         receipt: job.receipt,
         status: SmsGatewayJobStatus.FAILED,
@@ -2063,7 +2047,6 @@ describe("backend security and critical workflow", () => {
 
     await request(server)
       .post(`/api/v1/internal/sms-gateway/jobs/${job.id}/status`)
-      .set(deviceBearer)
       .send({
         receipt: job.receipt,
         status: SmsGatewayJobStatus.FAILED,
@@ -2076,10 +2059,6 @@ describe("backend security and critical workflow", () => {
   });
 
   it("accepts idempotent sent and delivered Android SMS acknowledgements", async () => {
-    const deviceBearer = {
-      Authorization:
-        "Bearer test-android-device-token-with-at-least-32-characters",
-    };
     const phone = "+99365000321";
     const challenge = await otp.issue(phone);
     await smsGateway.enqueueOtp(
@@ -2090,14 +2069,12 @@ describe("backend security and critical workflow", () => {
     );
     const pulled = await request(server)
       .get("/api/v1/internal/sms-gateway/pull")
-      .set(deviceBearer)
       .expect(200);
     const job = pulled.body as SmsGatewayJobResponseDto;
 
     for (const idempotent of [false, true]) {
       await request(server)
         .post(`/api/v1/internal/sms-gateway/jobs/${job.id}/status`)
-        .set(deviceBearer)
         .send({
           receipt: job.receipt,
           status: SmsGatewayJobStatus.SENT,
@@ -2110,7 +2087,6 @@ describe("backend security and critical workflow", () => {
     }
     await request(server)
       .post(`/api/v1/internal/sms-gateway/jobs/${job.id}/status`)
-      .set(deviceBearer)
       .send({
         receipt: job.receipt,
         status: SmsGatewayJobStatus.DELIVERED,
@@ -2119,7 +2095,6 @@ describe("backend security and critical workflow", () => {
       .expect(400);
     await request(server)
       .post(`/api/v1/internal/sms-gateway/jobs/${job.id}/status`)
-      .set(deviceBearer)
       .send({
         receipt: job.receipt,
         status: SmsGatewayJobStatus.DELIVERED,

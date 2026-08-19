@@ -1,7 +1,7 @@
 # Android SMS gateway для OTP
 
 Этот документ описывает интеграцию готовой Android-программы с backend
-AlowAlow. Android-устройство использует собственную SIM-карту, забирает SMS из
+A7-tagam. Android-устройство использует собственную SIM-карту, забирает SMS из
 backend через HTTPS и отправляет их обычным SMS-механизмом телефона.
 
 Сторонний SMS-провайдер для этого режима не нужен.
@@ -37,6 +37,7 @@ Backend создаёт SMS-задания только при наличии о�
 ```env
 SMS_PROVIDER=android_pull
 SMS_GATEWAY_DEVICE_ID=android-primary
+SMS_GATEWAY_AUTH_REQUIRED=false
 SMS_GATEWAY_DEVICE_TOKEN=<случайный секрет минимум 32 символа>
 SMS_GATEWAY_ENCRYPTION_KEY=<случайный 32-байтный ключ в Base64>
 ```
@@ -56,35 +57,40 @@ openssl rand -base64 32
 
 ```text
 API_BASE_URL=https://api.example.com/api/v1
-DEVICE_TOKEN=<то же значение SMS_GATEWAY_DEVICE_TOKEN>
 ```
 
 В production разрешён только HTTPS с действительным сертификатом.
 
-## Локальная разработка с одним телефоном
+## Временный режим интеграции без токена
 
-Для локального теста на одной доверенной Wi-Fi сети можно отключить bearer
-token только в development-окружении:
+Сейчас `heartbeat`, `pull` и `status` не требуют ни пользовательский access
+token, ни refresh token, ни отдельный токен телефона:
 
 ```env
-NODE_ENV=development
 SMS_PROVIDER=android_pull
-SMS_GATEWAY_ALLOW_UNAUTHENTICATED_LOCAL=true
+SMS_GATEWAY_AUTH_REQUIRED=false
 ```
 
-В этом режиме Android-приложению нужен только `API_BASE_URL`. Этот флаг
-недействителен в test и production, где device token остаётся обязательным.
+Android-приложению нужен только `API_BASE_URL`. Режим временный: любой клиент,
+имеющий сетевой доступ к API, технически может получить SMS-задание или
+отправить статус. Поэтому нельзя логировать ответы `pull` и надо включить
+защиту сразу после завершения интеграции.
 
-## Авторизация Android-устройства
+Для включения защиты позже достаточно изменить:
 
-Все три endpoint шлюза требуют заголовок:
+```env
+SMS_GATEWAY_AUTH_REQUIRED=true
+```
+
+После этого Android должен передавать во все три ручки:
 
 ```http
 Authorization: Bearer <SMS_GATEWAY_DEVICE_TOKEN>
 ```
 
-JWT пользователя или администратора здесь не используется. При отсутствующем
-или неправильном device token backend отвечает `401 Unauthorized`.
+Это отдельный постоянный секрет устройства, а не JWT пользователя или
+администратора. Протокол заданий и тела ответов при включении защиты не
+изменятся.
 
 ## 1. Получение следующего SMS-задания
 
@@ -92,7 +98,6 @@ Android вызывает endpoint каждые 3 секунды:
 
 ```http
 GET /api/v1/internal/sms-gateway/pull
-Authorization: Bearer <SMS_GATEWAY_DEVICE_TOKEN>
 Accept: application/json
 ```
 
@@ -102,7 +107,7 @@ Accept: application/json
 {
   "id": "0f0e83fd-8b14-4d5c-bf5c-239d3565b115",
   "phone": "+99365123456",
-  "message": "AlowAlow: код входа 123456. Никому не сообщайте код.",
+  "message": "A7-tagam: код входа 123456. Никому не сообщайте код.",
   "expiresAt": "2026-07-28T12:05:00.000Z",
   "receipt": "b77e1b1d-3321-492f-9d93-82e54fe4f411"
 }
@@ -148,7 +153,6 @@ Android ждёт 3 секунды и повторяет `GET`. Ответ `204` 
 
 ```http
 POST /api/v1/internal/sms-gateway/jobs/{id}/status
-Authorization: Bearer <SMS_GATEWAY_DEVICE_TOKEN>
 Content-Type: application/json
 ```
 
@@ -227,7 +231,6 @@ Android может повторить подтверждение после се
 
 ```http
 POST /api/v1/internal/sms-gateway/heartbeat
-Authorization: Bearer <SMS_GATEWAY_DEVICE_TOKEN>
 ```
 
 Ответ:

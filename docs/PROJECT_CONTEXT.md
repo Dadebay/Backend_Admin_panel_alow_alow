@@ -122,6 +122,8 @@ alowalow/
 │   │   ├── Dockerfile
 │   │   ├── package-lock.json # isolated backend dependency/security tree
 │   │   ├── prisma/
+│   │   │   ├── catalog-seed.ts # validated/idempotent catalog import core
+│   │   │   ├── import-catalog-seed.ts # dry-run/apply operational CLI
 │   │   │   ├── schema.prisma
 │   │   │   ├── migrations/
 │   │   │   └── seed.ts
@@ -347,9 +349,13 @@ heights; visual density must not be reduced to the previous pale compact map.
   Legacy signed access tokens without `sid` remain accepted only for rollout
   compatibility and retain their originally signed expiry.
 - Production OTP SMS is sent by a dedicated Android device. The device polls
-  `GET /api/v1/internal/sms-gateway/pull` with its bearer device token and
-  acknowledges `SENT`, `DELIVERED`, or `FAILED` using the returned lease
-  receipt. Pulling itself refreshes the device heartbeat.
+  `GET /api/v1/internal/sms-gateway/pull` and acknowledges `SENT`, `DELIVERED`,
+  or `FAILED` using the returned lease receipt. Pulling itself refreshes the
+  device heartbeat. During the explicitly accepted temporary mobile
+  integration window, `heartbeat`, `pull`, and `status` require neither a user
+  JWT nor a device token. The existing bearer-device guard remains behind
+  `SMS_GATEWAY_AUTH_REQUIRED`; setting it to `true` restores authentication
+  without changing the Android queue protocol.
 - OTP TTL is 5 minutes, resend cooldown 60 seconds, maximum 5 sends/hour and
   5 verification attempts. Successful verification is atomic and one-time.
 - A temporary production test exception may be enabled only for an env-only
@@ -414,6 +420,16 @@ media API. A product may have up to 10 common ordered images, and every variant
 may independently have up to 10. Removed persisted variants are soft-disabled
 so historical order references remain valid. The backend enforces the same
 common-image limit for the single-image compatibility endpoint.
+
+External catalog seed packages are never executed as supplied. The repository
+CLI first performs a non-mutating strict JSON/file-set/WebP validation and only
+mutates with an explicit `--apply`. It uploads all validated objects before one
+serializable PostgreSQL transaction, upserts by category/product slug and
+banner media path, preserves product variants and existing images when an
+imported product has no image, and records an aggregate audit event. Re-running
+the same package does not duplicate catalog rows. Production requires a
+database backup before apply; the general development `db:seed` command is not
+a production import mechanism.
 
 New order clients send `variantId` for a configured variant. For backward
 compatibility, omitting it selects the cheapest active variant; an ID belonging
@@ -743,8 +759,9 @@ multi-status filter ensuring cook/courier queues are not displaced by history.
   non-delivering console mode.
 - 2026-08-06: a single-device LAN development mode may use the Android pull
   gateway without a bearer token when `SMS_GATEWAY_ALLOW_UNAUTHENTICATED_LOCAL`
-  is explicitly enabled. The flag is rejected outside development; production
-  Android gateway authentication remains mandatory.
+  is explicitly enabled. The flag is rejected outside development. This local
+  exception was later supplemented by the explicitly accepted temporary
+  production integration mode documented on 2026-08-19.
 - 2026-08-02: multi-branch operations replaced the deployment-level dispatch
   configuration. Admins manage PostgreSQL-backed branches, every new order is
   routed to the nearest active branch and stores an immutable branch snapshot,
@@ -916,3 +933,20 @@ multi-status filter ensuring cook/courier queues are not displaced by history.
   one day earlier after the VDS was found approximately two days behind with
   NTP enabled but unsynchronized; the shorter date preserves the production
   32-day safety cap until Telecom-reachable time synchronization is fixed.
+- 2026-08-18: external catalog seed import gained a repository-owned strict
+  dry-run/apply CLI. It validates the complete JSON and referenced WebP set,
+  uploads S3 objects before a serializable idempotent database transaction,
+  preserves existing variants, records an audit event, and requires a
+  production backup. The initial package's old visible `AlowAlow` brand is
+  normalized to `A7-tagam`; placeholder banner text and foreign/test links are
+  removed instead of publishing them.
+- 2026-08-19: at the customer's explicit request, the Android SMS gateway's
+  `heartbeat`, `pull`, and delivery-status endpoints temporarily became
+  tokenless in production to unblock the single-phone integration.
+  `SMS_GATEWAY_AUTH_REQUIRED=false` is the current default, Swagger no longer
+  advertises a device bearer requirement, and user access/refresh JWTs are not
+  involved. The existing constant-time bearer guard and device secret remain
+  ready; changing the flag to `true` restores the protection without an API
+  payload change. This accepted exception exposes OTP jobs and their status
+  mutation to every client with network access and must be removed after the
+  mobile integration is complete.

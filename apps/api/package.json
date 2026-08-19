@@ -20,6 +20,7 @@
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
     "db:seed": "prisma db seed",
+    "catalog:seed": "tsx prisma/import-catalog-seed.ts",
     "openapi": "npm run build --silent && node scripts/generate-openapi.mjs"
   },
   "dependencies": {

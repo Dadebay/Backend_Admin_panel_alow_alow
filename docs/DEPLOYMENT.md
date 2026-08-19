@@ -99,15 +99,19 @@ DEPLOYMENT_ENVIRONMENT=production
 LONG_LIVED_TEST_OTP_ENABLED=false
 LONG_LIVED_TEST_OTP_PRODUCTION_ACKNOWLEDGED=false
 SMS_PROVIDER=android_pull
+SMS_GATEWAY_AUTH_REQUIRED=false
 PUSH_PROVIDER=fcm
 ACCESS_TOKEN_TTL=365d
 REFRESH_TOKEN_TTL_DAYS=365
 CORS_ORIGINS=https://a7-tagam.com.tm
 ```
 
-The Android device must use the same `SMS_GATEWAY_DEVICE_ID`, bearer token and
-encryption key as the server env. Normal OTPs remain random, expire after five
-minutes and are consumed once.
+During the temporary mobile integration window the three Android SMS gateway
+endpoints require neither a user JWT nor a device token. The server keeps
+`SMS_GATEWAY_DEVICE_ID`, `SMS_GATEWAY_DEVICE_TOKEN` and the encryption key in
+its env so authentication can later be enabled with
+`SMS_GATEWAY_AUTH_REQUIRED=true` without changing the queue protocol. Normal
+OTPs remain random, expire after five minutes and are consumed once.
 
 During the approved customer-testing window, production may configure up to ten
 phone numbers in `LONG_LIVED_TEST_OTP_PHONES` and enable the exception with
@@ -185,6 +189,43 @@ The active and previous release references are:
 ```
 
 They contain image references and Compose metadata, not application secrets.
+
+## Controlled catalog seed import
+
+Never execute a script received inside a seed archive and never run the general
+`db:seed` command against production. The repository-owned importer treats the
+archive as untrusted input, rejects unknown fields or an incomplete/extra image
+set, fully decodes every WebP, and defaults to a non-mutating dry run:
+
+```bash
+npm --prefix apps/api run catalog:seed -- \
+  --source /absolute/path/to/seed_package
+```
+
+An apply is explicit. It uploads validated objects to the configured private
+S3 bucket first and then upserts the database in one serializable transaction:
+
+```bash
+npm --prefix apps/api run catalog:seed -- \
+  --source /absolute/path/to/seed_package \
+  --apply
+```
+
+For production, first create and verify a timestamped full PostgreSQL backup,
+copy only `seed_export.json` plus the canonical `images/` directory into a
+private mode-700 directory below `/opt/alowalow/production/imports`, and run
+the importer through the immutable migration image with that package mounted
+read-only. Do not expose runtime env values or copy the seed into an API/admin
+image. After apply, verify catalog counts, every referenced `/api/v1/media/`
+URL, public catalog/banner responses, API health, and the audit entry before
+removing the private working copy. Retain the database backup according to the
+backup policy.
+
+The import is safe to repeat: categories/products match by slug and banners by
+media path. It does not delete unlisted catalog records, variants, users,
+orders, or the pre-existing banner set. Products with no image in the package
+do not lose an image later added through the admin. The importer preserves
+existing variants and keeps product price at the cheapest active variant.
 
 ## HTTP now, HTTPS later
 

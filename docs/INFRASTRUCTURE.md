@@ -235,7 +235,8 @@ The VDS env contains these secret categories:
 - auth/OTP: `JWT_ACCESS_SECRET`, `OTP_PEPPER`, token TTL settings;
 - TLS Redis: `REDIS_PASSWORD`, `REDIS_URL` plus files under `redis-tls/`;
 - Android SMS gateway: `SMS_PROVIDER`, `SMS_GATEWAY_DEVICE_ID`,
-  `SMS_GATEWAY_DEVICE_TOKEN`, `SMS_GATEWAY_ENCRYPTION_KEY`;
+  `SMS_GATEWAY_AUTH_REQUIRED`, `SMS_GATEWAY_DEVICE_TOKEN`,
+  `SMS_GATEWAY_ENCRYPTION_KEY`;
 - S3/MinIO: `MINIO_*`, `S3_*`;
 - Firebase push: `FCM_SERVICE_ACCOUNT_BASE64`, `PUSH_PROVIDER`;
 - routing/geocoding provider origins and private Nominatim password;

@@ -21,8 +21,8 @@ test("only accountants and administrators may enter the admin portal", () => {
   }
 });
 
-test("accountant navigation contains the lifecycle board and cash control", () => {
-  assert.deepEqual(views("ACCOUNTANT"), ["orders", "cash"]);
+test("accountant navigation contains only the lifecycle order board", () => {
+  assert.deepEqual(views("ACCOUNTANT"), ["orders"]);
 });
 
 test("administrators retain all management sections represented outside the full-flow board", () => {
@@ -35,7 +35,6 @@ test("administrators retain all management sections represented outside the full
     "marketing",
     "notifications",
     "staff",
-    "cash",
     "contacts",
   ];
 

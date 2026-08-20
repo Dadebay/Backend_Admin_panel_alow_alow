@@ -58,11 +58,6 @@ const adminRouteComponents = {
       default: module.StaffManager,
     })),
   ),
-  cash: lazy(() =>
-    import("@/src/widgets/cash-board").then((module) => ({
-      default: module.CashBoard,
-    })),
-  ),
   contacts: lazy(() =>
     import("@/src/widgets/contact-manager").then((module) => ({
       default: module.ContactManager,

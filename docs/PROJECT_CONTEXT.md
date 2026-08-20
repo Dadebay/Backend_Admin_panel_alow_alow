@@ -233,10 +233,11 @@ and `SUPER_ADMIN` see three active lanes: kitchen (received through cooking),
 ready, and courier (assignment through cash return). Completed, reconciled,
 and cancelled orders remain available in one collapsed archive below the
 board. Accountant cards omit customer identity, delivery address, and dish
-composition. The detailed table is available only to `ADMIN` and
-`SUPER_ADMIN`. Hiding frontend navigation or card fields is usability and data
-minimization only—the NestJS guards, role scope, and order policy remain the
-authorization authority.
+composition. There is no separate cash page: cash-return, completion, and
+reconciliation remain order statuses and are handled from `/orders`. The
+detailed table is available only to `ADMIN` and `SUPER_ADMIN`. Hiding frontend
+navigation or card fields is usability and data minimization only—the NestJS
+guards, role scope, and order policy remain the authorization authority.
 
 ## Order state machine
 

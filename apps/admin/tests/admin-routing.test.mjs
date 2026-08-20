@@ -16,7 +16,6 @@ const expectedPaths = {
   marketing: "/marketing",
   notifications: "/notifications",
   staff: "/staff",
-  cash: "/cash",
   contacts: "/contacts",
 };
 
@@ -38,6 +37,7 @@ test("every admin section owns a unique canonical browser URL", () => {
     new Set(adminNavigation.map(({ path }) => path)).size,
     adminNavigation.length,
   );
+  assert.equal(adminNavigation.some(({ path }) => path === "/cash"), false);
 
   for (const { id, path } of adminNavigation) {
     const matches = matchRoutes(routeTree, path);

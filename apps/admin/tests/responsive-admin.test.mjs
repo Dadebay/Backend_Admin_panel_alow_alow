@@ -34,7 +34,7 @@ test("admin tables avoid nested horizontal scrolling on constrained screens", as
   );
 });
 
-test("tablet navigation is a touch-safe drawer and cash tabs do not scroll", async () => {
+test("tablet navigation is a touch-safe drawer", async () => {
   const styles = await readFile(stylesUrl, "utf8");
 
   assert.match(
@@ -48,10 +48,6 @@ test("tablet navigation is a touch-safe drawer and cash tabs do not scroll", asy
   assert.match(
     styles,
     /@media \(pointer: coarse\)[\s\S]*?\.integrated-shell button,[\s\S]*?min-height: 44px;[^}]*touch-action: manipulation;/,
-  );
-  assert.match(
-    styles,
-    /\.cash-tabs\s*\{[^}]*grid-template-columns: minmax\(0, 1fr\);[^}]*overflow: visible;/s,
   );
 });
 

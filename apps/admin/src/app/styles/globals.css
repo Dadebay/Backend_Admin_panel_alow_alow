@@ -5610,18 +5610,6 @@ button:disabled {
     flex-basis: 100%;
   }
 
-  .cash-tabs {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr);
-    overflow: visible;
-  }
-
-  .cash-tabs button {
-    width: 100%;
-    min-height: 42px;
-    white-space: normal;
-  }
-
   .form-grid {
     grid-template-columns: 1fr;
   }

@@ -8,7 +8,6 @@ export type AdminView =
   | "marketing"
   | "notifications"
   | "staff"
-  | "cash"
   | "contacts"
   | "login-attempts";
 
@@ -78,13 +77,6 @@ export const adminNavigation: AdminNavigationItem[] = [
     icon: "staff",
     path: "/staff",
     roles: ["ADMIN", "SUPER_ADMIN"],
-  },
-  {
-    id: "cash",
-    label: "Наличные",
-    icon: "cash",
-    path: "/cash",
-    roles: ["ACCOUNTANT", "ADMIN", "SUPER_ADMIN"],
   },
   {
     id: "contacts",

@@ -78,6 +78,7 @@ export function CatalogManager() {
       slug: "",
       description: "",
       price: 0,
+      receiptPrinterIp: "",
       variantLabel: "",
       variants: [],
       sortOrder: 0,
@@ -117,7 +118,7 @@ export function CatalogManager() {
           !productCategoryFilter ||
           product.categoryId === productCategoryFilter;
         const searchText =
-          `${product.name} ${product.slug} ${product.description} ${product.category?.name ?? ""}`
+          `${product.name} ${product.slug} ${product.description} ${product.receiptPrinterIp ?? ""} ${product.category?.name ?? ""}`
             .toLocaleLowerCase("ru-RU");
         return matchesCategory && (!searchTerm || searchText.includes(searchTerm));
       }),
@@ -264,6 +265,10 @@ export function CatalogManager() {
         ),
       },
       {
+        header: "Чековый аппарат",
+        cell: ({ row }) => row.original.receiptPrinterIp ?? "Не назначен",
+      },
+      {
         header: "Статус",
         cell: ({ row }) => (
           <span className={row.original.isActive ? "enabled" : "disabled"}>
@@ -290,6 +295,7 @@ export function CatalogManager() {
                     slug: row.original.slug,
                     description: row.original.description,
                     price: Number(row.original.price),
+                    receiptPrinterIp: row.original.receiptPrinterIp ?? "",
                     variantLabel: row.original.variantLabel ?? "",
                     variants: row.original.variants.map((variant) => ({
                       id: variant.id,
@@ -410,6 +416,7 @@ export function CatalogManager() {
       slug: values.slug,
       description: values.description,
       price: values.price,
+      receiptPrinterIp: values.receiptPrinterIp || null,
       variantLabel: values.variantLabel || undefined,
       variants,
       sortOrder: values.sortOrder,
@@ -483,6 +490,7 @@ export function CatalogManager() {
                   slug: "",
                   description: "",
                   price: 0,
+                  receiptPrinterIp: "",
                   variantLabel: "",
                   variants: [],
                   sortOrder: 0,
@@ -742,6 +750,20 @@ export function CatalogManager() {
               <small>
                 Используется без вариантов. С вариантами цена блюда считается
                 по самому дешёвому активному варианту.
+              </small>
+            </label>
+            <label>
+              <span>IP чекового аппарата</span>
+              <input
+                data-testid="product-receipt-printer-ip"
+                {...registerProduct("receiptPrinterIp")}
+                aria-invalid={Boolean(productErrors.receiptPrinterIp)}
+                inputMode="decimal"
+                placeholder="192.168.1.50"
+              />
+              <FormFieldError message={productErrors.receiptPrinterIp?.message} />
+              <small>
+                LAN-аппарат, на который должна отправляться эта позиция заказа.
               </small>
             </label>
             <label>

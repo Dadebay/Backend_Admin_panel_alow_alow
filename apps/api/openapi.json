@@ -343,7 +343,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CatalogProductResponseDto"
+                  "$ref": "#/components/schemas/CatalogAdminProductResponseDto"
                 }
               }
             }
@@ -371,7 +371,7 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/CatalogCategoryResponseDto"
+                    "$ref": "#/components/schemas/CatalogAdminCategoryResponseDto"
                   }
                 }
               }
@@ -455,7 +455,7 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/CatalogProductResponseDto"
+                    "$ref": "#/components/schemas/CatalogAdminProductResponseDto"
                   }
                 }
               }
@@ -501,7 +501,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CatalogProductResponseDto"
+                  "$ref": "#/components/schemas/CatalogAdminProductResponseDto"
                 }
               }
             }
@@ -3338,6 +3338,148 @@
           "products"
         ]
       },
+      "CatalogAdminProductResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "categoryId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "price": {
+            "type": "number"
+          },
+          "minPrice": {
+            "type": "number"
+          },
+          "hasVariants": {
+            "type": "boolean"
+          },
+          "variantLabel": {
+            "type": "string",
+            "nullable": true
+          },
+          "displayImageUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "sortOrder": {
+            "type": "number"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "images": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CatalogProductImageResponseDto"
+            }
+          },
+          "variants": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CatalogProductVariantResponseDto"
+            }
+          },
+          "category": {
+            "$ref": "#/components/schemas/CatalogCategorySummaryResponseDto"
+          },
+          "receiptPrinterIp": {
+            "type": "string",
+            "nullable": true,
+            "example": "192.168.1.50"
+          }
+        },
+        "required": [
+          "id",
+          "categoryId",
+          "name",
+          "slug",
+          "description",
+          "price",
+          "minPrice",
+          "hasVariants",
+          "variantLabel",
+          "displayImageUrl",
+          "isActive",
+          "sortOrder",
+          "createdAt",
+          "updatedAt",
+          "images",
+          "variants",
+          "receiptPrinterIp"
+        ]
+      },
+      "CatalogAdminCategoryResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "imageUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "sortOrder": {
+            "type": "number"
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "products": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CatalogAdminProductResponseDto"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "slug",
+          "imageUrl",
+          "sortOrder",
+          "isActive",
+          "createdAt",
+          "updatedAt",
+          "products"
+        ]
+      },
       "CreateCategoryDto": {
         "type": "object",
         "properties": {
@@ -3448,6 +3590,12 @@
             "example": 49.9,
             "description": "Base price for products without variants; when active variants exist the backend stores and returns their minimum price"
           },
+          "receiptPrinterIp": {
+            "type": "string",
+            "nullable": true,
+            "example": "192.168.1.50",
+            "description": "Private IPv4 address of the LAN receipt printer assigned to this product"
+          },
           "variantLabel": {
             "type": "string",
             "example": "Размер",
@@ -3508,6 +3656,12 @@
             "type": "number",
             "example": 49.9,
             "description": "Base price for products without variants; when active variants exist the backend stores and returns their minimum price"
+          },
+          "receiptPrinterIp": {
+            "type": "string",
+            "nullable": true,
+            "example": "192.168.1.50",
+            "description": "Private IPv4 address of the LAN receipt printer assigned to this product"
           },
           "variantLabel": {
             "type": "string",

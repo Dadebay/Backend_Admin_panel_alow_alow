@@ -27,6 +27,8 @@ import {
 } from "./catalog.dto";
 import { CatalogService } from "./catalog.service";
 import {
+  CatalogAdminCategoryResponseDto,
+  CatalogAdminProductResponseDto,
   CatalogCategoryResponseDto,
   CatalogCategorySummaryResponseDto,
   CatalogProductImageResponseDto,
@@ -58,7 +60,7 @@ export class CatalogController {
   @ApiBearerAuth()
   @Roles(Role.ADMIN, Role.OPERATOR)
   @ApiOperation({ summary: "List categories including hidden records" })
-  @ApiOkResponse({ type: [CatalogCategoryResponseDto] })
+  @ApiOkResponse({ type: [CatalogAdminCategoryResponseDto] })
   adminCategories() {
     return this.catalog.categories(true);
   }
@@ -89,7 +91,7 @@ export class CatalogController {
   @Get("admin/products")
   @ApiBearerAuth()
   @Roles(Role.ADMIN, Role.OPERATOR)
-  @ApiOkResponse({ type: [CatalogProductResponseDto] })
+  @ApiOkResponse({ type: [CatalogAdminProductResponseDto] })
   adminProducts(@Query("categoryId") categoryId?: string) {
     return this.catalog.products(categoryId, true);
   }
@@ -97,7 +99,7 @@ export class CatalogController {
   @Post("products")
   @ApiBearerAuth()
   @Roles(Role.ADMIN)
-  @ApiCreatedResponse({ type: CatalogProductResponseDto })
+  @ApiCreatedResponse({ type: CatalogAdminProductResponseDto })
   createProduct(
     @CurrentUser() actor: AuthUser,
     @Body() dto: CreateProductDto,
@@ -108,7 +110,7 @@ export class CatalogController {
   @Patch("products/:id")
   @ApiBearerAuth()
   @Roles(Role.ADMIN)
-  @ApiOkResponse({ type: CatalogProductResponseDto })
+  @ApiOkResponse({ type: CatalogAdminProductResponseDto })
   updateProduct(
     @CurrentUser() actor: AuthUser,
     @Param("id", ParseUUIDPipe) id: string,

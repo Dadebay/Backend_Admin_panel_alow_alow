@@ -121,6 +121,7 @@ test("catalog schemas reject invalid slug and money precision", () => {
       slug: "margarita",
       description: "Пицца",
       price: 49.999,
+      receiptPrinterIp: "192.168.1.50",
       variantLabel: "",
       variants: [],
       sortOrder: 0,
@@ -135,6 +136,7 @@ test("catalog schemas reject invalid slug and money precision", () => {
       slug: "margarita",
       description: "Пицца",
       price: 50,
+      receiptPrinterIp: "192.168.1.50",
       variantLabel: "Размер",
       variants: [
         {
@@ -166,6 +168,7 @@ test("catalog schemas reject invalid slug and money precision", () => {
       slug: "cutting",
       description: "Мясо",
       price: 50,
+      receiptPrinterIp: "192.168.1.50",
       variantLabel: "",
       variants: [
         {
@@ -192,6 +195,7 @@ test("product variant schema rejects duplicate names and excess images", () => {
       slug: "duplicate-sizes",
       description: "Повторяющиеся размеры",
       price: 50,
+      receiptPrinterIp: "192.168.1.50",
       variantLabel: "Размер",
       variants: [
         {
@@ -223,6 +227,7 @@ test("product variant schema rejects duplicate names and excess images", () => {
       slug: "too-many-variant-images",
       description: "Слишком много изображений",
       price: 50,
+      receiptPrinterIp: "192.168.1.50",
       variantLabel: "Размер",
       variants: [
         {
@@ -239,6 +244,30 @@ test("product variant schema rejects duplicate names and excess images", () => {
       ],
       sortOrder: 0,
       isActive: true,
+    }).success,
+    false,
+  );
+});
+
+test("product form accepts a LAN printer IPv4 address and rejects invalid IPs", () => {
+  const product = {
+    categoryId: "2d807991-e99f-4f17-9b9f-cc2fb7478820",
+    name: "Манты",
+    slug: "manty-printer",
+    description: "Печатается на кухонном аппарате",
+    price: 60,
+    receiptPrinterIp: "192.168.10.51",
+    variantLabel: "",
+    variants: [],
+    sortOrder: 0,
+    isActive: true,
+  };
+
+  assert.equal(productFormSchema.safeParse(product).success, true);
+  assert.equal(
+    productFormSchema.safeParse({
+      ...product,
+      receiptPrinterIp: "192.168.10.999",
     }).success,
     false,
   );

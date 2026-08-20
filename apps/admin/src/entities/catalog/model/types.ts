@@ -1,8 +1,9 @@
 import type { components } from "@alowalow/api-contract";
 
 export type Category =
-  components["schemas"]["CatalogCategoryResponseDto"];
-export type Product = components["schemas"]["CatalogProductResponseDto"];
+  components["schemas"]["CatalogAdminCategoryResponseDto"];
+export type Product =
+  components["schemas"]["CatalogAdminProductResponseDto"];
 export type CreateCategory =
   components["schemas"]["CreateCategoryDto"];
 export type UpdateCategory =

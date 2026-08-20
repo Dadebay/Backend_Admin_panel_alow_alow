@@ -1,11 +1,12 @@
 import { ApiProperty, ApiPropertyOptional, PartialType } from "@nestjs/swagger";
-import { Type } from "class-transformer";
+import { Transform, Type } from "class-transformer";
 import {
   ArrayMaxSize,
   ArrayUnique,
   IsArray,
   IsBoolean,
   IsInt,
+  IsIP,
   IsNumber,
   IsOptional,
   IsString,
@@ -18,6 +19,10 @@ import {
 
 const MEDIA_IMAGE_PATH =
   /^\/api\/v1\/media\/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.webp$/i;
+
+function normalizeOptionalIp(value: unknown) {
+  return typeof value === "string" ? value.trim() || null : value;
+}
 
 export class CreateCategoryDto {
   @ApiProperty()
@@ -133,6 +138,18 @@ export class CreateProductDto {
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
   price: number;
+
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    example: "192.168.1.50",
+    description:
+      "Private IPv4 address of the LAN receipt printer assigned to this product",
+  })
+  @IsOptional()
+  @Transform(({ value }) => normalizeOptionalIp(value))
+  @IsIP(4)
+  receiptPrinterIp?: string | null;
 
   @ApiPropertyOptional({
     example: "Размер",

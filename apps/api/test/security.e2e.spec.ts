@@ -85,6 +85,7 @@ type CatalogProductResponse = {
   price: number;
   minPrice: number;
   hasVariants: boolean;
+  receiptPrinterIp: string | null;
   variantLabel: string | null;
   displayImageUrl: string | null;
   images: Array<{ url: string; sortOrder: number }>;
@@ -483,6 +484,19 @@ describe("backend security and critical workflow", () => {
       .set(bearer(tokens.admin))
       .send({
         categoryId,
+        name: "Invalid printer IP",
+        slug: "invalid-printer-ip",
+        description: "LAN printer IPv4 validation",
+        price: 12,
+        receiptPrinterIp: "192.168.1.999",
+      })
+      .expect(400);
+
+    await request(server)
+      .post("/api/v1/catalog/products")
+      .set(bearer(tokens.admin))
+      .send({
+        categoryId,
         name: "External image product",
         slug: "external-image-product",
         description: "External image URLs are forbidden",
@@ -553,6 +567,7 @@ describe("backend security and critical workflow", () => {
         slug: "three-image-meal",
         description: "A complete menu item with several ordered images",
         price: 49.9,
+        receiptPrinterIp: "192.168.10.50",
         imageUrls,
       })
       .expect(201);
@@ -562,6 +577,7 @@ describe("backend security and critical workflow", () => {
       categoryId,
       description: "A complete menu item with several ordered images",
       price: 49.9,
+      receiptPrinterIp: "192.168.10.50",
     });
     expect(createdProduct.images.map(({ url }) => url)).toEqual(imageUrls);
     expect(createdProduct.images.map(({ sortOrder }) => sortOrder)).toEqual([
@@ -583,11 +599,23 @@ describe("backend security and critical workflow", () => {
     const publicProducts = await request(server)
       .get(`/api/v1/catalog/products?categoryId=${categoryId}`)
       .expect(200);
+    const publicCreatedProduct = (
+      publicProducts.body as CatalogProductResponse[]
+    ).find(({ id }) => id === createdProduct.id);
+    expect(publicCreatedProduct?.images.map(({ url }) => url)).toEqual(
+      replacementUrls,
+    );
+    expect(publicCreatedProduct).not.toHaveProperty("receiptPrinterIp");
+
+    const adminProducts = await request(server)
+      .get(`/api/v1/catalog/admin/products?categoryId=${categoryId}`)
+      .set(bearer(tokens.admin))
+      .expect(200);
     expect(
-      (publicProducts.body as CatalogProductResponse[])[0].images.map(
-        ({ url }) => url,
+      (adminProducts.body as CatalogProductResponse[]).find(
+        ({ id }) => id === createdProduct.id,
       ),
-    ).toEqual(replacementUrls);
+    ).toMatchObject({ receiptPrinterIp: "192.168.10.50" });
 
     const fullProductResponse = await request(server)
       .post("/api/v1/catalog/products")
@@ -653,6 +681,7 @@ describe("backend security and critical workflow", () => {
         slug: "pizza-with-sizes",
         description: "The cheapest active size is the displayed price",
         price: 999,
+        receiptPrinterIp: "192.168.10.51",
         variantLabel: "Размер",
         variants: [
           {
@@ -677,6 +706,7 @@ describe("backend security and critical workflow", () => {
       price: 45,
       minPrice: 45,
       hasVariants: true,
+      receiptPrinterIp: "192.168.10.51",
       variantLabel: "Размер",
       displayImageUrl: variantImageUrls[0],
     });
@@ -724,6 +754,13 @@ describe("backend security and critical workflow", () => {
       lineTotal: 150,
       productImageUrl: variantImageUrls[1],
     });
+    expect(explicitVariantOrder.items?.[0]).not.toHaveProperty(
+      "receiptPrinterIp",
+    );
+    const printerSnapshot = await prisma.orderItem.findFirstOrThrow({
+      where: { orderId: explicitVariantOrder.id },
+    });
+    expect(printerSnapshot.receiptPrinterIp).toBe("192.168.10.51");
 
     const compatibleOrderResponse = await request(server)
       .post("/api/v1/orders")

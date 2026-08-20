@@ -31,6 +31,14 @@ const productVariantSchema = z.object({
   imageFiles: z.unknown().optional(),
 });
 
+const receiptPrinterIpSchema = z
+  .string()
+  .trim()
+  .refine(
+    (value) => value === "" || z.ipv4().safeParse(value).success,
+    "Введите IPv4 адрес, например 192.168.1.50",
+  );
+
 export const productFormSchema = z
   .object({
     categoryId: z.uuid("Выберите категорию"),
@@ -49,6 +57,7 @@ export const productFormSchema = z
       .number({ error: "Укажите цену" })
       .min(0, "Цена не может быть отрицательной")
       .multipleOf(0.01, "Не больше двух знаков после запятой"),
+    receiptPrinterIp: receiptPrinterIpSchema,
     variantLabel: z.string().trim().max(80, "Не больше 80 символов"),
     variants: z.array(productVariantSchema).max(30, "Не больше 30 вариантов"),
     sortOrder: z

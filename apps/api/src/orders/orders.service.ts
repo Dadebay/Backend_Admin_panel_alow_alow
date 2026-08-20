@@ -85,11 +85,33 @@ type OrderWithDetails = Prisma.OrderGetPayload<{
 function withItemImages<T extends OrderWithDetails>(order: T) {
   return {
     ...order,
-    items: order.items.map(({ product, productVariant, ...item }) => ({
-      ...item,
-      productImageUrl:
-        productVariant?.images[0]?.url ?? product.images[0]?.url ?? null,
-    })),
+    items: order.items.map(
+      ({
+        product,
+        productVariant,
+        id,
+        orderId,
+        productId,
+        productVariantId,
+        productName,
+        variantName,
+        unitPrice,
+        quantity,
+        lineTotal,
+      }) => ({
+        id,
+        orderId,
+        productId,
+        productVariantId,
+        productName,
+        variantName,
+        unitPrice,
+        quantity,
+        lineTotal,
+        productImageUrl:
+          productVariant?.images[0]?.url ?? product.images[0]?.url ?? null,
+      }),
+    ),
   };
 }
 
@@ -473,6 +495,7 @@ export class OrdersService {
               productVariantId: variant?.id,
               productName: product.name,
               variantName: variant?.name,
+              receiptPrinterIp: product.receiptPrinterIp,
               unitPrice,
               quantity,
               lineTotal: Number(unitPrice) * quantity,

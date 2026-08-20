@@ -373,8 +373,9 @@ heights; visual density must not be reduced to the previous pale compact map.
 - A user may store up to 20 addresses.
 - A newly created or selected address becomes active.
 - The address used by the latest order becomes the active/default address.
-- Orders keep immutable snapshots of the address plus product/variant name and
-  price data. Later catalog edits never rewrite historical order lines.
+- Orders keep immutable snapshots of the address plus product/variant name,
+  price, and the product's optional LAN receipt-printer IPv4 address. Later
+  catalog edits never rewrite historical order lines.
 - An operator/admin phone order resolves an existing active customer by phone
   or creates a `CUSTOMER` record without issuing OTP, JWT, or refresh tokens.
   A staff phone number or inactive customer is rejected. Staff may reuse one
@@ -421,6 +422,18 @@ media API. A product may have up to 10 common ordered images, and every variant
 may independently have up to 10. Removed persisted variants are soft-disabled
 so historical order references remain valid. The backend enforces the same
 common-image limit for the single-image compatibility endpoint.
+
+An administrator may assign one private LAN receipt-printer IPv4 address to a
+product. The address is visible only through authenticated catalog-management
+responses and is never exposed in the public catalog or customer order
+responses. New order lines snapshot the configured address so a later catalog
+edit cannot reroute an existing order. The intended non-fiscal printer payload
+contains only the selected product/variant display name, quantity, and the
+backend-snapshotted unit price. Delivery fees, discounts, fiscalization,
+offline policy, cancellation, and returns are not part of this accepted
+printer-routing requirement. Actual LAN transport remains deferred until the
+device's port and protocol are supplied; the remote VDS must not attempt to
+connect directly to a private LAN address.
 
 External catalog seed packages are never executed as supplied. The repository
 CLI first performs a non-mutating strict JSON/file-set/WebP validation and only
@@ -492,9 +505,10 @@ Current status:
   with the 30-second snapshot poll retained only as reconnect recovery;
 - media forms upload validated WebP images to S3-compatible storage;
 - the catalog editor creates and updates a dish with category, name, slug,
-  description, base price, availability, ordering, and up to 10 common S3
-  images; it also configures a generic selector with variant-specific prices,
-  availability, ordering, descriptions, and up to 10 S3 images per variant;
+  description, base price, optional private LAN receipt-printer IPv4 address,
+  availability, ordering, and up to 10 common S3 images; it also configures a
+  generic selector with variant-specific prices, availability, ordering,
+  descriptions, and up to 10 S3 images per variant;
 - Swagger response DTOs generate the TypeScript contract used by the frontend;
 - TanStack Query owns server state and TanStack Table renders admin lists;
 - React Hook Form owns all admin form state and Zod schemas validate values

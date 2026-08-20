@@ -1214,6 +1214,45 @@ export interface components {
             updatedAt: string;
             products: components["schemas"]["CatalogProductResponseDto"][];
         };
+        CatalogAdminProductResponseDto: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            categoryId: string;
+            name: string;
+            slug: string;
+            description: string;
+            price: number;
+            minPrice: number;
+            hasVariants: boolean;
+            variantLabel: string | null;
+            displayImageUrl: string | null;
+            isActive: boolean;
+            sortOrder: number;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+            images: components["schemas"]["CatalogProductImageResponseDto"][];
+            variants: components["schemas"]["CatalogProductVariantResponseDto"][];
+            category?: components["schemas"]["CatalogCategorySummaryResponseDto"];
+            /** @example 192.168.1.50 */
+            receiptPrinterIp: string | null;
+        };
+        CatalogAdminCategoryResponseDto: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            slug: string;
+            imageUrl: string | null;
+            sortOrder: number;
+            isActive: boolean;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+            products: components["schemas"]["CatalogAdminProductResponseDto"][];
+        };
         CreateCategoryDto: {
             name: string;
             slug: string;
@@ -1262,6 +1301,11 @@ export interface components {
              */
             price: number;
             /**
+             * @description Private IPv4 address of the LAN receipt printer assigned to this product
+             * @example 192.168.1.50
+             */
+            receiptPrinterIp?: string | null;
+            /**
              * @description Customer-facing selector label, for example Size or Cutting method
              * @example Размер
              */
@@ -1290,6 +1334,11 @@ export interface components {
              * @example 49.9
              */
             price?: number;
+            /**
+             * @description Private IPv4 address of the LAN receipt printer assigned to this product
+             * @example 192.168.1.50
+             */
+            receiptPrinterIp?: string | null;
             /**
              * @description Customer-facing selector label, for example Size or Cutting method
              * @example Размер
@@ -2526,7 +2575,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["CatalogProductResponseDto"];
+                    "application/json": components["schemas"]["CatalogAdminProductResponseDto"];
                 };
             };
         };
@@ -2545,7 +2594,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["CatalogCategoryResponseDto"][];
+                    "application/json": components["schemas"]["CatalogAdminCategoryResponseDto"][];
                 };
             };
         };
@@ -2591,7 +2640,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["CatalogProductResponseDto"][];
+                    "application/json": components["schemas"]["CatalogAdminProductResponseDto"][];
                 };
             };
         };
@@ -2616,7 +2665,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["CatalogProductResponseDto"];
+                    "application/json": components["schemas"]["CatalogAdminProductResponseDto"];
                 };
             };
         };

@@ -44,19 +44,21 @@ function activeVariants(product: ProductWithRelations) {
 
 function productResponse(
   product: ProductWithRelations,
-  includeInactiveVariants: boolean,
+  includeAdminFields: boolean,
 ) {
+  const { receiptPrinterIp, ...publicProduct } = product;
   const active = activeVariants(product);
   const minPrice = active[0]?.price ?? product.price;
   const displayImageUrl =
     active[0]?.images[0]?.url ?? product.images[0]?.url ?? null;
   return toApiResponse({
-    ...product,
+    ...publicProduct,
+    ...(includeAdminFields ? { receiptPrinterIp } : {}),
     price: minPrice,
     minPrice,
     hasVariants: active.length > 0,
     displayImageUrl,
-    variants: includeInactiveVariants
+    variants: includeAdminFields
       ? product.variants
       : product.variants.filter(({ isActive }) => isActive),
   });

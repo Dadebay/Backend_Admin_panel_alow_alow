@@ -151,7 +151,17 @@ export class CatalogProductResponseDto {
   category?: CatalogCategorySummaryResponseDto;
 }
 
+export class CatalogAdminProductResponseDto extends CatalogProductResponseDto {
+  @ApiProperty({ type: String, nullable: true, example: "192.168.1.50" })
+  receiptPrinterIp: string | null;
+}
+
 export class CatalogCategoryResponseDto extends CatalogCategorySummaryResponseDto {
   @ApiProperty({ type: [CatalogProductResponseDto] })
   products: CatalogProductResponseDto[];
+}
+
+export class CatalogAdminCategoryResponseDto extends CatalogCategorySummaryResponseDto {
+  @ApiProperty({ type: [CatalogAdminProductResponseDto] })
+  products: CatalogAdminProductResponseDto[];
 }

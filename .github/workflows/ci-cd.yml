@@ -125,6 +125,41 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+  print_agent:
+    name: Receipt print agent
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: apps/print-agent/go.mod
+          cache: false
+
+      - name: Verify formatting, tests, and static analysis
+        run: |
+          test -z "$(gofmt -l .)"
+          go test ./...
+          go vet ./...
+        working-directory: apps/print-agent
+
+      - name: Build Windows and macOS executables
+        env:
+          VERSION: ${{ github.sha }}
+        run: ./build-release.sh
+        working-directory: apps/print-agent
+
+      - name: Upload print agent executables
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: a7-tagam-print-agent-${{ github.sha }}
+          path: apps/print-agent/dist/
+          if-no-files-found: error
+          retention-days: 30
+
   api_contract:
     name: Swagger contract
     runs-on: ubuntu-latest
@@ -212,6 +247,7 @@ jobs:
       - frontend
       - api_contract
       - container
+      - print_agent
     if: >-
       (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
       && github.ref == 'refs/heads/main'

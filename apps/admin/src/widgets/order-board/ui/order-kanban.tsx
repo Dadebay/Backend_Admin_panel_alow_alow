@@ -26,6 +26,7 @@ type OrderKanbanProps = {
   onCourierChange: (orderId: string, courierId: string) => void;
   onAssignCourier: (order: Order, courierId: string) => void;
   onTransition: (order: Order, status: OrderStatus) => void;
+  onPrintReceipt: (order: Order) => void;
   onCancel: (order: Order) => void;
   onEditOrder: (order: Order) => void;
   onOpenDetails: (orderId: string) => void;
@@ -81,6 +82,7 @@ function OrderCard({
   onCourierChange,
   onAssignCourier,
   onTransition,
+  onPrintReceipt,
   onCancel,
   onEditOrder,
   onOpenDetails,
@@ -258,6 +260,18 @@ function OrderCard({
               {statusLabels[next]}
             </button>
           )}
+          {["OPERATOR", "ADMIN", "SUPER_ADMIN"].includes(role) &&
+            !["NEW", "CANCELLED"].includes(order.status) && (
+              <button
+                type="button"
+                className="secondary-button compact"
+                data-testid={`order-kanban-print-${order.id}`}
+                disabled={pending}
+                onClick={() => onPrintReceipt(order)}
+              >
+                Печать
+              </button>
+            )}
           {canCancel(role, order.status) && (
             <button
               type="button"

@@ -149,6 +149,9 @@ export class CreateProductDto {
   @IsOptional()
   @Transform(({ value }) => normalizeOptionalIp(value))
   @IsIP(4)
+  @Matches(/^(?:10\.|192\.168\.|172\.(?:1[6-9]|2\d|3[01])\.)/, {
+    message: "receiptPrinterIp must be a private LAN IPv4 address",
+  })
   receiptPrinterIp?: string | null;
 
   @ApiPropertyOptional({

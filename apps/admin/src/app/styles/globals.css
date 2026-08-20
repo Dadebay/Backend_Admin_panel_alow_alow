@@ -4000,6 +4000,30 @@ button:disabled {
   font-weight: 650;
 }
 
+.order-print-status {
+  margin: 0 0 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--brand-cream);
+  border-radius: 12px;
+  color: var(--brand-navy);
+  background: var(--brand-cream);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.order-print-status.is-pending {
+  border-color: var(--brand-orange);
+}
+
+.order-print-status.is-success {
+  box-shadow: inset 4px 0 0 var(--brand-navy);
+}
+
+.order-print-status.is-error {
+  color: var(--brand-orange);
+  box-shadow: inset 4px 0 0 var(--brand-orange);
+}
+
 .recent-logins {
   display: grid;
   gap: 14px;

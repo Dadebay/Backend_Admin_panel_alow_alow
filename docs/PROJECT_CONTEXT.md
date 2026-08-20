@@ -146,6 +146,7 @@ alowalow/
 │   │   │   ├── redis/     # Redis infrastructure adapter
 │   │   │   └── generated/ # generated Prisma client; never edit manually
 │   │   └── test/          # unit and isolated HTTP e2e tests
+│   ├── print-agent/       # loopback Windows/macOS LAN receipt-print bridge
 │   └── admin/
 │       ├── AGENTS.md
 │       ├── Dockerfile     # static SPA image served by unprivileged Nginx
@@ -447,9 +448,23 @@ edit cannot reroute an existing order. The intended non-fiscal printer payload
 contains only the selected product/variant display name, quantity, and the
 backend-snapshotted unit price. Delivery fees, discounts, fiscalization,
 offline policy, cancellation, and returns are not part of this accepted
-printer-routing requirement. Actual LAN transport remains deferred until the
-device's port and protocol are supplied; the remote VDS must not attempt to
-connect directly to a private LAN address.
+printer-routing requirement.
+
+Receipt printing is triggered by the operations admin after the accepted
+`NEW → CONFIRMED` transition and is also available as an explicit reprint for a
+non-new, non-cancelled order. NestJS builds the authoritative plan by grouping
+immutable order lines by their snapshotted printer IP and reports any line with
+no configured route. The remote VDS never connects to a private LAN address.
+Instead, the HTTPS admin sends that plan to the A7-tagam receipt print agent on
+the same workstation at loopback `127.0.0.1:17873`. The agent has one Go source
+and CI-built executables for Windows x64/ARM64 and macOS Intel/Apple Silicon.
+It accepts only allowlisted admin origins, rejects non-private IPv4 targets,
+formats large item text with separators plus blank paper space above and below
+the content before cutting, and sends bounded hexadecimal ESC/POS payloads
+through the tested J-Speed WebConfig HTTP interface on each printer's LAN port
+80. The agent contains no API token and binds to loopback only. A working
+workstation remains necessary while accepting/printing an order; it is not a
+separate gateway computer.
 
 External catalog seed packages are never executed as supplied. The repository
 CLI first performs a non-mutating strict JSON/file-set/WebP validation and only

@@ -271,6 +271,13 @@ test("product form accepts a LAN printer IPv4 address and rejects invalid IPs", 
     }).success,
     false,
   );
+  assert.equal(
+    productFormSchema.safeParse({
+      ...product,
+      receiptPrinterIp: "8.8.8.8",
+    }).success,
+    false,
+  );
 });
 
 test("marketing schemas normalize promo code and reject reversed dates", () => {

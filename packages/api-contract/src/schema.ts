@@ -341,6 +341,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/orders/{id}/receipt-print-plan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Build the accepted order receipt jobs grouped by snapshotted LAN printer IP */
+        get: operations["OrdersController_receiptPrintPlan_v1"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/orders/{id}": {
         parameters: {
             query?: never;
@@ -1736,6 +1753,25 @@ export interface components {
             recalculateAfterSeconds: number;
             route: components["schemas"]["CourierRoadRouteResponseDto"] | null;
         };
+        ReceiptPrintItemResponseDto: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            quantity: number;
+            unitPrice: number;
+        };
+        ReceiptPrinterJobResponseDto: {
+            /** @example 192.168.123.100 */
+            printerIp: string;
+            items: components["schemas"]["ReceiptPrintItemResponseDto"][];
+        };
+        ReceiptPrintPlanResponseDto: {
+            /** Format: uuid */
+            orderId: string;
+            orderNumber: number;
+            jobs: components["schemas"]["ReceiptPrinterJobResponseDto"][];
+            unassignedItems: components["schemas"]["ReceiptPrintItemResponseDto"][];
+        };
         TransitionOrderDto: {
             /** @enum {string} */
             status: "NEW" | "CONFIRMED" | "SENT_TO_KITCHEN" | "COOKING" | "READY" | "ASSIGNED_TO_COURIER" | "OUT_FOR_DELIVERY" | "DELIVERED" | "CASH_RETURNED" | "COMPLETED" | "RECONCILED" | "CANCELLED";
@@ -2833,6 +2869,27 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CourierRouteResponseDto"];
+                };
+            };
+        };
+    };
+    OrdersController_receiptPrintPlan_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReceiptPrintPlanResponseDto"];
                 };
             };
         };

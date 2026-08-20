@@ -46,6 +46,7 @@ import {
   CourierRouteWaypointKind,
   CourierRoutingStatus,
 } from "./orders-response.dto";
+import { buildReceiptPrintPlan } from "./receipt-print-plan";
 
 const detailInclude = {
   customer: {
@@ -648,6 +649,36 @@ export class OrdersService {
     if (!order) throw new NotFoundException("Order not found");
     this.assertCanRead(user, order);
     return toApiResponse(withItemImages(order));
+  }
+
+  async receiptPrintPlan(id: string) {
+    const order = await this.prisma.order.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        number: true,
+        status: true,
+        items: {
+          select: {
+            id: true,
+            productName: true,
+            variantName: true,
+            receiptPrinterIp: true,
+            unitPrice: true,
+            quantity: true,
+          },
+          orderBy: { id: "asc" },
+        },
+      },
+    });
+    if (!order) throw new NotFoundException("Order not found");
+    if (order.status === OrderStatus.NEW) {
+      throw new ConflictException("Confirm the order before printing");
+    }
+    if (order.status === OrderStatus.CANCELLED) {
+      throw new ConflictException("Cancelled orders cannot be printed");
+    }
+    return toApiResponse(buildReceiptPrintPlan(order));
   }
 
   async transition(user: AuthUser, id: string, dto: TransitionOrderDto) {

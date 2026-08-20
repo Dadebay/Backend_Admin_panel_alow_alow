@@ -101,6 +101,26 @@ type CatalogProductResponse = {
   }>;
 };
 
+type ReceiptPrintPlanResponse = {
+  orderId: string;
+  orderNumber: number;
+  jobs: Array<{
+    printerIp: string;
+    items: Array<{
+      id: string;
+      name: string;
+      quantity: number;
+      unitPrice: number;
+    }>;
+  }>;
+  unassignedItems: Array<{
+    id: string;
+    name: string;
+    quantity: number;
+    unitPrice: number;
+  }>;
+};
+
 type BranchResponse = {
   id: string;
   isActive: boolean;
@@ -490,6 +510,19 @@ describe("backend security and critical workflow", () => {
         description: "LAN printer IPv4 validation",
         price: 12,
         receiptPrinterIp: "192.168.1.999",
+      })
+      .expect(400);
+
+    await request(server)
+      .post("/api/v1/catalog/products")
+      .set(bearer(tokens.admin))
+      .send({
+        categoryId,
+        name: "Public printer IP",
+        slug: "public-printer-ip",
+        description: "Only private LAN printer addresses are accepted",
+        price: 12,
+        receiptPrinterIp: "8.8.8.8",
       })
       .expect(400);
 
@@ -942,6 +975,113 @@ describe("backend security and critical workflow", () => {
         ...delivery,
       })
       .expect(400);
+  });
+
+  it("builds an authorized accepted-order print plan grouped by snapshot IP", async () => {
+    const category = await prisma.category.create({
+      data: {
+        name: "Receipt routing category",
+        slug: "receipt-routing-category",
+      },
+    });
+    const [first, second, unassigned] = await Promise.all([
+      prisma.product.create({
+        data: {
+          categoryId: category.id,
+          name: "Printer one meal",
+          slug: "printer-one-meal",
+          description: "Routes to the first kitchen printer",
+          price: 25,
+          receiptPrinterIp: "192.168.123.100",
+        },
+      }),
+      prisma.product.create({
+        data: {
+          categoryId: category.id,
+          name: "Printer two meal",
+          slug: "printer-two-meal",
+          description: "Routes to the second kitchen printer",
+          price: 40,
+          receiptPrinterIp: "192.168.123.101",
+        },
+      }),
+      prisma.product.create({
+        data: {
+          categoryId: category.id,
+          name: "Unassigned meal",
+          slug: "unassigned-printer-meal",
+          description: "Remains visible when a printer route is missing",
+          price: 15,
+        },
+      }),
+    ]);
+    const created = await request(server)
+      .post("/api/v1/orders")
+      .set(bearer(tokens.customer))
+      .send({
+        items: [
+          { productId: first.id, quantity: 2 },
+          { productId: second.id, quantity: 1 },
+          { productId: unassigned.id, quantity: 3 },
+        ],
+        address: "Receipt routing street",
+        latitude: 37.95021,
+        longitude: 58.38021,
+      })
+      .expect(201);
+    let order = created.body as OrderResponse;
+
+    await request(server)
+      .get(`/api/v1/orders/${order.id}/receipt-print-plan`)
+      .set(bearer(tokens.admin))
+      .expect(409);
+    await request(server)
+      .get(`/api/v1/orders/${order.id}/receipt-print-plan`)
+      .set(bearer(tokens.customer))
+      .expect(403);
+    await request(server)
+      .get(`/api/v1/orders/${order.id}/receipt-print-plan`)
+      .set(bearer(tokens.accountant))
+      .expect(403);
+
+    order = await transition(tokens.admin, order, OrderStatus.CONFIRMED);
+    const response = await request(server)
+      .get(`/api/v1/orders/${order.id}/receipt-print-plan`)
+      .set(bearer(tokens.superAdmin))
+      .expect(200);
+    const plan = response.body as ReceiptPrintPlanResponse;
+
+    expect(plan.orderId).toBe(order.id);
+    expect(plan.jobs).toEqual([
+      {
+        printerIp: "192.168.123.100",
+        items: [
+          expect.objectContaining({
+            name: "Printer one meal",
+            quantity: 2,
+            unitPrice: 25,
+          }),
+        ],
+      },
+      {
+        printerIp: "192.168.123.101",
+        items: [
+          expect.objectContaining({
+            name: "Printer two meal",
+            quantity: 1,
+            unitPrice: 40,
+          }),
+        ],
+      },
+    ]);
+    expect(plan.unassignedItems).toEqual([
+      expect.objectContaining({
+        name: "Unassigned meal",
+        quantity: 3,
+        unitPrice: 15,
+      }),
+    ]);
+    expect(response.text).not.toContain("customerId");
   });
 
   it("allows only administrators to manage branches", async () => {

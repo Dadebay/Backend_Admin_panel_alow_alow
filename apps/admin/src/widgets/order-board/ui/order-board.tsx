@@ -19,6 +19,7 @@ import {
   type OrderStatus,
 } from "@/src/entities/order";
 import { useOrderActions } from "@/src/features/order-management";
+import { useReceiptPrinting } from "@/src/features/receipt-printing";
 import { ApiError } from "@/src/shared/api/api-client";
 import { useSession } from "@/src/shared/auth";
 import { FormFieldError } from "@/src/shared/forms";
@@ -153,14 +154,36 @@ export function OrderBoard({
   const branches = useBranches();
   const couriers = useCouriers();
   const actions = useOrderActions();
+  const receiptPrinting = useReceiptPrinting();
   const pending =
     actions.transition.isPending ||
     actions.assignCourier.isPending ||
-    actions.cancel.isPending;
+    actions.cancel.isPending ||
+    receiptPrinting.isPending;
   const actionError =
     actions.transition.error ||
     actions.assignCourier.error ||
     actions.cancel.error;
+
+  const transitionOrder = useCallback(
+    (order: Order, nextStatus: OrderStatus) => {
+      actions.transition.mutate(
+        {
+          orderId: order.id,
+          status: nextStatus,
+          version: order.version,
+        },
+        {
+          onSuccess: (updatedOrder) => {
+            if (nextStatus === "CONFIRMED") {
+              receiptPrinting.mutate(updatedOrder.id);
+            }
+          },
+        },
+      );
+    },
+    [actions.transition, receiptPrinting],
+  );
 
   function submitSearch(values: OrderSearchFormValues) {
     setPage(1);
@@ -398,17 +421,23 @@ export function OrderBoard({
                   className="primary-button compact"
                   data-testid={`order-table-transition-${order.id}`}
                   disabled={pending}
-                  onClick={() =>
-                    actions.transition.mutate({
-                      orderId: order.id,
-                      status: next,
-                      version: order.version,
-                    })
-                  }
+                  onClick={() => transitionOrder(order, next)}
                 >
                   {statusLabels[next]}
                 </button>
               )}
+              {["OPERATOR", "ADMIN", "SUPER_ADMIN"].includes(role) &&
+                !["NEW", "CANCELLED"].includes(order.status) && (
+                  <button
+                    type="button"
+                    className="secondary-button compact"
+                    data-testid={`order-table-print-${order.id}`}
+                    disabled={receiptPrinting.isPending}
+                    onClick={() => receiptPrinting.mutate(order.id)}
+                  >
+                    Печать
+                  </button>
+                )}
               {canCancel(role, order.status) && (
                 <button
                   type="button"
@@ -425,7 +454,16 @@ export function OrderBoard({
         },
       },
     ],
-    [actions, cancelOrder, courierByOrder, couriers.data, pending, role],
+    [
+      actions,
+      cancelOrder,
+      courierByOrder,
+      couriers.data,
+      pending,
+      receiptPrinting,
+      role,
+      transitionOrder,
+    ],
   );
 
   return (
@@ -491,6 +529,24 @@ export function OrderBoard({
           </button>
         </div>
       </header>
+
+      {receiptPrinting.isPending && (
+        <div className="order-print-status is-pending" role="status">
+          Передаём заказ программе печати…
+        </div>
+      )}
+      {receiptPrinting.isSuccess && (
+        <div className="order-print-status is-success" role="status">
+          Отправлено на аппаратов: {receiptPrinting.data.result.printed.length}.
+          {receiptPrinting.data.plan.unassignedItems.length > 0 &&
+            ` Без IP: ${receiptPrinting.data.plan.unassignedItems.length}.`}
+        </div>
+      )}
+      {receiptPrinting.isError && (
+        <div className="order-print-status is-error" role="alert">
+          Печать не выполнена: {receiptPrinting.error.message}
+        </div>
+      )}
 
       <div className="toolbar">
         <label>
@@ -668,13 +724,8 @@ export function OrderBoard({
                   version: order.version,
                 })
               }
-              onTransition={(order, nextStatus) =>
-                actions.transition.mutate({
-                  orderId: order.id,
-                  status: nextStatus,
-                  version: order.version,
-                })
-              }
+              onTransition={transitionOrder}
+              onPrintReceipt={(order) => receiptPrinting.mutate(order.id)}
               onCancel={cancelOrder}
               onEditOrder={setEditingOrder}
               onOpenDetails={setSelectedOrderId}

@@ -35,6 +35,7 @@ import {
   OrderListResponseDto,
   OrderRatingResponseDto,
   OrderResponseDto,
+  ReceiptPrintPlanResponseDto,
 } from "./orders-response.dto";
 
 @ApiTags("orders")
@@ -100,6 +101,17 @@ export class OrdersController {
   @ApiOkResponse({ type: CourierRouteResponseDto })
   dispatchRoute(@Param("courierId", ParseUUIDPipe) courierId: string) {
     return this.orders.dispatchCourierRoute(courierId);
+  }
+
+  @Get(":id/receipt-print-plan")
+  @Roles(Role.OPERATOR, Role.ADMIN)
+  @ApiOperation({
+    summary:
+      "Build the accepted order receipt jobs grouped by snapshotted LAN printer IP",
+  })
+  @ApiOkResponse({ type: ReceiptPrintPlanResponseDto })
+  receiptPrintPlan(@Param("id", ParseUUIDPipe) id: string) {
+    return this.orders.receiptPrintPlan(id);
   }
 
   @Get(":id")

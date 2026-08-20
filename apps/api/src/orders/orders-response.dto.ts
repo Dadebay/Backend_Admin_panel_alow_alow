@@ -108,6 +108,42 @@ export class OrderItemResponseDto {
   lineTotal: number;
 }
 
+export class ReceiptPrintItemResponseDto {
+  @ApiProperty({ format: "uuid" })
+  id: string;
+
+  @ApiProperty()
+  name: string;
+
+  @ApiProperty()
+  quantity: number;
+
+  @ApiProperty()
+  unitPrice: number;
+}
+
+export class ReceiptPrinterJobResponseDto {
+  @ApiProperty({ example: "192.168.123.100" })
+  printerIp: string;
+
+  @ApiProperty({ type: [ReceiptPrintItemResponseDto] })
+  items: ReceiptPrintItemResponseDto[];
+}
+
+export class ReceiptPrintPlanResponseDto {
+  @ApiProperty({ format: "uuid" })
+  orderId: string;
+
+  @ApiProperty()
+  orderNumber: number;
+
+  @ApiProperty({ type: [ReceiptPrinterJobResponseDto] })
+  jobs: ReceiptPrinterJobResponseDto[];
+
+  @ApiProperty({ type: [ReceiptPrintItemResponseDto] })
+  unassignedItems: ReceiptPrintItemResponseDto[];
+}
+
 export class OrderRatingResponseDto {
   @ApiProperty({ format: "uuid" })
   id: string;

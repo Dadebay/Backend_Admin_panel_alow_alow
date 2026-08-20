@@ -37,6 +37,12 @@ const receiptPrinterIpSchema = z
   .refine(
     (value) => value === "" || z.ipv4().safeParse(value).success,
     "Введите IPv4 адрес, например 192.168.1.50",
+  )
+  .refine(
+    (value) =>
+      value === "" ||
+      /^(?:10\.|192\.168\.|172\.(?:1[6-9]|2\d|3[01])\.)/.test(value),
+    "Укажите локальный IP аппарата, например 192.168.1.50",
   );
 
 export const productFormSchema = z

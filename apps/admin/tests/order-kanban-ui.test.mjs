@@ -24,6 +24,7 @@ test("kanban exposes stable automation hooks for lanes, cards, and actions", asy
   assert.match(source, /data-testid=\{`order-kanban-transition-\$\{order\.id\}`\}/);
   assert.match(source, /data-testid=\{`order-kanban-cancel-\$\{order\.id\}`\}/);
   assert.match(source, /data-testid=\{`order-kanban-edit-\$\{order\.id\}`\}/);
+  assert.match(source, /data-testid=\{`order-kanban-print-\$\{order\.id\}`\}/);
   assert.match(source, /canOpenDetails &&/);
 });
 
@@ -39,6 +40,7 @@ test("kanban actions reuse backend-owned transition, assignment, and cancellatio
   assert.match(source, /data-testid="orders-view-kanban"/);
   assert.match(source, /data-testid="orders-view-table"/);
   assert.match(source, /data-testid=\{`order-table-edit-\$\{order\.id\}`\}/);
+  assert.match(source, /data-testid=\{`order-table-print-\$\{order\.id\}`\}/);
 });
 
 test("kanban virtualizes large lanes and keeps history collapsed", async () => {

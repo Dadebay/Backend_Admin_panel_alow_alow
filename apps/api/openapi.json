@@ -892,6 +892,42 @@
         ]
       }
     },
+    "/api/v1/orders/{id}/receipt-print-plan": {
+      "get": {
+        "operationId": "OrdersController_receiptPrintPlan_v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReceiptPrintPlanResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Build the accepted order receipt jobs grouped by snapshotted LAN printer IP",
+        "tags": [
+          "orders"
+        ]
+      }
+    },
     "/api/v1/orders/{id}": {
       "get": {
         "operationId": "OrdersController_get_v1",
@@ -5090,6 +5126,79 @@
           "routingStatus",
           "recalculateAfterSeconds",
           "route"
+        ]
+      },
+      "ReceiptPrintItemResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": "number"
+          },
+          "unitPrice": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "quantity",
+          "unitPrice"
+        ]
+      },
+      "ReceiptPrinterJobResponseDto": {
+        "type": "object",
+        "properties": {
+          "printerIp": {
+            "type": "string",
+            "example": "192.168.123.100"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReceiptPrintItemResponseDto"
+            }
+          }
+        },
+        "required": [
+          "printerIp",
+          "items"
+        ]
+      },
+      "ReceiptPrintPlanResponseDto": {
+        "type": "object",
+        "properties": {
+          "orderId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "orderNumber": {
+            "type": "number"
+          },
+          "jobs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReceiptPrinterJobResponseDto"
+            }
+          },
+          "unassignedItems": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReceiptPrintItemResponseDto"
+            }
+          }
+        },
+        "required": [
+          "orderId",
+          "orderNumber",
+          "jobs",
+          "unassignedItems"
         ]
       },
       "TransitionOrderDto": {

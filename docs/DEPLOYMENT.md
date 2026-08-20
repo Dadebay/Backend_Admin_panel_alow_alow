@@ -169,7 +169,8 @@ transport before enabling unattended deployment; never move SSH back to 443.
 ## Automatic release
 
 Every push to `main` must first pass backend/admin lint, builds, tests, coverage,
-dependency audits, Swagger contract verification and hardened container checks.
+dependency audits, Swagger contract verification, receipt-agent Go tests and
+Windows/macOS cross-builds, and hardened container checks.
 The workflow then:
 
 1. Builds API, migration and admin images with provenance and SBOM.
@@ -181,6 +182,14 @@ The workflow then:
 6. Runs `prisma migrate deploy` and starts the stack.
 7. Waits for service health checks.
 8. Restores the previous digest manifest if the new release is unhealthy.
+
+The receipt print agent is not deployed to the VDS. CI uploads four separate
+artifacts built from `apps/print-agent`: Windows x64/ARM64 and macOS
+Intel/Apple Silicon. A workstation runs the matching executable on loopback
+`127.0.0.1:17873`; the production admin origin is allowlisted by default. Its
+wired adapter must have a persistent address in the same subnet as the private
+LAN printers and no gateway. Printer IP assignment remains catalog data managed
+through the admin, never an agent config file or frontend constant.
 
 ### Temporary domestic fallback record
 

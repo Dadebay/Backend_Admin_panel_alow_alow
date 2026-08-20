@@ -48,6 +48,8 @@ flowchart LR
   API --> GEO["Private Nominatim volume"]
   GH["GitHub Actions"] -->|"immutable GHCR digests over SSH"| VDS["A7-tagam VDS"]
   VDS --- N
+  U -->|"HTTP loopback :17873"| PA["Windows/macOS receipt print agent"]
+  PA -->|"private LAN HTTP :80"| RP["J-Speed receipt printers"]
 ```
 
 TileServer provides only the visual base map. Courier GPS, orders, customer
@@ -139,6 +141,13 @@ Plain HTTP on the domain or server IP redirects to the canonical HTTPS domain.
 | `127.0.0.1:4000` | API container | host Nginx only |
 | `127.0.0.1:8080` | TileServer GL | host Nginx only |
 | Docker network only | PostgreSQL, Redis, MinIO, OSRM, Nominatim | not public |
+
+The optional receipt print agent is a workstation runtime, not a VDS service.
+It binds only to `127.0.0.1:17873` on Windows or macOS. It sends bounded print
+requests to explicitly configured private printer IPv4 addresses over LAN port
+80; neither the VDS nor Nginx exposes or routes that private traffic. The wired
+workstation adapter uses the printer subnet without a gateway, while Wi-Fi may
+continue to own internet access.
 
 The active Nginx site is `a7-tagam-production.conf`. The versioned
 `a7-tagam-http-temporary.conf` is retained only as historical rollback context
@@ -261,6 +270,8 @@ Every push to `main` must pass:
 3. Swagger contract regeneration with a clean Git diff.
 4. Hardened API, migration and static Nginx image builds.
 5. Production single-host Compose validation.
+6. Go formatting, tests, vet, and cross-builds for Windows/macOS receipt-agent
+   artifacts.
 
 BuildKit publishes immutable digest references with provenance and SBOM. The
 deploy job copies only Compose/release files, performs GHCR login with the

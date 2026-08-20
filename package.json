@@ -21,7 +21,9 @@
     "lint": "npm --prefix apps/api run lint && npm --prefix apps/admin run lint",
     "test": "npm --prefix apps/admin test",
     "test:api": "npm --prefix apps/api test",
-    "test:all": "npm run test:api && npm test",
+    "test:print-agent": "cd apps/print-agent && go test ./...",
+    "build:print-agent": "bash apps/print-agent/build-release.sh",
+    "test:all": "npm run test:api && npm test && npm run test:print-agent",
     "api:client": "npm --prefix apps/api run openapi && openapi-typescript apps/api/openapi.json -o packages/api-contract/src/schema.ts"
   },
   "devDependencies": {

@@ -10,6 +10,7 @@ import {
 } from "react";
 import type { components } from "@alowalow/api-contract";
 import { ApiError, apiRequest } from "@/src/shared/api/api-client";
+import { canAccessAdminPortal } from "./admin-portal-access";
 
 type SessionResponse = components["schemas"]["AuthSessionResponseDto"];
 type SessionUser = components["schemas"]["AuthSessionUserDto"];
@@ -54,6 +55,10 @@ function readStoredSession(): StoredSession | null {
     ) {
       return null;
     }
+    if (!canAccessAdminPortal(parsed.user.role)) {
+      window.sessionStorage.removeItem(STORAGE_KEY);
+      return null;
+    }
     return parsed as StoredSession;
   } catch {
     return null;
@@ -81,7 +86,15 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         method: "POST",
         body: JSON.stringify({ refreshToken }),
       })
-        .then((response) => {
+        .then(async (response) => {
+          if (!canAccessAdminPortal(response.user.role)) {
+            persist(null);
+            await apiRequest("/auth/logout", {
+              method: "POST",
+              body: JSON.stringify({ refreshToken: response.refreshToken }),
+            }).catch(() => undefined);
+            return null;
+          }
           const next = withExpiry(response);
           persist(next);
           return next;
@@ -134,6 +147,16 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         method: "POST",
         body: JSON.stringify({ phone, code }),
       });
+      if (!canAccessAdminPortal(response.user.role)) {
+        await apiRequest("/auth/logout", {
+          method: "POST",
+          body: JSON.stringify({ refreshToken: response.refreshToken }),
+        }).catch(() => undefined);
+        throw new ApiError(
+          "Доступ к админке разрешён только администраторам и бухгалтерам.",
+          403,
+        );
+      }
       const next = withExpiry(response);
       persist(next);
       return next.user;

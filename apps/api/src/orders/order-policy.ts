@@ -91,3 +91,22 @@ export function canCancelOrder(
     cancellationRoles.includes(role) && cancellableStatuses.includes(status)
   );
 }
+
+const courierAssignmentRoles: Role[] = [
+  Role.OPERATOR,
+  Role.ADMIN,
+  Role.SUPER_ADMIN,
+];
+
+const courierAssignmentStatuses: OrderStatus[] = [
+  OrderStatus.READY,
+  OrderStatus.ASSIGNED_TO_COURIER,
+];
+
+export function canManageCourierAssignment(role: Role) {
+  return courierAssignmentRoles.includes(role);
+}
+
+export function canEditCourierAssignment(status: OrderStatus) {
+  return courierAssignmentStatuses.includes(status);
+}

@@ -124,7 +124,8 @@ export class OrdersController {
   @Patch(":id/assign-courier")
   @Roles(Role.OPERATOR, Role.ADMIN)
   @ApiOperation({
-    summary: "Assign a ready order to a courier; couriers may hold many orders",
+    summary:
+      "Assign a ready order or correct its courier before delivery starts",
   })
   @ApiOkResponse({ type: OrderResponseDto })
   assign(

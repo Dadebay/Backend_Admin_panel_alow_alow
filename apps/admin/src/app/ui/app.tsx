@@ -7,12 +7,6 @@ const AdminDashboard = lazy(() =>
   })),
 );
 
-const CourierTrackingScreen = lazy(() =>
-  import("@/src/widgets/courier-tracking").then((module) => ({
-    default: module.CourierTrackingScreen,
-  })),
-);
-
 function RouteFallback() {
   return (
     <main className="login-page" data-testid="app-route-loading">
@@ -44,7 +38,6 @@ function resolveRoute(pathname: string): ReactNode {
     pathname.length > 1 ? pathname.replace(/\/+$/, "") : "/";
 
   if (normalizedPath === "/") return <AdminDashboard />;
-  if (normalizedPath === "/courier") return <CourierTrackingScreen />;
   return <NotFound />;
 }
 

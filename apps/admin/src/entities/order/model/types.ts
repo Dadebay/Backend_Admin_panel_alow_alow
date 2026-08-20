@@ -28,7 +28,7 @@ export const statusLabels: Record<OrderStatus, string> = {
   COOKING: "Готовится",
   READY: "Готов",
   ASSIGNED_TO_COURIER: "Назначен курьеру",
-  OUT_FOR_DELIVERY: "В пути",
+  OUT_FOR_DELIVERY: "Доставляется",
   DELIVERED: "Доставлен",
   CASH_RETURNED: "Наличные сданы",
   COMPLETED: "Закрыт оператором",
@@ -90,6 +90,13 @@ export function canCancel(role: Role, status: OrderStatus) {
   return (
     ["OPERATOR", "ADMIN", "SUPER_ADMIN"].includes(role) &&
     ["NEW", "CONFIRMED", "SENT_TO_KITCHEN"].includes(status)
+  );
+}
+
+export function canEditCourierAssignment(role: Role, status: OrderStatus) {
+  return (
+    ["OPERATOR", "ADMIN", "SUPER_ADMIN"].includes(role) &&
+    status === "ASSIGNED_TO_COURIER"
   );
 }
 

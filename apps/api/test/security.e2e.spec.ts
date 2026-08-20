@@ -54,6 +54,7 @@ type OrderResponse = {
   status: OrderStatus;
   source: OrderSource;
   version: number;
+  courierId?: string | null;
   address: string;
   branchId: string | null;
   branchName: string | null;
@@ -1390,6 +1391,40 @@ describe("backend security and critical workflow", () => {
       .get("/api/v1/orders?statuses=NEW,NOT_A_STATUS")
       .set(bearer(tokens.operator))
       .expect(400);
+
+    const now = Date.now();
+    const currentWindow = await request(server)
+      .get(
+        `/api/v1/orders?createdFrom=${encodeURIComponent(new Date(now - 60_000).toISOString())}&createdTo=${encodeURIComponent(new Date(now + 60_000).toISOString())}`,
+      )
+      .set(bearer(tokens.operator))
+      .expect(200);
+    expect(
+      (currentWindow.body as { items: OrderResponse[] }).items.map(
+        ({ id }) => id,
+      ),
+    ).toContain(kitchenOrder.id);
+
+    const futureWindow = await request(server)
+      .get(
+        `/api/v1/orders?createdFrom=${encodeURIComponent(new Date(now + 86_400_000).toISOString())}`,
+      )
+      .set(bearer(tokens.operator))
+      .expect(200);
+    expect((futureWindow.body as { items: OrderResponse[] }).items).toHaveLength(
+      0,
+    );
+
+    await request(server)
+      .get(
+        `/api/v1/orders?createdFrom=${encodeURIComponent(new Date(now + 60_000).toISOString())}&createdTo=${encodeURIComponent(new Date(now).toISOString())}`,
+      )
+      .set(bearer(tokens.operator))
+      .expect(400);
+    await request(server)
+      .get("/api/v1/orders?createdFrom=not-a-date")
+      .set(bearer(tokens.operator))
+      .expect(400);
   });
 
   it("creates audited phone orders for callers without issuing a session", async () => {
@@ -1573,6 +1608,71 @@ describe("backend security and critical workflow", () => {
       stored.status,
     );
     expect(stored.version).toBe(2);
+  });
+
+  it("reassigns a courier only before delivery starts with audit and locking", async () => {
+    let order = await createOrder(tokens.customer, {});
+    order = await transition(tokens.operator, order, OrderStatus.CONFIRMED);
+    order = await transition(
+      tokens.operator,
+      order,
+      OrderStatus.SENT_TO_KITCHEN,
+    );
+    order = await transition(tokens.cook, order, OrderStatus.COOKING);
+    order = await transition(tokens.cook, order, OrderStatus.READY);
+
+    const assigned = await request(server)
+      .patch(`/api/v1/orders/${order.id}/assign-courier`)
+      .set(bearer(tokens.operator))
+      .send({ courierId: users.courier.id, version: order.version })
+      .expect(200);
+    order = assigned.body as OrderResponse;
+
+    await request(server)
+      .patch(`/api/v1/orders/${order.id}/assign-courier`)
+      .set(bearer(tokens.customer))
+      .send({ courierId: users.otherCourier.id, version: order.version })
+      .expect(403);
+    await request(server)
+      .patch(`/api/v1/orders/${order.id}/assign-courier`)
+      .set(bearer(tokens.operator))
+      .send({ courierId: users.otherCourier.id, version: order.version - 1 })
+      .expect(409);
+
+    const reassigned = await request(server)
+      .patch(`/api/v1/orders/${order.id}/assign-courier`)
+      .set(bearer(tokens.operator))
+      .send({ courierId: users.otherCourier.id, version: order.version })
+      .expect(200);
+    order = reassigned.body as OrderResponse;
+    expect(order).toMatchObject({
+      status: OrderStatus.ASSIGNED_TO_COURIER,
+      courierId: users.otherCourier.id,
+    });
+
+    const audit = await prisma.auditLog.findFirstOrThrow({
+      where: {
+        entityType: "Order",
+        entityId: order.id,
+        action: "order.courier-reassigned",
+      },
+      orderBy: { createdAt: "desc" },
+    });
+    expect(audit.metadata).toMatchObject({
+      previousCourierId: users.courier.id,
+      courierId: users.otherCourier.id,
+    });
+
+    order = await transition(
+      tokens.otherCourier,
+      order,
+      OrderStatus.OUT_FOR_DELIVERY,
+    );
+    await request(server)
+      .patch(`/api/v1/orders/${order.id}/assign-courier`)
+      .set(bearer(tokens.operator))
+      .send({ courierId: users.courier.id, version: order.version })
+      .expect(409);
   });
 
   it("enforces every role, ownership check and cash workflow transition", async () => {

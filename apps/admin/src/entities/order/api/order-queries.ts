@@ -7,6 +7,8 @@ import type {
   OrderStatus,
 } from "../model/types";
 
+export const ORDER_POLL_INTERVAL_MS = 30_000;
+
 export const orderQueryKeys = {
   all: ["orders"] as const,
   list: (
@@ -16,6 +18,8 @@ export const orderQueryKeys = {
       statuses?: OrderStatus[];
       branchId?: string;
       search?: string;
+      createdFrom?: string;
+      createdTo?: string;
       page: number;
       limit: number;
     },
@@ -31,6 +35,8 @@ export function useOrders(params: {
   statuses?: OrderStatus[];
   branchId?: string;
   search?: string;
+  createdFrom?: string;
+  createdTo?: string;
   page: number;
   limit?: number;
 }) {
@@ -53,6 +59,10 @@ export function useOrders(params: {
       }
       if (normalized.branchId) query.set("branchId", normalized.branchId);
       if (normalized.search) query.set("search", normalized.search);
+      if (normalized.createdFrom) {
+        query.set("createdFrom", normalized.createdFrom);
+      }
+      if (normalized.createdTo) query.set("createdTo", normalized.createdTo);
       return authorizedRequest<OrderList>(`/orders?${query}`, { signal });
     },
     enabled: Boolean(session),
@@ -60,7 +70,7 @@ export function useOrders(params: {
     refetchInterval: () =>
       typeof document !== "undefined" &&
       document.visibilityState === "visible"
-        ? 12_000
+        ? ORDER_POLL_INTERVAL_MS
         : false,
     refetchIntervalInBackground: false,
   });

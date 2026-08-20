@@ -2,7 +2,6 @@ import type { Role } from "@/src/entities/order";
 
 export type AdminView =
   | "orders"
-  | "kitchen"
   | "map"
   | "branches"
   | "catalog"
@@ -33,19 +32,13 @@ export const adminNavigation: AdminNavigationItem[] = [
     id: "orders",
     label: "Заказы",
     icon: "orders",
-    roles: ["OPERATOR", "ACCOUNTANT", "ADMIN", "SUPER_ADMIN"],
-  },
-  {
-    id: "kitchen",
-    label: "Кухня",
-    icon: "kitchen",
-    roles: ["COOK"],
+    roles: ["ACCOUNTANT", "ADMIN", "SUPER_ADMIN"],
   },
   {
     id: "map",
     label: "Карта курьеров",
     icon: "map",
-    roles: ["OPERATOR", "ADMIN", "SUPER_ADMIN"],
+    roles: ["ADMIN", "SUPER_ADMIN"],
   },
   {
     id: "branches",
@@ -81,7 +74,7 @@ export const adminNavigation: AdminNavigationItem[] = [
     id: "cash",
     label: "Наличные",
     icon: "cash",
-    roles: ["OPERATOR", "ACCOUNTANT", "ADMIN", "SUPER_ADMIN"],
+    roles: ["ACCOUNTANT", "ADMIN", "SUPER_ADMIN"],
   },
   {
     id: "contacts",

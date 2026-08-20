@@ -1,7 +1,18 @@
-import { lazy, Suspense, useState, type ReactNode } from "react";
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useState,
+  type ReactNode,
+} from "react";
 import { roleLabels } from "@/src/entities/order";
+import {
+  canReceiveNewOrderAlerts,
+  NewOrderAlert,
+} from "@/src/features/new-order-alert";
 import { OtpLoginCard } from "@/src/features/otp-login";
-import { useSession } from "@/src/shared/auth";
+import { canAccessAdminPortal, useSession } from "@/src/shared/auth";
 import { BrandLogo } from "@/src/shared/ui";
 import {
   navigationForRole,
@@ -63,7 +74,6 @@ const LoginAttemptManager = lazy(() =>
 function NavIcon({ name }: { name: AdminNavIconName }) {
   const paths: Record<AdminNavIconName, ReactNode> = {
     orders: <><rect x="5" y="3" width="14" height="18" rx="2" /><path d="M9 3h6v3H9zM9 11h6M9 15h4" /></>,
-    kitchen: <><path d="M7 3v7M4 3v4a3 3 0 0 0 6 0V3M7 10v11M17 3v18M17 3c2.5 1.8 2.5 5.2 0 7" /></>,
     map: <><path d="m9 18-6 3V6l6-3 6 3 6-3v15l-6 3zM9 3v15M15 6v15" /></>,
     branches: <><path d="M4 21V5l8-3 8 3v16M8 21v-5h8v5M8 8h.01M12 8h.01M16 8h.01M8 12h.01M12 12h.01M16 12h.01" /></>,
     catalog: <><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v16H6.5A2.5 2.5 0 0 0 4 21.5zM4 5.5v16M8 7h8M8 11h8" /></>,
@@ -92,6 +102,20 @@ export function AdminDashboard() {
   const [view, setView] = useState<AdminView>("orders");
   const [isNavigationOpen, setIsNavigationOpen] = useState(false);
 
+  const openOrders = useCallback(() => {
+    setView("orders");
+    setIsNavigationOpen(false);
+  }, []);
+
+  useEffect(() => {
+    if (!isNavigationOpen) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setIsNavigationOpen(false);
+    };
+    document.addEventListener("keydown", closeOnEscape);
+    return () => document.removeEventListener("keydown", closeOnEscape);
+  }, [isNavigationOpen]);
+
   if (!ready) {
     return (
       <main className="login-page" data-testid="admin-session-loading">
@@ -107,50 +131,31 @@ export function AdminDashboard() {
           <BrandLogo className="brand-logo brand-logo--login" />
           <div>
             <h1>A7-tagam Operations</h1>
-            <p>Единая админка кафе, кухни, доставки и кассы</p>
+            <p>Управление заказами, доставкой и кассой</p>
           </div>
         </div>
         <OtpLoginCard
           title="Вход сотрудника"
-          description="Одноразовый код отправляется SMS через backend."
+          description="Вход доступен администраторам и бухгалтерам."
         />
       </main>
     );
   }
 
-  if (session.user.role === "CUSTOMER") {
+  if (!canAccessAdminPortal(session.user.role)) {
     return (
       <main className="login-page" data-testid="admin-access-denied">
         <div className="access-card">
           <h1>Нет доступа к админке</h1>
           <p>
-            Номер зарегистрирован как клиент. Администратор должен добавить его
-            в разделе «Команда».
+            Для роли «{roleLabels[session.user.role]}» вход закрыт. Веб-админка
+            доступна только администраторам и бухгалтерам.
           </p>
-          <button className="secondary-button" onClick={() => void logout()}>
-            Выйти
-          </button>
-        </div>
-      </main>
-    );
-  }
-
-  if (session.user.role === "COURIER") {
-    return (
-      <main className="login-page" data-testid="admin-courier-entry">
-        <div className="access-card">
-          <h1>Экран курьера</h1>
-          <p>
-            Включите передачу GPS и работайте со всеми назначенными заказами.
-          </p>
-          <a
-            className="primary-button link-button"
-            data-testid="admin-open-courier"
-            href="/courier"
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={() => void logout()}
           >
-            Открыть приложение курьера
-          </a>
-          <button className="text-button" onClick={() => void logout()}>
             Выйти
           </button>
         </div>
@@ -170,18 +175,19 @@ export function AdminDashboard() {
     <div className="app-shell integrated-shell" data-testid="admin-dashboard">
       {isNavigationOpen && (
         <button
+          type="button"
           className="drawer-scrim"
+          data-testid="admin-navigation-scrim"
           aria-label="Закрыть меню"
           onClick={() => setIsNavigationOpen(false)}
         />
       )}
       <aside className={`sidebar ${isNavigationOpen ? "drawer-open" : ""}`}>
         <button
+          type="button"
           className="brand"
-          onClick={() => {
-            setView("orders");
-            setIsNavigationOpen(false);
-          }}
+          data-testid="admin-brand-home"
+          onClick={openOrders}
         >
           <BrandLogo />
           <span>
@@ -193,6 +199,7 @@ export function AdminDashboard() {
         <nav className="main-nav" aria-label="Разделы админки">
           {visibleNav.map((item) => (
             <button
+              type="button"
               key={item.id}
               className={activeView === item.id ? "active" : ""}
               aria-label={item.label}
@@ -222,14 +229,20 @@ export function AdminDashboard() {
             <strong>{userName}</strong>
             <small>{roleLabels[session.user.role]}</small>
           </div>
-          <button aria-label="Выйти" onClick={() => void logout()}>
+          <button
+            type="button"
+            aria-label="Выйти"
+            onClick={() => void logout()}
+          >
             ↗
           </button>
         </div>
       </aside>
       <main className="admin-main">
         <button
+          type="button"
           className="mobile-nav-toggle"
+          data-testid="admin-navigation-toggle"
           aria-label="Открыть меню"
           aria-expanded={isNavigationOpen}
           onClick={() => setIsNavigationOpen(true)}
@@ -238,17 +251,15 @@ export function AdminDashboard() {
           <span />
           <span />
         </button>
+        {canReceiveNewOrderAlerts(session.user.role) && (
+          <div className="new-order-alert-slot">
+            <NewOrderAlert onOpenOrders={openOrders} />
+          </div>
+        )}
         <Suspense
           fallback={<div className="async-state">Загружаем раздел…</div>}
         >
           {activeView === "orders" && <OrderBoard />}
-          {activeView === "kitchen" && (
-            <OrderBoard
-              defaultView="kanban"
-              title="Кухня"
-              description="Повар принимает переданные заказы, начинает готовить и отмечает готовность."
-            />
-          )}
           {activeView === "map" && <DispatchMap />}
           {activeView === "branches" && <BranchManager />}
           {activeView === "catalog" && <CatalogManager />}

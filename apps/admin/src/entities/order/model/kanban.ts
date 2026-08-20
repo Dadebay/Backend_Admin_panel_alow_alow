@@ -1,21 +1,17 @@
 import type { OrderStatus, Role } from "./types";
 
 export type OrderKanbanLaneId =
-  | "incoming"
-  | "kitchen-queue"
-  | "cooking"
+  | "kitchen"
   | "ready"
-  | "assigned"
-  | "delivery"
-  | "cash"
-  | "closing"
-  | "cancelled";
+  | "courier"
+  | "archive";
 
 export type OrderKanbanLane = {
   id: OrderKanbanLaneId;
   title: string;
   responsibility: string;
   statuses: OrderStatus[];
+  collapsed?: boolean;
 };
 
 export type OrderCardField =
@@ -28,22 +24,10 @@ export type OrderCardField =
 
 export const orderKanbanLanes: OrderKanbanLane[] = [
   {
-    id: "incoming",
-    title: "Получены",
-    responsibility: "Оператор",
-    statuses: ["NEW", "CONFIRMED"],
-  },
-  {
-    id: "kitchen-queue",
+    id: "kitchen",
     title: "Очередь кухни",
-    responsibility: "Повар",
-    statuses: ["SENT_TO_KITCHEN"],
-  },
-  {
-    id: "cooking",
-    title: "Готовятся",
-    responsibility: "Повар",
-    statuses: ["COOKING"],
+    responsibility: "Оператор → повар",
+    statuses: ["NEW", "CONFIRMED", "SENT_TO_KITCHEN", "COOKING"],
   },
   {
     id: "ready",
@@ -52,34 +36,22 @@ export const orderKanbanLanes: OrderKanbanLane[] = [
     statuses: ["READY"],
   },
   {
-    id: "assigned",
-    title: "Назначены",
-    responsibility: "Курьер",
-    statuses: ["ASSIGNED_TO_COURIER"],
-  },
-  {
-    id: "delivery",
-    title: "В пути",
-    responsibility: "Курьер",
-    statuses: ["OUT_FOR_DELIVERY"],
-  },
-  {
-    id: "cash",
-    title: "Доставка и наличные",
+    id: "courier",
+    title: "Курьер",
     responsibility: "Курьер → оператор",
-    statuses: ["DELIVERED", "CASH_RETURNED"],
+    statuses: [
+      "ASSIGNED_TO_COURIER",
+      "OUT_FOR_DELIVERY",
+      "DELIVERED",
+      "CASH_RETURNED",
+    ],
   },
   {
-    id: "closing",
-    title: "Закрытие",
-    responsibility: "Оператор → бухгалтер",
-    statuses: ["COMPLETED", "RECONCILED"],
-  },
-  {
-    id: "cancelled",
-    title: "Отменены",
-    responsibility: "История",
-    statuses: ["CANCELLED"],
+    id: "archive",
+    title: "Закрытые и отменённые",
+    responsibility: "История за выбранный период",
+    statuses: ["COMPLETED", "RECONCILED", "CANCELLED"],
+    collapsed: true,
   },
 ];
 
@@ -91,8 +63,8 @@ const fullFlowRoles = new Set<Role>([
 ]);
 
 const laneIdsByRole: Partial<Record<Role, Set<OrderKanbanLaneId>>> = {
-  COOK: new Set(["kitchen-queue", "cooking", "ready"]),
-  COURIER: new Set(["assigned", "delivery", "cash"]),
+  COOK: new Set(["kitchen", "ready"]),
+  COURIER: new Set(["courier"]),
 };
 
 const queueStatusesByRole: Partial<Record<Role, OrderStatus[]>> = {

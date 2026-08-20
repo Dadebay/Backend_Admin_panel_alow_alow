@@ -1,6 +1,8 @@
-import { useMemo } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import {
   canCancel,
+  canEditCourierAssignment,
   kanbanLanesForRole,
   nextOrderStatus,
   orderItemLabel,
@@ -9,6 +11,7 @@ import {
   statusLabels,
   type Courier,
   type Order,
+  type OrderKanbanLane,
   type OrderStatus,
   type Role,
 } from "@/src/entities/order";
@@ -24,7 +27,12 @@ type OrderKanbanProps = {
   onAssignCourier: (order: Order, courierId: string) => void;
   onTransition: (order: Order, status: OrderStatus) => void;
   onCancel: (order: Order) => void;
+  onEditOrder: (order: Order) => void;
   onOpenDetails: (orderId: string) => void;
+};
+
+type OrderCardProps = Omit<OrderKanbanProps, "orders" | "fixedStatus"> & {
+  order: Order;
 };
 
 function personName(person: {
@@ -58,10 +66,15 @@ function deliveryMeta(order: Order) {
     .join(" · ");
 }
 
-export function OrderKanban({
-  orders,
+function startsExpanded(status: OrderStatus) {
+  return ["NEW", "CONFIRMED", "SENT_TO_KITCHEN", "COOKING", "READY"].includes(
+    status,
+  );
+}
+
+function OrderCard({
+  order,
   role,
-  fixedStatus,
   couriers,
   courierByOrder,
   pending,
@@ -69,228 +82,331 @@ export function OrderKanban({
   onAssignCourier,
   onTransition,
   onCancel,
+  onEditOrder,
   onOpenDetails,
-}: OrderKanbanProps) {
-  const lanes = useMemo(
-    () =>
-      kanbanLanesForRole(role).filter(
-        (lane) => !fixedStatus || lane.statuses.includes(fixedStatus),
-      ),
-    [fixedStatus, role],
-  );
+}: OrderCardProps) {
   const fields = orderCardFieldsForRole(role);
   const canOpenDetails = roleCanUseOrderTable(role);
-  const ordersByLane = useMemo(
-    () =>
-      lanes.map((lane) => ({
-        lane,
-        orders: orders.filter((order) => lane.statuses.includes(order.status)),
-      })),
-    [lanes, orders],
+  const next = nextOrderStatus(role, order.status);
+  const selectedCourier = courierByOrder[order.id] ?? "";
+  const meta = deliveryMeta(order);
+  const canAssign =
+    order.status === "READY" &&
+    ["OPERATOR", "ADMIN", "SUPER_ADMIN"].includes(role);
+  const [isExpanded, setIsExpanded] = useState(() =>
+    startsExpanded(order.status),
   );
 
   return (
-    <div
-      className="order-kanban"
-      data-testid="order-kanban"
-      aria-label="Канбан-доска заказов"
+    <details
+      className="order-kanban-card"
+      data-testid={`order-kanban-card-${order.id}`}
+      open={isExpanded}
+      onToggle={(event) => setIsExpanded(event.currentTarget.open)}
     >
-      {ordersByLane.map(({ lane, orders: laneOrders }) => (
-        <section
-          className={`order-kanban-lane order-kanban-lane--${lane.id}`}
-          data-testid={`order-kanban-column-${lane.id}`}
-          key={lane.id}
-          aria-labelledby={`order-kanban-title-${lane.id}`}
+      <summary className="order-kanban-card-summary">
+        <span className="order-kanban-card-summary-main">
+          <strong>#{order.number}</strong>
+          <time dateTime={order.createdAt}>
+            {formatOrderTime(order.createdAt)}
+          </time>
+        </span>
+        <span
+          className={`status-pill status-${order.status.toLowerCase()}`}
         >
-          <header className="order-kanban-lane-head">
+          {statusLabels[order.status]}
+        </span>
+        <span className="order-kanban-card-summary-meta">
+          {fields.has("customer") && <b>{personName(order.customer)}</b>}
+          <small>
+            {order.courier
+              ? `Курьер: ${personName(order.courier)}`
+              : order.branchName ?? "Филиал не назначен"}
+          </small>
+        </span>
+      </summary>
+
+      <div className="order-kanban-card-body">
+        {order.source === "STAFF_PHONE" && (
+          <span className="order-source-label">Заказ по телефону</span>
+        )}
+
+        {fields.has("customer") && (
+          <div className="order-kanban-person">
+            <span>Клиент</span>
+            <strong>{personName(order.customer)}</strong>
+            <a href={`tel:${order.customer.phone}`}>{order.customer.phone}</a>
+          </div>
+        )}
+
+        {fields.has("delivery") && (
+          <div className="order-kanban-address">
+            <span>Куда доставить</span>
+            <strong>{order.address}</strong>
+            {meta && <small>{meta}</small>}
+          </div>
+        )}
+
+        {fields.has("branch") && (
+          <div className="order-kanban-meta">
+            <span>Филиал</span>
+            <strong>{order.branchName ?? "Старый заказ"}</strong>
+          </div>
+        )}
+
+        {fields.has("items") && (
+          <ul className="order-kanban-items" aria-label="Состав заказа">
+            {order.items.map((item) => (
+              <li key={item.id}>
+                <b>{item.quantity}×</b>
+                <span>{orderItemLabel(item)}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {order.customerNote &&
+          (role === "COOK" || fields.has("delivery")) && (
+            <p className="order-kanban-note">
+              <strong>Комментарий:</strong> {order.customerNote}
+            </p>
+          )}
+
+        {order.cancellationReason && canOpenDetails && (
+          <p className="order-kanban-note">
+            <strong>Причина отмены:</strong> {order.cancellationReason}
+          </p>
+        )}
+
+        <div className="order-kanban-finance">
+          {fields.has("cash") && (
             <div>
-              <span>{lane.responsibility}</span>
-              <h2 id={`order-kanban-title-${lane.id}`}>{lane.title}</h2>
+              <span>Наличными</span>
+              <strong>{Number(order.total).toFixed(2)} TMT</strong>
             </div>
-            <strong aria-label={`${laneOrders.length} заказов`}>
-              {laneOrders.length}
-            </strong>
-          </header>
+          )}
+          {fields.has("courier") && order.courier && (
+            <div>
+              <span>Курьер</span>
+              <strong>{personName(order.courier)}</strong>
+            </div>
+          )}
+        </div>
 
-          <div className="order-kanban-cards">
-            {laneOrders.length === 0 && (
-              <p className="order-kanban-empty">В этой колонке заказов нет</p>
-            )}
-            {laneOrders.map((order) => {
-              const next = nextOrderStatus(role, order.status);
-              const selectedCourier = courierByOrder[order.id] ?? "";
-              const meta = deliveryMeta(order);
-              const canAssign =
-                order.status === "READY" &&
-                ["OPERATOR", "ADMIN", "SUPER_ADMIN"].includes(role);
+        {canAssign && (
+          <label className="order-kanban-courier">
+            <span>Назначить курьера</span>
+            <select
+              data-testid={`order-kanban-courier-${order.id}`}
+              aria-label={`Курьер для заказа ${order.number}`}
+              value={selectedCourier}
+              onChange={(event) =>
+                onCourierChange(order.id, event.target.value)
+              }
+            >
+              <option value="">Выберите курьера</option>
+              {couriers.map((courier) => (
+                <option key={courier.id} value={courier.id}>
+                  {personName(courier)} · {courier.courierOrders.length} в работе
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
 
+        <div className="order-kanban-actions">
+          {canOpenDetails && (
+            <button
+              type="button"
+              className="secondary-button compact"
+              data-testid={`order-kanban-details-${order.id}`}
+              onClick={() => onOpenDetails(order.id)}
+            >
+              Подробнее
+            </button>
+          )}
+          {canEditCourierAssignment(role, order.status) && (
+            <button
+              type="button"
+              className="secondary-button compact"
+              data-testid={`order-kanban-edit-${order.id}`}
+              disabled={pending}
+              onClick={() => onEditOrder(order)}
+            >
+              Редактировать
+            </button>
+          )}
+          {canAssign && (
+            <button
+              type="button"
+              className="primary-button compact"
+              data-testid={`order-kanban-assign-${order.id}`}
+              disabled={!selectedCourier || pending}
+              onClick={() => onAssignCourier(order, selectedCourier)}
+            >
+              Отдать курьеру
+            </button>
+          )}
+          {next && (
+            <button
+              type="button"
+              className="primary-button compact"
+              data-testid={`order-kanban-transition-${order.id}`}
+              disabled={pending}
+              onClick={() => onTransition(order, next)}
+            >
+              {statusLabels[next]}
+            </button>
+          )}
+          {canCancel(role, order.status) && (
+            <button
+              type="button"
+              className="danger-button compact"
+              data-testid={`order-kanban-cancel-${order.id}`}
+              disabled={pending}
+              onClick={() => onCancel(order)}
+            >
+              Отменить
+            </button>
+          )}
+        </div>
+      </div>
+    </details>
+  );
+}
+
+function VirtualizedOrderLane({
+  lane,
+  orders,
+  archive = false,
+  ...cardProps
+}: Omit<OrderKanbanProps, "orders" | "fixedStatus"> & {
+  lane: OrderKanbanLane;
+  orders: Order[];
+  archive?: boolean;
+}) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const getItemKey = useCallback(
+    (index: number) => orders[index]?.id ?? index,
+    [orders],
+  );
+  // TanStack Virtual deliberately owns mutable scroll measurements; React
+  // Compiler must leave this small lane component un-memoized.
+  // eslint-disable-next-line react-hooks/incompatible-library
+  const virtualizer = useVirtualizer({
+    count: orders.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => (archive ? 150 : 420),
+    getItemKey,
+    overscan: 3,
+    useFlushSync: false,
+  });
+
+  return (
+    <section
+      className={`order-kanban-lane order-kanban-lane--${lane.id}`}
+      data-testid={`order-kanban-column-${lane.id}`}
+      aria-label={archive ? lane.title : undefined}
+      aria-labelledby={archive ? undefined : `order-kanban-title-${lane.id}`}
+    >
+      {!archive && (
+        <header className="order-kanban-lane-head">
+          <div>
+            <span>{lane.responsibility}</span>
+            <h2 id={`order-kanban-title-${lane.id}`}>{lane.title}</h2>
+          </div>
+          <strong aria-label={`${orders.length} заказов`}>{orders.length}</strong>
+        </header>
+      )}
+
+      <div
+        ref={scrollRef}
+        className={`order-kanban-scroll ${archive ? "is-archive" : ""}`}
+        data-testid={`order-kanban-scroll-${lane.id}`}
+      >
+        {orders.length === 0 ? (
+          <p className="order-kanban-empty">В этой колонке заказов нет</p>
+        ) : (
+          <div
+            className="order-kanban-virtual-space"
+            style={{ height: virtualizer.getTotalSize() }}
+          >
+            {virtualizer.getVirtualItems().map((virtualItem) => {
+              const order = orders[virtualItem.index];
+              if (!order) return null;
               return (
-                <article
-                  className="order-kanban-card"
-                  data-testid={`order-kanban-card-${order.id}`}
-                  key={order.id}
+                <div
+                  ref={virtualizer.measureElement}
+                  className="order-kanban-virtual-row"
+                  data-index={virtualItem.index}
+                  key={virtualItem.key}
+                  style={{ transform: `translateY(${virtualItem.start}px)` }}
                 >
-                  <div className="order-kanban-card-head">
-                    <div>
-                      <strong>#{order.number}</strong>
-                      <time dateTime={order.createdAt}>
-                        {formatOrderTime(order.createdAt)}
-                      </time>
-                    </div>
-                    <span
-                      className={`status-pill status-${order.status.toLowerCase()}`}
-                    >
-                      {statusLabels[order.status]}
-                    </span>
-                  </div>
-
-                  {order.source === "STAFF_PHONE" && (
-                    <span className="order-source-label">
-                      Заказ по телефону
-                    </span>
-                  )}
-
-                  {fields.has("customer") && (
-                    <div className="order-kanban-person">
-                      <span>Клиент</span>
-                      <strong>{personName(order.customer)}</strong>
-                      <a href={`tel:${order.customer.phone}`}>
-                        {order.customer.phone}
-                      </a>
-                    </div>
-                  )}
-
-                  {fields.has("delivery") && (
-                    <div className="order-kanban-address">
-                      <span>Куда доставить</span>
-                      <strong>{order.address}</strong>
-                      {meta && <small>{meta}</small>}
-                    </div>
-                  )}
-
-                  {fields.has("branch") && (
-                    <div className="order-kanban-meta">
-                      <span>Филиал</span>
-                      <strong>{order.branchName ?? "Старый заказ"}</strong>
-                    </div>
-                  )}
-
-                  {fields.has("items") && (
-                    <ul
-                      className="order-kanban-items"
-                      aria-label="Состав заказа"
-                    >
-                      {order.items.map((item) => (
-                        <li key={item.id}>
-                          <b>{item.quantity}×</b>
-                          <span>{orderItemLabel(item)}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-
-                  {order.customerNote &&
-                    (role === "COOK" || fields.has("delivery")) && (
-                      <p className="order-kanban-note">
-                        <strong>Комментарий:</strong> {order.customerNote}
-                      </p>
-                    )}
-
-                  {order.cancellationReason && canOpenDetails && (
-                    <p className="order-kanban-note">
-                      <strong>Причина отмены:</strong>{" "}
-                      {order.cancellationReason}
-                    </p>
-                  )}
-
-                  <div className="order-kanban-finance">
-                    {fields.has("cash") && (
-                      <div>
-                        <span>Наличными</span>
-                        <strong>{Number(order.total).toFixed(2)} TMT</strong>
-                      </div>
-                    )}
-                    {fields.has("courier") && order.courier && (
-                      <div>
-                        <span>Курьер</span>
-                        <strong>{personName(order.courier)}</strong>
-                      </div>
-                    )}
-                  </div>
-
-                  {canAssign && (
-                    <label className="order-kanban-courier">
-                      <span>Назначить курьера</span>
-                      <select
-                        data-testid={`order-kanban-courier-${order.id}`}
-                        aria-label={`Курьер для заказа ${order.number}`}
-                        value={selectedCourier}
-                        onChange={(event) =>
-                          onCourierChange(order.id, event.target.value)
-                        }
-                      >
-                        <option value="">Выберите курьера</option>
-                        {couriers.map((courier) => (
-                          <option key={courier.id} value={courier.id}>
-                            {personName(courier)} ·{" "}
-                            {courier.courierOrders.length} в работе
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                  )}
-
-                  <div className="order-kanban-actions">
-                    {canOpenDetails && (
-                      <button
-                        type="button"
-                        className="secondary-button compact"
-                        data-testid={`order-kanban-details-${order.id}`}
-                        onClick={() => onOpenDetails(order.id)}
-                      >
-                        Подробнее
-                      </button>
-                    )}
-                    {canAssign && (
-                      <button
-                        type="button"
-                        className="primary-button compact"
-                        data-testid={`order-kanban-assign-${order.id}`}
-                        disabled={!selectedCourier || pending}
-                        onClick={() => onAssignCourier(order, selectedCourier)}
-                      >
-                        Отдать курьеру
-                      </button>
-                    )}
-                    {next && (
-                      <button
-                        type="button"
-                        className="primary-button compact"
-                        data-testid={`order-kanban-transition-${order.id}`}
-                        disabled={pending}
-                        onClick={() => onTransition(order, next)}
-                      >
-                        {statusLabels[next]}
-                      </button>
-                    )}
-                    {canCancel(role, order.status) && (
-                      <button
-                        type="button"
-                        className="danger-button compact"
-                        data-testid={`order-kanban-cancel-${order.id}`}
-                        disabled={pending}
-                        onClick={() => onCancel(order)}
-                      >
-                        Отменить
-                      </button>
-                    )}
-                  </div>
-                </article>
+                  <OrderCard order={order} {...cardProps} />
+                </div>
               );
             })}
           </div>
-        </section>
-      ))}
-    </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+export function OrderKanban({ orders, fixedStatus, ...props }: OrderKanbanProps) {
+  const lanes = useMemo(
+    () =>
+      kanbanLanesForRole(props.role).filter(
+        (lane) => !fixedStatus || lane.statuses.includes(fixedStatus),
+      ),
+    [fixedStatus, props.role],
+  );
+  const activeLanes = lanes.filter((lane) => !lane.collapsed);
+  const archiveLane = lanes.find((lane) => lane.collapsed);
+  const ordersForLane = useCallback(
+    (lane: OrderKanbanLane) =>
+      orders.filter((order) => lane.statuses.includes(order.status)),
+    [orders],
+  );
+  const archiveOrders = archiveLane ? ordersForLane(archiveLane) : [];
+
+  return (
+    <>
+      <div
+        className="order-kanban"
+        data-testid="order-kanban"
+        aria-label="Канбан-доска заказов"
+      >
+        {activeLanes.map((lane) => (
+          <VirtualizedOrderLane
+            key={lane.id}
+            lane={lane}
+            orders={ordersForLane(lane)}
+            {...props}
+          />
+        ))}
+      </div>
+
+      {archiveLane && (
+        <details
+          className="order-kanban-archive"
+          data-testid="order-kanban-archive"
+        >
+          <summary>
+            <span>
+              <strong>{archiveLane.title}</strong>
+              <small>{archiveLane.responsibility}</small>
+            </span>
+            <b>{archiveOrders.length}</b>
+          </summary>
+          <VirtualizedOrderLane
+            archive
+            lane={archiveLane}
+            orders={archiveOrders}
+            {...props}
+          />
+        </details>
+      )}
+    </>
   );
 }

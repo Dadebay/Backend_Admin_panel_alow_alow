@@ -155,7 +155,7 @@ alowalow/
 │       ├── src/            # FSD product layers
 │       │   ├── app/        # SPA bootstrap, routes, providers, global styles
 │       │   ├── widgets/    # boards/maps/managers, incl. assisted phone order
-│       │   ├── features/   # typed mutations, incl. assisted order creation
+│       │   ├── features/   # typed mutations, assisted orders, new-order alerts
 │       │   ├── entities/   # typed queries/models, incl. customer/geocoding
 │       │   └── shared/     # HTTP/query clients, auth, Zod form helpers, UI
 │       ├── public/
@@ -213,13 +213,18 @@ their own staff account as the customer of an ordinary order.
 Only `SUPER_ADMIN` may manage another `SUPER_ADMIN`, and the system must retain
 at least one active `SUPER_ADMIN`.
 
+The React/Vite web admin accepts sessions only for `ACCOUNTANT`, `ADMIN`, and
+`SUPER_ADMIN`. `CUSTOMER`, `OPERATOR`, `COOK`, and `COURIER` cannot enter the
+web admin or retain an OTP session there; their backend roles and mobile/API
+workflows remain unchanged. The web courier route is intentionally absent.
+
 The admin order workspace defaults to a role-aware Kanban backed by the same
-paginated order API and mutation policy as the table. `OPERATOR`, `ACCOUNTANT`,
-`ADMIN`, and `SUPER_ADMIN` see the complete lifecycle; the cook sees only the
-kitchen queue, cooking, and ready lanes; the courier sees only their assigned,
-in-delivery, and cash-return lanes. Cook cards omit customer identity, address,
-and cash; accountant cards omit customer identity, delivery address, and dish
-composition. The detailed table is available only to `OPERATOR`, `ADMIN`, and
+paginated order API and mutation policy as the table. `ACCOUNTANT`, `ADMIN`,
+and `SUPER_ADMIN` see three active lanes: kitchen (received through cooking),
+ready, and courier (assignment through cash return). Completed, reconciled,
+and cancelled orders remain available in one collapsed archive below the
+board. Accountant cards omit customer identity, delivery address, and dish
+composition. The detailed table is available only to `ADMIN` and
 `SUPER_ADMIN`. Hiding frontend navigation or card fields is usability and data
 minimization only—the NestJS guards, role scope, and order policy remain the
 authorization authority.
@@ -246,7 +251,9 @@ Role ownership:
 
 - operator/admin: `NEW → CONFIRMED → SENT_TO_KITCHEN`;
 - cook/admin: `SENT_TO_KITCHEN → COOKING → READY`;
-- operator/admin assigns a `READY` order to an active courier;
+- operator/admin assigns a `READY` order to an active courier and may correct
+  that courier while the order remains `ASSIGNED_TO_COURIER`; correction is
+  forbidden after `OUT_FOR_DELIVERY` begins;
 - assigned courier/admin:
   `ASSIGNED_TO_COURIER → OUT_FOR_DELIVERY → DELIVERED → CASH_RETURNED`;
 - operator/admin: `CASH_RETURNED → COMPLETED`;
@@ -260,8 +267,9 @@ Cancellation:
   `NEW`, `CONFIRMED`, `SENT_TO_KITCHEN`;
 - no role may cancel once status is `COOKING` or later.
 
-Every mutation uses the order `version` for optimistic concurrency and records
-the successful transition.
+Every mutation uses the order `version` for optimistic concurrency. Status
+changes record an order transition; a same-status courier correction records a
+dedicated audit event with the previous and new courier IDs.
 
 ## Courier behavior
 
@@ -977,3 +985,21 @@ multi-status filter ensuring cook/courier queues are not displaced by history.
   before TLS verification. GitHub-hosted runners still cannot reach domestic
   SSH port 22, so unattended deploy requires a domestic self-hosted runner or
   another Telecom-approved transport and must never reclaim HTTPS port 443.
+- 2026-08-20: the operations admin gained one global, role-scoped new-order
+  alert loop for `OPERATOR`, `ADMIN`, and `SUPER_ADMIN`. It polls the real
+  `NEW` order queue every 30 seconds only while the document is visible,
+  establishes the first response as a quiet baseline, deduplicates by backend
+  order ID, always shows an in-app alert, and optionally uses the browser
+  Notification API after an explicit user gesture. Existing order-board polling
+  uses the same 30-second cadence. Tablet and phone navigation converged on one
+  off-canvas drawer through 1180 px, hidden drawers cannot intercept taps, and
+  coarse-pointer controls have a minimum 44 px touch target.
+- 2026-08-20: the order board was condensed from nine status columns to three
+  operational columns (`kitchen`, `ready`, `courier`) plus one collapsed
+  archive. Individual cards are expandable and every lane uses TanStack Virtual
+  with stable backend order IDs and dynamic measurement, so queues of 50–100
+  orders do not mount every detailed card. The board and table default to the
+  current local calendar day, allow yesterday, an explicit historical date, or
+  all history, and support an hour range within the selected day. NestJS owns
+  the inclusive `createdFrom` and exclusive `createdTo` filtering and composes
+  it with role, status, branch, and search constraints.

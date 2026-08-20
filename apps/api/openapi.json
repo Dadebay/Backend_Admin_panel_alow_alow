@@ -669,6 +669,26 @@
             }
           },
           {
+            "name": "createdFrom",
+            "required": false,
+            "in": "query",
+            "description": "Inclusive order creation timestamp in ISO 8601 format",
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "name": "createdTo",
+            "required": false,
+            "in": "query",
+            "description": "Exclusive order creation timestamp in ISO 8601 format",
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
             "name": "page",
             "required": false,
             "in": "query",
@@ -994,7 +1014,7 @@
             "bearer": []
           }
         ],
-        "summary": "Assign a ready order to a courier; couriers may hold many orders",
+        "summary": "Assign a ready order or correct its courier before delivery starts",
         "tags": [
           "orders"
         ]

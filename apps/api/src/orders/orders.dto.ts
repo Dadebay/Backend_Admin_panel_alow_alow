@@ -4,6 +4,7 @@ import {
   ArrayMaxSize,
   ArrayMinSize,
   IsArray,
+  IsDateString,
   IsEnum,
   IsInt,
   IsLatitude,
@@ -250,6 +251,22 @@ export class ListOrdersQueryDto {
   @IsString()
   @MaxLength(120)
   search?: string;
+
+  @ApiPropertyOptional({
+    format: "date-time",
+    description: "Inclusive order creation timestamp in ISO 8601 format",
+  })
+  @IsOptional()
+  @IsDateString({ strict: true })
+  createdFrom?: string;
+
+  @ApiPropertyOptional({
+    format: "date-time",
+    description: "Exclusive order creation timestamp in ISO 8601 format",
+  })
+  @IsOptional()
+  @IsDateString({ strict: true })
+  createdTo?: string;
 
   @ApiPropertyOptional({ default: 1 })
   @IsOptional()

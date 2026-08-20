@@ -5,6 +5,7 @@ import { useForm } from "react-hook-form";
 import { formatBranchDistance, useBranches } from "@/src/entities/branch";
 import {
   canCancel,
+  canEditCourierAssignment,
   kanbanQueueStatusesForRole,
   nextOrderStatus,
   orderItemLabel,
@@ -23,6 +24,11 @@ import { useSession } from "@/src/shared/auth";
 import { FormFieldError } from "@/src/shared/forms";
 import { AsyncPanel, DataTable } from "@/src/shared/ui";
 import {
+  orderPeriodRange,
+  todayDateValue,
+  type OrderPeriod,
+} from "../model/order-period-filter";
+import {
   orderSearchFormSchema,
   type OrderSearchFormValues,
 } from "../model/order-search-form";
@@ -30,6 +36,13 @@ import { OrderDetailDialog } from "./order-detail-dialog";
 import { OrderKanban } from "./order-kanban";
 
 const AssistedOrderDialog = lazy(() => import("@/src/widgets/assisted-order"));
+const OrderCourierEditDialog = lazy(() =>
+  import("@/src/features/order-management/editor").then((module) => ({
+    default: module.OrderCourierEditDialog,
+  })),
+);
+
+const hourOptions = Array.from({ length: 25 }, (_, hour) => hour);
 
 function personName(person: {
   firstName: string | null;
@@ -73,7 +86,7 @@ function deliveryDetails(order: Order) {
 export function OrderBoard({
   fixedStatus,
   title = "Заказы",
-  description = "Живая очередь из PostgreSQL, обновление каждые 12 секунд",
+  description = "Три рабочие очереди, сегодняшние заказы и обновление каждые 30 секунд",
   defaultView = "kanban",
 }: {
   fixedStatus?: OrderStatus;
@@ -94,7 +107,12 @@ export function OrderBoard({
   const [search, setSearch] = useState("");
   const [branchId, setBranchId] = useState("ALL");
   const [page, setPage] = useState(1);
+  const [period, setPeriod] = useState<OrderPeriod>("today");
+  const [selectedDate, setSelectedDate] = useState(todayDateValue);
+  const [startHour, setStartHour] = useState(0);
+  const [endHour, setEndHour] = useState(24);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+  const [editingOrder, setEditingOrder] = useState<Order | null>(null);
   const [showAssistedOrder, setShowAssistedOrder] = useState(false);
   const [courierByOrder, setCourierByOrder] = useState<Record<string, string>>(
     {},
@@ -107,6 +125,16 @@ export function OrderBoard({
     resolver: zodResolver(orderSearchFormSchema),
     defaultValues: { search: "" },
   });
+  const dateRange = useMemo(
+    () =>
+      orderPeriodRange({
+        period,
+        selectedDate,
+        startHour,
+        endHour,
+      }),
+    [endHour, period, selectedDate, startHour],
+  );
   const orders = useOrders({
     status:
       fixedStatus ??
@@ -117,6 +145,8 @@ export function OrderBoard({
         : undefined,
     branchId: branchId === "ALL" ? undefined : branchId,
     search,
+    createdFrom: dateRange.createdFrom,
+    createdTo: dateRange.createdTo,
     page,
     limit: viewMode === "kanban" ? 100 : 25,
   });
@@ -328,6 +358,7 @@ export function OrderBoard({
               <button
                 type="button"
                 className="secondary-button compact"
+                data-testid={`order-table-details-${order.id}`}
                 onClick={() => setSelectedOrderId(order.id)}
               >
                 Подробнее
@@ -335,7 +366,9 @@ export function OrderBoard({
               {order.status === "READY" &&
                 ["OPERATOR", "ADMIN", "SUPER_ADMIN"].includes(role) && (
                   <button
+                    type="button"
                     className="primary-button compact"
+                    data-testid={`order-table-assign-${order.id}`}
                     disabled={!courierId || pending}
                     onClick={() =>
                       actions.assignCourier.mutate({
@@ -348,9 +381,22 @@ export function OrderBoard({
                     Отдать курьеру
                   </button>
                 )}
+              {canEditCourierAssignment(role, order.status) && (
+                <button
+                  type="button"
+                  className="secondary-button compact"
+                  data-testid={`order-table-edit-${order.id}`}
+                  disabled={pending}
+                  onClick={() => setEditingOrder(order)}
+                >
+                  Редактировать
+                </button>
+              )}
               {next && (
                 <button
+                  type="button"
                   className="primary-button compact"
+                  data-testid={`order-table-transition-${order.id}`}
                   disabled={pending}
                   onClick={() =>
                     actions.transition.mutate({
@@ -365,7 +411,9 @@ export function OrderBoard({
               )}
               {canCancel(role, order.status) && (
                 <button
+                  type="button"
                   className="danger-button compact"
+                  data-testid={`order-table-cancel-${order.id}`}
                   disabled={pending}
                   onClick={() => cancelOrder(order)}
                 >
@@ -445,10 +493,86 @@ export function OrderBoard({
       </header>
 
       <div className="toolbar">
+        <label>
+          <span>Период</span>
+          <select
+            data-testid="orders-period-filter"
+            value={period}
+            onChange={(event) => {
+              setPeriod(event.target.value as OrderPeriod);
+              setPage(1);
+            }}
+          >
+            <option value="today">Сегодня</option>
+            <option value="yesterday">Вчера</option>
+            <option value="date">Выбрать дату</option>
+            <option value="all">Вся история</option>
+          </select>
+        </label>
+        {period === "date" && (
+          <label>
+            <span>Дата</span>
+            <input
+              type="date"
+              data-testid="orders-date-filter"
+              max={todayDateValue()}
+              value={selectedDate}
+              onChange={(event) => {
+                setSelectedDate(event.target.value);
+                setPage(1);
+              }}
+            />
+          </label>
+        )}
+        {period !== "all" && (
+          <div className="order-hour-filters" aria-label="Фильтр по часам">
+            <label>
+              <span>С часа</span>
+              <select
+                data-testid="orders-hour-from-filter"
+                value={startHour}
+                onChange={(event) => {
+                  const nextStart = Number(event.target.value);
+                  setStartHour(nextStart);
+                  if (nextStart >= endHour) {
+                    setEndHour(Math.min(24, nextStart + 1));
+                  }
+                  setPage(1);
+                }}
+              >
+                {hourOptions.slice(0, 24).map((hour) => (
+                  <option value={hour} key={hour}>
+                    {String(hour).padStart(2, "0")}:00
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              <span>До часа</span>
+              <select
+                data-testid="orders-hour-to-filter"
+                value={endHour}
+                onChange={(event) => {
+                  setEndHour(Number(event.target.value));
+                  setPage(1);
+                }}
+              >
+                {hourOptions
+                  .filter((hour) => hour > startHour)
+                  .map((hour) => (
+                    <option value={hour} key={hour}>
+                      {String(hour).padStart(2, "0")}:00
+                    </option>
+                  ))}
+              </select>
+            </label>
+          </div>
+        )}
         {!fixedStatus && viewMode === "table" && (
           <label>
             <span>Статус</span>
             <select
+              data-testid="orders-status-filter"
               value={status}
               onChange={(event) => {
                 setStatus(event.target.value as OrderStatus | "ALL");
@@ -552,6 +676,7 @@ export function OrderBoard({
                 })
               }
               onCancel={cancelOrder}
+              onEditOrder={setEditingOrder}
               onOpenDetails={setSelectedOrderId}
             />
           ) : (
@@ -573,14 +698,18 @@ export function OrderBoard({
             </span>
             <div>
               <button
+                type="button"
                 className="secondary-button compact"
+                data-testid="orders-page-previous"
                 disabled={page <= 1}
                 onClick={() => setPage((value) => Math.max(1, value - 1))}
               >
                 Назад
               </button>
               <button
+                type="button"
                 className="secondary-button compact"
+                data-testid="orders-page-next"
                 disabled={page >= (orders.data?.pages ?? 1)}
                 onClick={() => setPage((value) => value + 1)}
               >
@@ -595,6 +724,17 @@ export function OrderBoard({
           orderId={selectedOrderId}
           onClose={() => setSelectedOrderId(null)}
         />
+      )}
+      {editingOrder && (
+        <Suspense
+          fallback={<div className="async-state">Открываем редактор…</div>}
+        >
+          <OrderCourierEditDialog
+            order={editingOrder}
+            couriers={couriers.data ?? []}
+            onClose={() => setEditingOrder(null)}
+          />
+        </Suspense>
       )}
       {showAssistedOrder && (
         <Suspense

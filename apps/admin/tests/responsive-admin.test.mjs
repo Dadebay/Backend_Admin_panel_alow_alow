@@ -34,17 +34,39 @@ test("admin tables avoid nested horizontal scrolling on constrained screens", as
   );
 });
 
-test("mobile navigation and cash tabs do not require horizontal scrolling", async () => {
+test("tablet navigation is a touch-safe drawer and cash tabs do not scroll", async () => {
   const styles = await readFile(stylesUrl, "utf8");
 
   assert.match(
     styles,
-    /\.integrated-shell \.main-nav\s*\{[^}]*grid-template-columns: repeat\(3, minmax\(0, 1fr\)\);[^}]*overflow: visible;/s,
+    /@media \(max-width: 1180px\)[\s\S]*?\.integrated-shell \.sidebar\s*\{[^}]*visibility: hidden;[^}]*pointer-events: none;[^}]*transform: translateX\(-105%\);/,
+  );
+  assert.match(
+    styles,
+    /\.integrated-shell \.sidebar\.drawer-open\s*\{[^}]*visibility: visible;[^}]*pointer-events: auto;[^}]*transform: translateX\(0\);/,
+  );
+  assert.match(
+    styles,
+    /@media \(pointer: coarse\)[\s\S]*?\.integrated-shell button,[\s\S]*?min-height: 44px;[^}]*touch-action: manipulation;/,
   );
   assert.match(
     styles,
     /\.cash-tabs\s*\{[^}]*grid-template-columns: minmax\(0, 1fr\);[^}]*overflow: visible;/s,
   );
+});
+
+test("tablet drawer controls expose stable automation hooks", async () => {
+  const dashboard = await readFile(
+    new URL(
+      "../src/widgets/admin-dashboard/ui/admin-dashboard.tsx",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+
+  assert.match(dashboard, /data-testid="admin-navigation-toggle"/);
+  assert.match(dashboard, /data-testid="admin-navigation-scrim"/);
+  assert.match(dashboard, /type="button"[\s\S]*?admin-navigation-toggle/);
 });
 
 test("order kanban wraps at desktop, tablet, and phone breakpoints", async () => {

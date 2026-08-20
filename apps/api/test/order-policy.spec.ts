@@ -4,6 +4,8 @@ import {
   allowedOrderTransitions,
   assertOrderTransition,
   canCancelOrder,
+  canEditCourierAssignment,
+  canManageCourierAssignment,
 } from "../src/orders/order-policy";
 
 describe("order workflow policy", () => {
@@ -108,6 +110,19 @@ describe("order workflow policy", () => {
           ).toBe(expectedCancellation);
         }
       }
+    }
+  });
+
+  it("allows only dispatch roles to correct an assignment before delivery", () => {
+    for (const role of Object.values(Role)) {
+      expect(canManageCourierAssignment(role), role).toBe(
+        [Role.OPERATOR, Role.ADMIN, Role.SUPER_ADMIN].includes(role),
+      );
+    }
+    for (const status of Object.values(OrderStatus)) {
+      expect(canEditCourierAssignment(status), status).toBe(
+        [OrderStatus.READY, OrderStatus.ASSIGNED_TO_COURIER].includes(status),
+      );
     }
   });
 });

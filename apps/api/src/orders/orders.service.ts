@@ -36,7 +36,12 @@ import {
   SearchAssistedCustomersQueryDto,
   TransitionOrderDto,
 } from "./orders.dto";
-import { assertOrderTransition, canCancelOrder } from "./order-policy";
+import {
+  assertOrderTransition,
+  canCancelOrder,
+  canEditCourierAssignment,
+  canManageCourierAssignment,
+} from "./order-policy";
 import {
   CourierRouteWaypointKind,
   CourierRoutingStatus,
@@ -552,6 +557,15 @@ export class OrdersService {
               }
             : {};
     const search = query.search?.trim();
+    const createdFrom = query.createdFrom
+      ? new Date(query.createdFrom)
+      : undefined;
+    const createdTo = query.createdTo ? new Date(query.createdTo) : undefined;
+    if (createdFrom && createdTo && createdFrom >= createdTo) {
+      throw new BadRequestException(
+        "createdFrom must be earlier than createdTo",
+      );
+    }
     const orderNumber = search && /^\d+$/.test(search) ? Number(search) : null;
     const statusFilter: Prisma.OrderWhereInput = query.status
       ? { status: query.status }
@@ -596,6 +610,14 @@ export class OrdersService {
         roleFilter,
         statusFilter,
         query.branchId ? { branchId: query.branchId } : {},
+        createdFrom || createdTo
+          ? {
+              createdAt: {
+                ...(createdFrom ? { gte: createdFrom } : {}),
+                ...(createdTo ? { lt: createdTo } : {}),
+              },
+            }
+          : {},
         searchFilter,
       ],
     };
@@ -753,14 +775,26 @@ export class OrdersService {
       if (!courier || courier.role !== Role.COURIER || !courier.isActive) {
         throw new BadRequestException("Courier is unavailable");
       }
-      if (order.status !== OrderStatus.READY) {
-        throw new ConflictException("Only a ready order can be assigned");
+      if (!canManageCourierAssignment(user.role)) {
+        throw new ForbiddenException(
+          "This role cannot manage courier assignments",
+        );
+      }
+      if (!canEditCourierAssignment(order.status)) {
+        throw new ConflictException(
+          "Courier assignment cannot be changed after delivery starts",
+        );
       }
       if (order.version !== dto.version) {
         throw new ConflictException("Order changed; reload and try again");
       }
+      const isReassignment =
+        order.status === OrderStatus.ASSIGNED_TO_COURIER;
+      if (isReassignment && order.courierId === courier.id) {
+        throw new BadRequestException("Courier is already assigned");
+      }
       const updated = await tx.order.updateMany({
-        where: { id, version: dto.version, status: OrderStatus.READY },
+        where: { id, version: dto.version, status: order.status },
         data: {
           status: OrderStatus.ASSIGNED_TO_COURIER,
           courierId: courier.id,
@@ -771,29 +805,38 @@ export class OrdersService {
       if (updated.count !== 1) {
         throw new ConflictException("Order changed; reload and try again");
       }
-      await tx.orderTransition.create({
-        data: {
-          orderId: id,
-          actorId: user.id,
-          fromStatus: OrderStatus.READY,
-          toStatus: OrderStatus.ASSIGNED_TO_COURIER,
-          note: `Assigned to courier ${courier.id}`,
-        },
-      });
+      if (!isReassignment) {
+        await tx.orderTransition.create({
+          data: {
+            orderId: id,
+            actorId: user.id,
+            fromStatus: OrderStatus.READY,
+            toStatus: OrderStatus.ASSIGNED_TO_COURIER,
+            note: `Assigned to courier ${courier.id}`,
+          },
+        });
+      }
       await tx.auditLog.create({
         data: {
           actorId: user.id,
-          action: "order.courier-assigned",
+          action: isReassignment
+            ? "order.courier-reassigned"
+            : "order.courier-assigned",
           entityType: "Order",
           entityId: id,
-          metadata: { courierId: courier.id },
+          metadata: {
+            previousCourierId: order.courierId,
+            courierId: courier.id,
+          },
         },
       });
       const result = await tx.order.findUniqueOrThrow({
         where: { id },
         include: detailInclude,
       });
-      notifyTarget = { customerId: result.customerId, number: result.number };
+      if (!isReassignment) {
+        notifyTarget = { customerId: result.customerId, number: result.number };
+      }
       return toApiResponse(withItemImages(result));
     });
     const assignTarget = notifyTarget as {

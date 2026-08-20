@@ -23,6 +23,7 @@ test("kanban exposes stable automation hooks for lanes, cards, and actions", asy
   assert.match(source, /data-testid=\{`order-kanban-card-\$\{order\.id\}`\}/);
   assert.match(source, /data-testid=\{`order-kanban-transition-\$\{order\.id\}`\}/);
   assert.match(source, /data-testid=\{`order-kanban-cancel-\$\{order\.id\}`\}/);
+  assert.match(source, /data-testid=\{`order-kanban-edit-\$\{order\.id\}`\}/);
   assert.match(source, /canOpenDetails &&/);
 });
 
@@ -37,6 +38,18 @@ test("kanban actions reuse backend-owned transition, assignment, and cancellatio
   assert.match(source, /kanbanQueueStatusesForRole\(role\)/);
   assert.match(source, /data-testid="orders-view-kanban"/);
   assert.match(source, /data-testid="orders-view-table"/);
+  assert.match(source, /data-testid=\{`order-table-edit-\$\{order\.id\}`\}/);
+});
+
+test("kanban virtualizes large lanes and keeps history collapsed", async () => {
+  const source = await readFile(kanbanUrl, "utf8");
+
+  assert.match(source, /useVirtualizer\(\{/);
+  assert.match(source, /getItemKey,/);
+  assert.match(source, /overscan: 3/);
+  assert.match(source, /useFlushSync: false/);
+  assert.match(source, /data-testid="order-kanban-archive"/);
+  assert.match(source, /className="order-kanban-card-summary"/);
 });
 
 test("courier workspace renders assigned orders beside GPS sharing", async () => {

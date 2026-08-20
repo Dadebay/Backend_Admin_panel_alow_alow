@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   canCancel,
+  canEditCourierAssignment,
   nextOrderStatus,
   orderStatuses,
   ratingStars,
@@ -10,12 +11,22 @@ import {
 import {
   kanbanLanesForRole,
   kanbanQueueStatusesForRole,
+  orderKanbanLanes,
   orderCardFieldsForRole,
   roleCanUseOrderTable,
 } from "../src/entities/order/model/kanban.ts";
 
 test("frontend order labels cover every generated workflow status", () => {
   assert.deepEqual(Object.keys(statusLabels), orderStatuses);
+  assert.equal(statusLabels.OUT_FOR_DELIVERY, "Доставляется");
+  assert.ok(
+    orderKanbanLanes.some(
+      (lane) =>
+        lane.id === "courier" &&
+        lane.title === "Курьер" &&
+        lane.statuses.includes("OUT_FOR_DELIVERY"),
+    ),
+  );
 });
 
 test("frontend role hints match the backend-owned workflow", () => {
@@ -42,6 +53,26 @@ test("frontend hides cancellation once cooking starts", () => {
   assert.equal(canCancel("COOK", "NEW"), false);
 });
 
+test("frontend exposes courier correction only to dispatch roles before departure", () => {
+  assert.equal(
+    canEditCourierAssignment("OPERATOR", "ASSIGNED_TO_COURIER"),
+    true,
+  );
+  assert.equal(
+    canEditCourierAssignment("ADMIN", "ASSIGNED_TO_COURIER"),
+    true,
+  );
+  assert.equal(
+    canEditCourierAssignment("SUPER_ADMIN", "ASSIGNED_TO_COURIER"),
+    true,
+  );
+  assert.equal(
+    canEditCourierAssignment("COURIER", "ASSIGNED_TO_COURIER"),
+    false,
+  );
+  assert.equal(canEditCourierAssignment("OPERATOR", "OUT_FOR_DELIVERY"), false);
+});
+
 test("frontend renders a complete five-star review scale", () => {
   assert.equal(ratingStars(5), "★★★★★");
   assert.equal(ratingStars(4), "★★★★☆");
@@ -49,17 +80,7 @@ test("frontend renders a complete five-star review scale", () => {
 });
 
 test("full-flow staff roles see the complete order kanban", () => {
-  const expected = [
-    "incoming",
-    "kitchen-queue",
-    "cooking",
-    "ready",
-    "assigned",
-    "delivery",
-    "cash",
-    "closing",
-    "cancelled",
-  ];
+  const expected = ["kitchen", "ready", "courier", "archive"];
 
   for (const role of ["OPERATOR", "ACCOUNTANT", "ADMIN", "SUPER_ADMIN"]) {
     assert.deepEqual(
@@ -73,11 +94,11 @@ test("full-flow staff roles see the complete order kanban", () => {
 test("cook and courier kanbans contain only their zones of responsibility", () => {
   assert.deepEqual(
     kanbanLanesForRole("COOK").map((lane) => lane.id),
-    ["kitchen-queue", "cooking", "ready"],
+    ["kitchen", "ready"],
   );
   assert.deepEqual(
     kanbanLanesForRole("COURIER").map((lane) => lane.id),
-    ["assigned", "delivery", "cash"],
+    ["courier"],
   );
   assert.deepEqual(kanbanLanesForRole("CUSTOMER"), []);
   assert.deepEqual(kanbanQueueStatusesForRole("COOK"), [
@@ -92,6 +113,22 @@ test("cook and courier kanbans contain only their zones of responsibility", () =
     "CASH_RETURNED",
   ]);
   assert.equal(kanbanQueueStatusesForRole("OPERATOR"), undefined);
+});
+
+test("full-flow kanban has three active columns and one collapsed archive", () => {
+  const lanes = kanbanLanesForRole("ADMIN");
+  assert.deepEqual(
+    lanes.filter((lane) => !lane.collapsed).map((lane) => lane.id),
+    ["kitchen", "ready", "courier"],
+  );
+  assert.deepEqual(
+    lanes.find((lane) => lane.collapsed)?.statuses,
+    ["COMPLETED", "RECONCILED", "CANCELLED"],
+  );
+  assert.deepEqual(
+    [...new Set(lanes.flatMap((lane) => lane.statuses))].sort(),
+    [...orderStatuses].sort(),
+  );
 });
 
 test("order cards disclose only data needed by each staff role", () => {

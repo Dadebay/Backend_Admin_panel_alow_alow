@@ -1,5 +1,6 @@
 export {
   canCancel,
+  canEditCourierAssignment,
   nextOrderStatus,
   orderItemLabel,
   orderStatuses,
@@ -15,6 +16,7 @@ export type {
   Role,
 } from "./model/types";
 export {
+  ORDER_POLL_INTERVAL_MS,
   orderQueryKeys,
   useCouriers,
   useOrder,

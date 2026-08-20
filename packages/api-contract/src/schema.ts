@@ -388,7 +388,7 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** Assign a ready order to a courier; couriers may hold many orders */
+        /** Assign a ready order or correct its courier before delivery starts */
         patch: operations["OrdersController_assign_v1"];
         trace?: never;
     };
@@ -2705,6 +2705,10 @@ export interface operations {
                 branchId?: string;
                 /** @description Order number, customer phone/name, or delivery address */
                 search?: string;
+                /** @description Inclusive order creation timestamp in ISO 8601 format */
+                createdFrom?: string;
+                /** @description Exclusive order creation timestamp in ISO 8601 format */
+                createdTo?: string;
                 page?: components["schemas"]["Object"];
                 limit?: components["schemas"]["Object"];
             };

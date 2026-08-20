@@ -39,8 +39,9 @@ type printItem struct {
 }
 
 type printerJob struct {
-	PrinterIP string      `json:"printerIp"`
-	Items     []printItem `json:"items"`
+	PrinterIP   string      `json:"printerIp"`
+	Items       []printItem `json:"items"`
+	OrderNumber int         `json:"-"`
 }
 
 type printRequest struct {
@@ -207,6 +208,7 @@ func (server *agentServer) print(writer http.ResponseWriter, request *http.Reque
 		Failed:      make([]failedPrinter, 0),
 	}
 	for _, job := range payload.Jobs {
+		job.OrderNumber = payload.OrderNumber
 		chunks, err := server.printer.Print(request.Context(), job)
 		if err != nil {
 			response.Failed = append(response.Failed, failedPrinter{
@@ -265,7 +267,7 @@ func isPrivateIPv4(value string) bool {
 }
 
 func (printer *jspeedPrinter) Print(ctx context.Context, job printerJob) (int, error) {
-	chunks := formatJobChunks(job.Items)
+	chunks := formatJobChunks(job.OrderNumber, job.Items)
 	for _, chunk := range chunks {
 		if err := printer.send(ctx, job.PrinterIP, chunk); err != nil {
 			return 0, fmt.Errorf("%s: %w", job.PrinterIP, err)
@@ -321,27 +323,32 @@ func (printer *jspeedPrinter) send(ctx context.Context, printerIP string, payloa
 	return nil
 }
 
-func formatJobChunks(items []printItem) [][]byte {
+func formatJobChunks(orderNumber int, items []printItem) [][]byte {
 	chunks := make([][]byte, 0, len(items))
 	current := make([]printItem, 0, len(items))
 	for _, item := range items {
 		candidate := append(append([]printItem(nil), current...), item)
-		if len(formatReceipt(candidate)) > maxRawChunkBytes && len(current) > 0 {
-			chunks = append(chunks, formatReceipt(current))
+		if len(formatReceipt(orderNumber, candidate)) > maxRawChunkBytes && len(current) > 0 {
+			chunks = append(chunks, formatReceipt(orderNumber, current))
 			current = []printItem{item}
 			continue
 		}
 		current = candidate
 	}
 	if len(current) > 0 {
-		chunks = append(chunks, formatReceipt(current))
+		chunks = append(chunks, formatReceipt(orderNumber, current))
 	}
 	return chunks
 }
 
-func formatReceipt(items []printItem) []byte {
+func formatReceipt(orderNumber int, items []printItem) []byte {
 	payload := []byte{0x1b, 0x40, 0x1b, 0x61, 0x00}
 	payload = append(payload, bytes.Repeat([]byte{'\n'}, topPaddingLines)...)
+	payload = append(payload, 0x1b, 0x61, 0x01)
+	payload = appendLargeLine(payload, "ONLINE ORDER")
+	payload = appendLargeLine(payload, fmt.Sprintf("#%d", orderNumber))
+	payload = append(payload, []byte("========================\n")...)
+	payload = append(payload, 0x1b, 0x61, 0x00)
 	for _, item := range items {
 		name := truncateRunes(strings.Join(strings.Fields(item.Name), " "), 48)
 		for _, line := range wrapRunes(name, 24) {

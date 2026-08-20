@@ -61,6 +61,7 @@ function RatingStars({ score }: { score: number }) {
 }
 
 function OrderDetails({ order }: { order: Order }) {
+  const initialStatus = order.transitions[0]?.fromStatus ?? order.status;
   return (
     <div className="order-detail-content">
       <div className="order-detail-summary">
@@ -100,6 +101,15 @@ function OrderDetails({ order }: { order: Order }) {
             <small>
               {formatBranchDistance(order.branchDistanceMeters)} до клиента
             </small>
+          )}
+        </article>
+        <article>
+          <span>Сборка</span>
+          <strong>
+            {order.packingConfirmedAt ? "Проверена ✓" : "Не подтверждена"}
+          </strong>
+          {order.packingConfirmedAt && (
+            <small>{formatDate(order.packingConfirmedAt)}</small>
           )}
         </article>
       </div>
@@ -170,7 +180,7 @@ function OrderDetails({ order }: { order: Order }) {
             <i aria-hidden="true" />
             <div>
               <strong>Заказ создан</strong>
-              <p>Начальный статус: {statusLabels.NEW}</p>
+              <p>Начальный статус: {statusLabels[initialStatus]}</p>
               <time dateTime={order.createdAt}>
                 {formatDate(order.createdAt)}
               </time>

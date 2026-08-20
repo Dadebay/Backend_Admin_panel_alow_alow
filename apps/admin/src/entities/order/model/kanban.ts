@@ -1,10 +1,6 @@
 import type { OrderStatus, Role } from "./types";
 
-export type OrderKanbanLaneId =
-  | "kitchen"
-  | "ready"
-  | "courier"
-  | "archive";
+export type OrderKanbanLaneId = "kitchen" | "ready" | "courier" | "archive";
 
 export type OrderKanbanLane = {
   id: OrderKanbanLaneId;
@@ -15,24 +11,19 @@ export type OrderKanbanLane = {
 };
 
 export type OrderCardField =
-  | "customer"
-  | "delivery"
-  | "branch"
-  | "items"
-  | "cash"
-  | "courier";
+  "customer" | "delivery" | "branch" | "items" | "cash" | "courier";
 
 export const orderKanbanLanes: OrderKanbanLane[] = [
   {
     id: "kitchen",
     title: "Очередь кухни",
-    responsibility: "Оператор → повар",
+    responsibility: "Новые заказы сразу здесь",
     statuses: ["NEW", "CONFIRMED", "SENT_TO_KITCHEN", "COOKING"],
   },
   {
     id: "ready",
-    title: "Готовы",
-    responsibility: "Оператор",
+    title: "Сборка",
+    responsibility: "Администратор проверяет заказ",
     statuses: ["READY"],
   },
   {
@@ -88,13 +79,7 @@ const cardFieldsByRole: Record<Role, Set<OrderCardField>> = {
     "courier",
   ]),
   COOK: new Set(["branch", "items"]),
-  COURIER: new Set([
-    "customer",
-    "delivery",
-    "branch",
-    "items",
-    "cash",
-  ]),
+  COURIER: new Set(["customer", "delivery", "branch", "items", "cash"]),
   ACCOUNTANT: new Set(["branch", "cash", "courier"]),
   ADMIN: new Set([
     "customer",
@@ -117,9 +102,7 @@ const cardFieldsByRole: Record<Role, Set<OrderCardField>> = {
 export function kanbanLanesForRole(role: Role) {
   if (fullFlowRoles.has(role)) return orderKanbanLanes;
   const laneIds = laneIdsByRole[role];
-  return laneIds
-    ? orderKanbanLanes.filter((lane) => laneIds.has(lane.id))
-    : [];
+  return laneIds ? orderKanbanLanes.filter((lane) => laneIds.has(lane.id)) : [];
 }
 
 export function orderCardFieldsForRole(role: Role) {

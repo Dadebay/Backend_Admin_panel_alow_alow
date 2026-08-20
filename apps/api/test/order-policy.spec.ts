@@ -9,7 +9,7 @@ import {
 } from "../src/orders/order-policy";
 
 describe("order workflow policy", () => {
-  const expected = new Map<string, OrderStatus>([
+  const expected = new Map<string, OrderStatus | OrderStatus[]>([
     [`${OrderStatus.NEW}:${Role.OPERATOR}`, OrderStatus.CONFIRMED],
     [`${OrderStatus.NEW}:${Role.ADMIN}`, OrderStatus.CONFIRMED],
     [`${OrderStatus.NEW}:${Role.SUPER_ADMIN}`, OrderStatus.CONFIRMED],
@@ -19,11 +19,17 @@ describe("order workflow policy", () => {
       `${OrderStatus.CONFIRMED}:${Role.SUPER_ADMIN}`,
       OrderStatus.SENT_TO_KITCHEN,
     ],
-    [`${OrderStatus.SENT_TO_KITCHEN}:${Role.COOK}`, OrderStatus.COOKING],
-    [`${OrderStatus.SENT_TO_KITCHEN}:${Role.ADMIN}`, OrderStatus.COOKING],
+    [
+      `${OrderStatus.SENT_TO_KITCHEN}:${Role.COOK}`,
+      [OrderStatus.COOKING, OrderStatus.READY],
+    ],
+    [
+      `${OrderStatus.SENT_TO_KITCHEN}:${Role.ADMIN}`,
+      [OrderStatus.COOKING, OrderStatus.READY],
+    ],
     [
       `${OrderStatus.SENT_TO_KITCHEN}:${Role.SUPER_ADMIN}`,
-      OrderStatus.COOKING,
+      [OrderStatus.COOKING, OrderStatus.READY],
     ],
     [`${OrderStatus.COOKING}:${Role.COOK}`, OrderStatus.READY],
     [`${OrderStatus.COOKING}:${Role.ADMIN}`, OrderStatus.READY],
@@ -48,22 +54,13 @@ describe("order workflow policy", () => {
     ],
     [`${OrderStatus.DELIVERED}:${Role.COURIER}`, OrderStatus.CASH_RETURNED],
     [`${OrderStatus.DELIVERED}:${Role.ADMIN}`, OrderStatus.CASH_RETURNED],
-    [
-      `${OrderStatus.DELIVERED}:${Role.SUPER_ADMIN}`,
-      OrderStatus.CASH_RETURNED,
-    ],
+    [`${OrderStatus.DELIVERED}:${Role.SUPER_ADMIN}`, OrderStatus.CASH_RETURNED],
     [`${OrderStatus.CASH_RETURNED}:${Role.OPERATOR}`, OrderStatus.COMPLETED],
     [`${OrderStatus.CASH_RETURNED}:${Role.ADMIN}`, OrderStatus.COMPLETED],
-    [
-      `${OrderStatus.CASH_RETURNED}:${Role.SUPER_ADMIN}`,
-      OrderStatus.COMPLETED,
-    ],
+    [`${OrderStatus.CASH_RETURNED}:${Role.SUPER_ADMIN}`, OrderStatus.COMPLETED],
     [`${OrderStatus.COMPLETED}:${Role.ACCOUNTANT}`, OrderStatus.RECONCILED],
     [`${OrderStatus.COMPLETED}:${Role.ADMIN}`, OrderStatus.RECONCILED],
-    [
-      `${OrderStatus.COMPLETED}:${Role.SUPER_ADMIN}`,
-      OrderStatus.RECONCILED,
-    ],
+    [`${OrderStatus.COMPLETED}:${Role.SUPER_ADMIN}`, OrderStatus.RECONCILED],
   ]);
 
   it("keeps the complete status and role matrix deny-by-default", () => {
@@ -73,7 +70,7 @@ describe("order workflow policy", () => {
         expect(
           allowedOrderTransitions(status, role),
           `${role} from ${status}`,
-        ).toEqual(target ? [target] : []);
+        ).toEqual(target ? (Array.isArray(target) ? target : [target]) : []);
       }
     }
   });
@@ -94,11 +91,9 @@ describe("order workflow policy", () => {
         for (const isOwner of [false, true]) {
           const expectedCancellation =
             (role === Role.CUSTOMER && isOwner && status === OrderStatus.NEW) ||
-            (([
-              Role.OPERATOR,
-              Role.ADMIN,
-              Role.SUPER_ADMIN,
-            ] as Role[]).includes(role) &&
+            (([Role.OPERATOR, Role.ADMIN, Role.SUPER_ADMIN] as Role[]).includes(
+              role,
+            ) &&
               [
                 OrderStatus.NEW,
                 OrderStatus.CONFIRMED,

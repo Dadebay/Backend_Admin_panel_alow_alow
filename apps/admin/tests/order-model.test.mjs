@@ -31,11 +31,9 @@ test("frontend order labels cover every generated workflow status", () => {
 
 test("frontend role hints match the backend-owned workflow", () => {
   assert.equal(nextOrderStatus("OPERATOR", "NEW"), "CONFIRMED");
-  assert.equal(
-    nextOrderStatus("OPERATOR", "CONFIRMED"),
-    "SENT_TO_KITCHEN",
-  );
-  assert.equal(nextOrderStatus("COOK", "SENT_TO_KITCHEN"), "COOKING");
+  assert.equal(nextOrderStatus("OPERATOR", "CONFIRMED"), "SENT_TO_KITCHEN");
+  assert.equal(nextOrderStatus("COOK", "SENT_TO_KITCHEN"), "READY");
+  assert.equal(nextOrderStatus("ADMIN", "SENT_TO_KITCHEN"), "READY");
   assert.equal(nextOrderStatus("COOK", "COOKING"), "READY");
   assert.equal(
     nextOrderStatus("COURIER", "ASSIGNED_TO_COURIER"),
@@ -58,10 +56,7 @@ test("frontend exposes courier correction only to dispatch roles before departur
     canEditCourierAssignment("OPERATOR", "ASSIGNED_TO_COURIER"),
     true,
   );
-  assert.equal(
-    canEditCourierAssignment("ADMIN", "ASSIGNED_TO_COURIER"),
-    true,
-  );
+  assert.equal(canEditCourierAssignment("ADMIN", "ASSIGNED_TO_COURIER"), true);
   assert.equal(
     canEditCourierAssignment("SUPER_ADMIN", "ASSIGNED_TO_COURIER"),
     true,
@@ -121,10 +116,11 @@ test("full-flow kanban has three active columns and one collapsed archive", () =
     lanes.filter((lane) => !lane.collapsed).map((lane) => lane.id),
     ["kitchen", "ready", "courier"],
   );
-  assert.deepEqual(
-    lanes.find((lane) => lane.collapsed)?.statuses,
-    ["COMPLETED", "RECONCILED", "CANCELLED"],
-  );
+  assert.deepEqual(lanes.find((lane) => lane.collapsed)?.statuses, [
+    "COMPLETED",
+    "RECONCILED",
+    "CANCELLED",
+  ]);
   assert.deepEqual(
     [...new Set(lanes.flatMap((lane) => lane.statuses))].sort(),
     [...orderStatuses].sort(),
@@ -133,18 +129,14 @@ test("full-flow kanban has three active columns and one collapsed archive", () =
 
 test("order cards disclose only data needed by each staff role", () => {
   assert.deepEqual([...orderCardFieldsForRole("COOK")], ["branch", "items"]);
-  assert.deepEqual([...orderCardFieldsForRole("COURIER")], [
-    "customer",
-    "delivery",
-    "branch",
-    "items",
-    "cash",
-  ]);
-  assert.deepEqual([...orderCardFieldsForRole("ACCOUNTANT")], [
-    "branch",
-    "cash",
-    "courier",
-  ]);
+  assert.deepEqual(
+    [...orderCardFieldsForRole("COURIER")],
+    ["customer", "delivery", "branch", "items", "cash"],
+  );
+  assert.deepEqual(
+    [...orderCardFieldsForRole("ACCOUNTANT")],
+    ["branch", "cash", "courier"],
+  );
   assert.equal(orderCardFieldsForRole("COOK").has("customer"), false);
   assert.equal(orderCardFieldsForRole("ACCOUNTANT").has("delivery"), false);
 });

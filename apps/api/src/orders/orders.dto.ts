@@ -3,6 +3,7 @@ import { Transform, Type } from "class-transformer";
 import {
   ArrayMaxSize,
   ArrayMinSize,
+  ArrayUnique,
   IsArray,
   IsDateString,
   IsEnum,
@@ -179,6 +180,25 @@ export class AssignCourierDto {
   courierId: string;
 
   @ApiProperty()
+  @IsInt()
+  @Min(1)
+  version: number;
+}
+
+export class ConfirmOrderPackingDto {
+  @ApiProperty({
+    type: [String],
+    format: "uuid",
+    description: "Every immutable order-line ID checked by the administrator",
+  })
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(50)
+  @ArrayUnique()
+  @IsUUID(undefined, { each: true })
+  checkedItemIds: string[];
+
+  @ApiProperty({ description: "Optimistic-lock version returned by the API" })
   @IsInt()
   @Min(1)
   version: number;

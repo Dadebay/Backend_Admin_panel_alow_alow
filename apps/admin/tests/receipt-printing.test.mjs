@@ -14,6 +14,10 @@ const kanbanUrl = new URL(
   "../src/widgets/order-board/ui/order-kanban.tsx",
   import.meta.url,
 );
+const alertUrl = new URL(
+  "../src/features/new-order-alert/ui/new-order-alert.tsx",
+  import.meta.url,
+);
 
 test("receipt printing uses the backend plan and loopback-only agent", async () => {
   const source = await readFile(printingFeatureUrl, "utf8");
@@ -25,14 +29,16 @@ test("receipt printing uses the backend plan and loopback-only agent", async () 
   assert.match(source, /retry: false/);
 });
 
-test("accepting an order automatically prints and later statuses can reprint", async () => {
-  const [board, kanban] = await Promise.all([
+test("new kitchen orders automatically print and later statuses can reprint", async () => {
+  const [board, kanban, alert] = await Promise.all([
     readFile(boardUrl, "utf8"),
     readFile(kanbanUrl, "utf8"),
+    readFile(alertUrl, "utf8"),
   ]);
 
-  assert.match(board, /nextStatus === "CONFIRMED"/);
-  assert.match(board, /receiptPrinting\.mutate\(updatedOrder\.id\)/);
+  assert.doesNotMatch(board, /nextStatus === "CONFIRMED"/);
+  assert.match(alert, /statuses: \["SENT_TO_KITCHEN", "COOKING", "READY"\]/);
+  assert.match(alert, /printReceipt\(order\.id\)/);
   assert.match(board, /data-testid=\{`order-table-print-\$\{order\.id\}`\}/);
   assert.match(board, /Печать не выполнена:/);
   assert.match(kanban, /data-testid=\{`order-kanban-print-\$\{order\.id\}`\}/);

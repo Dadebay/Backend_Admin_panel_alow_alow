@@ -43,7 +43,7 @@ func validPrintRequest() printRequest {
 }
 
 func TestFormatJobUsesLargeTextSeparatorsAndBoundedHexChunks(t *testing.T) {
-	chunks := formatJobChunks([]printItem{
+	chunks := formatJobChunks(42, []printItem{
 		{ID: "1", Name: "FIRST DISH", Quantity: 2, UnitPrice: 25},
 		{ID: "2", Name: "SECOND DISH", Quantity: 1, UnitPrice: 40},
 	})
@@ -62,6 +62,9 @@ func TestFormatJobUsesLargeTextSeparatorsAndBoundedHexChunks(t *testing.T) {
 		}
 		if !bytes.Contains(chunk, []byte("QTY: 2")) && !bytes.Contains(chunk, []byte("QTY: 1")) {
 			t.Fatal("quantity is missing")
+		}
+		if !bytes.Contains(chunk, []byte("ONLINE ORDER")) || !bytes.Contains(chunk, []byte("#42")) {
+			t.Fatal("online order number is missing")
 		}
 		if len(spacedHex(chunk)) > 1024 {
 			t.Fatal("J-Speed hexadecimal form payload is too large")
@@ -124,6 +127,9 @@ func TestAgentAllowsOnlyConfiguredBrowserOrigin(t *testing.T) {
 	}
 	if len(printer.jobs) != 1 || printer.jobs[0].PrinterIP != "192.168.123.100" {
 		t.Fatalf("unexpected jobs: %#v", printer.jobs)
+	}
+	if printer.jobs[0].OrderNumber != 42 {
+		t.Fatalf("online order number was not forwarded: %#v", printer.jobs[0])
 	}
 }
 

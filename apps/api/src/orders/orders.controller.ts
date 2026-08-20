@@ -21,6 +21,7 @@ import { Role } from "../generated/prisma/client";
 import {
   AssignCourierDto,
   CancelOrderDto,
+  ConfirmOrderPackingDto,
   CreateAssistedOrderDto,
   CreateOrderDto,
   ListOrdersQueryDto,
@@ -146,6 +147,21 @@ export class OrdersController {
     @Body() dto: AssignCourierDto,
   ) {
     return this.orders.assignCourier(user, id, dto);
+  }
+
+  @Patch(":id/confirm-packing")
+  @Roles(Role.ADMIN)
+  @ApiOperation({
+    summary:
+      "Confirm that an administrator checked every order line before courier handoff",
+  })
+  @ApiOkResponse({ type: OrderResponseDto })
+  confirmPacking(
+    @CurrentUser() user: AuthUser,
+    @Param("id", ParseUUIDPipe) id: string,
+    @Body() dto: ConfirmOrderPackingDto,
+  ) {
+    return this.orders.confirmPacking(user, id, dto);
   }
 
   @Patch(":id/cancel")

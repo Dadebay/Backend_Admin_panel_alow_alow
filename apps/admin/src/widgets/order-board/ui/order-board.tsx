@@ -35,6 +35,7 @@ import {
 } from "../model/order-search-form";
 import { OrderDetailDialog } from "./order-detail-dialog";
 import { OrderKanban } from "./order-kanban";
+import { OrderPackingChecklist } from "./order-packing-checklist";
 
 const AssistedOrderDialog = lazy(() => import("@/src/widgets/assisted-order"));
 const OrderCourierEditDialog = lazy(() =>
@@ -158,31 +159,24 @@ export function OrderBoard({
   const pending =
     actions.transition.isPending ||
     actions.assignCourier.isPending ||
+    actions.confirmPacking.isPending ||
     actions.cancel.isPending ||
     receiptPrinting.isPending;
   const actionError =
     actions.transition.error ||
     actions.assignCourier.error ||
+    actions.confirmPacking.error ||
     actions.cancel.error;
 
   const transitionOrder = useCallback(
     (order: Order, nextStatus: OrderStatus) => {
-      actions.transition.mutate(
-        {
-          orderId: order.id,
-          status: nextStatus,
-          version: order.version,
-        },
-        {
-          onSuccess: (updatedOrder) => {
-            if (nextStatus === "CONFIRMED") {
-              receiptPrinting.mutate(updatedOrder.id);
-            }
-          },
-        },
-      );
+      actions.transition.mutate({
+        orderId: order.id,
+        status: nextStatus,
+        version: order.version,
+      });
     },
-    [actions.transition, receiptPrinting],
+    [actions.transition],
   );
 
   function submitSearch(values: OrderSearchFormValues) {
@@ -270,15 +264,35 @@ export function OrderBoard({
       },
       {
         header: "Состав",
-        cell: ({ row }) => (
-          <div className="order-items-cell">
-            {row.original.items.map((item) => (
-              <span key={item.id}>
-                <b>{item.quantity}×</b> {orderItemLabel(item)}
-              </span>
-            ))}
-          </div>
-        ),
+        cell: ({ row }) => {
+          const order = row.original;
+          const administratorIsPacking =
+            order.status === "READY" &&
+            !order.packingConfirmedAt &&
+            ["ADMIN", "SUPER_ADMIN"].includes(role);
+          return (
+            <div className="order-items-cell">
+              {!administratorIsPacking &&
+                order.items.map((item) => (
+                  <span key={item.id}>
+                    <b>{item.quantity}×</b> {orderItemLabel(item)}
+                  </span>
+                ))}
+              <OrderPackingChecklist
+                order={order}
+                role={role}
+                pending={pending}
+                onConfirm={(packingOrder, checkedItemIds) =>
+                  actions.confirmPacking.mutate({
+                    orderId: packingOrder.id,
+                    checkedItemIds,
+                    version: packingOrder.version,
+                  })
+                }
+              />
+            </div>
+          );
+        },
       },
       {
         header: "Оплата",
@@ -341,6 +355,7 @@ export function OrderBoard({
         header: "Курьер",
         cell: ({ row }) =>
           row.original.status === "READY" &&
+          Boolean(row.original.packingConfirmedAt) &&
           ["OPERATOR", "ADMIN", "SUPER_ADMIN"].includes(role) ? (
             <select
               aria-label={`Курьер для заказа ${row.original.number}`}
@@ -387,6 +402,7 @@ export function OrderBoard({
                 Подробнее
               </button>
               {order.status === "READY" &&
+                order.packingConfirmedAt &&
                 ["OPERATOR", "ADMIN", "SUPER_ADMIN"].includes(role) && (
                   <button
                     type="button"
@@ -468,13 +484,16 @@ export function OrderBoard({
 
   return (
     <section className="admin-section" data-testid="order-board">
-      <header className="section-head">
+      <header className="section-head orders-section-head">
         <div>
           <span className="eyebrow">РЕАЛЬНЫЙ BACKEND</span>
           <h1>{title}</h1>
           <p>{description}</p>
         </div>
-        <div className="header-actions">
+        <div
+          className="header-actions orders-header-actions"
+          data-testid="orders-header-actions"
+        >
           {tableAllowed && (
             <div
               className="view-tabs order-view-tabs"
@@ -721,6 +740,13 @@ export function OrderBoard({
                 actions.assignCourier.mutate({
                   orderId: order.id,
                   courierId,
+                  version: order.version,
+                })
+              }
+              onConfirmPacking={(order, checkedItemIds) =>
+                actions.confirmPacking.mutate({
+                  orderId: order.id,
+                  checkedItemIds,
                   version: order.version,
                 })
               }

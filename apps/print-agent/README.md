@@ -2,9 +2,10 @@
 
 The print agent is the loopback-only bridge between the HTTPS operations admin
 and private LAN receipt printers. The backend groups immutable order lines by
-their snapshotted printer IP; the agent only validates that plan, formats large
-non-fiscal item slips with separators and safe top/bottom cut margins, and
-sends them through the tested J-Speed WebConfig HTTP interface.
+their snapshotted printer IP; the agent only validates that plan, prints the
+online order number on every chunk, formats large non-fiscal item slips with
+separators and safe top/bottom cut margins, and sends them through the tested
+J-Speed WebConfig HTTP interface.
 
 The executable is the same Go source for Windows and macOS. It binds only to
 `127.0.0.1:17873`, accepts the production admin origin plus local Vite origins,
@@ -32,7 +33,8 @@ The ignored `apps/print-agent/dist/` directory then contains Intel and ARM
 macOS binaries plus x64 and ARM64 Windows executables. GitHub Actions builds
 the same four artifacts after formatting, vet and unit tests pass.
 
-Run the matching artifact while the operations admin is open. On macOS, make
+Run the matching artifact while the operations admin is open so a newly
+observed kitchen order can print automatically. On macOS, make
 the downloaded artifact executable once before starting it:
 
 ```bash

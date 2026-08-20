@@ -409,6 +409,23 @@ export interface paths {
         patch: operations["OrdersController_assign_v1"];
         trace?: never;
     };
+    "/api/v1/orders/{id}/confirm-packing": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Confirm that an administrator checked every order line before courier handoff */
+        patch: operations["OrdersController_confirmPacking_v1"];
+        trace?: never;
+    };
     "/api/v1/orders/{id}/cancel": {
         parameters: {
             query?: never;
@@ -1577,6 +1594,8 @@ export interface components {
             deliveredAt: string | null;
             /** Format: date-time */
             completedAt: string | null;
+            /** Format: date-time */
+            packingConfirmedAt: string | null;
             customer: components["schemas"]["OrderCustomerResponseDto"];
             cook: components["schemas"]["OrderStaffResponseDto"] | null;
             courier: components["schemas"]["OrderCourierResponseDto"] | null;
@@ -1781,6 +1800,12 @@ export interface components {
         };
         AssignCourierDto: {
             courierId: string;
+            version: number;
+        };
+        ConfirmOrderPackingDto: {
+            /** @description Every immutable order-line ID checked by the administrator */
+            checkedItemIds: string[];
+            /** @description Optimistic-lock version returned by the API */
             version: number;
         };
         CancelOrderDto: {
@@ -2952,6 +2977,31 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["AssignCourierDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderResponseDto"];
+                };
+            };
+        };
+    };
+    OrdersController_confirmPacking_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConfirmOrderPackingDto"];
             };
         };
         responses: {

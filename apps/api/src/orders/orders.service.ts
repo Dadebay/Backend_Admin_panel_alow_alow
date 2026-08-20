@@ -29,6 +29,7 @@ import { TrackingService } from "../tracking/tracking.service";
 import {
   AssignCourierDto,
   CancelOrderDto,
+  ConfirmOrderPackingDto,
   CreateAssistedOrderDto,
   CreateOrderDto,
   ListOrdersQueryDto,
@@ -474,6 +475,7 @@ export class OrdersService {
       data: {
         customerId,
         source,
+        status: OrderStatus.SENT_TO_KITCHEN,
         branchId: nearest.branch.id,
         promoCodeId: promo?.id,
         addressId: selectedAddress.id,
@@ -706,7 +708,7 @@ export class OrdersService {
       };
       if (
         order.status === OrderStatus.SENT_TO_KITCHEN &&
-        dto.status === OrderStatus.COOKING
+        (dto.status === OrderStatus.COOKING || dto.status === OrderStatus.READY)
       ) {
         updateData.cookId = user.id;
       }
@@ -795,6 +797,83 @@ export class OrdersService {
     return response;
   }
 
+  async confirmPacking(
+    user: AuthUser,
+    id: string,
+    dto: ConfirmOrderPackingDto,
+  ) {
+    if (user.role !== Role.ADMIN && user.role !== Role.SUPER_ADMIN) {
+      throw new ForbiddenException(
+        "Only an administrator can confirm order packing",
+      );
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const order = await tx.order.findUnique({
+        where: { id },
+        include: { items: { select: { id: true } } },
+      });
+      if (!order) throw new NotFoundException("Order not found");
+      if (order.version !== dto.version) {
+        throw new ConflictException("Order changed; reload and try again");
+      }
+      if (order.status !== OrderStatus.READY) {
+        throw new ConflictException(
+          "Only a ready order can be confirmed as packed",
+        );
+      }
+      if (order.packingConfirmedAt) {
+        throw new ConflictException("Order packing is already confirmed");
+      }
+
+      const checkedItemIds = new Set(dto.checkedItemIds);
+      if (
+        checkedItemIds.size !== order.items.length ||
+        order.items.some((item) => !checkedItemIds.has(item.id))
+      ) {
+        throw new BadRequestException(
+          "Check every order item before confirming packing",
+        );
+      }
+
+      const confirmedAt = new Date();
+      const updated = await tx.order.updateMany({
+        where: {
+          id,
+          version: dto.version,
+          status: OrderStatus.READY,
+          packingConfirmedAt: null,
+        },
+        data: {
+          packingConfirmedAt: confirmedAt,
+          version: { increment: 1 },
+        },
+      });
+      if (updated.count !== 1) {
+        throw new ConflictException("Order changed; reload and try again");
+      }
+
+      await tx.auditLog.create({
+        data: {
+          actorId: user.id,
+          action: "order.packing-confirmed",
+          entityType: "Order",
+          entityId: id,
+          metadata: {
+            checkedItemIds: dto.checkedItemIds,
+            confirmedAt: confirmedAt.toISOString(),
+          },
+        },
+      });
+
+      const result = await tx.order.findUniqueOrThrow({
+        where: { id },
+        include: detailInclude,
+      });
+      return toApiResponse(withItemImages(result));
+    });
+  }
+
   async assignCourier(user: AuthUser, id: string, dto: AssignCourierDto) {
     let notifyTarget: { customerId: string; number: number } | null = null;
     const response = await this.prisma.$transaction(async (tx) => {
@@ -819,8 +898,12 @@ export class OrdersService {
       if (order.version !== dto.version) {
         throw new ConflictException("Order changed; reload and try again");
       }
-      const isReassignment =
-        order.status === OrderStatus.ASSIGNED_TO_COURIER;
+      if (order.status === OrderStatus.READY && !order.packingConfirmedAt) {
+        throw new ConflictException(
+          "Confirm order packing before assigning a courier",
+        );
+      }
+      const isReassignment = order.status === OrderStatus.ASSIGNED_TO_COURIER;
       if (isReassignment && order.courierId === courier.id) {
         throw new BadRequestException("Courier is already assigned");
       }

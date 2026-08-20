@@ -15,6 +15,7 @@ import {
   type OrderStatus,
   type Role,
 } from "@/src/entities/order";
+import { OrderPackingChecklist } from "./order-packing-checklist";
 
 type OrderKanbanProps = {
   orders: Order[];
@@ -25,6 +26,7 @@ type OrderKanbanProps = {
   pending: boolean;
   onCourierChange: (orderId: string, courierId: string) => void;
   onAssignCourier: (order: Order, courierId: string) => void;
+  onConfirmPacking: (order: Order, checkedItemIds: string[]) => void;
   onTransition: (order: Order, status: OrderStatus) => void;
   onPrintReceipt: (order: Order) => void;
   onCancel: (order: Order) => void;
@@ -81,6 +83,7 @@ function OrderCard({
   pending,
   onCourierChange,
   onAssignCourier,
+  onConfirmPacking,
   onTransition,
   onPrintReceipt,
   onCancel,
@@ -94,7 +97,12 @@ function OrderCard({
   const meta = deliveryMeta(order);
   const canAssign =
     order.status === "READY" &&
+    Boolean(order.packingConfirmedAt) &&
     ["OPERATOR", "ADMIN", "SUPER_ADMIN"].includes(role);
+  const administratorIsPacking =
+    order.status === "READY" &&
+    !order.packingConfirmedAt &&
+    ["ADMIN", "SUPER_ADMIN"].includes(role);
   const [isExpanded, setIsExpanded] = useState(() =>
     startsExpanded(order.status),
   );
@@ -113,9 +121,7 @@ function OrderCard({
             {formatOrderTime(order.createdAt)}
           </time>
         </span>
-        <span
-          className={`status-pill status-${order.status.toLowerCase()}`}
-        >
+        <span className={`status-pill status-${order.status.toLowerCase()}`}>
           {statusLabels[order.status]}
         </span>
         <span className="order-kanban-card-summary-meta">
@@ -123,7 +129,7 @@ function OrderCard({
           <small>
             {order.courier
               ? `Курьер: ${personName(order.courier)}`
-              : order.branchName ?? "Филиал не назначен"}
+              : (order.branchName ?? "Филиал не назначен")}
           </small>
         </span>
       </summary>
@@ -156,7 +162,7 @@ function OrderCard({
           </div>
         )}
 
-        {fields.has("items") && (
+        {fields.has("items") && !administratorIsPacking && (
           <ul className="order-kanban-items" aria-label="Состав заказа">
             {order.items.map((item) => (
               <li key={item.id}>
@@ -167,12 +173,20 @@ function OrderCard({
           </ul>
         )}
 
-        {order.customerNote &&
-          (role === "COOK" || fields.has("delivery")) && (
-            <p className="order-kanban-note">
-              <strong>Комментарий:</strong> {order.customerNote}
-            </p>
-          )}
+        {fields.has("items") && (
+          <OrderPackingChecklist
+            order={order}
+            role={role}
+            pending={pending}
+            onConfirm={onConfirmPacking}
+          />
+        )}
+
+        {order.customerNote && (role === "COOK" || fields.has("delivery")) && (
+          <p className="order-kanban-note">
+            <strong>Комментарий:</strong> {order.customerNote}
+          </p>
+        )}
 
         {order.cancellationReason && canOpenDetails && (
           <p className="order-kanban-note">
@@ -209,7 +223,8 @@ function OrderCard({
               <option value="">Выберите курьера</option>
               {couriers.map((courier) => (
                 <option key={courier.id} value={courier.id}>
-                  {personName(courier)} · {courier.courierOrders.length} в работе
+                  {personName(courier)} · {courier.courierOrders.length} в
+                  работе
                 </option>
               ))}
             </select>
@@ -329,7 +344,9 @@ function VirtualizedOrderLane({
             <span>{lane.responsibility}</span>
             <h2 id={`order-kanban-title-${lane.id}`}>{lane.title}</h2>
           </div>
-          <strong aria-label={`${orders.length} заказов`}>{orders.length}</strong>
+          <strong aria-label={`${orders.length} заказов`}>
+            {orders.length}
+          </strong>
         </header>
       )}
 
@@ -367,7 +384,11 @@ function VirtualizedOrderLane({
   );
 }
 
-export function OrderKanban({ orders, fixedStatus, ...props }: OrderKanbanProps) {
+export function OrderKanban({
+  orders,
+  fixedStatus,
+  ...props
+}: OrderKanbanProps) {
   const lanes = useMemo(
     () =>
       kanbanLanesForRole(props.role).filter(

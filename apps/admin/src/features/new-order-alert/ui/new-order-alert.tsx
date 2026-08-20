@@ -1,6 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { useOrders, type Order } from "@/src/entities/order";
-import { collectNewItems } from "../model/new-order-alert";
+import { useReceiptPrinting } from "@/src/features/receipt-printing";
+import {
+  claimAutomaticReceiptPrint,
+  collectNewItems,
+} from "../model/new-order-alert";
 
 type AlertBatch = {
   orders: Order[];
@@ -22,12 +26,13 @@ function notificationBody(orders: Order[]) {
   return `Заказ #${order.number} · ${Number(order.total).toFixed(2)} TMT`;
 }
 
-export function NewOrderAlert({
-  onOpenOrders,
-}: {
-  onOpenOrders: () => void;
-}) {
-  const orders = useOrders({ status: "NEW", page: 1, limit: 100 });
+export function NewOrderAlert({ onOpenOrders }: { onOpenOrders: () => void }) {
+  const orders = useOrders({
+    statuses: ["SENT_TO_KITCHEN", "COOKING", "READY"],
+    page: 1,
+    limit: 100,
+  });
+  const { mutate: printReceipt, isError: isPrintError } = useReceiptPrinting();
   const seenOrderIds = useRef<Set<string> | null>(null);
   const [alert, setAlert] = useState<AlertBatch | null>(null);
   const [permission, setPermission] = useState<BrowserPermission>(
@@ -44,6 +49,11 @@ export function NewOrderAlert({
     seenOrderIds.current = currentIds;
 
     if (!newOrders.length) return;
+    for (const order of newOrders) {
+      if (claimAutomaticReceiptPrint(window.localStorage, order.id)) {
+        printReceipt(order.id);
+      }
+    }
     const alertTimeout = window.setTimeout(() => {
       setAlert({ orders: newOrders, announcedAt: Date.now() });
     }, 0);
@@ -68,7 +78,7 @@ export function NewOrderAlert({
       // system notification despite a previously granted permission.
     }
     return () => window.clearTimeout(alertTimeout);
-  }, [onOpenOrders, orders.data?.items, permission]);
+  }, [onOpenOrders, orders.data?.items, permission, printReceipt]);
 
   async function requestPermission() {
     if (typeof Notification === "undefined") return;
@@ -82,7 +92,7 @@ export function NewOrderAlert({
   return (
     <>
       <div
-        className={`new-order-alert-control ${orders.isError ? "error" : ""}`}
+        className={`new-order-alert-control ${orders.isError || isPrintError ? "error" : ""}`}
         data-testid="new-order-alert-control"
       >
         {permission === "default" ? (
@@ -99,9 +109,11 @@ export function NewOrderAlert({
             <i aria-hidden="true" />
             {orders.isError
               ? "Проверка заказов недоступна"
-              : permission === "granted"
-                ? "Уведомления включены"
-                : "Уведомления внутри админки"}
+              : isPrintError
+                ? "Ошибка автоматической печати"
+                : permission === "granted"
+                  ? "Уведомления включены"
+                  : "Уведомления внутри админки"}
           </span>
         )}
       </div>
@@ -123,6 +135,11 @@ export function NewOrderAlert({
                 minute: "2-digit",
               }).format(alert.announcedAt)}
             </small>
+            {isPrintError && (
+              <small>
+                Автопечать не выполнена — откройте заказ и нажмите «Печать».
+              </small>
+            )}
           </div>
           <div className="new-order-alert-actions">
             <button

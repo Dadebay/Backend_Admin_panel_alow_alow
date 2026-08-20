@@ -10,6 +10,7 @@ import { useSession } from "@/src/shared/auth";
 
 type TransitionBody = components["schemas"]["TransitionOrderDto"];
 type AssignBody = components["schemas"]["AssignCourierDto"];
+type ConfirmPackingBody = components["schemas"]["ConfirmOrderPackingDto"];
 type CancelBody = components["schemas"]["CancelOrderDto"];
 
 export function useOrderActions() {
@@ -59,6 +60,26 @@ export function useOrderActions() {
     onSuccess: refresh,
   });
 
+  const confirmPacking = useMutation({
+    mutationFn: ({
+      orderId,
+      checkedItemIds,
+      version,
+    }: {
+      orderId: string;
+      checkedItemIds: string[];
+      version: number;
+    }) =>
+      authorizedRequest<Order>(`/orders/${orderId}/confirm-packing`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          checkedItemIds,
+          version,
+        } satisfies ConfirmPackingBody),
+      }),
+    onSuccess: refresh,
+  });
+
   const cancel = useMutation({
     mutationFn: ({
       orderId,
@@ -76,5 +97,5 @@ export function useOrderActions() {
     onSuccess: refresh,
   });
 
-  return { transition, assignCourier, cancel };
+  return { transition, assignCourier, confirmPacking, cancel };
 }

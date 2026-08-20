@@ -1056,6 +1056,52 @@
         ]
       }
     },
+    "/api/v1/orders/{id}/confirm-packing": {
+      "patch": {
+        "operationId": "OrdersController_confirmPacking_v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmOrderPackingDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Confirm that an administrator checked every order line before courier handoff",
+        "tags": [
+          "orders"
+        ]
+      }
+    },
     "/api/v1/orders/{id}/cancel": {
       "patch": {
         "operationId": "OrdersController_cancel_v1",
@@ -4399,6 +4445,11 @@
             "format": "date-time",
             "nullable": true
           },
+          "packingConfirmedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
           "customer": {
             "$ref": "#/components/schemas/OrderCustomerResponseDto"
           },
@@ -4495,6 +4546,7 @@
           "assignedAt",
           "deliveredAt",
           "completedAt",
+          "packingConfirmedAt",
           "customer",
           "cook",
           "courier",
@@ -5246,6 +5298,27 @@
         },
         "required": [
           "courierId",
+          "version"
+        ]
+      },
+      "ConfirmOrderPackingDto": {
+        "type": "object",
+        "properties": {
+          "checkedItemIds": {
+            "description": "Every immutable order-line ID checked by the administrator",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "version": {
+            "type": "number",
+            "description": "Optimistic-lock version returned by the API"
+          }
+        },
+        "required": [
+          "checkedItemIds",
           "version"
         ]
       },

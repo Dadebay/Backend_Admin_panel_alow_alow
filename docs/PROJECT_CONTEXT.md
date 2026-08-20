@@ -194,9 +194,10 @@ Prisma access in React, or duplicate backend policies in client state.
 ## Roles
 
 - `CUSTOMER`: own addresses, orders, cancellation where allowed, rating.
-- `OPERATOR`: confirms orders, sends them to kitchen, assigns couriers,
-  receives returned cash, may cancel before cooking starts, and may create a
-  cash order for a caller through the assisted-order API/admin form.
+- `OPERATOR`: monitors orders that enter the kitchen automatically, assigns
+  packed orders to couriers, receives returned cash, may cancel before cooking
+  starts, and may create a cash order for a caller through the assisted-order
+  API/admin form.
 - `COOK`: accepts `SENT_TO_KITCHEN` orders and marks them `COOKING`/`READY`.
 - `COURIER`: handles only assigned orders and returns collected cash.
 - `ACCOUNTANT`: performs final cash reconciliation.
@@ -242,11 +243,10 @@ guards, role scope, and order policy remain the authorization authority.
 ## Order state machine
 
 ```text
-NEW
-→ CONFIRMED
-→ SENT_TO_KITCHEN
-→ COOKING
+SENT_TO_KITCHEN
+→ COOKING (optional compatibility step)
 → READY
+→ packing confirmed by an administrator
 → ASSIGNED_TO_COURIER
 → OUT_FOR_DELIVERY
 → DELIVERED
@@ -259,9 +259,14 @@ NEW
 
 Role ownership:
 
-- operator/admin: `NEW → CONFIRMED → SENT_TO_KITCHEN`;
-- cook/admin: `SENT_TO_KITCHEN → COOKING → READY`;
-- operator/admin assigns a `READY` order to an active courier and may correct
+- customer-app and assisted orders are created directly as
+  `SENT_TO_KITCHEN`; the normal UI has no confirm or kitchen-handoff action;
+- cook/admin may use `SENT_TO_KITCHEN → COOKING → READY` for backward
+  compatibility or move directly `SENT_TO_KITCHEN → READY`;
+- at `READY`, an `ADMIN` or `SUPER_ADMIN` must check every immutable order
+  line in the assembly UI and persist one packing confirmation; courier
+  assignment is rejected until that confirmation exists;
+- operator/admin then assigns the packed `READY` order to an active courier and may correct
   that courier while the order remains `ASSIGNED_TO_COURIER`; correction is
   forbidden after `OUT_FOR_DELIVERY` begins;
 - assigned courier/admin:
@@ -272,7 +277,9 @@ Role ownership:
 
 Cancellation:
 
-- customer owner: `NEW` only;
+- customer owner: legacy `NEW` orders only; newly submitted orders enter the
+  kitchen immediately, so customer cancellation remains unavailable until a
+  separate cancellation requirement is accepted;
 - `OPERATOR`, `ADMIN`, `SUPER_ADMIN`:
   `NEW`, `CONFIRMED`, `SENT_TO_KITCHEN`;
 - no role may cancel once status is `COOKING` or later.
@@ -451,19 +458,23 @@ backend-snapshotted unit price. Delivery fees, discounts, fiscalization,
 offline policy, cancellation, and returns are not part of this accepted
 printer-routing requirement.
 
-Receipt printing is triggered by the operations admin after the accepted
-`NEW → CONFIRMED` transition and is also available as an explicit reprint for a
-non-new, non-cancelled order. NestJS builds the authoritative plan by grouping
+Receipt printing is triggered automatically on the always-open operations
+workstation when its role-scoped active kitchen/ready queue first observes a
+new order ID, and is also available as an explicit reprint for a
+non-new, non-cancelled order. A browser-shared bounded claim list prevents the
+same workstation's tabs from intentionally dispatching the same new order
+twice; a failed automatic attempt remains visible and staff may use the manual
+print action. NestJS builds the authoritative plan by grouping
 immutable order lines by their snapshotted printer IP and reports any line with
 no configured route. The remote VDS never connects to a private LAN address.
 Instead, the HTTPS admin sends that plan to the A7-tagam receipt print agent on
 the same workstation at loopback `127.0.0.1:17873`. The agent has one Go source
 and CI-built executables for Windows x64/ARM64 and macOS Intel/Apple Silicon.
 It accepts only allowlisted admin origins, rejects non-private IPv4 targets,
-formats large item text with separators plus blank paper space above and below
-the content before cutting, and sends bounded hexadecimal ESC/POS payloads
-through the tested J-Speed WebConfig HTTP interface on each printer's LAN port
-80. The agent contains no API token and binds to loopback only. A working
+formats a prominent `ONLINE ORDER #<number>` header on every printer chunk,
+then large item text with separators plus blank paper space above and below the
+content before cutting, and sends bounded hexadecimal ESC/POS payloads
+through the tested J-Speed WebConfig HTTP interface on each printer's LAN port 80. The agent contains no API token and binds to loopback only. A working
 workstation remains necessary while accepting/printing an order; it is not a
 separate gateway computer.
 
@@ -1011,13 +1022,20 @@ multi-status filter ensuring cook/courier queues are not displaced by history.
   another Telecom-approved transport and must never reclaim HTTPS port 443.
 - 2026-08-20: the operations admin gained one global, role-scoped new-order
   alert loop for `OPERATOR`, `ADMIN`, and `SUPER_ADMIN`. It polls the real
-  `NEW` order queue every 30 seconds only while the document is visible,
+  active kitchen/ready order queue every 30 seconds only while the document is visible,
   establishes the first response as a quiet baseline, deduplicates by backend
   order ID, always shows an in-app alert, and optionally uses the browser
   Notification API after an explicit user gesture. Existing order-board polling
   uses the same 30-second cadence. Tablet and phone navigation converged on one
   off-canvas drawer through 1180 px, hidden drawers cannot intercept taps, and
   coarse-pointer controls have a minimum 44 px touch target.
+- 2026-08-20: new customer-app and phone-assisted orders began entering the
+  kitchen queue immediately, with direct kitchen-to-ready support and no
+  confirm/handoff buttons in the normal admin flow. Newly observed kitchen
+  orders dispatch their receipt plan automatically from the operations
+  workstation, and every printed chunk includes the online order number. A
+  persisted, audited administrator packing confirmation—backed by an all-lines
+  checklist—is now required before courier assignment.
 - 2026-08-20: the order board was condensed from nine status columns to three
   operational columns (`kitchen`, `ready`, `courier`) plus one collapsed
   archive. Individual cards are expandable and every lane uses TanStack Virtual

@@ -368,6 +368,9 @@ export class OrderResponseDto {
   @ApiProperty({ type: String, format: "date-time", nullable: true })
   completedAt: string | null;
 
+  @ApiProperty({ type: String, format: "date-time", nullable: true })
+  packingConfirmedAt: string | null;
+
   @ApiProperty({ type: OrderCustomerResponseDto })
   customer: OrderCustomerResponseDto;
 

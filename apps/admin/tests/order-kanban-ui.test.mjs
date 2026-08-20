@@ -21,11 +21,43 @@ test("kanban exposes stable automation hooks for lanes, cards, and actions", asy
   assert.match(source, /data-testid="order-kanban"/);
   assert.match(source, /data-testid=\{`order-kanban-column-\$\{lane\.id\}`\}/);
   assert.match(source, /data-testid=\{`order-kanban-card-\$\{order\.id\}`\}/);
-  assert.match(source, /data-testid=\{`order-kanban-transition-\$\{order\.id\}`\}/);
+  assert.match(
+    source,
+    /data-testid=\{`order-kanban-transition-\$\{order\.id\}`\}/,
+  );
   assert.match(source, /data-testid=\{`order-kanban-cancel-\$\{order\.id\}`\}/);
   assert.match(source, /data-testid=\{`order-kanban-edit-\$\{order\.id\}`\}/);
   assert.match(source, /data-testid=\{`order-kanban-print-\$\{order\.id\}`\}/);
+  assert.match(source, /<OrderPackingChecklist/);
   assert.match(source, /canOpenDetails &&/);
+});
+
+test("ready orders expose stable packing checklist controls before courier handoff", async () => {
+  const [board, checklist] = await Promise.all([
+    readFile(boardUrl, "utf8"),
+    readFile(
+      new URL(
+        "../src/widgets/order-board/ui/order-packing-checklist.tsx",
+        import.meta.url,
+      ),
+      "utf8",
+    ),
+  ]);
+
+  assert.match(board, /data-testid="orders-header-actions"/);
+  assert.match(
+    checklist,
+    /data-testid=\{`order-packing-checklist-\$\{order\.id\}`\}/,
+  );
+  assert.match(
+    checklist,
+    /data-testid=\{`order-packing-item-\$\{order\.id\}-\$\{item\.id\}`\}/,
+  );
+  assert.match(
+    checklist,
+    /data-testid=\{`order-confirm-packing-\$\{order\.id\}`\}/,
+  );
+  assert.match(checklist, /disabled=\{!allChecked \|\| pending\}/);
 });
 
 test("kanban actions reuse backend-owned transition, assignment, and cancellation mutations", async () => {
@@ -33,6 +65,7 @@ test("kanban actions reuse backend-owned transition, assignment, and cancellatio
 
   assert.match(source, /actions\.transition\.mutate/);
   assert.match(source, /actions\.assignCourier\.mutate/);
+  assert.match(source, /actions\.confirmPacking\.mutate/);
   assert.match(source, /actions\.cancel\.mutate/);
   assert.match(source, /version: order\.version/);
   assert.match(source, /limit: viewMode === "kanban" \? 100 : 25/);

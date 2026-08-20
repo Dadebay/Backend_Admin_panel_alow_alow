@@ -24,7 +24,7 @@ export const orderStatuses: OrderStatus[] = [
 export const statusLabels: Record<OrderStatus, string> = {
   NEW: "Новый",
   CONFIRMED: "Подтверждён",
-  SENT_TO_KITCHEN: "Передан на кухню",
+  SENT_TO_KITCHEN: "На кухне",
   COOKING: "Готовится",
   READY: "Готов",
   ASSIGNED_TO_COURIER: "Назначен курьеру",
@@ -55,7 +55,7 @@ const nextByRole: Partial<
     CASH_RETURNED: "COMPLETED",
   },
   COOK: {
-    SENT_TO_KITCHEN: "COOKING",
+    SENT_TO_KITCHEN: "READY",
     COOKING: "READY",
   },
   COURIER: {
@@ -71,7 +71,7 @@ const nextByRole: Partial<
 const adminNext: Partial<Record<OrderStatus, OrderStatus>> = {
   NEW: "CONFIRMED",
   CONFIRMED: "SENT_TO_KITCHEN",
-  SENT_TO_KITCHEN: "COOKING",
+  SENT_TO_KITCHEN: "READY",
   COOKING: "READY",
   ASSIGNED_TO_COURIER: "OUT_FOR_DELIVERY",
   OUT_FOR_DELIVERY: "DELIVERED",

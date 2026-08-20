@@ -106,12 +106,21 @@ Active same-origin production URLs:
 
 ```text
 https://a7-tagam.com.tm/
+https://a7-tagam.com.tm/orders
+https://a7-tagam.com.tm/couriers/map
 https://a7-tagam.com.tm/api/v1
 https://a7-tagam.com.tm/docs
 https://a7-tagam.com.tm/docs-json
 https://a7-tagam.com.tm/tile/{z}/{x}/{y}.png
 https://a7-tagam.com.tm/tiles/styles/alowalow/style.json
 ```
+
+The operations admin uses canonical client-side routes for every sidebar
+section: `/orders`, `/couriers/map`, `/branches`, `/catalog`, `/marketing`,
+`/notifications`, `/staff`, `/cash`, `/contacts`, and `/login-attempts`.
+Static Nginx resolves direct loads of these paths to `/index.html`; React Router
+then enforces the role-scoped view and renders it inside the shared admin
+layout.
 
 The admin and mobile base-map contract is the simple PNG XYZ `/tile/` URL. The
 application build uses relative `/api/v1` and `/tile` paths. The source map

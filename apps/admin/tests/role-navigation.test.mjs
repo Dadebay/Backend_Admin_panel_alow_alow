@@ -2,7 +2,10 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { canAccessAdminPortal } from "../src/shared/auth/model/admin-portal-access.ts";
-import { navigationForRole } from "../src/widgets/admin-dashboard/model/admin-navigation.ts";
+import {
+  adminNavigation,
+  navigationForRole,
+} from "../src/widgets/admin-dashboard/model/admin-navigation.ts";
 
 function views(role) {
   return navigationForRole(role).map((item) => item.id);
@@ -51,6 +54,10 @@ test("dashboard renders navigation from the tested role matrix", async () => {
 
   assert.match(source, /navigationForRole\(session\.user\.role\)/);
   assert.match(source, /visibleNav\.map/);
+  assert.match(source, /<NavLink/);
+  assert.match(source, /to=\{item\.path\}/);
+  assert.match(source, /<Outlet \/>/);
+  assert.doesNotMatch(source, /setView\(/);
   assert.match(source, /!canAccessAdminPortal\(session\.user\.role\)/);
 });
 
@@ -66,7 +73,11 @@ test("the web courier route is absent and OTP sessions enforce portal roles", as
     ),
   ]);
 
-  assert.doesNotMatch(appSource, /normalizedPath === "\/courier"/);
+  assert.equal(
+    adminNavigation.some(({ path }) => path === "/courier"),
+    false,
+  );
+  assert.doesNotMatch(appSource, /path=["']\/courier["']/);
   assert.match(sessionSource, /!canAccessAdminPortal\(response\.user\.role\)/);
   assert.match(sessionSource, /Доступ к админке разрешён только/);
 });

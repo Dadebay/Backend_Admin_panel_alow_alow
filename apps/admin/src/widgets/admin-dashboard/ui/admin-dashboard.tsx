@@ -1,11 +1,11 @@
 import {
-  lazy,
   Suspense,
   useCallback,
   useEffect,
   useState,
   type ReactNode,
 } from "react";
+import { Link, NavLink, Outlet, useNavigate } from "react-router";
 import { roleLabels } from "@/src/entities/order";
 import {
   canReceiveNewOrderAlerts,
@@ -17,59 +17,7 @@ import { BrandLogo } from "@/src/shared/ui";
 import {
   navigationForRole,
   type AdminNavIconName,
-  type AdminView,
 } from "../model/admin-navigation";
-
-const OrderBoard = lazy(() =>
-  import("@/src/widgets/order-board").then((module) => ({
-    default: module.OrderBoard,
-  })),
-);
-const DispatchMap = lazy(() =>
-  import("@/src/widgets/dispatch-map").then((module) => ({
-    default: module.DispatchMap,
-  })),
-);
-const CatalogManager = lazy(() =>
-  import("@/src/widgets/catalog-manager").then((module) => ({
-    default: module.CatalogManager,
-  })),
-);
-const MarketingManager = lazy(() =>
-  import("@/src/widgets/marketing-manager").then((module) => ({
-    default: module.MarketingManager,
-  })),
-);
-const NotificationManager = lazy(() =>
-  import("@/src/widgets/notification-manager").then((module) => ({
-    default: module.NotificationManager,
-  })),
-);
-const StaffManager = lazy(() =>
-  import("@/src/widgets/staff-manager").then((module) => ({
-    default: module.StaffManager,
-  })),
-);
-const CashBoard = lazy(() =>
-  import("@/src/widgets/cash-board").then((module) => ({
-    default: module.CashBoard,
-  })),
-);
-const BranchManager = lazy(() =>
-  import("@/src/widgets/branch-manager").then((module) => ({
-    default: module.BranchManager,
-  })),
-);
-const ContactManager = lazy(() =>
-  import("@/src/widgets/contact-manager").then((module) => ({
-    default: module.ContactManager,
-  })),
-);
-const LoginAttemptManager = lazy(() =>
-  import("@/src/widgets/login-attempt-manager").then((module) => ({
-    default: module.LoginAttemptManager,
-  })),
-);
 
 function NavIcon({ name }: { name: AdminNavIconName }) {
   const paths: Record<AdminNavIconName, ReactNode> = {
@@ -99,13 +47,13 @@ function initials(firstName: string | null, lastName: string | null) {
 
 export function AdminDashboard() {
   const { session, ready, logout } = useSession();
-  const [view, setView] = useState<AdminView>("orders");
   const [isNavigationOpen, setIsNavigationOpen] = useState(false);
+  const navigate = useNavigate();
 
   const openOrders = useCallback(() => {
-    setView("orders");
+    void navigate("/orders");
     setIsNavigationOpen(false);
-  }, []);
+  }, [navigate]);
 
   useEffect(() => {
     if (!isNavigationOpen) return;
@@ -164,9 +112,6 @@ export function AdminDashboard() {
   }
 
   const visibleNav = navigationForRole(session.user.role);
-  const activeView = visibleNav.some((item) => item.id === view)
-    ? view
-    : (visibleNav[0]?.id ?? "orders");
   const userName =
     [session.user.firstName, session.user.lastName].filter(Boolean).join(" ") ||
     session.user.phone;
@@ -183,35 +128,33 @@ export function AdminDashboard() {
         />
       )}
       <aside className={`sidebar ${isNavigationOpen ? "drawer-open" : ""}`}>
-        <button
-          type="button"
+        <Link
           className="brand"
           data-testid="admin-brand-home"
-          onClick={openOrders}
+          to="/orders"
+          onClick={() => setIsNavigationOpen(false)}
         >
           <BrandLogo />
           <span>
             <strong>A7-tagam</strong>
             <small>Operations</small>
           </span>
-        </button>
+        </Link>
         <p className="nav-caption">Управление</p>
         <nav className="main-nav" aria-label="Разделы админки">
           {visibleNav.map((item) => (
-            <button
-              type="button"
+            <NavLink
               key={item.id}
-              className={activeView === item.id ? "active" : ""}
+              className={({ isActive }) => (isActive ? "active" : undefined)}
               aria-label={item.label}
               data-testid={`admin-nav-${item.id}`}
-              onClick={() => {
-                setView(item.id);
-                setIsNavigationOpen(false);
-              }}
+              end
+              to={item.path}
+              onClick={() => setIsNavigationOpen(false)}
             >
               <span className="nav-icon"><NavIcon name={item.icon} /></span>
               <span className="nav-label">{item.label}</span>
-            </button>
+            </NavLink>
           ))}
         </nav>
         <div className="sidebar-note">
@@ -259,16 +202,7 @@ export function AdminDashboard() {
         <Suspense
           fallback={<div className="async-state">Загружаем раздел…</div>}
         >
-          {activeView === "orders" && <OrderBoard />}
-          {activeView === "map" && <DispatchMap />}
-          {activeView === "branches" && <BranchManager />}
-          {activeView === "catalog" && <CatalogManager />}
-          {activeView === "marketing" && <MarketingManager />}
-          {activeView === "notifications" && <NotificationManager />}
-          {activeView === "staff" && <StaffManager />}
-          {activeView === "cash" && <CashBoard />}
-          {activeView === "contacts" && <ContactManager />}
-          {activeView === "login-attempts" && <LoginAttemptManager />}
+          <Outlet />
         </Suspense>
       </main>
     </div>

@@ -218,6 +218,14 @@ The React/Vite web admin accepts sessions only for `ACCOUNTANT`, `ADMIN`, and
 web admin or retain an OTP session there; their backend roles and mobile/API
 workflows remain unchanged. The web courier route is intentionally absent.
 
+Every operations-admin section owns a canonical browser URL and is composed
+through React Router's declarative `BrowserRouter` layout. `/` redirects to
+`/orders`; the courier dispatch map is `/couriers/map`, and the remaining
+management sections use their stable top-level paths. Sidebar navigation uses
+history-aware links, direct loads are served through the Nginx SPA fallback,
+and a role-forbidden section redirects to that staff role's default allowed
+section. Backend authorization remains authoritative.
+
 The admin order workspace defaults to a role-aware Kanban backed by the same
 paginated order API and mutation policy as the table. `ACCOUNTANT`, `ADMIN`,
 and `SUPER_ADMIN` see three active lanes: kitchen (received through cooking),
@@ -1003,3 +1011,10 @@ multi-status filter ensuring cook/courier queues are not displaced by history.
   all history, and support an hour range within the selected day. NestJS owns
   the inclusive `createdFrom` and exclusive `createdTo` filtering and composes
   it with role, status, branch, and search constraints.
+- 2026-08-20: the operations admin replaced local-state tab switching with
+  canonical React Router browser routes. `/` redirects to `/orders`; every
+  management section supports direct loading, bookmarkable URLs and browser
+  back/forward navigation, while the shared authenticated layout and
+  role-scoped sidebar remain mounted. Direct access to a role-forbidden section
+  redirects to the role's default allowed route, and Nginx continues to serve
+  all browser routes through the static SPA entry document.

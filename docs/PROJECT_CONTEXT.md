@@ -568,7 +568,9 @@ Current status:
   active or last-used saved address while still offering every saved address,
   select active catalog items and their configured variants,
   perform an explicit OSM address search, edit an unofficial landmark, or put
-  a draggable marker on the large map. TanStack Query owns all remote data,
+  a draggable marker on the large map. Its desktop dialog uses the wide,
+  near-full-height workspace while phones keep the full-screen layout.
+  TanStack Query owns all remote data,
   React Hook Form/Zod validate the form, and the backend computes the final
   amount and nearest branch;
 - order details show the real status timeline plus the customer's five-star
@@ -788,6 +790,11 @@ The lazy catalog manager is 26.7 KB / 6.7 KB gzip and mounts product tables only
 for expanded groups; the lazy phone-assisted order is 24.6 KB / 7.4 KB gzip.
 The address match is a linear projection of the already cached public delivery
 config, adds no request or polling loop, and never replaces backend pricing.
+
+The 2026-08-21 wide assisted-order dialog changes only existing responsive CSS
+values. The static SPA bootstrap remains 241.5 KB raw / 77.6 KB gzip, CSS stays
+at 136.4 KB / 27.1 KB gzip, and the lazy phone-assisted order remains 24.6 KB /
+7.4 KB gzip. No dependency, JavaScript, request or polling loop was added.
 
 ## Decision log
 

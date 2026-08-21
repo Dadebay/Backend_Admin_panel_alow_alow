@@ -147,6 +147,14 @@ test("address search is an accessible dropdown and the large map remains a manua
   assert.match(map, /data-testid="assisted-map-status"/);
   assert.match(geocoding, /\/geocoding\/search\?/);
   assert.doesNotMatch(geocoding, /setTimeout|debounce/);
+  assert.match(
+    styles,
+    /\.assisted-order-modal \{[\s\S]*?width: min\(1580px, 100%\);[\s\S]*?max-height: calc\(100dvh - 24px\);/,
+  );
+  assert.match(
+    styles,
+    /@media \(max-width: 620px\)[\s\S]*?\.assisted-order-modal \{[\s\S]*?max-height: 100dvh;/,
+  );
   assert.match(styles, /height: clamp\(390px, 48vh, 570px\)/);
   assert.match(
     styles,

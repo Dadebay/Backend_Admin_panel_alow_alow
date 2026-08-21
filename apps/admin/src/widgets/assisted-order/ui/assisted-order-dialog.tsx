@@ -24,6 +24,7 @@ import {
 } from "@/src/entities/customer";
 import {
   deliveryFeeForSubtotal,
+  findDeliveryEtrapForAddress,
   flattenDeliveryEtraps,
   useDeliveryConfig,
 } from "@/src/entities/delivery";
@@ -232,6 +233,16 @@ export default function AssistedOrderDialog({
   const selectedDeliveryEtrap = deliveryEtraps.find(
     (etrap) => etrap.id === Number(selectedDeliveryEtrapId),
   );
+  const suggestedDeliveryEtrap = useMemo(
+    () =>
+      findDeliveryEtrapForAddress(
+        deliveryConfig.data,
+        selectedAddressResult
+          ? [selectedAddressResult.label, ...selectedAddressResult.aliases]
+          : [reverse.data?.line],
+      ),
+    [deliveryConfig.data, reverse.data?.line, selectedAddressResult],
+  );
   const estimatedDeliveryFee = selectedDeliveryEtrap
     ? deliveryFeeForSubtotal(estimatedSubtotal, selectedDeliveryEtrap)
     : null;
@@ -239,6 +250,25 @@ export default function AssistedOrderDialog({
     estimatedDeliveryFee === null
       ? null
       : estimatedSubtotal + estimatedDeliveryFee;
+
+  useEffect(() => {
+    if (
+      selectedAddressId ||
+      selectedDeliveryEtrapId ||
+      !suggestedDeliveryEtrap
+    ) {
+      return;
+    }
+    setValue("deliveryEtrapId", String(suggestedDeliveryEtrap.id), {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+  }, [
+    selectedAddressId,
+    selectedDeliveryEtrapId,
+    setValue,
+    suggestedDeliveryEtrap,
+  ]);
 
   function changeQuantity(
     productId: string,
@@ -403,6 +433,7 @@ export default function AssistedOrderDialog({
 
   function selectMapCoordinates(next: AssistedOrderCoordinates) {
     setValue("addressId", "", { shouldValidate: true });
+    setValue("deliveryEtrapId", "", { shouldValidate: true });
     setCoordinates(next);
     setSelectedAddressResult(null);
     setSelectionError("");
@@ -1072,6 +1103,25 @@ export default function AssistedOrderDialog({
                     ))}
                   </select>
                   <FormFieldError message={errors.deliveryEtrapId?.message} />
+                  {suggestedDeliveryEtrap &&
+                    selectedDeliveryEtrap?.id === suggestedDeliveryEtrap.id && (
+                      <span
+                        className="assisted-delivery-match"
+                        data-testid="assisted-delivery-etrap-auto"
+                        role="status"
+                      >
+                        Район определён по адресу: {suggestedDeliveryEtrap.nameRu} ·
+                        доставка {suggestedDeliveryEtrap.price.toFixed(2)} TMT
+                      </span>
+                    )}
+                  {!suggestedDeliveryEtrap && selectedAddressResult && (
+                    <span
+                      className="assisted-order-hint"
+                      data-testid="assisted-delivery-etrap-confirm"
+                    >
+                      Адрес сохранён. Подтвердите тарифный район вручную.
+                    </span>
+                  )}
                   {deliveryConfig.isError && (
                     <span className="form-error">
                       Не удалось загрузить доступные районы.

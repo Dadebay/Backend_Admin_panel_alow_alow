@@ -5,6 +5,7 @@ export {
 } from "./api/delivery-queries";
 export {
   deliveryFeeForSubtotal,
+  findDeliveryEtrapForAddress,
   flattenDeliveryEtraps,
   type CreateDeliveryEtrap,
   type CreateDeliveryWelayat,

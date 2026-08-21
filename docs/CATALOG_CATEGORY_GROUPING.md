@@ -17,6 +17,12 @@ does not add an API request, polling loop, database table, role rule, price
 calculation, or printer-routing rule. The backend remains authoritative for
 availability, variants, prices, receipt-printer IPs, and final order totals.
 
+The `/catalog` product groups are an accessible accordion. The first visible
+group opens by default, every category header is a keyboard-operable button,
+and administrators may expand or collapse all groups. Starting a text search
+or selecting a category expands the resulting groups so matches are not hidden.
+Only expanded groups mount their product tables.
+
 ## Data and ordering contract
 
 Every product normally has a required category relation. The grouping helper is
@@ -64,6 +70,10 @@ Tests and QA automation may rely on these selectors:
 
 - `catalog-product-groups`
 - `catalog-product-group-{categoryId}`
+- `catalog-product-group-toggle-{categoryId}`
+- `catalog-product-group-panel-{categoryId}`
+- `catalog-product-groups-collapse`
+- `catalog-product-groups-expand`
 - `assisted-product-search`
 - `assisted-product-categories`
 - `assisted-product-category-all`
@@ -116,10 +126,13 @@ products, missing images, long names, and at least 50 products.
 ### Catalog
 
 1. Open `/catalog` and confirm group order matches category order.
-2. Filter one category and confirm exactly one group remains.
-3. Search by product, category, slug, description, and printer IP.
-4. Combine search with a category and verify both filters apply.
-5. Confirm hidden records remain editable and a no-match query shows the empty
+2. Confirm the first group starts open; toggle several category headers with
+   mouse and keyboard, then verify `Свернуть все` and `Раскрыть все`.
+3. Filter one category and confirm exactly one expanded group remains.
+4. Search by product, category, slug, description, and printer IP; matching
+   groups must open automatically.
+5. Combine search with a category and verify both filters apply.
+6. Confirm hidden records remain editable and a no-match query shows the empty
    state.
 
 ### Phone-assisted order

@@ -587,11 +587,19 @@ Current status:
   availability, ordering, and up to 10 common S3 images; it also configures a
   generic selector with variant-specific prices, availability, ordering,
   descriptions, and up to 10 S3 images per variant;
-- the catalog workspace renders dishes in category-ordered groups, and the
-  phone-assisted product picker provides the same grouped menu plus an explicit
-  category filter and name/category search for fast entry of large menus. The
+- the catalog workspace renders dishes in accessible category accordions with
+  first-group, per-group, expand-all and collapse-all controls; search and a
+  category filter open their matching groups. The phone-assisted product picker
+  provides the same grouped menu plus an explicit category filter and
+  name/category search for fast entry of large menus. The
   maintained behavior matrix, edge cases, selectors, and QA checklist live in
   `docs/CATALOG_CATEGORY_GROUPING.md`;
+- selecting a searched or reverse-geocoded address in the phone-assisted order
+  automatically proposes a delivery etrap only when its multilingual configured
+  name has one unambiguous text match. The matched tariff and price appear
+  immediately; unknown, numeric-only, or ambiguous locations remain an explicit
+  required selection. Moving the map marker clears the stale etrap before a new
+  suggestion, and NestJS remains authoritative for the submitted ID and fee;
 - Swagger response DTOs generate the TypeScript contract used by the frontend;
 - TanStack Query owns server state and TanStack Table renders admin lists;
 - React Hook Form owns all admin form state and Zod schemas validate values
@@ -773,6 +781,13 @@ and the lazy delivery manager at 17.8 KB / 4.5 KB gzip. The phone-assisted
 order remains lazy at 23.9 KB / 7.2 KB gzip. The management screen performs no
 request before an authorized administrator opens it, uses one TanStack Query
 observer, and adds no polling loop or frontend-owned pricing authority.
+
+The 2026-08-21 catalog-accordion/address-tariff build keeps the static SPA
+bootstrap at 241.5 KB raw / 77.6 KB gzip and CSS at 136.4 KB / 27.1 KB gzip.
+The lazy catalog manager is 26.7 KB / 6.7 KB gzip and mounts product tables only
+for expanded groups; the lazy phone-assisted order is 24.6 KB / 7.4 KB gzip.
+The address match is a linear projection of the already cached public delivery
+config, adds no request or polling loop, and never replaces backend pricing.
 
 ## Decision log
 
@@ -1149,3 +1164,10 @@ observer, and adds no polling loop or frontend-owned pricing authority.
   pricing/availability fields. New IDs use PostgreSQL sequences; etraps are
   disabled rather than deleted so existing address relations and immutable
   order/receipt snapshots remain valid.
+- 2026-08-21: catalog category groups became accessible accordions with
+  first-group, per-group and expand/collapse-all navigation. The phone-assisted
+  address flow now suggests an enabled tariff zone only for one unambiguous
+  multilingual name match, immediately displays its configured fee, clears a
+  stale zone when the marker moves, and keeps explicit confirmation for every
+  ambiguous location. The backend still validates the etrap and calculates the
+  authoritative order total.

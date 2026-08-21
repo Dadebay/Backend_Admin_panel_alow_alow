@@ -333,6 +333,11 @@ test("catalog and phone order expose stable grouped navigation hooks", async () 
 
   assert.match(catalog, /data-testid="catalog-product-groups"/);
   assert.match(catalog, /catalog-product-group-\$\{group\.id\}/);
+  assert.match(catalog, /catalog-product-group-toggle-\$\{group\.id\}/);
+  assert.match(catalog, /catalog-product-group-panel-\$\{group\.id\}/);
+  assert.match(catalog, /data-testid="catalog-product-groups-collapse"/);
+  assert.match(catalog, /data-testid="catalog-product-groups-expand"/);
+  assert.match(catalog, /aria-expanded=\{isExpanded\}/);
   assert.match(catalog, /filterCatalogProducts/);
   assert.match(assisted, /data-testid="assisted-product-categories"/);
   assert.match(assisted, /data-testid="assisted-product-category-all"/);
@@ -345,6 +350,10 @@ test("catalog and phone order expose stable grouped navigation hooks", async () 
   assert.match(
     styles,
     /@media \(max-width: 620px\)[\s\S]*\.assisted-product-group article\s*\{[\s\S]*grid-template-columns: minmax\(0, 1fr\)/,
+  );
+  assert.match(
+    styles,
+    /\.catalog-product-group-toggle:focus-visible\s*\{/,
   );
 });
 

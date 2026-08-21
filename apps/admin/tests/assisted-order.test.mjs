@@ -130,6 +130,13 @@ test("address search is an accessible dropdown and the large map remains a manua
   assert.match(dialog, /Неофициальный адрес \/ ориентир \(необязательно\)/);
   assert.match(dialog, /buildAssistedDeliveryAddress/);
   assert.match(dialog, /data-testid="assisted-delivery-etrap"/);
+  assert.match(dialog, /findDeliveryEtrapForAddress/);
+  assert.match(dialog, /data-testid="assisted-delivery-etrap-auto"/);
+  assert.match(dialog, /data-testid="assisted-delivery-etrap-confirm"/);
+  assert.match(
+    dialog,
+    /setValue\("deliveryEtrapId", "", \{ shouldValidate: true \}\)/,
+  );
   assert.match(dialog, /deliveryEtrapId: values\.deliveryEtrapId/);
   assert.match(dialog, /estimatedDeliveryFee\.toFixed\(2\)/);
   assert.match(dialog, /variantId: variant\.id/);

@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 import {
   deliveryFeeForSubtotal,
+  findDeliveryEtrapForAddress,
   flattenDeliveryEtraps,
 } from "../src/entities/delivery/model/types.ts";
 import {
@@ -33,6 +34,18 @@ const config = {
           isDeliveryEnabled: true,
           updatedAt: "2026-08-21T00:00:00.000Z",
         },
+        {
+          id: 313,
+          welayatId: 1,
+          nameEn: null,
+          nameRu: "ул. Кемине (район бывшей стеколки)",
+          nameTk: "Kemine köç. (öňki Aýna kombinat)",
+          queuePosition: null,
+          price: 15,
+          freeDeliveryThreshold: 150,
+          isDeliveryEnabled: true,
+          updatedAt: "2026-08-21T00:00:00.000Z",
+        },
       ],
     },
   ],
@@ -49,6 +62,34 @@ test("delivery estimate follows the selected backend config projection", () => {
       freeDeliveryThreshold: null,
     }),
     25,
+  );
+});
+
+test("address text suggests one unambiguous configured tariff zone", () => {
+  const match = findDeliveryEtrapForAddress(config, [
+    "Kemine (2035) köçesi, Berkararlyk etraby, Aşgabat şäheri, 425648, Türkmenistan",
+  ]);
+
+  assert.equal(match?.id, 313);
+  assert.equal(match?.price, 15);
+  assert.equal(
+    findDeliveryEtrapForAddress(config, ["Неизвестный адрес"]),
+    null,
+  );
+});
+
+test("ambiguous address text requires explicit tariff-zone confirmation", () => {
+  const ambiguousConfig = structuredClone(config);
+  ambiguousConfig.welayats[0].etraps.push({
+    ...ambiguousConfig.welayats[0].etraps[1],
+    id: 314,
+    nameRu: "Кемине",
+    nameTk: "Kemine",
+  });
+
+  assert.equal(
+    findDeliveryEtrapForAddress(ambiguousConfig, ["Kemine köçesi"]),
+    null,
   );
 });
 

@@ -41,6 +41,9 @@ export function CatalogManager() {
   const [showProductForm, setShowProductForm] = useState(false);
   const [catalogSearch, setCatalogSearch] = useState("");
   const [productCategoryFilter, setProductCategoryFilter] = useState("");
+  const [expandedProductGroups, setExpandedProductGroups] = useState<
+    Set<string> | "all" | null
+  >(null);
   const [storedProductImages, setStoredProductImages] = useState<
     Product["images"]
   >([]);
@@ -120,6 +123,28 @@ export function CatalogManager() {
     () => groupProductsByCategory(filteredProducts),
     [filteredProducts],
   );
+
+  const expandedProductGroupCount =
+    expandedProductGroups === "all"
+      ? productGroups.length
+      : expandedProductGroups === null
+        ? Math.min(1, productGroups.length)
+        : productGroups.filter(({ id }) => expandedProductGroups.has(id))
+            .length;
+
+  function toggleProductGroup(groupId: string) {
+    setExpandedProductGroups((current) => {
+      const next =
+        current === "all"
+          ? new Set(productGroups.map(({ id }) => id))
+          : current === null
+            ? new Set(productGroups[0] ? [productGroups[0].id] : [])
+            : new Set(current);
+      if (next.has(groupId)) next.delete(groupId);
+      else next.add(groupId);
+      return next;
+    });
+  }
 
   const categoryColumns = useMemo<ColumnDef<Category, unknown>[]>(
     () => [
@@ -514,7 +539,10 @@ export function CatalogManager() {
           <span aria-hidden="true">⌕</span>
           <input
             value={catalogSearch}
-            onChange={(event) => setCatalogSearch(event.target.value)}
+            onChange={(event) => {
+              setCatalogSearch(event.target.value);
+              if (event.target.value.trim()) setExpandedProductGroups("all");
+            }}
             placeholder="Название, slug или описание…"
           />
           {catalogSearch && (
@@ -523,7 +551,13 @@ export function CatalogManager() {
         </label>
         <label className="catalog-category-filter">
           <span>Категория</span>
-          <select value={productCategoryFilter} onChange={(event) => setProductCategoryFilter(event.target.value)}>
+          <select
+            value={productCategoryFilter}
+            onChange={(event) => {
+              setProductCategoryFilter(event.target.value);
+              if (event.target.value) setExpandedProductGroups("all");
+            }}
+          >
             <option value="">Все категории</option>
             {(categories.data ?? []).map((category) => (
               <option key={category.id} value={category.id}>{category.name}</option>
@@ -1107,7 +1141,30 @@ export function CatalogManager() {
               <h2>Блюда по категориям</h2>
               <small>{productGroups.length} групп</small>
             </div>
-            <span>{filteredProducts.length}{(hasSearch || productCategoryFilter) ? ` / ${products.data?.length ?? 0}` : ""}</span>
+            <div className="catalog-accordion-actions">
+              <span>{filteredProducts.length}{(hasSearch || productCategoryFilter) ? ` / ${products.data?.length ?? 0}` : ""}</span>
+              <button
+                className="text-button compact"
+                data-testid="catalog-product-groups-collapse"
+                disabled={!expandedProductGroupCount}
+                type="button"
+                onClick={() => setExpandedProductGroups(new Set())}
+              >
+                Свернуть все
+              </button>
+              <button
+                className="text-button compact"
+                data-testid="catalog-product-groups-expand"
+                disabled={
+                  !productGroups.length ||
+                  expandedProductGroupCount === productGroups.length
+                }
+                type="button"
+                onClick={() => setExpandedProductGroups("all")}
+              >
+                Раскрыть все
+              </button>
+            </div>
           </div>
           <AsyncPanel
             pending={products.isPending}
@@ -1119,27 +1176,56 @@ export function CatalogManager() {
                 className="catalog-product-groups"
                 data-testid="catalog-product-groups"
               >
-                {productGroups.map((group) => (
-                  <section
-                    className="catalog-product-group"
-                    data-testid={`catalog-product-group-${group.id}`}
-                    key={group.id}
-                  >
-                    <header className="catalog-product-group-head">
-                      <div>
-                        <h3>{group.name}</h3>
-                        {!group.isActive && <small>Категория скрыта</small>}
-                      </div>
-                      <span>{group.products.length}</span>
-                    </header>
-                    <DataTable
-                      columns={productColumns}
-                      data={group.products}
-                      getRowId={(product) => product.id}
-                      label={`Блюда категории ${group.name}`}
-                    />
-                  </section>
-                ))}
+                {productGroups.map((group, groupIndex) => {
+                  const isExpanded =
+                    expandedProductGroups === "all" ||
+                    (expandedProductGroups === null
+                      ? groupIndex === 0
+                      : expandedProductGroups.has(group.id));
+                  const panelId = `catalog-product-group-panel-${group.id}`;
+                  return (
+                    <section
+                      className="catalog-product-group"
+                      data-testid={`catalog-product-group-${group.id}`}
+                      key={group.id}
+                    >
+                      <header className="catalog-product-group-head">
+                        <button
+                          aria-controls={panelId}
+                          aria-expanded={isExpanded}
+                          className="catalog-product-group-toggle"
+                          data-testid={`catalog-product-group-toggle-${group.id}`}
+                          type="button"
+                          onClick={() => toggleProductGroup(group.id)}
+                        >
+                          <span className="catalog-product-group-title">
+                            <strong>{group.name}</strong>
+                            {!group.isActive && <small>Категория скрыта</small>}
+                          </span>
+                          <span className="catalog-product-group-meta">
+                            <span>{group.products.length}</span>
+                            <span aria-hidden="true" className="catalog-product-group-chevron">
+                              ⌄
+                            </span>
+                          </span>
+                        </button>
+                      </header>
+                      {isExpanded && (
+                        <div
+                          data-testid={`catalog-product-group-panel-${group.id}`}
+                          id={panelId}
+                        >
+                          <DataTable
+                            columns={productColumns}
+                            data={group.products}
+                            getRowId={(product) => product.id}
+                            label={`Блюда категории ${group.name}`}
+                          />
+                        </div>
+                      )}
+                    </section>
+                  );
+                })}
               </div>
             ) : (
               <div className="async-state">Подходящих блюд нет</div>

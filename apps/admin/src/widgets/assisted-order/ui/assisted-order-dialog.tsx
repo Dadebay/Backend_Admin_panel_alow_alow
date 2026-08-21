@@ -56,6 +56,8 @@ const AssistedOrderMapPicker = lazy(
   () => import("./assisted-order-map-picker"),
 );
 
+const ADDRESS_SEARCH_DEBOUNCE_MS = 350;
+
 function customerName(customer: AssistedCustomer) {
   return (
     [customer.firstName, customer.lastName].filter(Boolean).join(" ") ||
@@ -101,6 +103,7 @@ export default function AssistedOrderDialog({
   const actions = useAssistedOrderActions();
   const [submittedCustomerPhone, setSubmittedCustomerPhone] = useState("");
   const [submittedAddressQuery, setSubmittedAddressQuery] = useState("");
+  const [isAddressEditing, setIsAddressEditing] = useState(false);
   const [isAddressDropdownOpen, setIsAddressDropdownOpen] = useState(false);
   const [activeAddressResultIndex, setActiveAddressResultIndex] = useState(0);
   const [selectedAddressResult, setSelectedAddressResult] =
@@ -156,6 +159,7 @@ export default function AssistedOrderDialog({
     control,
     name: "deliveryEtrapId",
   });
+  const addressSearchValue = useWatch({ control, name: "addressSearch" });
   const customerPhoneField = register("customerPhone");
   const addressSearchField = register("addressSearch");
 
@@ -180,6 +184,20 @@ export default function AssistedOrderDialog({
     return () =>
       document.removeEventListener("pointerdown", closeAddressDropdown);
   }, []);
+
+  useEffect(() => {
+    if (!isAddressEditing) return;
+    const query = addressSearchValue.trim();
+    if (query.length < 3) return;
+
+    const timeout = window.setTimeout(() => {
+      setAddressSearchError("");
+      setActiveAddressResultIndex(0);
+      setSubmittedAddressQuery(query);
+      setIsAddressDropdownOpen(true);
+    }, ADDRESS_SEARCH_DEBOUNCE_MS);
+    return () => window.clearTimeout(timeout);
+  }, [addressSearchValue, isAddressEditing]);
 
   const visibleProducts = useMemo(() => {
     return filterOrderableProducts(products.data ?? [], {
@@ -232,12 +250,18 @@ export default function AssistedOrderDialog({
     (etrap) => etrap.id === Number(selectedDeliveryEtrapId),
   );
   const suggestedDeliveryEtrap = deliveryQuote.data?.etrap ?? null;
-  const estimatedDeliveryFee =
-    deliveryQuote.data?.etrap &&
-    deliveryQuote.data.etrap.id === selectedDeliveryEtrap?.id
-      ? deliveryQuote.data.fee
-      : selectedDeliveryEtrap
-        ? deliveryFeeForSubtotal(estimatedSubtotal, selectedDeliveryEtrap)
+  const fallbackDeliveryFee = deliveryConfig.data
+    ? deliveryConfig.data.fallbackFreeDeliveryThreshold !== null &&
+      estimatedSubtotal >= deliveryConfig.data.fallbackFreeDeliveryThreshold
+      ? 0
+      : deliveryConfig.data.fallbackPrice
+    : null;
+  const estimatedDeliveryFee = deliveryQuote.data
+    ? deliveryQuote.data.fee
+    : selectedDeliveryEtrap
+      ? deliveryFeeForSubtotal(estimatedSubtotal, selectedDeliveryEtrap)
+      : selectedAddressId
+        ? fallbackDeliveryFee
         : null;
   const estimatedTotal =
     estimatedDeliveryFee === null
@@ -264,7 +288,7 @@ export default function AssistedOrderDialog({
   ]);
 
   useEffect(() => {
-    if (selectedAddressId || !deliveryQuote.data) return;
+    if (selectedAddressId || isAddressEditing || !deliveryQuote.data) return;
     const officialAddress =
       deliveryQuote.data.addressLine ??
       `Точка на карте: ${deliveryQuote.data.latitude.toFixed(5)}, ${deliveryQuote.data.longitude.toFixed(5)}`;
@@ -272,7 +296,7 @@ export default function AssistedOrderDialog({
       shouldDirty: true,
       shouldValidate: true,
     });
-  }, [deliveryQuote.data, selectedAddressId, setValue]);
+  }, [deliveryQuote.data, isAddressEditing, selectedAddressId, setValue]);
 
   function changeQuantity(
     productId: string,
@@ -302,6 +326,7 @@ export default function AssistedOrderDialog({
     setValue("apartment", "");
     setCoordinates(null);
     setSelectedAddressResult(null);
+    setIsAddressEditing(false);
   }, [setValue]);
 
   const selectAddress = useCallback(
@@ -320,6 +345,7 @@ export default function AssistedOrderDialog({
       setValue("apartment", selection.values.apartment);
       setCoordinates(selection.coordinates);
       setSelectedAddressResult(null);
+      setIsAddressEditing(false);
       setIsAddressDropdownOpen(false);
       setSelectionError("");
     },
@@ -348,6 +374,7 @@ export default function AssistedOrderDialog({
       latitude: result.latitude,
       longitude: result.longitude,
     });
+    setIsAddressEditing(false);
     setIsAddressDropdownOpen(false);
     setSelectionError("");
   }
@@ -384,9 +411,10 @@ export default function AssistedOrderDialog({
   function findAddress() {
     const query = getValues("addressSearch").trim();
     if (query.length < 3) {
-      setAddressSearchError("Введите минимум 3 символа и нажмите «Найти»");
+      setAddressSearchError("Введите минимум 3 символа");
       return;
     }
+    setIsAddressEditing(false);
     setAddressSearchError("");
     setActiveAddressResultIndex(0);
     setIsAddressDropdownOpen(true);
@@ -399,7 +427,12 @@ export default function AssistedOrderDialog({
 
   function editAddressSearch(event: ChangeEvent<HTMLInputElement>) {
     void addressSearchField.onChange(event);
+    if (event.target.value.trim().length < 3) setSubmittedAddressQuery("");
+    setValue("addressId", "", { shouldValidate: true });
+    setValue("deliveryEtrapId", "", { shouldValidate: true });
+    setCoordinates(null);
     setSelectedAddressResult(null);
+    setIsAddressEditing(true);
     setIsAddressDropdownOpen(false);
     setAddressSearchError("");
   }
@@ -440,6 +473,7 @@ export default function AssistedOrderDialog({
     setValue("deliveryEtrapId", "", { shouldValidate: true });
     setCoordinates(next);
     setSelectedAddressResult(null);
+    setIsAddressEditing(false);
     setSelectionError("");
   }
 
@@ -497,6 +531,7 @@ export default function AssistedOrderDialog({
     setSelectedCustomer(null);
     setSubmittedCustomerPhone("");
     setSubmittedAddressQuery("");
+    setIsAddressEditing(false);
     setIsAddressDropdownOpen(false);
     setSelectedAddressResult(null);
     setCoordinates(null);
@@ -1096,48 +1131,30 @@ export default function AssistedOrderDialog({
                 />
               </Suspense>
               <div className="modal-grid assisted-address-details">
-                <label className="wide-field">
-                  <span>Район / этрап доставки</span>
-                  <select
-                    data-testid="assisted-delivery-etrap"
-                    {...register("deliveryEtrapId")}
-                    aria-invalid={Boolean(errors.deliveryEtrapId)}
-                    disabled={deliveryConfig.isPending}
-                  >
-                    <option value="">
-                      {deliveryConfig.isPending
-                        ? "Загружаем районы…"
-                        : "Выберите район"}
-                    </option>
-                    {deliveryConfig.data?.welayats.map((welayat) => (
-                      <optgroup key={welayat.id} label={welayat.nameRu}>
-                        {welayat.etraps.map((etrap) => (
-                          <option key={etrap.id} value={etrap.id}>
-                            {etrap.nameRu} — {etrap.price.toFixed(2)} TMT
-                          </option>
-                        ))}
-                      </optgroup>
-                    ))}
-                  </select>
-                  <FormFieldError message={errors.deliveryEtrapId?.message} />
-                  {suggestedDeliveryEtrap &&
-                    selectedDeliveryEtrap?.id === suggestedDeliveryEtrap.id && (
-                      <span
-                        className="assisted-delivery-match"
-                        data-testid="assisted-delivery-etrap-auto"
-                        role="status"
-                      >
-                        Район определён по адресу:{" "}
-                        {suggestedDeliveryEtrap.nameRu} · доставка{" "}
-                        {deliveryQuote.data?.fee.toFixed(2)} TMT
-                      </span>
-                    )}
-                  {!suggestedDeliveryEtrap && selectedAddressResult && (
+                <div
+                  className="wide-field assisted-delivery-summary"
+                  data-testid="assisted-delivery-pricing"
+                >
+                  <input type="hidden" {...register("deliveryEtrapId")} />
+                  <strong>Доставка по выбранному адресу</strong>
+                  {suggestedDeliveryEtrap && (
                     <span
-                      className="assisted-order-hint"
-                      data-testid="assisted-delivery-etrap-confirm"
+                      className="assisted-delivery-match"
+                      data-testid="assisted-delivery-etrap-auto"
+                      role="status"
                     >
-                      Адрес сохранён. Подтвердите тарифный район вручную.
+                      Район определён по адресу: {suggestedDeliveryEtrap.nameRu}
+                      {" · "}доставка {deliveryQuote.data?.fee.toFixed(2)} TMT
+                    </span>
+                  )}
+                  {deliveryQuote.data && !suggestedDeliveryEtrap && (
+                    <span
+                      className="assisted-delivery-match"
+                      data-testid="assisted-delivery-fallback"
+                      role="status"
+                    >
+                      Адрес принят автоматически · доставка по базовому тарифу{" "}
+                      {deliveryQuote.data.fee.toFixed(2)} TMT
                     </span>
                   )}
                   {deliveryQuote.isFetching && !selectedAddressId && (
@@ -1147,16 +1164,26 @@ export default function AssistedOrderDialog({
                   )}
                   {deliveryQuote.isError && !selectedAddressId && (
                     <span className="form-error">
-                      Не удалось определить цену по точке. Выберите район
-                      вручную.
+                      Не удалось показать предварительную цену. Backend
+                      рассчитает доставку при создании заказа.
                     </span>
                   )}
-                  {deliveryConfig.isError && (
-                    <span className="form-error">
-                      Не удалось загрузить доступные районы.
+                  {selectedAddressId && !deliveryQuote.data && (
+                    <span className="assisted-order-hint" role="status">
+                      {selectedDeliveryEtrap
+                        ? `${selectedDeliveryEtrap.nameRu} · доставка ${estimatedDeliveryFee?.toFixed(2)} TMT`
+                        : estimatedDeliveryFee === null
+                          ? "Сохранённый адрес · цена будет рассчитана backend"
+                          : `Сохранённый адрес · базовая доставка ${estimatedDeliveryFee.toFixed(2)} TMT`}
                     </span>
                   )}
-                </label>
+                  {!coordinates && !selectedAddressId && (
+                    <span className="assisted-order-hint">
+                      Выберите официальный адрес — район и цена подставятся
+                      автоматически.
+                    </span>
+                  )}
+                </div>
                 <label>
                   <span>Метка</span>
                   <input

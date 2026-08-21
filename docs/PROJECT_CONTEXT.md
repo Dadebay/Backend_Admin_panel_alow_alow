@@ -437,21 +437,23 @@ heights; visual density must not be reduced to the previous pale compact map.
   numeric IDs. Existing etraps are not deleted because saved addresses and
   historical orders may reference them; disabling hides them from customer
   clients without breaking that history.
-- New clients submit `deliveryEtrapId` with an inline or saved address. The
-  backend rejects a disabled/unknown etrap, persists it on the saved address,
-  computes the current fee from database configuration, and snapshots the
-  Russian welayat/etrap names plus fee on the order. Existing clients and old
-  addresses without an etrap remain backward compatible through the separately
-  configurable fallback tariff, initially 15 TMT and free from 150 TMT.
+- Clients submit `deliveryEtrapId` when the location quote identifies an
+  enabled configured tariff zone. The backend rejects a disabled/unknown
+  etrap, persists a supplied match on the saved address, computes the current
+  fee from database configuration, and snapshots the Russian welayat/etrap
+  names plus fee on the order. An address without an unambiguous configured
+  match uses the separately configurable fallback tariff, initially 15 TMT and
+  free from 150 TMT; the operator does not duplicate the address choice with a
+  mandatory manual tariff-zone selection.
 - `POST /delivery/quote` is the public location-pricing contract. It accepts
   map coordinates plus subtotal, reverse-geocodes the coordinates on the
   server, returns the official address line and configured fee, and proposes
   an enabled etrap only when one multilingual name matches unambiguously.
-  Unknown/ambiguous locations return the fallback quote with `matched=false`
-  and require explicit etrap confirmation before assisted checkout. The map
-  coordinates are the source of truth: changing the marker triggers a new
-  quote and replaces the visible official-address search value and stale
-  tariff selection.
+  Unknown/ambiguous locations return the authoritative fallback quote with
+  `matched=false`; assisted checkout accepts that quote without a second
+  district selector. The map coordinates are the source of truth: changing
+  the marker triggers a new quote and replaces the visible official-address
+  search value and stale tariff selection.
 - Orders keep immutable snapshots of the address plus product/variant name,
   price, and the product's optional LAN receipt-printer IPv4 address. Later
   catalog edits never rewrite historical order lines. The only exception is
@@ -594,16 +596,19 @@ Current status:
 - administrators manage the complete delivery directory on the lazy
   `/delivery` screen: fallback pricing, creation and multilingual editing of
   welayats and etraps, display order, parent assignment, availability,
-  delivery price and free-delivery threshold. The phone-assisted order
-  requires an enabled etrap, shows the configured delivery estimate, and
-  submits the selected ID to the backend; the customer-facing endpoint exposes
+  delivery price and free-delivery threshold. The phone-assisted order shows
+  the location quote and submits an automatically matched etrap when one
+  exists; otherwise it uses the configured fallback without asking the
+  operator to choose a district manually. The customer-facing endpoint exposes
   the same enabled configuration.
 - operators/admins can open a lazy phone-order flow from the order board, find
   a caller by phone, automatically select an exact phone match, prefill the
   active or last-used saved address while still offering every saved address,
   select active catalog items and their configured variants,
-  perform an explicit OSM address search, edit an unofficial landmark, or put
-  a draggable marker on the large map. Its desktop dialog uses the wide,
+  perform a 350 ms debounced OSM address search with an accessible suggestion
+  dropdown, edit an unofficial landmark, or put a draggable marker on the
+  large map. Enter and the search button bypass the debounce for an immediate
+  request. Its desktop dialog uses the wide,
   near-full-height workspace while phones keep the full-screen layout.
   TanStack Query owns all remote data,
   React Hook Form/Zod validate the form, and the backend computes the final
@@ -635,9 +640,10 @@ Current status:
   calls the backend delivery quote. NestJS reverse-geocodes the selected marker,
   updates the visible official-address field, calculates the current fee, and
   proposes a delivery etrap only when its multilingual configured name has one
-  unambiguous text match. Unknown, numeric-only, or ambiguous locations retain
-  explicit tariff confirmation. Moving the marker clears stale location state
-  before the coordinate-keyed quote replaces it;
+  unambiguous text match. Unknown, numeric-only, or ambiguous locations use the
+  configured fallback quote automatically instead of requiring a duplicate
+  district choice. Moving the marker clears stale location state before the
+  coordinate-keyed quote replaces it;
 - administrators see a full pre-pickup order editor from both table and Kanban:
   composition, quantities, catalog additions, address search/map, delivery
   etrap/details, note, and courier. Backend recalculation and audit remain the
@@ -839,6 +845,12 @@ editor is 27.8 KB / 9.4 KB gzip and loads only when an administrator opens it.
 Location changes use one coordinate/subtotal-keyed TanStack Query with no
 polling. The previously widened phone-order dialog remains responsive and
 near-full-height on desktop and full-screen on phones.
+
+The 2026-08-21 debounced assisted-address build keeps the static SPA bootstrap
+at 241.5 KB raw / 77.6 KB gzip and CSS at 136.8 KB / 27.2 KB gzip. The lazy
+phone-assisted order is 25.3 KB / 7.5 KB gzip. Typing issues one cancellable
+geocoding query only after a 350 ms quiet period; Enter and the search button
+remain immediate, and no polling or eager route load was added.
 
 ## Decision log
 
@@ -1230,3 +1242,9 @@ near-full-height on desktop and full-screen on phones.
   editing, canonical one-step rollback, and cancellation through `DELIVERED`.
   Operators remain forward-only and may cancel only before cooking. Courier
   pickup/completion were documented on the existing transition endpoint.
+- 2026-08-21: assisted official-address search became a 350 ms debounced
+  autocomplete while Enter and the search button remain immediate. Selecting
+  an address or marker now owns tariff resolution completely: an unambiguous
+  configured match is stored automatically and every other location uses the
+  backend fallback quote, so the operator never repeats the address decision
+  in a mandatory district dropdown.

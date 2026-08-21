@@ -365,7 +365,7 @@ test("assisted order keeps the optional unofficial address and always builds a d
   assert.equal(parsed.deliveryEtrapId, 25);
   assert.equal(parsed.promoCode, "WELCOME15");
   assert.equal(
-    assistedOrderFormSchema.safeParse({
+    assistedOrderFormSchema.parse({
       customerPhone: "+99365123456",
       customerFirstName: "",
       customerLastName: "",
@@ -379,8 +379,8 @@ test("assisted order keeps the optional unofficial address and always builds a d
       customerNote: "",
       promoCode: "",
       addressSearch: "",
-    }).success,
-    false,
+    }).deliveryEtrapId,
+    undefined,
   );
   assert.equal(
     buildAssistedDeliveryAddress({

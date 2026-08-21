@@ -5114,6 +5114,19 @@ button:disabled {
   line-height: 1.45;
 }
 
+.assisted-delivery-summary {
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--canvas) 92%, var(--brand-cream));
+}
+
+.assisted-delivery-summary > strong {
+  display: block;
+  color: var(--brand-navy);
+  font-size: 10px;
+}
+
 .assisted-address-card > label > textarea {
   min-height: 72px;
 }

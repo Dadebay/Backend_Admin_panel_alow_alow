@@ -124,17 +124,22 @@ test("address search is an accessible dropdown and the large map remains a manua
   );
 
   assert.match(dialog, /onClick=\{findAddress\}/);
+  assert.match(dialog, /ADDRESS_SEARCH_DEBOUNCE_MS = 350/);
+  assert.match(dialog, /window\.setTimeout/);
+  assert.match(dialog, /window\.clearTimeout/);
   assert.match(dialog, /role="combobox"/);
   assert.match(dialog, /role="listbox"/);
   assert.match(dialog, /role="option"/);
   assert.match(dialog, /Неофициальный адрес \/ ориентир \(необязательно\)/);
   assert.match(dialog, /buildAssistedDeliveryAddress/);
-  assert.match(dialog, /data-testid="assisted-delivery-etrap"/);
+  assert.match(dialog, /data-testid="assisted-delivery-pricing"/);
   assert.match(dialog, /useDeliveryQuote/);
   assert.match(dialog, /const officialAddress =/);
   assert.match(dialog, /setValue\("addressSearch", officialAddress/);
   assert.match(dialog, /data-testid="assisted-delivery-etrap-auto"/);
-  assert.match(dialog, /data-testid="assisted-delivery-etrap-confirm"/);
+  assert.match(dialog, /data-testid="assisted-delivery-fallback"/);
+  assert.doesNotMatch(dialog, /Подтвердите тарифный район вручную/);
+  assert.doesNotMatch(dialog, /<span>Район \/ этрап доставки<\/span>/);
   assert.match(
     dialog,
     /setValue\("deliveryEtrapId", "", \{ shouldValidate: true \}\)/,

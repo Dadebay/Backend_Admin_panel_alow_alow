@@ -78,7 +78,7 @@ test("address text suggests one unambiguous configured tariff zone", () => {
   );
 });
 
-test("ambiguous address text requires explicit tariff-zone confirmation", () => {
+test("ambiguous address text preserves the backend fallback tariff", () => {
   const ambiguousConfig = structuredClone(config);
   ambiguousConfig.welayats[0].etraps.push({
     ...ambiguousConfig.welayats[0].etraps[1],

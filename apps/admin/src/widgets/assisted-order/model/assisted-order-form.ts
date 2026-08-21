@@ -13,10 +13,14 @@ const optionalAddressId = z
 const deliveryEtrapId = z
   .string()
   .trim()
-  .min(1, "Выберите район доставки")
-  .regex(/^\d+$/, "Некорректный район доставки")
-  .transform(Number)
-  .pipe(z.number().int().positive("Некорректный район доставки"));
+  .transform((value) => (value ? Number(value) : undefined))
+  .pipe(
+    z
+      .number()
+      .int()
+      .positive("Некорректный район доставки")
+      .optional(),
+  );
 
 export const assistedOrderFormSchema = z.object({
   customerPhone: turkmenPhoneSchema,

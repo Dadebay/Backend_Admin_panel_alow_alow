@@ -388,7 +388,7 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** Move an order through a role-gated workflow */
+        /** Move an order through the role-gated workflow; courier pickup is OUT_FOR_DELIVERY and completion is DELIVERED */
         patch: operations["OrdersController_transition_v1"];
         trace?: never;
     };
@@ -407,6 +407,23 @@ export interface paths {
         head?: never;
         /** Assign a ready order or correct its courier before delivery starts */
         patch: operations["OrdersController_assign_v1"];
+        trace?: never;
+    };
+    "/api/v1/orders/{id}/admin-edit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Edit administrator-managed order content and recalculate authoritative totals */
+        patch: operations["OrdersController_adminEdit_v1"];
         trace?: never;
     };
     "/api/v1/orders/{id}/confirm-packing": {
@@ -439,7 +456,7 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** Cancel before cooking starts; SENT_TO_KITCHEN requires trusted staff */
+        /** Cancel early as operator or cancel an active unsettled order as administrator */
         patch: operations["OrdersController_cancel_v1"];
         trace?: never;
     };
@@ -863,6 +880,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/delivery/quote": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Resolve the official address and authoritative delivery quote for map coordinates */
+        post: operations["DeliveryController_quote_v1"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/delivery/admin/config": {
         parameters: {
             query?: never;
@@ -963,6 +997,40 @@ export interface paths {
         head?: never;
         /** Update availability and delivery price for one etrap */
         patch: operations["DeliveryController_updateEtrap_v1"];
+        trace?: never;
+    };
+    "/api/v1/geocoding/reverse": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Turn a map point into a short address line for the delivery-address form */
+        get: operations["GeocodingController_reverse_v1"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/geocoding/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Search Turkmenistan OSM names after an explicit user submit */
+        get: operations["GeocodingController_search_v1"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/marketing/banners": {
@@ -1135,40 +1203,6 @@ export interface paths {
         };
         get: operations["ContactController_get_v1"];
         put: operations["ContactController_update_v1"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/geocoding/reverse": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Turn a map point into a short address line for the delivery-address form */
-        get: operations["GeocodingController_reverse_v1"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/geocoding/search": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Search Turkmenistan OSM names after an explicit user submit */
-        get: operations["GeocodingController_search_v1"];
-        put?: never;
         post?: never;
         delete?: never;
         options?: never;
@@ -1938,6 +1972,21 @@ export interface components {
             courierId: string;
             version: number;
         };
+        AdminEditOrderDto: {
+            items: components["schemas"]["CreateOrderItemDto"][];
+            deliveryEtrapId: number;
+            address: string;
+            latitude: number;
+            longitude: number;
+            entrance?: string;
+            floor?: string;
+            apartment?: string;
+            customerNote?: string;
+            /** Format: uuid */
+            courierId?: string;
+            /** @description Optimistic-lock version returned by the API */
+            version: number;
+        };
         ConfirmOrderPackingDto: {
             /** @description Every immutable order-line ID checked by the administrator */
             checkedItemIds: string[];
@@ -2399,6 +2448,34 @@ export interface components {
             fallbackFreeDeliveryThreshold: number | null;
             welayats: components["schemas"]["DeliveryWelayatResponseDto"][];
         };
+        QuoteDeliveryDto: {
+            /** @example 37.9601 */
+            latitude: number;
+            /** @example 58.3261 */
+            longitude: number;
+            /** @example 120 */
+            subtotal: number;
+        };
+        DeliveryQuoteWelayatResponseDto: {
+            id: number;
+            nameEn: string | null;
+            nameRu: string;
+            nameTk: string;
+            sortOrder: number;
+        };
+        DeliveryQuoteResponseDto: {
+            addressLine: string | null;
+            latitude: number;
+            longitude: number;
+            subtotal: number;
+            fee: number;
+            price: number;
+            freeDeliveryThreshold: number | null;
+            etrap: components["schemas"]["DeliveryEtrapResponseDto"] | null;
+            welayat: components["schemas"]["DeliveryQuoteWelayatResponseDto"] | null;
+            /** @description True when reverse geocoding produced one unambiguous configured delivery area */
+            matched: boolean;
+        };
         UpdateDeliverySettingsDto: {
             fallbackPrice?: number;
             /** @description Null disables free delivery for legacy addresses without an etrap */
@@ -2449,6 +2526,23 @@ export interface components {
             /** @description Null disables free delivery for this etrap */
             freeDeliveryThreshold?: number | null;
             isDeliveryEnabled?: boolean;
+        };
+        ReverseGeocodeResponseDto: {
+            /** @example Parahat 7, Görogly köçesi */
+            line?: string | null;
+        };
+        SearchGeocodeResultDto: {
+            label: string;
+            latitude: number;
+            longitude: number;
+            aliases: string[];
+            /** @enum {string} */
+            provider: "NOMINATIM" | "PHOTON";
+        };
+        SearchGeocodeResponseDto: {
+            items: components["schemas"]["SearchGeocodeResultDto"][];
+            /** @example © OpenStreetMap contributors */
+            attribution: string;
         };
         BannerResponseDto: {
             /** Format: uuid */
@@ -2566,23 +2660,6 @@ export interface components {
             email?: string;
             privacyLink?: string;
             userAgreementLink?: string;
-        };
-        ReverseGeocodeResponseDto: {
-            /** @example Parahat 7, Görogly köçesi */
-            line?: string | null;
-        };
-        SearchGeocodeResultDto: {
-            label: string;
-            latitude: number;
-            longitude: number;
-            aliases: string[];
-            /** @enum {string} */
-            provider: "NOMINATIM" | "PHOTON";
-        };
-        SearchGeocodeResponseDto: {
-            items: components["schemas"]["SearchGeocodeResultDto"][];
-            /** @example © OpenStreetMap contributors */
-            attribution: string;
         };
     };
     responses: never;
@@ -3194,6 +3271,31 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["AssignCourierDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderResponseDto"];
+                };
+            };
+        };
+    };
+    OrdersController_adminEdit_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminEditOrderDto"];
             };
         };
         responses: {
@@ -3907,6 +4009,29 @@ export interface operations {
             };
         };
     };
+    DeliveryController_quote_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QuoteDeliveryDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeliveryQuoteResponseDto"];
+                };
+            };
+        };
+    };
     DeliveryController_adminConfig_v1: {
         parameters: {
             query?: never;
@@ -4041,6 +4166,50 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DeliveryEtrapResponseDto"];
+                };
+            };
+        };
+    };
+    GeocodingController_reverse_v1: {
+        parameters: {
+            query: {
+                lat: number;
+                lon: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReverseGeocodeResponseDto"];
+                };
+            };
+        };
+    };
+    GeocodingController_search_v1: {
+        parameters: {
+            query: {
+                q: string;
+                limit?: components["schemas"]["Object"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SearchGeocodeResponseDto"];
                 };
             };
         };
@@ -4358,50 +4527,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ContactSettingsResponseDto"];
-                };
-            };
-        };
-    };
-    GeocodingController_reverse_v1: {
-        parameters: {
-            query: {
-                lat: number;
-                lon: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ReverseGeocodeResponseDto"];
-                };
-            };
-        };
-    };
-    GeocodingController_search_v1: {
-        parameters: {
-            query: {
-                q: string;
-                limit?: components["schemas"]["Object"];
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SearchGeocodeResponseDto"];
                 };
             };
         };

@@ -154,6 +154,14 @@ type DeliveryConfigResponse = {
   }>;
 };
 
+type DeliveryQuoteResponse = {
+  latitude: number;
+  longitude: number;
+  subtotal: number;
+  fee: number;
+  matched: boolean;
+};
+
 type NotificationCampaignResponse = {
   id: string;
   title: string;
@@ -370,6 +378,19 @@ describe("backend security and critical workflow", () => {
   });
 
   it("publishes active district prices and lets only administrators configure backend-owned delivery totals", async () => {
+    const quote = await request(server)
+      .post("/api/v1/delivery/quote")
+      .send({ latitude: 37.9503, longitude: 58.3803, subtotal: 100 })
+      .expect(200);
+    const quoteBody = quote.body as DeliveryQuoteResponse;
+    expect(quoteBody).toMatchObject({
+      latitude: 37.9503,
+      longitude: 58.3803,
+      subtotal: 100,
+    });
+    expect(typeof quoteBody.fee).toBe("number");
+    expect(typeof quoteBody.matched).toBe("boolean");
+
     const publicConfig = await request(server)
       .get("/api/v1/delivery/config")
       .expect(200);
@@ -2095,6 +2116,73 @@ describe("backend security and critical workflow", () => {
       .expect(409);
   });
 
+  it("lets only administrators edit order contents before pickup and recalculates totals", async () => {
+    let order = await createOrder(tokens.customer, { deliveryEtrapId: 25 });
+    order = await transition(tokens.cook, order, OrderStatus.COOKING);
+    order = await transition(tokens.cook, order, OrderStatus.READY);
+    order = await confirmPacking(tokens.admin, order);
+    const assigned = await request(server)
+      .patch(`/api/v1/orders/${order.id}/assign-courier`)
+      .set(bearer(tokens.operator))
+      .send({ courierId: users.courier.id, version: order.version })
+      .expect(200);
+    order = assigned.body as OrderResponse;
+    const body = {
+      version: order.version,
+      items: order.items?.map((item) => ({
+        productId: item.productId,
+        ...(item.productVariantId ? { variantId: item.productVariantId } : {}),
+        quantity: item.quantity + 1,
+      })),
+      deliveryEtrapId: 25,
+      address: "Administrator corrected address",
+      latitude: 37.95031,
+      longitude: 58.38031,
+      entrance: "2",
+      floor: "3",
+      apartment: "12",
+      customerNote: "Call before arrival",
+    };
+
+    await request(server)
+      .patch(`/api/v1/orders/${order.id}/admin-edit`)
+      .set(bearer(tokens.operator))
+      .send(body)
+      .expect(403);
+    const editedResponse = await request(server)
+      .patch(`/api/v1/orders/${order.id}/admin-edit`)
+      .set(bearer(tokens.admin))
+      .send(body)
+      .expect(200);
+    const edited = editedResponse.body as OrderResponse;
+    expect(edited).toMatchObject({
+      status: OrderStatus.SENT_TO_KITCHEN,
+      cookId: null,
+      courierId: null,
+      packingConfirmedAt: null,
+      address: "Administrator corrected address",
+      entrance: "2",
+      floor: "3",
+      apartment: "12",
+      customerNote: "Call before arrival",
+      deliveryEtrapId: 25,
+      subtotal: 225,
+      deliveryFee: 0,
+      total: 225,
+      version: order.version + 1,
+    });
+    expect(edited.items?.[0]?.quantity).toBe(3);
+    expect(
+      await prisma.auditLog.count({
+        where: {
+          entityType: "Order",
+          entityId: order.id,
+          action: "order.admin-edited",
+        },
+      }),
+    ).toBe(1);
+  });
+
   it("enforces every role, ownership check and cash workflow transition", async () => {
     let order = await createOrder(tokens.customer, {});
 
@@ -2200,7 +2288,7 @@ describe("backend security and critical workflow", () => {
     ]);
   });
 
-  it("lets only trusted staff cancel SENT_TO_KITCHEN and blocks cancellation once cooking starts", async () => {
+  it("keeps operators early-only while administrators may cancel active unsettled orders", async () => {
     for (const role of ["operator", "admin", "superAdmin"] as const) {
       const order = await createOrder(tokens.customer, {});
 
@@ -2220,15 +2308,56 @@ describe("backend security and critical workflow", () => {
         .expect(200);
     }
 
-    let cooking = await createOrder(tokens.customer, {});
-    cooking = await transition(tokens.cook, cooking, OrderStatus.COOKING);
+    let operatorCooking = await createOrder(tokens.customer, {});
+    operatorCooking = await transition(
+      tokens.cook,
+      operatorCooking,
+      OrderStatus.COOKING,
+    );
+    await request(server)
+      .patch(`/api/v1/orders/${operatorCooking.id}/cancel`)
+      .set(bearer(tokens.operator))
+      .send({
+        reason: "Operator cannot undo cooking",
+        version: operatorCooking.version,
+      })
+      .expect(403);
 
-    for (const role of ["operator", "admin", "superAdmin"] as const) {
+    await request(server)
+      .patch(`/api/v1/orders/${operatorCooking.id}/transition`)
+      .set(bearer(tokens.operator))
+      .send({
+        status: OrderStatus.SENT_TO_KITCHEN,
+        note: "Operator cannot roll back",
+        version: operatorCooking.version,
+      })
+      .expect(403);
+    const rolledBack = await request(server)
+      .patch(`/api/v1/orders/${operatorCooking.id}/transition`)
+      .set(bearer(tokens.admin))
+      .send({
+        status: OrderStatus.SENT_TO_KITCHEN,
+        note: "Administrator corrected the kitchen stage",
+        version: operatorCooking.version,
+      })
+      .expect(200);
+    expect(rolledBack.body).toMatchObject({
+      status: OrderStatus.SENT_TO_KITCHEN,
+      cookId: null,
+      version: operatorCooking.version + 1,
+    });
+
+    for (const role of ["admin", "superAdmin"] as const) {
+      let cooking = await createOrder(tokens.customer, {});
+      cooking = await transition(tokens.cook, cooking, OrderStatus.COOKING);
       await request(server)
         .patch(`/api/v1/orders/${cooking.id}/cancel`)
         .set(bearer(tokens[role]))
-        .send({ reason: "Cooking already started", version: cooking.version })
-        .expect(403);
+        .send({
+          reason: `Administrator correction by ${role}`,
+          version: cooking.version,
+        })
+        .expect(200);
     }
   });
 

@@ -114,6 +114,11 @@ export default function AssistedOrderMapPicker({
           <Marker
             draggable
             eventHandlers={{
+              add(event) {
+                event.target
+                  .getElement()
+                  ?.setAttribute("aria-label", "Адрес доставки");
+              },
               dragend() {
                 const point = markerRef.current?.getLatLng();
                 if (!point) return;
@@ -127,6 +132,7 @@ export default function AssistedOrderMapPicker({
             icon={markerIcon}
             position={[coordinates.latitude, coordinates.longitude]}
             ref={markerRef}
+            title="Адрес доставки"
           >
             <Tooltip direction="top">Адрес доставки</Tooltip>
           </Marker>

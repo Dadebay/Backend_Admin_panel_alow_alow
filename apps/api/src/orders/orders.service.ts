@@ -28,11 +28,13 @@ import {
 } from "../routing/routing.service";
 import { TrackingService } from "../tracking/tracking.service";
 import {
+  AdminEditOrderDto,
   AssignCourierDto,
   CancelOrderDto,
   ConfirmOrderPackingDto,
   CreateAssistedOrderDto,
   CreateOrderDto,
+  CreateOrderItemDto,
   ListOrdersQueryDto,
   RateOrderDto,
   SearchAssistedCustomersQueryDto,
@@ -40,6 +42,7 @@ import {
 } from "./orders.dto";
 import {
   assertOrderTransition,
+  canAdministratorEditOrder,
   canCancelOrder,
   canEditCourierAssignment,
   canManageCourierAssignment,
@@ -126,6 +129,11 @@ function withItemImages<T extends OrderWithDetails>(order: T) {
 const MAX_ROUTE_LOCATION_AGE_MS = 5 * 60 * 1_000;
 const ROUTE_RECALCULATION_SECONDS = 15;
 const NEXT_ROUTE_WAYPOINTS_LIMIT = 3;
+const ITEM_EDIT_RESET_STATUSES: OrderStatus[] = [
+  OrderStatus.COOKING,
+  OrderStatus.READY,
+  OrderStatus.ASSIGNED_TO_COURIER,
+];
 
 /** Only the statuses a customer actually needs to hear about — the later
  * back-office accounting stages (cash returned/completed/reconciled) never
@@ -332,19 +340,11 @@ export class OrdersService {
     return parsed.number;
   }
 
-  private async createForCustomer(
+  private async resolveOrderItems(
     tx: Prisma.TransactionClient,
-    input: {
-      actorId: string;
-      customerId: string;
-      dto: CreateOrderDto;
-      source: OrderSource;
-    },
+    items: CreateOrderItemDto[],
   ) {
-    const { actorId, customerId, dto, source } = input;
-    const productIds = [
-      ...new Set(dto.items.map(({ productId }) => productId)),
-    ];
+    const productIds = [...new Set(items.map(({ productId }) => productId))];
     const products = await tx.product.findMany({
       where: {
         id: { in: productIds },
@@ -367,7 +367,7 @@ export class OrdersService {
         quantity: number;
       }
     >();
-    for (const item of dto.items) {
+    for (const item of items) {
       const product = productsById.get(item.productId);
       if (!product) {
         throw new BadRequestException("One or more products are unavailable");
@@ -407,6 +407,23 @@ export class OrdersService {
       (sum, { product, variant, quantity }) =>
         sum + Number(variant?.price ?? product.price) * quantity,
       0,
+    );
+    return { resolvedItems, subtotal };
+  }
+
+  private async createForCustomer(
+    tx: Prisma.TransactionClient,
+    input: {
+      actorId: string;
+      customerId: string;
+      dto: CreateOrderDto;
+      source: OrderSource;
+    },
+  ) {
+    const { actorId, customerId, dto, source } = input;
+    const { resolvedItems, subtotal } = await this.resolveOrderItems(
+      tx,
+      dto.items,
     );
     const now = new Date();
     const promo = dto.promoCode
@@ -729,8 +746,29 @@ export class OrdersService {
       ) {
         updateData.cookId = user.id;
       }
+      if (
+        dto.status === OrderStatus.CONFIRMED ||
+        dto.status === OrderStatus.SENT_TO_KITCHEN
+      ) {
+        updateData.cookId = null;
+      }
+      if (dto.status === OrderStatus.COOKING) {
+        updateData.packingConfirmedAt = null;
+      }
+      if (
+        order.status === OrderStatus.ASSIGNED_TO_COURIER &&
+        dto.status === OrderStatus.READY
+      ) {
+        updateData.courierId = null;
+        updateData.assignedAt = null;
+      }
       if (dto.status === OrderStatus.DELIVERED) {
         updateData.deliveredAt = new Date();
+      } else if (
+        order.status === OrderStatus.DELIVERED &&
+        dto.status === OrderStatus.OUT_FOR_DELIVERY
+      ) {
+        updateData.deliveredAt = null;
       }
       if (dto.status === OrderStatus.COMPLETED) {
         updateData.completedAt = new Date();
@@ -812,6 +850,193 @@ export class OrdersService {
       );
     }
     return response;
+  }
+
+  async adminEdit(user: AuthUser, id: string, dto: AdminEditOrderDto) {
+    return this.prisma.$transaction(async (tx) => {
+      const order = await tx.order.findUnique({
+        where: { id },
+        include: { items: true, promoCode: true },
+      });
+      if (!order) throw new NotFoundException("Order not found");
+      if (!canAdministratorEditOrder(order.status, user.role)) {
+        throw new ForbiddenException(
+          "Only an administrator can edit an order before courier pickup",
+        );
+      }
+      if (order.version !== dto.version) {
+        throw new ConflictException("Order changed; reload and try again");
+      }
+
+      const { resolvedItems, subtotal } = await this.resolveOrderItems(
+        tx,
+        dto.items,
+      );
+      const deliveryPricing = await this.delivery.resolvePricing(
+        tx,
+        subtotal,
+        dto.deliveryEtrapId,
+      );
+      const nearest = await this.branches.findNearestActive(tx, {
+        latitude: dto.latitude,
+        longitude: dto.longitude,
+      });
+      const currentItems = order.items
+        .map(
+          (item) =>
+            `${item.productId}:${item.productVariantId ?? "base"}:${item.quantity}`,
+        )
+        .sort();
+      const nextItems = resolvedItems
+        .map(
+          ({ product, variant, quantity }) =>
+            `${product.id}:${variant?.id ?? "base"}:${quantity}`,
+        )
+        .sort();
+      const itemsChanged = currentItems.join("|") !== nextItems.join("|");
+
+      let courierId = order.courierId;
+      let cookId = order.cookId;
+      let nextStatus = order.status;
+      let assignedAt = order.assignedAt;
+      let packingConfirmedAt = order.packingConfirmedAt;
+      if (
+        itemsChanged &&
+        ITEM_EDIT_RESET_STATUSES.includes(order.status)
+      ) {
+        nextStatus = OrderStatus.SENT_TO_KITCHEN;
+        cookId = null;
+        courierId = null;
+        assignedAt = null;
+        packingConfirmedAt = null;
+      } else if (
+        dto.courierId &&
+        order.status === OrderStatus.ASSIGNED_TO_COURIER
+      ) {
+        const courier = await tx.user.findUnique({
+          where: { id: dto.courierId },
+        });
+        if (!courier || courier.role !== Role.COURIER || !courier.isActive) {
+          throw new BadRequestException("Courier is unavailable");
+        }
+        courierId = courier.id;
+        if (courier.id !== order.courierId) assignedAt = new Date();
+      }
+
+      let discount = 0;
+      if (order.promoCode) {
+        const promo = order.promoCode;
+        if (
+          promo.minOrderAmount === null ||
+          subtotal >= Number(promo.minOrderAmount)
+        ) {
+          discount =
+            promo.type === PromoType.PERCENT
+              ? subtotal * (Number(promo.value) / 100)
+              : Number(promo.value);
+          if (promo.maxDiscountAmount !== null) {
+            discount = Math.min(discount, Number(promo.maxDiscountAmount));
+          }
+          discount = Math.min(subtotal, Math.round(discount * 100) / 100);
+        }
+      }
+      const total = Math.max(0, subtotal - discount + deliveryPricing.fee);
+
+      const updated = await tx.order.updateMany({
+        where: { id, version: dto.version, status: order.status },
+        data: {
+          status: nextStatus,
+          addressId: null,
+          address: dto.address.trim(),
+          latitude: dto.latitude,
+          longitude: dto.longitude,
+          entrance: dto.entrance?.trim() || null,
+          floor: dto.floor?.trim() || null,
+          apartment: dto.apartment?.trim() || null,
+          customerNote: dto.customerNote?.trim() || null,
+          deliveryEtrapId: deliveryPricing.etrap?.id ?? null,
+          deliveryWelayatName: deliveryPricing.etrap?.welayat.nameRu ?? null,
+          deliveryEtrapName: deliveryPricing.etrap?.nameRu ?? null,
+          subtotal,
+          discount,
+          deliveryFee: deliveryPricing.fee,
+          total,
+          branchId: nearest.branch.id,
+          branchName: nearest.branch.name,
+          branchAddress: nearest.branch.address,
+          branchLatitude: nearest.branch.latitude,
+          branchLongitude: nearest.branch.longitude,
+          branchDistanceMeters: nearest.distanceMeters,
+          cookId,
+          courierId,
+          assignedAt,
+          packingConfirmedAt,
+          version: { increment: 1 },
+        },
+      });
+      if (updated.count !== 1) {
+        throw new ConflictException("Order changed; reload and try again");
+      }
+
+      if (itemsChanged) {
+        await tx.orderItem.deleteMany({ where: { orderId: id } });
+        await tx.orderItem.createMany({
+          data: resolvedItems.map(({ product, variant, quantity }) => {
+            const unitPrice = variant?.price ?? product.price;
+            return {
+              orderId: id,
+              productId: product.id,
+              productVariantId: variant?.id,
+              productName: product.name,
+              variantName: variant?.name,
+              receiptPrinterIp: product.receiptPrinterIp,
+              unitPrice,
+              quantity,
+              lineTotal: Number(unitPrice) * quantity,
+            };
+          }),
+        });
+      }
+      if (nextStatus !== order.status) {
+        await tx.orderTransition.create({
+          data: {
+            orderId: id,
+            actorId: user.id,
+            fromStatus: order.status,
+            toStatus: nextStatus,
+            note: "Order items changed; kitchen, packing and courier assignment reset",
+          },
+        });
+      }
+      await tx.auditLog.create({
+        data: {
+          actorId: user.id,
+          action: "order.admin-edited",
+          entityType: "Order",
+          entityId: id,
+          metadata: {
+            previousVersion: order.version,
+            previousStatus: order.status,
+            nextStatus,
+            itemsChanged,
+            previousCourierId: order.courierId,
+            courierId,
+            deliveryEtrapId: deliveryPricing.etrap?.id ?? null,
+            branchId: nearest.branch.id,
+            subtotal,
+            discount,
+            deliveryFee: deliveryPricing.fee,
+            total,
+          },
+        },
+      });
+
+      const result = await tx.order.findUniqueOrThrow({
+        where: { id },
+        include: detailInclude,
+      });
+      return toApiResponse(withItemImages(result));
+    });
   }
 
   async confirmPacking(
@@ -996,7 +1221,7 @@ export class OrdersService {
         !canCancelOrder(order.status, user.role, order.customerId === user.id)
       ) {
         throw new ForbiddenException(
-          "Cancellation is allowed only for authorized staff before cooking starts",
+          "This role cannot cancel the order at its current stage",
         );
       }
       const cancelled = await tx.order.updateMany({

@@ -5,9 +5,11 @@ import { useForm } from "react-hook-form";
 import { formatBranchDistance, useBranches } from "@/src/entities/branch";
 import {
   canCancel,
+  canAdministratorEditOrder,
   canEditCourierAssignment,
   kanbanQueueStatusesForRole,
   nextOrderStatus,
+  previousOrderStatus,
   orderItemLabel,
   orderStatuses,
   ratingStars,
@@ -41,6 +43,11 @@ const AssistedOrderDialog = lazy(() => import("@/src/widgets/assisted-order"));
 const OrderCourierEditDialog = lazy(() =>
   import("@/src/features/order-management/editor").then((module) => ({
     default: module.OrderCourierEditDialog,
+  })),
+);
+const OrderAdminEditDialog = lazy(() =>
+  import("@/src/features/order-management/editor").then((module) => ({
+    default: module.OrderAdminEditDialog,
   })),
 );
 
@@ -160,23 +167,35 @@ export function OrderBoard({
     actions.transition.isPending ||
     actions.assignCourier.isPending ||
     actions.confirmPacking.isPending ||
+    actions.adminEdit.isPending ||
     actions.cancel.isPending ||
     receiptPrinting.isPending;
   const actionError =
     actions.transition.error ||
     actions.assignCourier.error ||
     actions.confirmPacking.error ||
+    actions.adminEdit.error ||
     actions.cancel.error;
 
   const transitionOrder = useCallback(
-    (order: Order, nextStatus: OrderStatus) => {
+    (order: Order, nextStatus: OrderStatus, note?: string) => {
       actions.transition.mutate({
         orderId: order.id,
         status: nextStatus,
         version: order.version,
+        note,
       });
     },
     [actions.transition],
+  );
+
+  const rollbackOrder = useCallback(
+    (order: Order, previousStatus: OrderStatus) => {
+      const note = window.prompt("Причина возврата заказа на предыдущий этап");
+      if (!note?.trim()) return;
+      transitionOrder(order, previousStatus, note.trim());
+    },
+    [transitionOrder],
   );
 
   function submitSearch(values: OrderSearchFormValues) {
@@ -390,6 +409,7 @@ export function OrderBoard({
         cell: ({ row }) => {
           const order = row.original;
           const next = nextOrderStatus(role, order.status);
+          const previous = previousOrderStatus(role, order.status);
           const courierId = courierByOrder[order.id];
           return (
             <div className="row-actions">
@@ -420,7 +440,8 @@ export function OrderBoard({
                     Отдать курьеру
                   </button>
                 )}
-              {canEditCourierAssignment(role, order.status) && (
+              {(canAdministratorEditOrder(role, order.status) ||
+                canEditCourierAssignment(role, order.status)) && (
                 <button
                   type="button"
                   className="secondary-button compact"
@@ -429,6 +450,17 @@ export function OrderBoard({
                   onClick={() => setEditingOrder(order)}
                 >
                   Редактировать
+                </button>
+              )}
+              {previous && (
+                <button
+                  type="button"
+                  className="secondary-button compact"
+                  data-testid={`order-table-rollback-${order.id}`}
+                  disabled={pending}
+                  onClick={() => rollbackOrder(order, previous)}
+                >
+                  Вернуть: {statusLabels[previous]}
                 </button>
               )}
               {next && (
@@ -478,6 +510,7 @@ export function OrderBoard({
       pending,
       receiptPrinting,
       role,
+      rollbackOrder,
       transitionOrder,
     ],
   );
@@ -809,11 +842,19 @@ export function OrderBoard({
         <Suspense
           fallback={<div className="async-state">Открываем редактор…</div>}
         >
-          <OrderCourierEditDialog
-            order={editingOrder}
-            couriers={couriers.data ?? []}
-            onClose={() => setEditingOrder(null)}
-          />
+          {role === "ADMIN" || role === "SUPER_ADMIN" ? (
+            <OrderAdminEditDialog
+              order={editingOrder}
+              couriers={couriers.data ?? []}
+              onClose={() => setEditingOrder(null)}
+            />
+          ) : (
+            <OrderCourierEditDialog
+              order={editingOrder}
+              couriers={couriers.data ?? []}
+              onClose={() => setEditingOrder(null)}
+            />
+          )}
         </Suspense>
       )}
       {showAssistedOrder && (

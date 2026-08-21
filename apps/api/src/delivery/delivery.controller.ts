@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  HttpCode,
   Param,
   ParseIntPipe,
   Patch,
@@ -14,12 +15,14 @@ import {
   ApiOperation,
   ApiTags,
 } from "@nestjs/swagger";
+import { Throttle } from "@nestjs/throttler";
 import { CurrentUser, Public, Roles } from "../common/auth.decorators";
 import type { AuthUser } from "../common/auth.types";
 import { Role } from "../generated/prisma/client";
 import {
   CreateDeliveryEtrapDto,
   CreateDeliveryWelayatDto,
+  QuoteDeliveryDto,
   UpdateDeliveryEtrapDto,
   UpdateDeliverySettingsDto,
   UpdateDeliveryWelayatDto,
@@ -29,6 +32,7 @@ import {
   DeliveryEtrapResponseDto,
   DeliverySettingsResponseDto,
   DeliveryWelayatResponseDto,
+  DeliveryQuoteResponseDto,
 } from "./delivery-response.dto";
 import { DeliveryService } from "./delivery.service";
 
@@ -40,11 +44,25 @@ export class DeliveryController {
   @Get("config")
   @Public()
   @ApiOperation({
-    summary: "List delivery-enabled welayats, etraps, prices and free thresholds",
+    summary:
+      "List delivery-enabled welayats, etraps, prices and free thresholds",
   })
   @ApiOkResponse({ type: DeliveryConfigResponseDto })
   publicConfig() {
     return this.delivery.publicConfig();
+  }
+
+  @Post("quote")
+  @HttpCode(200)
+  @Public()
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
+  @ApiOperation({
+    summary:
+      "Resolve the official address and authoritative delivery quote for map coordinates",
+  })
+  @ApiOkResponse({ type: DeliveryQuoteResponseDto })
+  quote(@Body() dto: QuoteDeliveryDto) {
+    return this.delivery.quote(dto);
   }
 
   @Get("admin/config")
@@ -59,7 +77,9 @@ export class DeliveryController {
   @Patch("admin/settings")
   @ApiBearerAuth()
   @Roles(Role.ADMIN)
-  @ApiOperation({ summary: "Update fallback delivery pricing for legacy addresses" })
+  @ApiOperation({
+    summary: "Update fallback delivery pricing for legacy addresses",
+  })
   @ApiOkResponse({ type: DeliverySettingsResponseDto })
   updateSettings(
     @CurrentUser() actor: AuthUser,
@@ -108,7 +128,9 @@ export class DeliveryController {
   @Patch("admin/etraps/:id")
   @ApiBearerAuth()
   @Roles(Role.ADMIN)
-  @ApiOperation({ summary: "Update availability and delivery price for one etrap" })
+  @ApiOperation({
+    summary: "Update availability and delivery price for one etrap",
+  })
   @ApiOkResponse({ type: DeliveryEtrapResponseDto })
   updateEtrap(
     @CurrentUser() actor: AuthUser,

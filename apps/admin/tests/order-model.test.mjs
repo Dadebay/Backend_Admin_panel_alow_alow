@@ -2,8 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   canCancel,
+  canAdministratorEditOrder,
   canEditCourierAssignment,
   nextOrderStatus,
+  previousOrderStatus,
   orderStatuses,
   ratingStars,
   statusLabels,
@@ -43,12 +45,19 @@ test("frontend role hints match the backend-owned workflow", () => {
   assert.equal(nextOrderStatus("OPERATOR", "COOKING"), undefined);
 });
 
-test("frontend hides cancellation once cooking starts", () => {
+test("frontend keeps operators early-only and gives administrators audited corrections", () => {
   assert.equal(canCancel("OPERATOR", "SENT_TO_KITCHEN"), true);
   assert.equal(canCancel("ADMIN", "CONFIRMED"), true);
   assert.equal(canCancel("SUPER_ADMIN", "NEW"), true);
   assert.equal(canCancel("OPERATOR", "COOKING"), false);
+  assert.equal(canCancel("ADMIN", "COOKING"), true);
+  assert.equal(canCancel("ADMIN", "DELIVERED"), true);
+  assert.equal(canCancel("ADMIN", "CASH_RETURNED"), false);
   assert.equal(canCancel("COOK", "NEW"), false);
+  assert.equal(previousOrderStatus("OPERATOR", "COOKING"), undefined);
+  assert.equal(previousOrderStatus("ADMIN", "COOKING"), "SENT_TO_KITCHEN");
+  assert.equal(canAdministratorEditOrder("ADMIN", "READY"), true);
+  assert.equal(canAdministratorEditOrder("ADMIN", "OUT_FOR_DELIVERY"), false);
 });
 
 test("frontend exposes courier correction only to dispatch roles before departure", () => {

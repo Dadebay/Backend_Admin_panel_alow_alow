@@ -11,33 +11,51 @@ const transitions: Partial<
   },
   [OrderStatus.CONFIRMED]: {
     [Role.OPERATOR]: [OrderStatus.SENT_TO_KITCHEN],
-    [Role.ADMIN]: [OrderStatus.SENT_TO_KITCHEN],
-    [Role.SUPER_ADMIN]: [OrderStatus.SENT_TO_KITCHEN],
+    [Role.ADMIN]: [OrderStatus.NEW, OrderStatus.SENT_TO_KITCHEN],
+    [Role.SUPER_ADMIN]: [OrderStatus.NEW, OrderStatus.SENT_TO_KITCHEN],
   },
   [OrderStatus.SENT_TO_KITCHEN]: {
     [Role.COOK]: [OrderStatus.COOKING, OrderStatus.READY],
-    [Role.ADMIN]: [OrderStatus.COOKING, OrderStatus.READY],
-    [Role.SUPER_ADMIN]: [OrderStatus.COOKING, OrderStatus.READY],
+    [Role.ADMIN]: [
+      OrderStatus.CONFIRMED,
+      OrderStatus.COOKING,
+      OrderStatus.READY,
+    ],
+    [Role.SUPER_ADMIN]: [
+      OrderStatus.CONFIRMED,
+      OrderStatus.COOKING,
+      OrderStatus.READY,
+    ],
   },
   [OrderStatus.COOKING]: {
     [Role.COOK]: [OrderStatus.READY],
-    [Role.ADMIN]: [OrderStatus.READY],
-    [Role.SUPER_ADMIN]: [OrderStatus.READY],
+    [Role.ADMIN]: [OrderStatus.SENT_TO_KITCHEN, OrderStatus.READY],
+    [Role.SUPER_ADMIN]: [OrderStatus.SENT_TO_KITCHEN, OrderStatus.READY],
+  },
+  [OrderStatus.READY]: {
+    [Role.ADMIN]: [OrderStatus.COOKING],
+    [Role.SUPER_ADMIN]: [OrderStatus.COOKING],
   },
   [OrderStatus.ASSIGNED_TO_COURIER]: {
     [Role.COURIER]: [OrderStatus.OUT_FOR_DELIVERY],
-    [Role.ADMIN]: [OrderStatus.OUT_FOR_DELIVERY],
-    [Role.SUPER_ADMIN]: [OrderStatus.OUT_FOR_DELIVERY],
+    [Role.ADMIN]: [OrderStatus.READY, OrderStatus.OUT_FOR_DELIVERY],
+    [Role.SUPER_ADMIN]: [OrderStatus.READY, OrderStatus.OUT_FOR_DELIVERY],
   },
   [OrderStatus.OUT_FOR_DELIVERY]: {
     [Role.COURIER]: [OrderStatus.DELIVERED],
-    [Role.ADMIN]: [OrderStatus.DELIVERED],
-    [Role.SUPER_ADMIN]: [OrderStatus.DELIVERED],
+    [Role.ADMIN]: [OrderStatus.ASSIGNED_TO_COURIER, OrderStatus.DELIVERED],
+    [Role.SUPER_ADMIN]: [
+      OrderStatus.ASSIGNED_TO_COURIER,
+      OrderStatus.DELIVERED,
+    ],
   },
   [OrderStatus.DELIVERED]: {
     [Role.COURIER]: [OrderStatus.CASH_RETURNED],
-    [Role.ADMIN]: [OrderStatus.CASH_RETURNED],
-    [Role.SUPER_ADMIN]: [OrderStatus.CASH_RETURNED],
+    [Role.ADMIN]: [OrderStatus.OUT_FOR_DELIVERY, OrderStatus.CASH_RETURNED],
+    [Role.SUPER_ADMIN]: [
+      OrderStatus.OUT_FOR_DELIVERY,
+      OrderStatus.CASH_RETURNED,
+    ],
   },
   [OrderStatus.CASH_RETURNED]: {
     [Role.OPERATOR]: [OrderStatus.COMPLETED],
@@ -78,18 +96,36 @@ export function canCancelOrder(
   if (role === Role.CUSTOMER) {
     return isOwner && status === OrderStatus.NEW;
   }
-  const cancellationRoles: Role[] = [
-    Role.OPERATOR,
-    Role.ADMIN,
-    Role.SUPER_ADMIN,
-  ];
-  const cancellableStatuses: OrderStatus[] = [
+  const operatorStatuses: OrderStatus[] = [
     OrderStatus.NEW,
     OrderStatus.CONFIRMED,
     OrderStatus.SENT_TO_KITCHEN,
   ];
+  if (role === Role.OPERATOR) return operatorStatuses.includes(status);
+  if (role !== Role.ADMIN && role !== Role.SUPER_ADMIN) return false;
+  return [
+    ...operatorStatuses,
+    OrderStatus.COOKING,
+    OrderStatus.READY,
+    OrderStatus.ASSIGNED_TO_COURIER,
+    OrderStatus.OUT_FOR_DELIVERY,
+    OrderStatus.DELIVERED,
+  ].includes(status);
+}
+
+const administratorEditableStatuses: OrderStatus[] = [
+  OrderStatus.NEW,
+  OrderStatus.CONFIRMED,
+  OrderStatus.SENT_TO_KITCHEN,
+  OrderStatus.COOKING,
+  OrderStatus.READY,
+  OrderStatus.ASSIGNED_TO_COURIER,
+];
+
+export function canAdministratorEditOrder(status: OrderStatus, role: Role) {
   return (
-    cancellationRoles.includes(role) && cancellableStatuses.includes(status)
+    (role === Role.ADMIN || role === Role.SUPER_ADMIN) &&
+    administratorEditableStatuses.includes(status)
   );
 }
 

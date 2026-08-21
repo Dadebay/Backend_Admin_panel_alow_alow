@@ -1,7 +1,9 @@
 import type { components } from "@alowalow/api-contract";
 
 export type DeliveryConfig = components["schemas"]["DeliveryConfigResponseDto"];
-export type DeliveryWelayat = components["schemas"]["DeliveryWelayatResponseDto"];
+export type DeliveryQuote = components["schemas"]["DeliveryQuoteResponseDto"];
+export type DeliveryWelayat =
+  components["schemas"]["DeliveryWelayatResponseDto"];
 export type DeliveryEtrap = components["schemas"]["DeliveryEtrapResponseDto"];
 export type UpdateDeliverySettings =
   components["schemas"]["UpdateDeliverySettingsDto"];
@@ -57,9 +59,7 @@ function foldDeliveryAddress(value: string) {
 }
 
 function significantDeliveryAddressTokens(value: string) {
-  return (
-    foldDeliveryAddress(value).match(/[\p{L}\p{N}]+/gu) ?? []
-  ).filter(
+  return (foldDeliveryAddress(value).match(/[\p{L}\p{N}]+/gu) ?? []).filter(
     (token) => token.length >= 4 && !DELIVERY_ADDRESS_STOP_WORDS.has(token),
   );
 }

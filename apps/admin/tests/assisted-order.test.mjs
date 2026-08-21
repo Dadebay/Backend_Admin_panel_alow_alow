@@ -130,7 +130,9 @@ test("address search is an accessible dropdown and the large map remains a manua
   assert.match(dialog, /Неофициальный адрес \/ ориентир \(необязательно\)/);
   assert.match(dialog, /buildAssistedDeliveryAddress/);
   assert.match(dialog, /data-testid="assisted-delivery-etrap"/);
-  assert.match(dialog, /findDeliveryEtrapForAddress/);
+  assert.match(dialog, /useDeliveryQuote/);
+  assert.match(dialog, /const officialAddress =/);
+  assert.match(dialog, /setValue\("addressSearch", officialAddress/);
   assert.match(dialog, /data-testid="assisted-delivery-etrap-auto"/);
   assert.match(dialog, /data-testid="assisted-delivery-etrap-confirm"/);
   assert.match(

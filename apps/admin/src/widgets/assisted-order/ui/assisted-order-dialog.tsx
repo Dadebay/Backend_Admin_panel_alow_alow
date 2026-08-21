@@ -24,13 +24,12 @@ import {
 } from "@/src/entities/customer";
 import {
   deliveryFeeForSubtotal,
-  findDeliveryEtrapForAddress,
   flattenDeliveryEtraps,
   useDeliveryConfig,
+  useDeliveryQuote,
 } from "@/src/entities/delivery";
 import {
   useGeocodeSearch,
-  useReverseGeocode,
   type GeocodeSearchResult,
 } from "@/src/entities/geocoding";
 import { type Order } from "@/src/entities/order";
@@ -125,10 +124,6 @@ export default function AssistedOrderDialog({
   const addressComboboxRef = useRef<HTMLDivElement>(null);
   const customers = useAssistedCustomerSearch();
   const addressResults = useGeocodeSearch(submittedAddressQuery);
-  const reverse = useReverseGeocode(
-    coordinates?.latitude ?? null,
-    coordinates?.longitude ?? null,
-  );
   const {
     register,
     control,
@@ -193,10 +188,7 @@ export default function AssistedOrderDialog({
     });
   }, [productCategoryFilter, productSearch, products.data]);
   const activeProductGroups = useMemo(
-    () =>
-      groupProductsByCategory(
-        filterOrderableProducts(products.data ?? []),
-      ),
+    () => groupProductsByCategory(filterOrderableProducts(products.data ?? [])),
     [products.data],
   );
   const visibleProductGroups = useMemo(
@@ -226,6 +218,12 @@ export default function AssistedOrderDialog({
       sum + (item.variant?.price ?? item.product.price) * item.quantity,
     0,
   );
+  const deliveryQuote = useDeliveryQuote(
+    coordinates?.latitude ?? null,
+    coordinates?.longitude ?? null,
+    estimatedSubtotal,
+    !selectedAddressId,
+  );
   const deliveryEtraps = useMemo(
     () => flattenDeliveryEtraps(deliveryConfig.data),
     [deliveryConfig.data],
@@ -233,19 +231,14 @@ export default function AssistedOrderDialog({
   const selectedDeliveryEtrap = deliveryEtraps.find(
     (etrap) => etrap.id === Number(selectedDeliveryEtrapId),
   );
-  const suggestedDeliveryEtrap = useMemo(
-    () =>
-      findDeliveryEtrapForAddress(
-        deliveryConfig.data,
-        selectedAddressResult
-          ? [selectedAddressResult.label, ...selectedAddressResult.aliases]
-          : [reverse.data?.line],
-      ),
-    [deliveryConfig.data, reverse.data?.line, selectedAddressResult],
-  );
-  const estimatedDeliveryFee = selectedDeliveryEtrap
-    ? deliveryFeeForSubtotal(estimatedSubtotal, selectedDeliveryEtrap)
-    : null;
+  const suggestedDeliveryEtrap = deliveryQuote.data?.etrap ?? null;
+  const estimatedDeliveryFee =
+    deliveryQuote.data?.etrap &&
+    deliveryQuote.data.etrap.id === selectedDeliveryEtrap?.id
+      ? deliveryQuote.data.fee
+      : selectedDeliveryEtrap
+        ? deliveryFeeForSubtotal(estimatedSubtotal, selectedDeliveryEtrap)
+        : null;
   const estimatedTotal =
     estimatedDeliveryFee === null
       ? null
@@ -269,6 +262,17 @@ export default function AssistedOrderDialog({
     setValue,
     suggestedDeliveryEtrap,
   ]);
+
+  useEffect(() => {
+    if (selectedAddressId || !deliveryQuote.data) return;
+    const officialAddress =
+      deliveryQuote.data.addressLine ??
+      `Точка на карте: ${deliveryQuote.data.latitude.toFixed(5)}, ${deliveryQuote.data.longitude.toFixed(5)}`;
+    setValue("addressSearch", officialAddress, {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+  }, [deliveryQuote.data, selectedAddressId, setValue]);
 
   function changeQuantity(
     productId: string,
@@ -465,7 +469,7 @@ export default function AssistedOrderDialog({
             addressLabel: values.addressLabel,
             address: buildAssistedDeliveryAddress({
               officialAddress:
-                selectedAddressResult?.label ?? reverse.data?.line,
+                deliveryQuote.data?.addressLine ?? selectedAddressResult?.label,
               unofficialAddress: values.address,
               coordinates: coordinates!,
             }),
@@ -546,15 +550,17 @@ export default function AssistedOrderDialog({
   }
 
   return (
-    <div className="modal-backdrop assisted-order-backdrop">
+    <div
+      aria-labelledby="assisted-order-title"
+      aria-modal="true"
+      className="modal-backdrop assisted-order-backdrop"
+      role="dialog"
+    >
       <form
-        aria-labelledby="assisted-order-title"
-        aria-modal="true"
         className="modal assisted-order-modal"
         data-testid="assisted-order-form"
         noValidate
         onSubmit={handleSubmit(submit)}
-        role="dialog"
       >
         <header className="modal-head assisted-order-head">
           <div>
@@ -830,10 +836,12 @@ export default function AssistedOrderDialog({
                                     data-testid={`assisted-product-variant-${product.id}`}
                                     value={selectedVariant?.id}
                                     onChange={(event) =>
-                                      setSelectedVariantByProduct((current) => ({
-                                        ...current,
-                                        [product.id]: event.target.value,
-                                      }))
+                                      setSelectedVariantByProduct(
+                                        (current) => ({
+                                          ...current,
+                                          [product.id]: event.target.value,
+                                        }),
+                                      )
                                     }
                                   >
                                     {variants.map((variant) => (
@@ -869,6 +877,7 @@ export default function AssistedOrderDialog({
                             <div
                               className="quantity-stepper"
                               aria-label={`Количество ${product.name}`}
+                              role="group"
                             >
                               <button
                                 data-testid={`assisted-product-minus-${product.id}`}
@@ -947,7 +956,11 @@ export default function AssistedOrderDialog({
                     <input
                       {...addressSearchField}
                       aria-autocomplete="list"
-                      aria-controls="assisted-address-listbox"
+                      aria-controls={
+                        isAddressDropdownOpen
+                          ? "assisted-address-listbox"
+                          : undefined
+                      }
                       aria-expanded={isAddressDropdownOpen}
                       aria-haspopup="listbox"
                       aria-activedescendant={
@@ -1044,7 +1057,10 @@ export default function AssistedOrderDialog({
                   data-testid="assisted-selected-address"
                 >
                   <span>Выбран адрес</span>
-                  <strong>{selectedAddressResult.label}</strong>
+                  <strong>
+                    {deliveryQuote.data?.addressLine ??
+                      selectedAddressResult.label}
+                  </strong>
                 </p>
               )}
               <label>
@@ -1058,14 +1074,15 @@ export default function AssistedOrderDialog({
                 />
                 <FormFieldError message={errors.address?.message} />
               </label>
-              {reverse.data?.line &&
+              {deliveryQuote.data?.addressLine &&
                 !selectedAddressId &&
                 !selectedAddressResult && (
                   <p
                     className="reverse-address-button"
                     data-testid="assisted-address-reverse"
                   >
-                    Адрес выбранной точки: <strong>{reverse.data.line}</strong>
+                    Адрес выбранной точки:{" "}
+                    <strong>{deliveryQuote.data.addressLine}</strong>
                   </p>
                 )}
               <Suspense
@@ -1110,8 +1127,9 @@ export default function AssistedOrderDialog({
                         data-testid="assisted-delivery-etrap-auto"
                         role="status"
                       >
-                        Район определён по адресу: {suggestedDeliveryEtrap.nameRu} ·
-                        доставка {suggestedDeliveryEtrap.price.toFixed(2)} TMT
+                        Район определён по адресу:{" "}
+                        {suggestedDeliveryEtrap.nameRu} · доставка{" "}
+                        {deliveryQuote.data?.fee.toFixed(2)} TMT
                       </span>
                     )}
                   {!suggestedDeliveryEtrap && selectedAddressResult && (
@@ -1120,6 +1138,17 @@ export default function AssistedOrderDialog({
                       data-testid="assisted-delivery-etrap-confirm"
                     >
                       Адрес сохранён. Подтвердите тарифный район вручную.
+                    </span>
+                  )}
+                  {deliveryQuote.isFetching && !selectedAddressId && (
+                    <span className="assisted-order-hint" role="status">
+                      Определяем официальный адрес и цену доставки…
+                    </span>
+                  )}
+                  {deliveryQuote.isError && !selectedAddressId && (
+                    <span className="form-error">
+                      Не удалось определить цену по точке. Выберите район
+                      вручную.
                     </span>
                   )}
                   {deliveryConfig.isError && (

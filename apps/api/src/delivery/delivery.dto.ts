@@ -3,6 +3,8 @@ import { Transform, Type } from "class-transformer";
 import {
   IsBoolean,
   IsInt,
+  IsLatitude,
+  IsLongitude,
   IsNotEmpty,
   IsNumber,
   IsOptional,
@@ -15,6 +17,22 @@ import {
 
 const trimString = ({ value }: { value: unknown }) =>
   typeof value === "string" ? value.trim() : value;
+
+export class QuoteDeliveryDto {
+  @ApiProperty({ example: 37.9601 })
+  @IsLatitude()
+  latitude: number;
+
+  @ApiProperty({ example: 58.3261 })
+  @IsLongitude()
+  longitude: number;
+
+  @ApiProperty({ minimum: 0, maximum: 1_000_000, example: 120 })
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @Max(1_000_000)
+  subtotal: number;
+}
 
 export class UpdateDeliverySettingsDto {
   @ApiPropertyOptional({ minimum: 0, maximum: 1_000_000 })
@@ -30,7 +48,8 @@ export class UpdateDeliverySettingsDto {
     nullable: true,
     minimum: 0,
     maximum: 1_000_000,
-    description: "Null disables free delivery for legacy addresses without an etrap",
+    description:
+      "Null disables free delivery for legacy addresses without an etrap",
   })
   @IsOptional()
   @Type(() => Number)

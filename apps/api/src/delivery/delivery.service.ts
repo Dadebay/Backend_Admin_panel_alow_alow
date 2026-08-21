@@ -7,21 +7,27 @@ import {
 import { toApiResponse } from "../common/api-response";
 import type { AuthUser } from "../common/auth.types";
 import type { Prisma } from "../generated/prisma/client";
+import { GeocodingService } from "../geocoding/geocoding.service";
 import { PrismaService } from "../prisma/prisma.service";
 import {
   CreateDeliveryEtrapDto,
   CreateDeliveryWelayatDto,
+  QuoteDeliveryDto,
   UpdateDeliveryEtrapDto,
   UpdateDeliverySettingsDto,
   UpdateDeliveryWelayatDto,
 } from "./delivery.dto";
 import { calculateDeliveryFee } from "./delivery-pricing";
+import { findDeliveryAreaForAddress } from "./delivery-area-matcher";
 
 const SETTINGS_ID = "default";
 
 @Injectable()
 export class DeliveryService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly geocoding: GeocodingService,
+  ) {}
 
   publicConfig() {
     return this.getConfig(true);
@@ -29,6 +35,41 @@ export class DeliveryService {
 
   adminConfig() {
     return this.getConfig(false);
+  }
+
+  async quote(dto: QuoteDeliveryDto) {
+    const [addressLine, settings, etraps] = await Promise.all([
+      this.geocoding.reverseGeocode(dto.latitude, dto.longitude),
+      this.prisma.deliverySettings.findUnique({ where: { id: SETTINGS_ID } }),
+      this.prisma.etrap.findMany({
+        where: { isDeliveryEnabled: true },
+        include: { welayat: true },
+      }),
+    ]);
+    if (!settings) throw new NotFoundException("Delivery settings not found");
+
+    const etrap = findDeliveryAreaForAddress(etraps, addressLine);
+    const price = Number(etrap?.price ?? settings.fallbackPrice);
+    const freeDeliveryThreshold = etrap
+      ? etrap.freeDeliveryThreshold === null
+        ? null
+        : Number(etrap.freeDeliveryThreshold)
+      : settings.fallbackFreeDeliveryThreshold === null
+        ? null
+        : Number(settings.fallbackFreeDeliveryThreshold);
+
+    return toApiResponse({
+      addressLine,
+      latitude: dto.latitude,
+      longitude: dto.longitude,
+      subtotal: dto.subtotal,
+      fee: calculateDeliveryFee(dto.subtotal, price, freeDeliveryThreshold),
+      price,
+      freeDeliveryThreshold,
+      etrap,
+      welayat: etrap?.welayat ?? null,
+      matched: Boolean(etrap),
+    });
   }
 
   async resolvePricing(
@@ -79,7 +120,9 @@ export class DeliveryService {
 
   updateSettings(actor: AuthUser, dto: UpdateDeliverySettingsDto) {
     if (!Object.values(dto).some((value) => value !== undefined)) {
-      throw new BadRequestException("At least one delivery setting is required");
+      throw new BadRequestException(
+        "At least one delivery setting is required",
+      );
     }
     return this.prisma.$transaction(async (tx) => {
       const before = await tx.deliverySettings.findUnique({
@@ -131,11 +174,7 @@ export class DeliveryService {
     });
   }
 
-  updateWelayat(
-    actor: AuthUser,
-    id: number,
-    dto: UpdateDeliveryWelayatDto,
-  ) {
+  updateWelayat(actor: AuthUser, id: number, dto: UpdateDeliveryWelayatDto) {
     const update = {
       ...(dto.nameEn !== undefined ? { nameEn: dto.nameEn } : {}),
       ...(dto.nameRu !== undefined ? { nameRu: dto.nameRu } : {}),
@@ -186,12 +225,7 @@ export class DeliveryService {
   createEtrap(actor: AuthUser, dto: CreateDeliveryEtrapDto) {
     return this.prisma.$transaction(async (tx) => {
       await this.assertWelayatExists(tx, dto.welayatId);
-      await this.assertUniqueEtrap(
-        tx,
-        dto.welayatId,
-        dto.nameRu,
-        dto.nameTk,
-      );
+      await this.assertUniqueEtrap(tx, dto.welayatId, dto.nameRu, dto.nameTk);
       const etrap = await tx.etrap.create({
         data: {
           welayatId: dto.welayatId,

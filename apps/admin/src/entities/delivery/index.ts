@@ -2,6 +2,7 @@ export {
   deliveryQueryKeys,
   useAdminDeliveryConfig,
   useDeliveryConfig,
+  useDeliveryQuote,
 } from "./api/delivery-queries";
 export {
   deliveryFeeForSubtotal,
@@ -10,6 +11,7 @@ export {
   type CreateDeliveryEtrap,
   type CreateDeliveryWelayat,
   type DeliveryConfig,
+  type DeliveryQuote,
   type DeliveryEtrap,
   type DeliveryEtrapWithWelayat,
   type DeliveryWelayat,

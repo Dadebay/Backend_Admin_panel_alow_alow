@@ -56,9 +56,16 @@ instructions.
   - a customer may read/rate/cancel only their own order where allowed.
 - Cancellation policy:
   - customer owner: `NEW` only;
-  - `OPERATOR`, `ADMIN`, `SUPER_ADMIN`: `NEW`, `CONFIRMED`, and
-    `SENT_TO_KITCHEN`;
-  - nobody may cancel from `COOKING` or any later status.
+  - `OPERATOR`: `NEW`, `CONFIRMED`, and `SENT_TO_KITCHEN` only;
+  - `ADMIN` and `SUPER_ADMIN`: active operational statuses through
+    `DELIVERED`, but never `CASH_RETURNED` or a later/terminal status.
+- Only `ADMIN` and `SUPER_ADMIN` may move an active order backward or edit
+  business-owned order content before courier pickup. Recalculate items,
+  promo discount, delivery, total, and nearest branch on the backend; never
+  accept raw financial totals. Content changes after packing invalidate the
+  packing confirmation, and item changes after cooking began return the order
+  to `SENT_TO_KITCHEN` while clearing cook and courier. Preserve
+  identity/accounting/audit fields.
 - One courier may have multiple simultaneous active orders. Do not add a unique
   constraint or a one-active-order guard.
 - Courier routes return all `ASSIGNED_TO_COURIER` and `OUT_FOR_DELIVERY`
@@ -73,7 +80,7 @@ instructions.
   dispatch clients through SSE. Stream events contain courier ID and location,
   never customer/order payloads; snapshots recover initial/reconnected state.
 - Use the order `version` field for optimistic concurrency on every status,
-  cancellation, and assignment mutation.
+  cancellation, assignment, and administrator-edit mutation.
 - Record every successful state change in `OrderTransition`.
 - Cash remains order-specific:
   `DELIVERED → CASH_RETURNED → COMPLETED → RECONCILED`.
@@ -83,7 +90,8 @@ instructions.
 - Prices, discounts, delivery fees, promo limits, and totals are calculated by
   the backend from current database data.
 - Store immutable order snapshots for product names, unit prices, delivery
-  address fields, and the assigned branch.
+  address fields, and the assigned branch. The explicit audited administrator
+  edit of an active pre-pickup order is the only allowed snapshot replacement.
 - Assign every new order to the nearest active branch by Haversine distance
   from the selected address inside the order transaction. Fail with `409`
   when no active branch exists; never silently create an unassigned new order.

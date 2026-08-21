@@ -10,6 +10,7 @@ import {
   IsInt,
   IsLatitude,
   IsLongitude,
+  IsNotEmpty,
   IsOptional,
   IsPhoneNumber,
   IsString,
@@ -190,6 +191,70 @@ export class AssignCourierDto {
   courierId: string;
 
   @ApiProperty()
+  @IsInt()
+  @Min(1)
+  version: number;
+}
+
+export class AdminEditOrderDto {
+  @ApiProperty({ type: [CreateOrderItemDto] })
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(50)
+  @ValidateNested({ each: true })
+  @Type(() => CreateOrderItemDto)
+  items: CreateOrderItemDto[];
+
+  @ApiProperty({ minimum: 1 })
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  deliveryEtrapId: number;
+
+  @ApiProperty({ maxLength: 500 })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(500)
+  address: string;
+
+  @ApiProperty()
+  @IsLatitude()
+  latitude: number;
+
+  @ApiProperty()
+  @IsLongitude()
+  longitude: number;
+
+  @ApiPropertyOptional({ maxLength: 40 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  entrance?: string;
+
+  @ApiPropertyOptional({ maxLength: 20 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  floor?: string;
+
+  @ApiPropertyOptional({ maxLength: 20 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  apartment?: string;
+
+  @ApiPropertyOptional({ maxLength: 500 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  customerNote?: string;
+
+  @ApiPropertyOptional({ format: "uuid" })
+  @IsOptional()
+  @IsUUID()
+  courierId?: string;
+
+  @ApiProperty({ description: "Optimistic-lock version returned by the API" })
   @IsInt()
   @Min(1)
   version: number;

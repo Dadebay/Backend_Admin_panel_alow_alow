@@ -203,7 +203,8 @@ Prisma access in React, or duplicate backend policies in client state.
 - `COOK`: accepts `SENT_TO_KITCHEN` orders and marks them `COOKING`/`READY`.
 - `COURIER`: handles only assigned orders and returns collected cash.
 - `ACCOUNTANT`: performs final cash reconciliation.
-- `ADMIN`: operational administration and full order workflow control.
+- `ADMIN`: operational administration, audited correction of active orders,
+  backward workflow control, and late cancellation before cash return.
 - `SUPER_ADMIN`: owner-level administrator with all admin access and protected
   authority over the `SUPER_ADMIN` role.
 
@@ -273,6 +274,10 @@ Role ownership:
   forbidden after `OUT_FOR_DELIVERY` begins;
 - assigned courier/admin:
   `ASSIGNED_TO_COURIER → OUT_FOR_DELIVERY → DELIVERED → CASH_RETURNED`;
+- the assigned courier confirms pickup with
+  `PATCH /orders/:id/transition` and `status=OUT_FOR_DELIVERY`, then confirms
+  completion through the same endpoint with `status=DELIVERED`; ownership and
+  optimistic locking are enforced by the backend;
 - operator/admin: `CASH_RETURNED → COMPLETED`;
 - accountant/admin: `COMPLETED → RECONCILED`;
 - `SUPER_ADMIN` inherits admin transitions.
@@ -282,9 +287,28 @@ Cancellation:
 - customer owner: legacy `NEW` orders only; newly submitted orders enter the
   kitchen immediately, so customer cancellation remains unavailable until a
   separate cancellation requirement is accepted;
-- `OPERATOR`, `ADMIN`, `SUPER_ADMIN`:
-  `NEW`, `CONFIRMED`, `SENT_TO_KITCHEN`;
-- no role may cancel once status is `COOKING` or later.
+- `OPERATOR`: `NEW`, `CONFIRMED`, `SENT_TO_KITCHEN` only;
+- `ADMIN`/`SUPER_ADMIN`: any active operational status from `NEW` through
+  `DELIVERED`; cancellation is forbidden once cash was returned or from any
+  terminal/accounting status.
+
+Administrators may move an active order one canonical stage backward through
+the same transition endpoint: `CONFIRMED → NEW`, `SENT_TO_KITCHEN → CONFIRMED`,
+`COOKING → SENT_TO_KITCHEN`, `READY → COOKING`,
+`ASSIGNED_TO_COURIER → READY`, `OUT_FOR_DELIVERY → ASSIGNED_TO_COURIER`, and
+`DELIVERED → OUT_FOR_DELIVERY`. Operators never receive backward transitions.
+Rollback clears state that no longer applies, such as courier assignment when
+returning to `READY` and `deliveredAt` when returning to delivery.
+
+Before courier pickup, an administrator may edit the complete business-owned
+order content through `PATCH /orders/:id/admin-edit`: add/remove items and
+variants, quantities, official map location, address details, delivery etrap,
+customer note, and the assigned courier. Backend reprices the active catalog,
+existing promo, delivery, total, and nearest branch; client-supplied totals are
+never accepted. Changing items after cooking began returns the order to
+`SENT_TO_KITCHEN` and clears cook, packing and courier assignment. Identity, order
+number/source/payment, accounting records, timestamps, and audit/history remain
+system-owned. Every edit is optimistic-locked and audited.
 
 Every mutation uses the order `version` for optimistic concurrency. Status
 changes record an order transition; a same-status courier correction records a
@@ -419,9 +443,20 @@ heights; visual density must not be reduced to the previous pale compact map.
   Russian welayat/etrap names plus fee on the order. Existing clients and old
   addresses without an etrap remain backward compatible through the separately
   configurable fallback tariff, initially 15 TMT and free from 150 TMT.
+- `POST /delivery/quote` is the public location-pricing contract. It accepts
+  map coordinates plus subtotal, reverse-geocodes the coordinates on the
+  server, returns the official address line and configured fee, and proposes
+  an enabled etrap only when one multilingual name matches unambiguously.
+  Unknown/ambiguous locations return the fallback quote with `matched=false`
+  and require explicit etrap confirmation before assisted checkout. The map
+  coordinates are the source of truth: changing the marker triggers a new
+  quote and replaces the visible official-address search value and stale
+  tariff selection.
 - Orders keep immutable snapshots of the address plus product/variant name,
   price, and the product's optional LAN receipt-printer IPv4 address. Later
-  catalog edits never rewrite historical order lines.
+  catalog edits never rewrite historical order lines. The only exception is
+  the explicit audited administrator edit of an active pre-pickup order; that
+  action intentionally replaces its current snapshots and recalculates totals.
 - An operator/admin phone order resolves an existing active customer by phone
   or creates a `CUSTOMER` record without issuing OTP, JWT, or refresh tokens.
   A staff phone number or inactive customer is rejected. Staff may reuse one
@@ -597,11 +632,17 @@ Current status:
   maintained behavior matrix, edge cases, selectors, and QA checklist live in
   `docs/CATALOG_CATEGORY_GROUPING.md`;
 - selecting a searched or reverse-geocoded address in the phone-assisted order
-  automatically proposes a delivery etrap only when its multilingual configured
-  name has one unambiguous text match. The matched tariff and price appear
-  immediately; unknown, numeric-only, or ambiguous locations remain an explicit
-  required selection. Moving the map marker clears the stale etrap before a new
-  suggestion, and NestJS remains authoritative for the submitted ID and fee;
+  calls the backend delivery quote. NestJS reverse-geocodes the selected marker,
+  updates the visible official-address field, calculates the current fee, and
+  proposes a delivery etrap only when its multilingual configured name has one
+  unambiguous text match. Unknown, numeric-only, or ambiguous locations retain
+  explicit tariff confirmation. Moving the marker clears stale location state
+  before the coordinate-keyed quote replaces it;
+- administrators see a full pre-pickup order editor from both table and Kanban:
+  composition, quantities, catalog additions, address search/map, delivery
+  etrap/details, note, and courier. Backend recalculation and audit remain the
+  authority. Admin cards also expose one-step rollback and late cancellation;
+  operators keep forward-only transitions and early cancellation;
 - Swagger response DTOs generate the TypeScript contract used by the frontend;
 - TanStack Query owns server state and TanStack Table renders admin lists;
 - React Hook Form owns all admin form state and Zod schemas validate values
@@ -791,10 +832,13 @@ for expanded groups; the lazy phone-assisted order is 24.6 KB / 7.4 KB gzip.
 The address match is a linear projection of the already cached public delivery
 config, adds no request or polling loop, and never replaces backend pricing.
 
-The 2026-08-21 wide assisted-order dialog changes only existing responsive CSS
-values. The static SPA bootstrap remains 241.5 KB raw / 77.6 KB gzip, CSS stays
-at 136.4 KB / 27.1 KB gzip, and the lazy phone-assisted order remains 24.6 KB /
-7.4 KB gzip. No dependency, JavaScript, request or polling loop was added.
+The 2026-08-21 location-quote/admin-order-correction build keeps the static SPA
+bootstrap at 241.5 KB raw / 77.6 KB gzip and CSS at 136.4 KB / 27.1 KB gzip.
+The lazy phone-assisted order is 24.6 KB / 7.3 KB gzip; the lazy full order
+editor is 27.8 KB / 9.4 KB gzip and loads only when an administrator opens it.
+Location changes use one coordinate/subtotal-keyed TanStack Query with no
+polling. The previously widened phone-order dialog remains responsive and
+near-full-height on desktop and full-screen on phones.
 
 ## Decision log
 
@@ -1178,3 +1222,11 @@ at 136.4 KB / 27.1 KB gzip, and the lazy phone-assisted order remains 24.6 KB /
   stale zone when the marker moves, and keeps explicit confirmation for every
   ambiguous location. The backend still validates the etrap and calculates the
   authoritative order total.
+- 2026-08-21: map coordinates became the single source of truth for assisted
+  delivery through `POST /delivery/quote`; the server returns the official
+  address, configured price and unambiguous etrap match, and marker movement
+  updates the visible search field instead of retaining the previous result.
+- 2026-08-21: administrators gained audited, version-locked pre-pickup order
+  editing, canonical one-step rollback, and cancellation through `DELIVERED`.
+  Operators remain forward-only and may cancel only before cooking. Courier
+  pickup/completion were documented on the existing transition endpoint.

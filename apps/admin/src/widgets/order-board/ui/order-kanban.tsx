@@ -3,8 +3,10 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import {
   canCancel,
   canEditCourierAssignment,
+  canAdministratorEditOrder,
   kanbanLanesForRole,
   nextOrderStatus,
+  previousOrderStatus,
   orderItemLabel,
   orderCardFieldsForRole,
   roleCanUseOrderTable,
@@ -27,7 +29,7 @@ type OrderKanbanProps = {
   onCourierChange: (orderId: string, courierId: string) => void;
   onAssignCourier: (order: Order, courierId: string) => void;
   onConfirmPacking: (order: Order, checkedItemIds: string[]) => void;
-  onTransition: (order: Order, status: OrderStatus) => void;
+  onTransition: (order: Order, status: OrderStatus, note?: string) => void;
   onPrintReceipt: (order: Order) => void;
   onCancel: (order: Order) => void;
   onEditOrder: (order: Order) => void;
@@ -87,6 +89,7 @@ function OrderCard({
   const fields = orderCardFieldsForRole(role);
   const canOpenDetails = roleCanUseOrderTable(role);
   const next = nextOrderStatus(role, order.status);
+  const previous = previousOrderStatus(role, order.status);
   const selectedCourier = courierByOrder[order.id] ?? "";
   const meta = deliveryMeta(order);
   const canAssign =
@@ -240,7 +243,8 @@ function OrderCard({
               Подробнее
             </button>
           )}
-          {canEditCourierAssignment(role, order.status) && (
+          {(canAdministratorEditOrder(role, order.status) ||
+            canEditCourierAssignment(role, order.status)) && (
             <button
               type="button"
               className="secondary-button compact"
@@ -249,6 +253,24 @@ function OrderCard({
               onClick={() => onEditOrder(order)}
             >
               Редактировать
+            </button>
+          )}
+          {previous && (
+            <button
+              type="button"
+              className="secondary-button compact"
+              data-testid={`order-kanban-rollback-${order.id}`}
+              disabled={pending}
+              onClick={() => {
+                const note = window.prompt(
+                  "Причина возврата заказа на предыдущий этап",
+                );
+                if (note?.trim()) {
+                  onTransition(order, previous, note.trim());
+                }
+              }}
+            >
+              Вернуть: {statusLabels[previous]}
             </button>
           )}
           {canAssign && (

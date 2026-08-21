@@ -10,6 +10,7 @@ import { useSession } from "@/src/shared/auth";
 
 type TransitionBody = components["schemas"]["TransitionOrderDto"];
 type AssignBody = components["schemas"]["AssignCourierDto"];
+type AdminEditBody = components["schemas"]["AdminEditOrderDto"];
 type ConfirmPackingBody = components["schemas"]["ConfirmOrderPackingDto"];
 type CancelBody = components["schemas"]["CancelOrderDto"];
 
@@ -28,16 +29,19 @@ export function useOrderActions() {
       orderId,
       status,
       version,
+      note,
     }: {
       orderId: string;
       status: OrderStatus;
       version: number;
+      note?: string;
     }) =>
       authorizedRequest<Order>(`/orders/${orderId}/transition`, {
         method: "PATCH",
         body: JSON.stringify({
           status,
           version,
+          ...(note ? { note } : {}),
         } satisfies TransitionBody),
       }),
     onSuccess: refresh,
@@ -80,6 +84,15 @@ export function useOrderActions() {
     onSuccess: refresh,
   });
 
+  const adminEdit = useMutation({
+    mutationFn: ({ orderId, body }: { orderId: string; body: AdminEditBody }) =>
+      authorizedRequest<Order>(`/orders/${orderId}/admin-edit`, {
+        method: "PATCH",
+        body: JSON.stringify(body),
+      }),
+    onSuccess: refresh,
+  });
+
   const cancel = useMutation({
     mutationFn: ({
       orderId,
@@ -97,5 +110,5 @@ export function useOrderActions() {
     onSuccess: refresh,
   });
 
-  return { transition, assignCourier, confirmPacking, cancel };
+  return { transition, assignCourier, confirmPacking, adminEdit, cancel };
 }

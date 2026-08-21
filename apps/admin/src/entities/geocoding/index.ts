@@ -8,3 +8,7 @@ export type {
   GeocodeSearchResult,
   ReverseGeocodeResponse,
 } from "./model/types";
+export {
+  DeliveryLocationPicker,
+  type DeliveryCoordinates,
+} from "./ui/delivery-location-picker";

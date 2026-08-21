@@ -19,6 +19,7 @@ import { CurrentUser, Roles } from "../common/auth.decorators";
 import type { AuthUser } from "../common/auth.types";
 import { Role } from "../generated/prisma/client";
 import {
+  AdminEditOrderDto,
   AssignCourierDto,
   CancelOrderDto,
   ConfirmOrderPackingDto,
@@ -124,7 +125,10 @@ export class OrdersController {
 
   @Patch(":id/transition")
   @Roles(Role.OPERATOR, Role.COOK, Role.COURIER, Role.ACCOUNTANT, Role.ADMIN)
-  @ApiOperation({ summary: "Move an order through a role-gated workflow" })
+  @ApiOperation({
+    summary:
+      "Move an order through the role-gated workflow; courier pickup is OUT_FOR_DELIVERY and completion is DELIVERED",
+  })
   @ApiOkResponse({ type: OrderResponseDto })
   transition(
     @CurrentUser() user: AuthUser,
@@ -149,6 +153,21 @@ export class OrdersController {
     return this.orders.assignCourier(user, id, dto);
   }
 
+  @Patch(":id/admin-edit")
+  @Roles(Role.ADMIN)
+  @ApiOperation({
+    summary:
+      "Edit administrator-managed order content and recalculate authoritative totals",
+  })
+  @ApiOkResponse({ type: OrderResponseDto })
+  adminEdit(
+    @CurrentUser() user: AuthUser,
+    @Param("id", ParseUUIDPipe) id: string,
+    @Body() dto: AdminEditOrderDto,
+  ) {
+    return this.orders.adminEdit(user, id, dto);
+  }
+
   @Patch(":id/confirm-packing")
   @Roles(Role.ADMIN)
   @ApiOperation({
@@ -168,7 +187,7 @@ export class OrdersController {
   @Roles(Role.CUSTOMER, Role.OPERATOR, Role.ADMIN)
   @ApiOperation({
     summary:
-      "Cancel before cooking starts; SENT_TO_KITCHEN requires trusted staff",
+      "Cancel early as operator or cancel an active unsettled order as administrator",
   })
   @ApiOkResponse({ type: OrderResponseDto })
   cancel(

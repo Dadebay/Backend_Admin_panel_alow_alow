@@ -1,7 +1,9 @@
 export {
   canCancel,
+  canAdministratorEditOrder,
   canEditCourierAssignment,
   nextOrderStatus,
+  previousOrderStatus,
   orderItemLabel,
   orderStatuses,
   ratingStars,

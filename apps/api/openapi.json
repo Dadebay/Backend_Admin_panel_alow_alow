@@ -1004,7 +1004,7 @@
             "bearer": []
           }
         ],
-        "summary": "Move an order through a role-gated workflow",
+        "summary": "Move an order through the role-gated workflow; courier pickup is OUT_FOR_DELIVERY and completion is DELIVERED",
         "tags": [
           "orders"
         ]
@@ -1051,6 +1051,52 @@
           }
         ],
         "summary": "Assign a ready order or correct its courier before delivery starts",
+        "tags": [
+          "orders"
+        ]
+      }
+    },
+    "/api/v1/orders/{id}/admin-edit": {
+      "patch": {
+        "operationId": "OrdersController_adminEdit_v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminEditOrderDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Edit administrator-managed order content and recalculate authoritative totals",
         "tags": [
           "orders"
         ]
@@ -1142,7 +1188,7 @@
             "bearer": []
           }
         ],
-        "summary": "Cancel before cooking starts; SENT_TO_KITCHEN requires trusted staff",
+        "summary": "Cancel early as operator or cancel an active unsettled order as administrator",
         "tags": [
           "orders"
         ]
@@ -2242,6 +2288,38 @@
         ]
       }
     },
+    "/api/v1/delivery/quote": {
+      "post": {
+        "operationId": "DeliveryController_quote_v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QuoteDeliveryDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeliveryQuoteResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Resolve the official address and authoritative delivery quote for map coordinates",
+        "tags": [
+          "delivery"
+        ]
+      }
+    },
     "/api/v1/delivery/admin/config": {
       "get": {
         "operationId": "DeliveryController_adminConfig_v1",
@@ -2469,6 +2547,99 @@
         "summary": "Update availability and delivery price for one etrap",
         "tags": [
           "delivery"
+        ]
+      }
+    },
+    "/api/v1/geocoding/reverse": {
+      "get": {
+        "operationId": "GeocodingController_reverse_v1",
+        "parameters": [
+          {
+            "name": "lat",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "example": 37.9601,
+              "type": "number"
+            }
+          },
+          {
+            "name": "lon",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "example": 58.3261,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReverseGeocodeResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Turn a map point into a short address line for the delivery-address form",
+        "tags": [
+          "geocoding"
+        ]
+      }
+    },
+    "/api/v1/geocoding/search": {
+      "get": {
+        "operationId": "GeocodingController_search_v1",
+        "parameters": [
+          {
+            "name": "q",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "example": "Parahat 7 Görogly",
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 10,
+              "default": 5,
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/Object"
+                }
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchGeocodeResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Search Turkmenistan OSM names after an explicit user submit",
+        "tags": [
+          "geocoding"
         ]
       }
     },
@@ -2934,99 +3105,6 @@
         ],
         "tags": [
           "contacts"
-        ]
-      }
-    },
-    "/api/v1/geocoding/reverse": {
-      "get": {
-        "operationId": "GeocodingController_reverse_v1",
-        "parameters": [
-          {
-            "name": "lat",
-            "required": true,
-            "in": "query",
-            "schema": {
-              "example": 37.9601,
-              "type": "number"
-            }
-          },
-          {
-            "name": "lon",
-            "required": true,
-            "in": "query",
-            "schema": {
-              "example": 58.3261,
-              "type": "number"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ReverseGeocodeResponseDto"
-                }
-              }
-            }
-          }
-        },
-        "summary": "Turn a map point into a short address line for the delivery-address form",
-        "tags": [
-          "geocoding"
-        ]
-      }
-    },
-    "/api/v1/geocoding/search": {
-      "get": {
-        "operationId": "GeocodingController_search_v1",
-        "parameters": [
-          {
-            "name": "q",
-            "required": true,
-            "in": "query",
-            "schema": {
-              "example": "Parahat 7 Görogly",
-              "type": "string"
-            }
-          },
-          {
-            "name": "limit",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "minimum": 1,
-              "maximum": 10,
-              "default": 5,
-              "allOf": [
-                {
-                  "$ref": "#/components/schemas/Object"
-                }
-              ]
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SearchGeocodeResponseDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Search Turkmenistan OSM names after an explicit user submit",
-        "tags": [
-          "geocoding"
         ]
       }
     }
@@ -5618,6 +5696,63 @@
           "version"
         ]
       },
+      "AdminEditOrderDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CreateOrderItemDto"
+            }
+          },
+          "deliveryEtrapId": {
+            "type": "number",
+            "minimum": 1
+          },
+          "address": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "latitude": {
+            "type": "number"
+          },
+          "longitude": {
+            "type": "number"
+          },
+          "entrance": {
+            "type": "string",
+            "maxLength": 40
+          },
+          "floor": {
+            "type": "string",
+            "maxLength": 20
+          },
+          "apartment": {
+            "type": "string",
+            "maxLength": 20
+          },
+          "customerNote": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "courierId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "version": {
+            "type": "number",
+            "description": "Optimistic-lock version returned by the API"
+          }
+        },
+        "required": [
+          "items",
+          "deliveryEtrapId",
+          "address",
+          "latitude",
+          "longitude",
+          "version"
+        ]
+      },
       "ConfirmOrderPackingDto": {
         "type": "object",
         "properties": {
@@ -7170,6 +7305,120 @@
           "welayats"
         ]
       },
+      "QuoteDeliveryDto": {
+        "type": "object",
+        "properties": {
+          "latitude": {
+            "type": "number",
+            "example": 37.9601
+          },
+          "longitude": {
+            "type": "number",
+            "example": 58.3261
+          },
+          "subtotal": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1000000,
+            "example": 120
+          }
+        },
+        "required": [
+          "latitude",
+          "longitude",
+          "subtotal"
+        ]
+      },
+      "DeliveryQuoteWelayatResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number"
+          },
+          "nameEn": {
+            "type": "string",
+            "nullable": true
+          },
+          "nameRu": {
+            "type": "string"
+          },
+          "nameTk": {
+            "type": "string"
+          },
+          "sortOrder": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "id",
+          "nameEn",
+          "nameRu",
+          "nameTk",
+          "sortOrder"
+        ]
+      },
+      "DeliveryQuoteResponseDto": {
+        "type": "object",
+        "properties": {
+          "addressLine": {
+            "type": "string",
+            "nullable": true
+          },
+          "latitude": {
+            "type": "number"
+          },
+          "longitude": {
+            "type": "number"
+          },
+          "subtotal": {
+            "type": "number"
+          },
+          "fee": {
+            "type": "number"
+          },
+          "price": {
+            "type": "number"
+          },
+          "freeDeliveryThreshold": {
+            "type": "number",
+            "nullable": true
+          },
+          "etrap": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DeliveryEtrapResponseDto"
+              }
+            ]
+          },
+          "welayat": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DeliveryQuoteWelayatResponseDto"
+              }
+            ]
+          },
+          "matched": {
+            "type": "boolean",
+            "description": "True when reverse geocoding produced one unambiguous configured delivery area"
+          }
+        },
+        "required": [
+          "addressLine",
+          "latitude",
+          "longitude",
+          "subtotal",
+          "fee",
+          "price",
+          "freeDeliveryThreshold",
+          "etrap",
+          "welayat",
+          "matched"
+        ]
+      },
       "UpdateDeliverySettingsDto": {
         "type": "object",
         "properties": {
@@ -7362,6 +7611,69 @@
             "type": "boolean"
           }
         }
+      },
+      "ReverseGeocodeResponseDto": {
+        "type": "object",
+        "properties": {
+          "line": {
+            "type": "string",
+            "nullable": true,
+            "example": "Parahat 7, Görogly köçesi"
+          }
+        }
+      },
+      "SearchGeocodeResultDto": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "latitude": {
+            "type": "number"
+          },
+          "longitude": {
+            "type": "number"
+          },
+          "aliases": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "provider": {
+            "type": "string",
+            "enum": [
+              "NOMINATIM",
+              "PHOTON"
+            ]
+          }
+        },
+        "required": [
+          "label",
+          "latitude",
+          "longitude",
+          "aliases",
+          "provider"
+        ]
+      },
+      "SearchGeocodeResponseDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SearchGeocodeResultDto"
+            }
+          },
+          "attribution": {
+            "type": "string",
+            "example": "© OpenStreetMap contributors"
+          }
+        },
+        "required": [
+          "items",
+          "attribution"
+        ]
       },
       "BannerResponseDto": {
         "type": "object",
@@ -7748,69 +8060,6 @@
         "required": [
           "displayName",
           "phone"
-        ]
-      },
-      "ReverseGeocodeResponseDto": {
-        "type": "object",
-        "properties": {
-          "line": {
-            "type": "string",
-            "nullable": true,
-            "example": "Parahat 7, Görogly köçesi"
-          }
-        }
-      },
-      "SearchGeocodeResultDto": {
-        "type": "object",
-        "properties": {
-          "label": {
-            "type": "string"
-          },
-          "latitude": {
-            "type": "number"
-          },
-          "longitude": {
-            "type": "number"
-          },
-          "aliases": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "provider": {
-            "type": "string",
-            "enum": [
-              "NOMINATIM",
-              "PHOTON"
-            ]
-          }
-        },
-        "required": [
-          "label",
-          "latitude",
-          "longitude",
-          "aliases",
-          "provider"
-        ]
-      },
-      "SearchGeocodeResponseDto": {
-        "type": "object",
-        "properties": {
-          "items": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/SearchGeocodeResultDto"
-            }
-          },
-          "attribution": {
-            "type": "string",
-            "example": "© OpenStreetMap contributors"
-          }
-        },
-        "required": [
-          "items",
-          "attribution"
         ]
       }
     }

@@ -87,9 +87,51 @@ export function nextOrderStatus(role: Role, status: OrderStatus) {
 }
 
 export function canCancel(role: Role, status: OrderStatus) {
+  if (role === "OPERATOR") {
+    return ["NEW", "CONFIRMED", "SENT_TO_KITCHEN"].includes(status);
+  }
   return (
-    ["OPERATOR", "ADMIN", "SUPER_ADMIN"].includes(role) &&
-    ["NEW", "CONFIRMED", "SENT_TO_KITCHEN"].includes(status)
+    ["ADMIN", "SUPER_ADMIN"].includes(role) &&
+    [
+      "NEW",
+      "CONFIRMED",
+      "SENT_TO_KITCHEN",
+      "COOKING",
+      "READY",
+      "ASSIGNED_TO_COURIER",
+      "OUT_FOR_DELIVERY",
+      "DELIVERED",
+    ].includes(status)
+  );
+}
+
+const previousByStatus: Partial<Record<OrderStatus, OrderStatus>> = {
+  CONFIRMED: "NEW",
+  SENT_TO_KITCHEN: "CONFIRMED",
+  COOKING: "SENT_TO_KITCHEN",
+  READY: "COOKING",
+  ASSIGNED_TO_COURIER: "READY",
+  OUT_FOR_DELIVERY: "ASSIGNED_TO_COURIER",
+  DELIVERED: "OUT_FOR_DELIVERY",
+};
+
+export function previousOrderStatus(role: Role, status: OrderStatus) {
+  return role === "ADMIN" || role === "SUPER_ADMIN"
+    ? previousByStatus[status]
+    : undefined;
+}
+
+export function canAdministratorEditOrder(role: Role, status: OrderStatus) {
+  return (
+    ["ADMIN", "SUPER_ADMIN"].includes(role) &&
+    [
+      "NEW",
+      "CONFIRMED",
+      "SENT_TO_KITCHEN",
+      "COOKING",
+      "READY",
+      "ASSIGNED_TO_COURIER",
+    ].includes(status)
   );
 }
 

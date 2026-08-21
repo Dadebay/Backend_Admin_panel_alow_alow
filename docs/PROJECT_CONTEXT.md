@@ -558,6 +558,9 @@ Current status:
   availability, ordering, and up to 10 common S3 images; it also configures a
   generic selector with variant-specific prices, availability, ordering,
   descriptions, and up to 10 S3 images per variant;
+- the catalog workspace renders dishes in category-ordered groups, and the
+  phone-assisted product picker provides the same grouped menu plus an explicit
+  category filter and name/category search for fast entry of large menus;
 - Swagger response DTOs generate the TypeScript contract used by the frontend;
 - TanStack Query owns server state and TanStack Table renders admin lists;
 - React Hook Form owns all admin form state and Zod schemas validate values
@@ -622,6 +625,13 @@ catalog editor chunk is 23.6 KB raw / 5.8 KB gzip and the phone-assisted order
 chunk is 21.8 KB raw / 6.7 KB gzip. Variant selection reuses the cached catalog
 query, adds no polling, and uploads variant images only when the admin saves the
 product.
+
+The 2026-08-21 category-grouped catalog build keeps the catalog editor and
+phone-assisted workflow lazy at 25.5 KB raw / 6.4 KB gzip and 22.8 KB raw /
+6.9 KB gzip respectively. The static SPA bootstrap remains 241.0 KB raw /
+77.4 KB gzip; CSS is 132.3 KB / 26.5 KB gzip. Grouping and category filters are
+derived from the existing cached product response and add no request or polling
+loop.
 
 The 2026-07-30 pure React/Vite migration removes Next.js, vinext, RSC,
 hydration, and the Node frontend runtime. The static SPA bootstrap is 199.9 KB
@@ -1078,3 +1088,8 @@ cards only at 760 px or below.
   workflow only on demand; the detailed order table retains dense desktop and
   laptop rows instead of turning them into large cards before the 760 px phone
   breakpoint.
+- 2026-08-21: catalog products became category-grouped in both the catalog
+  workspace and the phone-assisted order picker. The picker also exposes
+  category chips with counts while preserving text search and variant
+  selection, so operators can navigate large menus without scanning one flat
+  list.

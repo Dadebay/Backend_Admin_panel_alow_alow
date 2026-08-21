@@ -4871,7 +4871,41 @@ button:disabled {
 
 .assisted-product-search {
   width: 100%;
-  margin: 2px 0 10px;
+  margin: 2px 0 8px;
+}
+
+.assisted-product-categories {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 10px;
+  padding-bottom: 3px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.assisted-product-categories button {
+  min-height: 32px;
+  flex: 0 0 auto;
+  padding: 5px 9px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  color: var(--brand-navy);
+  background: var(--brand-cream);
+  font-size: 9px;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.assisted-product-categories button:hover,
+.assisted-product-categories button.active {
+  border-color: var(--brand-orange);
+  color: var(--brand-cream);
+  background: var(--brand-orange);
+}
+
+.assisted-product-categories button span {
+  margin-left: 3px;
+  opacity: .72;
 }
 
 .assisted-product-list {
@@ -4882,7 +4916,40 @@ button:disabled {
   padding-right: 4px;
 }
 
-.assisted-product-list article {
+.assisted-product-group {
+  display: grid;
+  gap: 6px;
+}
+
+.assisted-product-group > header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 30px;
+  padding: 5px 9px;
+  border-radius: 9px;
+  color: var(--brand-navy);
+  background: color-mix(in srgb, var(--brand-cream) 88%, var(--brand-orange));
+}
+
+.assisted-product-group > header strong {
+  font-size: 10px;
+}
+
+.assisted-product-group > header span {
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.assisted-product-group > div {
+  display: grid;
+  gap: 7px;
+}
+
+.assisted-product-group article {
   display: grid;
   grid-template-columns: 52px minmax(0, 1fr) auto;
   align-items: center;
@@ -4893,7 +4960,7 @@ button:disabled {
   background: var(--canvas);
 }
 
-.assisted-product-list article.selected {
+.assisted-product-group article.selected {
   border-color: var(--brand-orange);
   box-shadow: 0 0 0 2px var(--brand-cream);
 }
@@ -4913,24 +4980,24 @@ button:disabled {
   font-size: 20px;
 }
 
-.assisted-product-list article > div > strong,
-.assisted-product-list article > div > small,
-.assisted-product-list article > div > b {
+.assisted-product-group article > div > strong,
+.assisted-product-group article > div > small,
+.assisted-product-group article > div > b {
   display: block;
 }
 
-.assisted-product-list article > div > strong {
+.assisted-product-group article > div > strong {
   color: var(--ink);
   font-size: 10px;
 }
 
-.assisted-product-list article > div > small {
+.assisted-product-group article > div > small {
   margin: 3px 0 5px;
   color: var(--muted);
   font-size: 8px;
 }
 
-.assisted-product-list article > div > b {
+.assisted-product-group article > div > b {
   color: var(--brand-orange);
   font-size: 9px;
 }
@@ -4955,7 +5022,7 @@ button:disabled {
   font-size: 9px;
 }
 
-.assisted-product-list article > div > .assisted-selected-variants {
+.assisted-product-group article > div > .assisted-selected-variants {
   margin-top: 5px;
   color: var(--green);
   line-height: 1.35;
@@ -5231,6 +5298,67 @@ button:disabled {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: 18px;
+}
+
+.catalog-products-table > .card-title > div small {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 9px;
+}
+
+.catalog-product-groups {
+  display: grid;
+  gap: 14px;
+  padding: 14px;
+}
+
+.catalog-product-group {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--canvas);
+}
+
+.catalog-product-group-head {
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 14px;
+  border-bottom: 1px solid var(--line);
+  color: var(--brand-navy);
+  background: color-mix(in srgb, var(--brand-cream) 90%, var(--brand-orange));
+}
+
+.catalog-product-group-head h3 {
+  margin: 0;
+  font-size: 13px;
+}
+
+.catalog-product-group-head small {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 8px;
+}
+
+.catalog-product-group-head > span {
+  min-width: 26px;
+  padding: 4px 7px;
+  border-radius: 8px;
+  color: var(--brand-cream);
+  background: var(--brand-orange);
+  font-size: 9px;
+  font-weight: 800;
+  text-align: center;
+}
+
+.catalog-product-group .data-table th {
+  padding-block: 10px;
+  font-size: 9px;
 }
 
 .card-title {
@@ -6118,7 +6246,7 @@ button:disabled {
 
   .assisted-customer-search,
   .assisted-address-search,
-  .assisted-product-list article {
+  .assisted-product-group article {
     grid-template-columns: minmax(0, 1fr);
   }
 

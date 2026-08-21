@@ -3,6 +3,10 @@ export {
   canAddProductImages,
   MAX_PRODUCT_IMAGES,
 } from "./model/product-images";
+export {
+  groupProductsByCategory,
+  type ProductCategoryGroup,
+} from "./model/product-groups";
 export type {
   Category,
   CreateCategory,

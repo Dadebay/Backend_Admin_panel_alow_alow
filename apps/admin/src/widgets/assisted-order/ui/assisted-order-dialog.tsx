@@ -11,7 +11,11 @@ import {
 } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, useWatch } from "react-hook-form";
-import { useAdminProducts, type Product } from "@/src/entities/catalog";
+import {
+  groupProductsByCategory,
+  useAdminProducts,
+  type Product,
+} from "@/src/entities/catalog";
 import {
   useAssistedCustomerSearch,
   type AssistedCustomer,
@@ -105,6 +109,7 @@ export default function AssistedOrderDialog({
     Record<string, string>
   >({});
   const [productSearch, setProductSearch] = useState("");
+  const [productCategoryFilter, setProductCategoryFilter] = useState("");
   const [selectionError, setSelectionError] = useState("");
   const [customerSearchError, setCustomerSearchError] = useState("");
   const [addressSearchError, setAddressSearchError] = useState("");
@@ -174,11 +179,27 @@ export default function AssistedOrderDialog({
       (product) =>
         product.isActive &&
         product.category?.isActive !== false &&
+        (!productCategoryFilter ||
+          product.categoryId === productCategoryFilter) &&
         (!query ||
           product.name.toLocaleLowerCase("ru-RU").includes(query) ||
           product.category?.name.toLocaleLowerCase("ru-RU").includes(query)),
     );
-  }, [productSearch, products.data]);
+  }, [productCategoryFilter, productSearch, products.data]);
+  const activeProductGroups = useMemo(
+    () =>
+      groupProductsByCategory(
+        (products.data ?? []).filter(
+          (product) =>
+            product.isActive && product.category?.isActive !== false,
+        ),
+      ),
+    [products.data],
+  );
+  const visibleProductGroups = useMemo(
+    () => groupProductsByCategory(visibleProducts),
+    [visibleProducts],
+  );
 
   const selectedItems = useMemo<SelectedProductItem[]>(() => {
     const items: SelectedProductItem[] = [];
@@ -646,127 +667,190 @@ export default function AssistedOrderDialog({
                 placeholder="Найти блюдо или категорию"
                 type="search"
               />
+              <div
+                aria-label="Фильтр блюд по категории"
+                className="assisted-product-categories"
+                data-testid="assisted-product-categories"
+                role="group"
+              >
+                <button
+                  aria-pressed={!productCategoryFilter}
+                  className={!productCategoryFilter ? "active" : ""}
+                  data-testid="assisted-product-category-all"
+                  onClick={() => setProductCategoryFilter("")}
+                  type="button"
+                >
+                  Все
+                </button>
+                {activeProductGroups.map((group) => (
+                  <button
+                    aria-pressed={productCategoryFilter === group.id}
+                    className={
+                      productCategoryFilter === group.id ? "active" : ""
+                    }
+                    data-testid={`assisted-product-category-${group.id}`}
+                    key={group.id}
+                    onClick={() => setProductCategoryFilter(group.id)}
+                    type="button"
+                  >
+                    {group.name} <span>{group.products.length}</span>
+                  </button>
+                ))}
+              </div>
               {products.isPending && <p className="muted">Загружаем меню…</p>}
               {products.isError && (
                 <p className="form-error">{products.error.message}</p>
               )}
-              <div className="assisted-product-list">
-                {visibleProducts.map((product) => {
-                  const variants = activeVariants(product);
-                  const selectedVariant =
-                    variants.find(
-                      ({ id }) => selectedVariantByProduct[product.id] === id,
-                    ) ?? variants[0];
-                  const currentSelectionKey = selectionKey(
-                    product.id,
-                    selectedVariant?.id,
-                  );
-                  const quantity =
-                    quantityBySelection[currentSelectionKey] ?? 0;
-                  const selectedVariantItems = variants.filter(
-                    ({ id }) =>
-                      (quantityBySelection[selectionKey(product.id, id)] ?? 0) >
-                      0,
-                  );
-                  const displayImageUrl =
-                    selectedVariant?.images[0]?.url ?? product.displayImageUrl;
-                  return (
-                    <article
-                      className={
-                        selectedVariantItems.length || quantity
-                          ? "selected"
-                          : ""
-                      }
-                      key={product.id}
-                    >
-                      {displayImageUrl ? (
-                        <img
-                          alt={selectedVariant?.name ?? product.name}
-                          height="52"
-                          loading="lazy"
-                          src={resolveApiUrl(displayImageUrl)}
-                          width="52"
-                        />
-                      ) : (
-                        <span
-                          className="product-image-placeholder"
-                          aria-hidden="true"
-                        >
-                          🍽
-                        </span>
-                      )}
-                      <div>
-                        <strong>{product.name}</strong>
-                        <small>
-                          {product.category?.name ?? "Без категории"}
-                        </small>
-                        {variants.length > 0 && (
-                          <label className="assisted-product-variant">
-                            <span>{product.variantLabel ?? "Вариант"}</span>
-                            <select
-                              data-testid={`assisted-product-variant-${product.id}`}
-                              value={selectedVariant?.id}
-                              onChange={(event) =>
-                                setSelectedVariantByProduct((current) => ({
-                                  ...current,
-                                  [product.id]: event.target.value,
-                                }))
-                              }
+              <div
+                className="assisted-product-list"
+                data-testid="assisted-product-groups"
+              >
+                {visibleProductGroups.map((group) => (
+                  <section
+                    className="assisted-product-group"
+                    data-testid={`assisted-product-group-${group.id}`}
+                    key={group.id}
+                  >
+                    <header>
+                      <strong>{group.name}</strong>
+                      <span>{group.products.length}</span>
+                    </header>
+                    <div>
+                      {group.products.map((product) => {
+                        const variants = activeVariants(product);
+                        const selectedVariant =
+                          variants.find(
+                            ({ id }) =>
+                              selectedVariantByProduct[product.id] === id,
+                          ) ?? variants[0];
+                        const currentSelectionKey = selectionKey(
+                          product.id,
+                          selectedVariant?.id,
+                        );
+                        const quantity =
+                          quantityBySelection[currentSelectionKey] ?? 0;
+                        const selectedVariantItems = variants.filter(
+                          ({ id }) =>
+                            (quantityBySelection[
+                              selectionKey(product.id, id)
+                            ] ?? 0) > 0,
+                        );
+                        const displayImageUrl =
+                          selectedVariant?.images[0]?.url ??
+                          product.displayImageUrl;
+                        return (
+                          <article
+                            className={
+                              selectedVariantItems.length || quantity
+                                ? "selected"
+                                : ""
+                            }
+                            key={product.id}
+                          >
+                            {displayImageUrl ? (
+                              <img
+                                alt={selectedVariant?.name ?? product.name}
+                                height="52"
+                                loading="lazy"
+                                src={resolveApiUrl(displayImageUrl)}
+                                width="52"
+                              />
+                            ) : (
+                              <span
+                                className="product-image-placeholder"
+                                aria-hidden="true"
+                              >
+                                🍽
+                              </span>
+                            )}
+                            <div>
+                              <strong>{product.name}</strong>
+                              <small>
+                                {product.category?.name ?? "Без категории"}
+                              </small>
+                              {variants.length > 0 && (
+                                <label className="assisted-product-variant">
+                                  <span>
+                                    {product.variantLabel ?? "Вариант"}
+                                  </span>
+                                  <select
+                                    data-testid={`assisted-product-variant-${product.id}`}
+                                    value={selectedVariant?.id}
+                                    onChange={(event) =>
+                                      setSelectedVariantByProduct((current) => ({
+                                        ...current,
+                                        [product.id]: event.target.value,
+                                      }))
+                                    }
+                                  >
+                                    {variants.map((variant) => (
+                                      <option
+                                        key={variant.id}
+                                        value={variant.id}
+                                      >
+                                        {variant.name} —{" "}
+                                        {variant.price.toFixed(2)} TMT
+                                      </option>
+                                    ))}
+                                  </select>
+                                </label>
+                              )}
+                              <b>
+                                {selectedVariant
+                                  ? selectedVariant.price.toFixed(2)
+                                  : product.price.toFixed(2)}{" "}
+                                TMT
+                              </b>
+                              {selectedVariantItems.length > 0 && (
+                                <small className="assisted-selected-variants">
+                                  Добавлено:{" "}
+                                  {selectedVariantItems
+                                    .map(
+                                      (variant) =>
+                                        `${variant.name} ×${quantityBySelection[selectionKey(product.id, variant.id)]}`,
+                                    )
+                                    .join(", ")}
+                                </small>
+                              )}
+                            </div>
+                            <div
+                              className="quantity-stepper"
+                              aria-label={`Количество ${product.name}`}
                             >
-                              {variants.map((variant) => (
-                                <option key={variant.id} value={variant.id}>
-                                  {variant.name} — {variant.price.toFixed(2)}{" "}
-                                  TMT
-                                </option>
-                              ))}
-                            </select>
-                          </label>
-                        )}
-                        <b>
-                          {selectedVariant
-                            ? selectedVariant.price.toFixed(2)
-                            : product.price.toFixed(2)}{" "}
-                          TMT
-                        </b>
-                        {selectedVariantItems.length > 0 && (
-                          <small className="assisted-selected-variants">
-                            Добавлено:{" "}
-                            {selectedVariantItems
-                              .map(
-                                (variant) =>
-                                  `${variant.name} ×${quantityBySelection[selectionKey(product.id, variant.id)]}`,
-                              )
-                              .join(", ")}
-                          </small>
-                        )}
-                      </div>
-                      <div
-                        className="quantity-stepper"
-                        aria-label={`Количество ${product.name}`}
-                      >
-                        <button
-                          data-testid={`assisted-product-minus-${product.id}`}
-                          type="button"
-                          onClick={() =>
-                            changeQuantity(product.id, selectedVariant?.id, -1)
-                          }
-                        >
-                          −
-                        </button>
-                        <output>{quantity}</output>
-                        <button
-                          data-testid={`assisted-product-plus-${product.id}`}
-                          type="button"
-                          onClick={() =>
-                            changeQuantity(product.id, selectedVariant?.id, 1)
-                          }
-                        >
-                          +
-                        </button>
-                      </div>
-                    </article>
-                  );
-                })}
+                              <button
+                                data-testid={`assisted-product-minus-${product.id}`}
+                                type="button"
+                                onClick={() =>
+                                  changeQuantity(
+                                    product.id,
+                                    selectedVariant?.id,
+                                    -1,
+                                  )
+                                }
+                              >
+                                −
+                              </button>
+                              <output>{quantity}</output>
+                              <button
+                                data-testid={`assisted-product-plus-${product.id}`}
+                                type="button"
+                                onClick={() =>
+                                  changeQuantity(
+                                    product.id,
+                                    selectedVariant?.id,
+                                    1,
+                                  )
+                                }
+                              >
+                                +
+                              </button>
+                            </div>
+                          </article>
+                        );
+                      })}
+                    </div>
+                  </section>
+                ))}
               </div>
               {!products.isPending && !visibleProducts.length && (
                 <p className="assisted-order-hint">

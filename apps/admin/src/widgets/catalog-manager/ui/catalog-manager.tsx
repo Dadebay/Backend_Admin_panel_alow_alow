@@ -4,6 +4,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { useFieldArray, useForm, useWatch } from "react-hook-form";
 import {
   canAddProductImages,
+  groupProductsByCategory,
   MAX_PRODUCT_IMAGES,
   useAdminCategories,
   useAdminProducts,
@@ -124,6 +125,10 @@ export function CatalogManager() {
       }),
     [productCategoryFilter, products.data, searchTerm],
   );
+  const productGroups = useMemo(
+    () => groupProductsByCategory(filteredProducts),
+    [filteredProducts],
+  );
 
   const categoryColumns = useMemo<ColumnDef<Category, unknown>[]>(
     () => [
@@ -243,10 +248,6 @@ export function CatalogManager() {
             </div>
           );
         },
-      },
-      {
-        header: "Категория",
-        cell: ({ row }) => row.original.category?.name ?? "—",
       },
       {
         header: "Цена",
@@ -1109,9 +1110,12 @@ export function CatalogManager() {
             />
           </AsyncPanel>
         </article>
-        <article className="table-card">
+        <article className="table-card catalog-products-table">
           <div className="card-title">
-            <h2>Блюда</h2>
+            <div>
+              <h2>Блюда по категориям</h2>
+              <small>{productGroups.length} групп</small>
+            </div>
             <span>{filteredProducts.length}{(searchTerm || productCategoryFilter) ? ` / ${products.data?.length ?? 0}` : ""}</span>
           </div>
           <AsyncPanel
@@ -1119,13 +1123,36 @@ export function CatalogManager() {
             error={products.error}
             onRetry={() => void products.refetch()}
           >
-            <DataTable
-              columns={productColumns}
-              data={filteredProducts}
-              getRowId={(product) => product.id}
-              empty="Добавьте первое блюдо"
-              label="Блюда каталога"
-            />
+            {productGroups.length ? (
+              <div
+                className="catalog-product-groups"
+                data-testid="catalog-product-groups"
+              >
+                {productGroups.map((group) => (
+                  <section
+                    className="catalog-product-group"
+                    data-testid={`catalog-product-group-${group.id}`}
+                    key={group.id}
+                  >
+                    <header className="catalog-product-group-head">
+                      <div>
+                        <h3>{group.name}</h3>
+                        {!group.isActive && <small>Категория скрыта</small>}
+                      </div>
+                      <span>{group.products.length}</span>
+                    </header>
+                    <DataTable
+                      columns={productColumns}
+                      data={group.products}
+                      getRowId={(product) => product.id}
+                      label={`Блюда категории ${group.name}`}
+                    />
+                  </section>
+                ))}
+              </div>
+            ) : (
+              <div className="async-state">Подходящих блюд нет</div>
+            )}
           </AsyncPanel>
         </article>
       </div>

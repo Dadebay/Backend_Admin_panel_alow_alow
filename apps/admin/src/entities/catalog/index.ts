@@ -4,6 +4,9 @@ export {
   MAX_PRODUCT_IMAGES,
 } from "./model/product-images";
 export {
+  filterCatalogCategories,
+  filterCatalogProducts,
+  filterOrderableProducts,
   groupProductsByCategory,
   type ProductCategoryGroup,
 } from "./model/product-groups";

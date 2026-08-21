@@ -1,3 +1,5 @@
+import type { Category, Product } from "./types";
+
 type GroupableCategory = {
   id: string;
   name: string;
@@ -9,6 +11,63 @@ type GroupableProduct = {
   categoryId: string;
   category?: GroupableCategory;
 };
+
+type ProductFilter = {
+  categoryId?: string;
+  query?: string;
+};
+
+function normalizedSearch(value: string | undefined) {
+  return value?.trim().toLocaleLowerCase("ru-RU") ?? "";
+}
+
+export function filterCatalogCategories(
+  categories: readonly Category[],
+  query = "",
+) {
+  const search = normalizedSearch(query);
+  if (!search) return [...categories];
+
+  return categories.filter((category) =>
+    `${category.name} ${category.slug}`
+      .toLocaleLowerCase("ru-RU")
+      .includes(search),
+  );
+}
+
+export function filterCatalogProducts(
+  products: readonly Product[],
+  { categoryId = "", query = "" }: ProductFilter = {},
+) {
+  const search = normalizedSearch(query);
+
+  return products.filter((product) => {
+    if (categoryId && product.categoryId !== categoryId) return false;
+    if (!search) return true;
+
+    return `${product.name} ${product.slug} ${product.description} ${product.receiptPrinterIp ?? ""} ${product.category?.name ?? ""}`
+      .toLocaleLowerCase("ru-RU")
+      .includes(search);
+  });
+}
+
+export function filterOrderableProducts(
+  products: readonly Product[],
+  { categoryId = "", query = "" }: ProductFilter = {},
+) {
+  const search = normalizedSearch(query);
+
+  return products.filter((product) => {
+    if (!product.isActive || product.category?.isActive === false) return false;
+    if (categoryId && product.categoryId !== categoryId) return false;
+    if (!search) return true;
+
+    return (
+      product.name.toLocaleLowerCase("ru-RU").includes(search) ||
+      product.category?.name.toLocaleLowerCase("ru-RU").includes(search) === true
+    );
+  });
+}
 
 export type ProductCategoryGroup<TProduct extends GroupableProduct> = {
   id: string;

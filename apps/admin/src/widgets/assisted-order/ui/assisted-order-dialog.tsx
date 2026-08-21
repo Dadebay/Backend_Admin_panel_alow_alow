@@ -12,6 +12,7 @@ import {
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, useWatch } from "react-hook-form";
 import {
+  filterOrderableProducts,
   groupProductsByCategory,
   useAdminProducts,
   type Product,
@@ -174,25 +175,15 @@ export default function AssistedOrderDialog({
   }, []);
 
   const visibleProducts = useMemo(() => {
-    const query = productSearch.trim().toLocaleLowerCase("ru-RU");
-    return (products.data ?? []).filter(
-      (product) =>
-        product.isActive &&
-        product.category?.isActive !== false &&
-        (!productCategoryFilter ||
-          product.categoryId === productCategoryFilter) &&
-        (!query ||
-          product.name.toLocaleLowerCase("ru-RU").includes(query) ||
-          product.category?.name.toLocaleLowerCase("ru-RU").includes(query)),
-    );
+    return filterOrderableProducts(products.data ?? [], {
+      categoryId: productCategoryFilter,
+      query: productSearch,
+    });
   }, [productCategoryFilter, productSearch, products.data]);
   const activeProductGroups = useMemo(
     () =>
       groupProductsByCategory(
-        (products.data ?? []).filter(
-          (product) =>
-            product.isActive && product.category?.isActive !== false,
-        ),
+        filterOrderableProducts(products.data ?? []),
       ),
     [products.data],
   );

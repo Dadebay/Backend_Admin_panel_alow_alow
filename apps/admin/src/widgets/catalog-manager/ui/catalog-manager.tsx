@@ -4,6 +4,8 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { useFieldArray, useForm, useWatch } from "react-hook-form";
 import {
   canAddProductImages,
+  filterCatalogCategories,
+  filterCatalogProducts,
   groupProductsByCategory,
   MAX_PRODUCT_IMAGES,
   useAdminCategories,
@@ -101,29 +103,18 @@ export function CatalogManager() {
     session &&
       ["ADMIN", "SUPER_ADMIN"].includes(session.user.role),
   );
-  const searchTerm = catalogSearch.trim().toLocaleLowerCase("ru-RU");
+  const hasSearch = Boolean(catalogSearch.trim());
   const filteredCategories = useMemo(
-    () =>
-      (categories.data ?? []).filter((category) =>
-        !searchTerm ||
-        `${category.name} ${category.slug}`
-          .toLocaleLowerCase("ru-RU")
-          .includes(searchTerm),
-      ),
-    [categories.data, searchTerm],
+    () => filterCatalogCategories(categories.data ?? [], catalogSearch),
+    [catalogSearch, categories.data],
   );
   const filteredProducts = useMemo(
     () =>
-      (products.data ?? []).filter((product) => {
-        const matchesCategory =
-          !productCategoryFilter ||
-          product.categoryId === productCategoryFilter;
-        const searchText =
-          `${product.name} ${product.slug} ${product.description} ${product.receiptPrinterIp ?? ""} ${product.category?.name ?? ""}`
-            .toLocaleLowerCase("ru-RU");
-        return matchesCategory && (!searchTerm || searchText.includes(searchTerm));
+      filterCatalogProducts(products.data ?? [], {
+        categoryId: productCategoryFilter,
+        query: catalogSearch,
       }),
-    [productCategoryFilter, products.data, searchTerm],
+    [catalogSearch, productCategoryFilter, products.data],
   );
   const productGroups = useMemo(
     () => groupProductsByCategory(filteredProducts),
@@ -1094,7 +1085,7 @@ export function CatalogManager() {
         <article className="table-card">
           <div className="card-title">
             <h2>Категории</h2>
-            <span>{filteredCategories.length}{searchTerm ? ` / ${categories.data?.length ?? 0}` : ""}</span>
+            <span>{filteredCategories.length}{hasSearch ? ` / ${categories.data?.length ?? 0}` : ""}</span>
           </div>
           <AsyncPanel
             pending={categories.isPending}
@@ -1116,7 +1107,7 @@ export function CatalogManager() {
               <h2>Блюда по категориям</h2>
               <small>{productGroups.length} групп</small>
             </div>
-            <span>{filteredProducts.length}{(searchTerm || productCategoryFilter) ? ` / ${products.data?.length ?? 0}` : ""}</span>
+            <span>{filteredProducts.length}{(hasSearch || productCategoryFilter) ? ` / ${products.data?.length ?? 0}` : ""}</span>
           </div>
           <AsyncPanel
             pending={products.isPending}

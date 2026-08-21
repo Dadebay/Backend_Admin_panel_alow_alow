@@ -11,6 +11,7 @@ const MAX_ADDRESSES_PER_USER = 20;
 
 export type OrderAddressInput = {
   addressId?: string;
+  deliveryEtrapId?: number;
   addressLabel?: string;
   address?: string;
   latitude?: number;
@@ -39,6 +40,7 @@ export class AddressesService {
     return this.prisma.$transaction(async (tx) => {
       await this.lockUser(tx, userId);
       await this.assertCapacity(tx, userId);
+      await this.assertDeliveryEtrap(tx, dto.deliveryEtrapId);
       await tx.userAddress.updateMany({
         where: { userId, isActive: true },
         data: { isActive: false },
@@ -46,6 +48,7 @@ export class AddressesService {
       const address = await tx.userAddress.create({
         data: {
           userId,
+          deliveryEtrapId: dto.deliveryEtrapId,
           label: dto.label,
           address: dto.address,
           latitude: dto.latitude,
@@ -68,6 +71,7 @@ export class AddressesService {
 
     return this.prisma.$transaction(async (tx) => {
       await this.findOwned(tx, userId, id);
+      await this.assertDeliveryEtrap(tx, dto.deliveryEtrapId);
       const address = await tx.userAddress.update({
         where: { id },
         data: this.addressData(dto),
@@ -154,6 +158,7 @@ export class AddressesService {
     }
 
     await this.lockUser(tx, userId);
+    await this.assertDeliveryEtrap(tx, input.deliveryEtrapId);
 
     if (input.addressId) {
       await this.findOwned(tx, userId, input.addressId);
@@ -163,7 +168,13 @@ export class AddressesService {
       });
       const selected = await tx.userAddress.update({
         where: { id: input.addressId },
-        data: { isActive: true, lastUsedAt: new Date() },
+        data: {
+          isActive: true,
+          lastUsedAt: new Date(),
+          ...(input.deliveryEtrapId !== undefined
+            ? { deliveryEtrapId: input.deliveryEtrapId }
+            : {}),
+        },
       });
       await this.audit(tx, actorId, "address.used_for_order", selected.id);
       return selected;
@@ -180,7 +191,12 @@ export class AddressesService {
       }
       const selected = await tx.userAddress.update({
         where: { id: active.id },
-        data: { lastUsedAt: new Date() },
+        data: {
+          lastUsedAt: new Date(),
+          ...(input.deliveryEtrapId !== undefined
+            ? { deliveryEtrapId: input.deliveryEtrapId }
+            : {}),
+        },
       });
       await this.audit(tx, actorId, "address.used_for_order", selected.id);
       return selected;
@@ -194,6 +210,7 @@ export class AddressesService {
     const created = await tx.userAddress.create({
       data: {
         userId,
+        deliveryEtrapId: input.deliveryEtrapId,
         label: input.addressLabel,
         address: input.address!,
         latitude: input.latitude!,
@@ -211,6 +228,9 @@ export class AddressesService {
 
   private addressData(dto: UpdateAddressDto) {
     return {
+      ...(dto.deliveryEtrapId !== undefined
+        ? { deliveryEtrapId: dto.deliveryEtrapId }
+        : {}),
       ...(dto.label !== undefined ? { label: dto.label } : {}),
       ...(dto.address !== undefined ? { address: dto.address } : {}),
       ...(dto.latitude !== undefined ? { latitude: dto.latitude } : {}),
@@ -232,6 +252,22 @@ export class AddressesService {
     if (count >= MAX_ADDRESSES_PER_USER) {
       throw new BadRequestException(
         `A user can store up to ${MAX_ADDRESSES_PER_USER} addresses`,
+      );
+    }
+  }
+
+  private async assertDeliveryEtrap(
+    tx: Prisma.TransactionClient,
+    deliveryEtrapId: number | undefined,
+  ) {
+    if (deliveryEtrapId === undefined) return;
+    const etrap = await tx.etrap.findUnique({
+      where: { id: deliveryEtrapId },
+      select: { isDeliveryEnabled: true },
+    });
+    if (!etrap?.isDeliveryEnabled) {
+      throw new BadRequestException(
+        "Delivery is not available for the selected etrap",
       );
     }
   }

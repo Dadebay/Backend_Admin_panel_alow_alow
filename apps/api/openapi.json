@@ -2220,6 +2220,258 @@
         ]
       }
     },
+    "/api/v1/delivery/config": {
+      "get": {
+        "operationId": "DeliveryController_publicConfig_v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeliveryConfigResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "List delivery-enabled welayats, etraps, prices and free thresholds",
+        "tags": [
+          "delivery"
+        ]
+      }
+    },
+    "/api/v1/delivery/admin/config": {
+      "get": {
+        "operationId": "DeliveryController_adminConfig_v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeliveryConfigResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "List the complete delivery price configuration",
+        "tags": [
+          "delivery"
+        ]
+      }
+    },
+    "/api/v1/delivery/admin/settings": {
+      "patch": {
+        "operationId": "DeliveryController_updateSettings_v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateDeliverySettingsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeliverySettingsResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Update fallback delivery pricing for legacy addresses",
+        "tags": [
+          "delivery"
+        ]
+      }
+    },
+    "/api/v1/delivery/admin/welayats": {
+      "post": {
+        "operationId": "DeliveryController_createWelayat_v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateDeliveryWelayatDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeliveryWelayatResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Create a delivery welayat",
+        "tags": [
+          "delivery"
+        ]
+      }
+    },
+    "/api/v1/delivery/admin/welayats/{id}": {
+      "patch": {
+        "operationId": "DeliveryController_updateWelayat_v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateDeliveryWelayatDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeliveryWelayatResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Update delivery welayat names and display order",
+        "tags": [
+          "delivery"
+        ]
+      }
+    },
+    "/api/v1/delivery/admin/etraps": {
+      "post": {
+        "operationId": "DeliveryController_createEtrap_v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateDeliveryEtrapDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeliveryEtrapResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Create a delivery etrap and its tariff",
+        "tags": [
+          "delivery"
+        ]
+      }
+    },
+    "/api/v1/delivery/admin/etraps/{id}": {
+      "patch": {
+        "operationId": "DeliveryController_updateEtrap_v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateDeliveryEtrapDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeliveryEtrapResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Update availability and delivery price for one etrap",
+        "tags": [
+          "delivery"
+        ]
+      }
+    },
     "/api/v1/marketing/banners": {
       "get": {
         "operationId": "MarketingController_banners_v1",
@@ -3849,6 +4101,10 @@
               "$ref": "#/components/schemas/CreateOrderItemDto"
             }
           },
+          "deliveryEtrapId": {
+            "type": "number",
+            "description": "Delivery etrap selected from GET /delivery/config; also updates the selected saved address"
+          },
           "addressId": {
             "type": "string",
             "description": "Saved address owned by the current user"
@@ -4127,6 +4383,10 @@
             "type": "string",
             "format": "uuid"
           },
+          "deliveryEtrapId": {
+            "type": "number",
+            "nullable": true
+          },
           "userId": {
             "type": "string",
             "format": "uuid"
@@ -4169,6 +4429,7 @@
         },
         "required": [
           "id",
+          "deliveryEtrapId",
           "userId",
           "label",
           "address",
@@ -4328,6 +4589,10 @@
             "format": "uuid",
             "nullable": true
           },
+          "deliveryEtrapId": {
+            "type": "number",
+            "nullable": true
+          },
           "status": {
             "type": "string",
             "enum": [
@@ -4388,6 +4653,14 @@
             "nullable": true
           },
           "apartment": {
+            "type": "string",
+            "nullable": true
+          },
+          "deliveryWelayatName": {
+            "type": "string",
+            "nullable": true
+          },
+          "deliveryEtrapName": {
             "type": "string",
             "nullable": true
           },
@@ -4520,6 +4793,7 @@
           "cookId",
           "courierId",
           "promoCodeId",
+          "deliveryEtrapId",
           "status",
           "source",
           "paymentMethod",
@@ -4533,6 +4807,8 @@
           "entrance",
           "floor",
           "apartment",
+          "deliveryWelayatName",
+          "deliveryEtrapName",
           "branchName",
           "branchAddress",
           "branchLatitude",
@@ -4568,6 +4844,10 @@
             "type": "string",
             "format": "uuid"
           },
+          "deliveryEtrapId": {
+            "type": "number",
+            "nullable": true
+          },
           "label": {
             "type": "string",
             "nullable": true
@@ -4599,6 +4879,7 @@
         },
         "required": [
           "id",
+          "deliveryEtrapId",
           "label",
           "address",
           "latitude",
@@ -4664,6 +4945,10 @@
             "items": {
               "$ref": "#/components/schemas/CreateOrderItemDto"
             }
+          },
+          "deliveryEtrapId": {
+            "type": "number",
+            "description": "Delivery etrap selected from GET /delivery/config; also updates the selected saved address"
           },
           "addressId": {
             "type": "string",
@@ -5180,6 +5465,34 @@
           "route"
         ]
       },
+      "ReceiptPrintSummaryResponseDto": {
+        "type": "object",
+        "properties": {
+          "subtotal": {
+            "type": "number"
+          },
+          "discount": {
+            "type": "number"
+          },
+          "deliveryFee": {
+            "type": "number"
+          },
+          "total": {
+            "type": "number"
+          },
+          "deliveryAreaName": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "subtotal",
+          "discount",
+          "deliveryFee",
+          "total",
+          "deliveryAreaName"
+        ]
+      },
       "ReceiptPrintItemResponseDto": {
         "type": "object",
         "properties": {
@@ -5233,6 +5546,9 @@
           "orderNumber": {
             "type": "number"
           },
+          "summary": {
+            "$ref": "#/components/schemas/ReceiptPrintSummaryResponseDto"
+          },
           "jobs": {
             "type": "array",
             "items": {
@@ -5249,6 +5565,7 @@
         "required": [
           "orderId",
           "orderNumber",
+          "summary",
           "jobs",
           "unassignedItems"
         ]
@@ -5793,6 +6110,10 @@
       "CreateAddressDto": {
         "type": "object",
         "properties": {
+          "deliveryEtrapId": {
+            "type": "number",
+            "description": "Delivery etrap selected from GET /delivery/config"
+          },
           "label": {
             "type": "string",
             "example": "Дом"
@@ -5828,6 +6149,10 @@
       "UpdateAddressDto": {
         "type": "object",
         "properties": {
+          "deliveryEtrapId": {
+            "type": "number",
+            "description": "Delivery etrap selected from GET /delivery/config"
+          },
           "label": {
             "type": "string",
             "example": "Дом"
@@ -6735,6 +7060,308 @@
           "title",
           "body"
         ]
+      },
+      "DeliveryEtrapResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number"
+          },
+          "welayatId": {
+            "type": "number"
+          },
+          "nameEn": {
+            "type": "string",
+            "nullable": true
+          },
+          "nameRu": {
+            "type": "string"
+          },
+          "nameTk": {
+            "type": "string"
+          },
+          "queuePosition": {
+            "type": "number",
+            "nullable": true
+          },
+          "price": {
+            "type": "number"
+          },
+          "freeDeliveryThreshold": {
+            "type": "number",
+            "nullable": true
+          },
+          "isDeliveryEnabled": {
+            "type": "boolean"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "welayatId",
+          "nameEn",
+          "nameRu",
+          "nameTk",
+          "queuePosition",
+          "price",
+          "freeDeliveryThreshold",
+          "isDeliveryEnabled",
+          "updatedAt"
+        ]
+      },
+      "DeliveryWelayatResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number"
+          },
+          "nameEn": {
+            "type": "string",
+            "nullable": true
+          },
+          "nameRu": {
+            "type": "string"
+          },
+          "nameTk": {
+            "type": "string"
+          },
+          "sortOrder": {
+            "type": "number"
+          },
+          "etraps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DeliveryEtrapResponseDto"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "nameEn",
+          "nameRu",
+          "nameTk",
+          "sortOrder",
+          "etraps"
+        ]
+      },
+      "DeliveryConfigResponseDto": {
+        "type": "object",
+        "properties": {
+          "fallbackPrice": {
+            "type": "number"
+          },
+          "fallbackFreeDeliveryThreshold": {
+            "type": "number",
+            "nullable": true
+          },
+          "welayats": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DeliveryWelayatResponseDto"
+            }
+          }
+        },
+        "required": [
+          "fallbackPrice",
+          "fallbackFreeDeliveryThreshold",
+          "welayats"
+        ]
+      },
+      "UpdateDeliverySettingsDto": {
+        "type": "object",
+        "properties": {
+          "fallbackPrice": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1000000
+          },
+          "fallbackFreeDeliveryThreshold": {
+            "type": "number",
+            "nullable": true,
+            "minimum": 0,
+            "maximum": 1000000,
+            "description": "Null disables free delivery for legacy addresses without an etrap"
+          }
+        }
+      },
+      "DeliverySettingsResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "fallbackPrice": {
+            "type": "number"
+          },
+          "fallbackFreeDeliveryThreshold": {
+            "type": "number",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "fallbackPrice",
+          "fallbackFreeDeliveryThreshold",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "CreateDeliveryWelayatDto": {
+        "type": "object",
+        "properties": {
+          "nameEn": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 160
+          },
+          "nameRu": {
+            "type": "string",
+            "maxLength": 160
+          },
+          "nameTk": {
+            "type": "string",
+            "maxLength": 160
+          },
+          "sortOrder": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1000000,
+            "default": 0
+          }
+        },
+        "required": [
+          "nameRu",
+          "nameTk"
+        ]
+      },
+      "UpdateDeliveryWelayatDto": {
+        "type": "object",
+        "properties": {
+          "nameEn": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 160
+          },
+          "nameRu": {
+            "type": "string",
+            "maxLength": 160
+          },
+          "nameTk": {
+            "type": "string",
+            "maxLength": 160
+          },
+          "sortOrder": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1000000
+          }
+        }
+      },
+      "CreateDeliveryEtrapDto": {
+        "type": "object",
+        "properties": {
+          "welayatId": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 2147483647
+          },
+          "nameEn": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 240
+          },
+          "nameRu": {
+            "type": "string",
+            "maxLength": 240
+          },
+          "nameTk": {
+            "type": "string",
+            "maxLength": 240
+          },
+          "queuePosition": {
+            "type": "number",
+            "nullable": true,
+            "minimum": 0,
+            "maximum": 1000000
+          },
+          "price": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1000000,
+            "default": 15
+          },
+          "freeDeliveryThreshold": {
+            "type": "number",
+            "nullable": true,
+            "minimum": 0,
+            "maximum": 1000000,
+            "default": 150
+          },
+          "isDeliveryEnabled": {
+            "type": "boolean",
+            "default": false
+          }
+        },
+        "required": [
+          "welayatId",
+          "nameRu",
+          "nameTk"
+        ]
+      },
+      "UpdateDeliveryEtrapDto": {
+        "type": "object",
+        "properties": {
+          "welayatId": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 2147483647
+          },
+          "nameEn": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 240
+          },
+          "nameRu": {
+            "type": "string",
+            "maxLength": 240
+          },
+          "nameTk": {
+            "type": "string",
+            "maxLength": 240
+          },
+          "queuePosition": {
+            "type": "number",
+            "nullable": true,
+            "minimum": 0,
+            "maximum": 1000000
+          },
+          "price": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1000000
+          },
+          "freeDeliveryThreshold": {
+            "type": "number",
+            "nullable": true,
+            "minimum": 0,
+            "maximum": 1000000,
+            "description": "Null disables free delivery for this etrap"
+          },
+          "isDeliveryEnabled": {
+            "type": "boolean"
+          }
+        }
       },
       "BannerResponseDto": {
         "type": "object",

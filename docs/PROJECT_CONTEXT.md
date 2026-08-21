@@ -133,6 +133,7 @@ alowalow/
 │   │   │   ├── auth/      # OTP, JWT, refresh, Android pull SMS gateway
 │   │   │   ├── users/     # staff and customer addresses
 │   │   │   ├── branches/  # branch CRUD and nearest-branch selection
+│   │   │   ├── delivery/  # welayat/etrap tariffs and delivery pricing
 │   │   │   ├── catalog/   # categories and products
 │   │   │   ├── marketing/ # banners and promo codes
 │   │   │   ├── media/     # S3-compatible image storage
@@ -156,9 +157,9 @@ alowalow/
 │       ├── package-lock.json # isolated frontend dependency/security tree
 │       ├── src/            # FSD product layers
 │       │   ├── app/        # SPA bootstrap, routes, providers, global styles
-│       │   ├── widgets/    # boards/maps/managers, incl. assisted phone order
-│       │   ├── features/   # typed mutations, assisted orders, new-order alerts
-│       │   ├── entities/   # typed queries/models, incl. customer/geocoding
+│       │   ├── widgets/    # boards/maps/managers, incl. delivery tariffs
+│       │   ├── features/   # typed mutations, assisted/delivery management
+│       │   ├── entities/   # typed queries/models, incl. delivery/geocoding
 │       │   └── shared/     # HTTP/query clients, auth, Zod form helpers, UI
 │       ├── public/
 │       └── tests/
@@ -399,6 +400,25 @@ heights; visual density must not be reduced to the previous pale compact map.
 - A user may store up to 20 addresses.
 - A newly created or selected address becomes active.
 - The address used by the latest order becomes the active/default address.
+- Delivery tariffs are PostgreSQL configuration keyed by the supplied
+  welayat/etrap reference. The initial migration imports 7 welayats and 281
+  etraps, enables the 99 Ashgabat entries at the compatible 15 TMT tariff with
+  free delivery from 150 TMT, and imports every other region disabled until an
+  administrator explicitly enables it. `GET /delivery/config` exposes only
+  enabled entries to customer clients; `ADMIN`/`SUPER_ADMIN` manage the full
+  directory through the protected admin API and `/delivery` admin screen. The
+  admin may create and rename welayats/etraps, maintain English/Russian/Turkmen
+  names, ordering and parent-welayat assignment, and configure each etrap's
+  price, free-delivery threshold and availability. PostgreSQL allocates new
+  numeric IDs. Existing etraps are not deleted because saved addresses and
+  historical orders may reference them; disabling hides them from customer
+  clients without breaking that history.
+- New clients submit `deliveryEtrapId` with an inline or saved address. The
+  backend rejects a disabled/unknown etrap, persists it on the saved address,
+  computes the current fee from database configuration, and snapshots the
+  Russian welayat/etrap names plus fee on the order. Existing clients and old
+  addresses without an etrap remain backward compatible through the separately
+  configurable fallback tariff, initially 15 TMT and free from 150 TMT.
 - Orders keep immutable snapshots of the address plus product/variant name,
   price, and the product's optional LAN receipt-printer IPv4 address. Later
   catalog edits never rewrite historical order lines.
@@ -454,10 +474,11 @@ product. The address is visible only through authenticated catalog-management
 responses and is never exposed in the public catalog or customer order
 responses. New order lines snapshot the configured address so a later catalog
 edit cannot reroute an existing order. The intended non-fiscal printer payload
-contains only the selected product/variant display name, quantity, and the
-backend-snapshotted unit price. Delivery fees, discounts, fiscalization,
-offline policy, cancellation, and returns are not part of this accepted
-printer-routing requirement.
+contains the selected product/variant display name, quantity, backend-
+snapshotted unit price, and an authoritative order summary with subtotal,
+discount when present, delivery fee, configured etrap name when present, and
+final total. Fiscalization, offline policy, cancellation, and returns are not
+part of this accepted printer-routing requirement.
 
 Receipt printing is triggered automatically on the always-open operations
 workstation when its role-scoped active kitchen/ready queue first observes a
@@ -473,8 +494,8 @@ the same workstation at loopback `127.0.0.1:17873`. The agent has one Go source
 and CI-built executables for Windows x64/ARM64 and macOS Intel/Apple Silicon.
 It accepts only allowlisted admin origins, rejects non-private IPv4 targets,
 formats a prominent `ONLINE ORDER #<number>` header on every printer chunk,
-then large item text with separators plus blank paper space above and below the
-content before cutting, and sends bounded hexadecimal ESC/POS payloads
+then large item text with separators, delivery price and final total plus blank
+paper space above and below the content before cutting, and sends bounded hexadecimal ESC/POS payloads
 through the tested J-Speed WebConfig HTTP interface on each printer's LAN port 80. The agent contains no API token and binds to loopback only. A working
 workstation remains necessary while accepting/printing an order; it is not a
 separate gateway computer.
@@ -535,6 +556,13 @@ Current status:
 - administrators manage branch addresses and choose branch locations only with
   a map marker in a lazy-loaded FSD screen; the order board can filter by branch
   and shows the assigned distance;
+- administrators manage the complete delivery directory on the lazy
+  `/delivery` screen: fallback pricing, creation and multilingual editing of
+  welayats and etraps, display order, parent assignment, availability,
+  delivery price and free-delivery threshold. The phone-assisted order
+  requires an enabled etrap, shows the configured delivery estimate, and
+  submits the selected ID to the backend; the customer-facing endpoint exposes
+  the same enabled configuration.
 - operators/admins can open a lazy phone-order flow from the order board, find
   a caller by phone, automatically select an exact phone match, prefill the
   active or last-used saved address while still offering every saved address,
@@ -738,6 +766,13 @@ every active card collapsed at a 79 px summary height, renders only the
 virtualized viewport, and has no page-level horizontal overflow. The detailed
 table remains a dense table above the phone breakpoint and becomes labelled
 cards only at 760 px or below.
+
+The 2026-08-21 fully configurable delivery-directory build measures the static
+SPA bootstrap at 241.5 KB raw / 77.6 KB gzip, CSS at 134.5 KB / 26.9 KB gzip,
+and the lazy delivery manager at 17.8 KB / 4.5 KB gzip. The phone-assisted
+order remains lazy at 23.9 KB / 7.2 KB gzip. The management screen performs no
+request before an authorized administrator opens it, uses one TanStack Query
+observer, and adds no polling loop or frontend-owned pricing authority.
 
 ## Decision log
 
@@ -1101,3 +1136,16 @@ cards only at 760 px or below.
   empty, hidden, malformed, combined-filter, punctuation, variant/printer, and
   1,000-product cases; `docs/CATALOG_CATEGORY_GROUPING.md` is the maintenance
   behavior matrix and manual QA contract.
+- 2026-08-21: delivery pricing moved from the fixed `15 TMT` / free-from-150
+  expression into audited PostgreSQL configuration by welayat and etrap. The
+  supplied 7/281 reference was imported, Ashgabat starts enabled, other regions
+  start disabled, public clients receive enabled tariffs, old clients use an
+  admin-configurable fallback, and every new district-aware order snapshots its
+  district and fee. The loopback print plan and Go agent now include subtotal,
+  discount, delivery price, district and final total on the non-fiscal receipt.
+- 2026-08-21: delivery configuration expanded from tariff-only editing to a
+  fully admin-managed directory. Authorized administrators may create and edit
+  welayats and etraps, multilingual names, ordering, parent assignment and all
+  pricing/availability fields. New IDs use PostgreSQL sequences; etraps are
+  disabled rather than deleted so existing address relations and immutable
+  order/receipt snapshots remain valid.

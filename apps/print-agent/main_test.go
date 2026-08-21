@@ -29,6 +29,12 @@ func validPrintRequest() printRequest {
 		DispatchID:  "dispatch-1",
 		OrderID:     "00000000-0000-4000-8000-000000000001",
 		OrderNumber: 42,
+		Summary: receiptSummary{
+			Subtotal:         50,
+			DeliveryFee:      15,
+			Total:            65,
+			DeliveryAreaName: "MIR 1",
+		},
 		Jobs: []printerJob{{
 			PrinterIP: "192.168.123.100",
 			Items: []printItem{{
@@ -46,7 +52,7 @@ func TestFormatJobUsesLargeTextSeparatorsAndBoundedHexChunks(t *testing.T) {
 	chunks := formatJobChunks(42, []printItem{
 		{ID: "1", Name: "FIRST DISH", Quantity: 2, UnitPrice: 25},
 		{ID: "2", Name: "SECOND DISH", Quantity: 1, UnitPrice: 40},
-	})
+	}, receiptSummary{Subtotal: 90, DeliveryFee: 15, Total: 105, DeliveryAreaName: "MIR 1"})
 	if len(chunks) == 0 {
 		t.Fatal("expected at least one print chunk")
 	}
@@ -65,6 +71,9 @@ func TestFormatJobUsesLargeTextSeparatorsAndBoundedHexChunks(t *testing.T) {
 		}
 		if !bytes.Contains(chunk, []byte("ONLINE ORDER")) || !bytes.Contains(chunk, []byte("#42")) {
 			t.Fatal("online order number is missing")
+		}
+		if !bytes.Contains(chunk, []byte("DELIVERY: 15.00")) || !bytes.Contains(chunk, []byte("TOTAL: 105.00")) {
+			t.Fatal("delivery price or order total is missing")
 		}
 		if len(spacedHex(chunk)) > 1024 {
 			t.Fatal("J-Speed hexadecimal form payload is too large")

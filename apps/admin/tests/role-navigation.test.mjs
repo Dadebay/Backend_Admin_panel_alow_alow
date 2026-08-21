@@ -31,6 +31,7 @@ test("administrators retain all management sections represented outside the full
     "orders",
     "map",
     "branches",
+    "delivery",
     "catalog",
     "marketing",
     "notifications",

@@ -31,6 +31,7 @@ export function getPreferredAssistedAddress(customer: AssistedCustomer) {
 export function toSavedAddressSelection(address: AssistedCustomerAddress): {
   values: {
     addressId: string;
+    deliveryEtrapId: string;
     addressLabel: string;
     address: string;
     entrance: string;
@@ -42,6 +43,9 @@ export function toSavedAddressSelection(address: AssistedCustomerAddress): {
   return {
     values: {
       addressId: address.id,
+      deliveryEtrapId: address.deliveryEtrapId
+        ? String(address.deliveryEtrapId)
+        : "",
       addressLabel: address.label ?? "",
       address: address.address,
       entrance: address.entrance ?? "",

@@ -12,6 +12,7 @@ const expectedPaths = {
   orders: "/orders",
   map: "/couriers/map",
   branches: "/branches",
+  delivery: "/delivery",
   catalog: "/catalog",
   marketing: "/marketing",
   notifications: "/notifications",

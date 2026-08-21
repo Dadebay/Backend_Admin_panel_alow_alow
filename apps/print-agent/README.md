@@ -4,8 +4,9 @@ The print agent is the loopback-only bridge between the HTTPS operations admin
 and private LAN receipt printers. The backend groups immutable order lines by
 their snapshotted printer IP; the agent only validates that plan, prints the
 online order number on every chunk, formats large non-fiscal item slips with
-separators and safe top/bottom cut margins, and sends them through the tested
-J-Speed WebConfig HTTP interface.
+separators, prints the backend-owned subtotal, discount, delivery price,
+district and final total, preserves safe top/bottom cut margins, and sends the
+result through the tested J-Speed WebConfig HTTP interface.
 
 The executable is the same Go source for Windows and macOS. It binds only to
 `127.0.0.1:17873`, accepts the production admin origin plus local Vite origins,

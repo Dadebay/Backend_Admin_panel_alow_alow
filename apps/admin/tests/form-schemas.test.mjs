@@ -349,6 +349,7 @@ test("assisted order keeps the optional unofficial address and always builds a d
     customerFirstName: " Aman ",
     customerLastName: "",
     addressId: "",
+    deliveryEtrapId: "25",
     addressLabel: " По телефону ",
     address: " около школы 26, второй поворот ",
     entrance: "",
@@ -361,6 +362,7 @@ test("assisted order keeps the optional unofficial address and always builds a d
 
   assert.equal(parsed.customerPhone, "+99365123456");
   assert.equal(parsed.address, "около школы 26, второй поворот");
+  assert.equal(parsed.deliveryEtrapId, 25);
   assert.equal(parsed.promoCode, "WELCOME15");
   assert.equal(
     assistedOrderFormSchema.safeParse({
@@ -368,6 +370,7 @@ test("assisted order keeps the optional unofficial address and always builds a d
       customerFirstName: "",
       customerLastName: "",
       addressId: "",
+      deliveryEtrapId: "",
       addressLabel: "",
       address: "",
       entrance: "",
@@ -377,7 +380,7 @@ test("assisted order keeps the optional unofficial address and always builds a d
       promoCode: "",
       addressSearch: "",
     }).success,
-    true,
+    false,
   );
   assert.equal(
     buildAssistedDeliveryAddress({
@@ -408,6 +411,7 @@ test("every admin form uses React Hook Form instead of manual FormData", async (
     "../src/widgets/marketing-manager/ui/marketing-manager.tsx",
     "../src/widgets/order-board/ui/order-board.tsx",
     "../src/widgets/assisted-order/ui/assisted-order-dialog.tsx",
+    "../src/widgets/delivery-manager/ui/delivery-manager.tsx",
     "../src/widgets/notification-manager/ui/notification-manager.tsx",
     "../src/widgets/staff-manager/ui/staff-manager.tsx",
   ];

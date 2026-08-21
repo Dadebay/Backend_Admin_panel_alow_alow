@@ -10,6 +10,7 @@ import {
 const addresses = [
   {
     id: "older-address",
+    deliveryEtrapId: null,
     label: "Офис",
     address: "Старый адрес",
     latitude: 37.91,
@@ -21,6 +22,7 @@ const addresses = [
   },
   {
     id: "active-address",
+    deliveryEtrapId: 25,
     label: "Дом",
     address: "Активный адрес",
     latitude: 37.95,
@@ -49,6 +51,7 @@ test("exact caller match selects their active saved address and all address fiel
   assert.deepEqual(toSavedAddressSelection(preferred), {
     values: {
       addressId: "active-address",
+      deliveryEtrapId: "25",
       addressLabel: "Дом",
       address: "Активный адрес",
       entrance: "2",
@@ -126,6 +129,9 @@ test("address search is an accessible dropdown and the large map remains a manua
   assert.match(dialog, /role="option"/);
   assert.match(dialog, /Неофициальный адрес \/ ориентир \(необязательно\)/);
   assert.match(dialog, /buildAssistedDeliveryAddress/);
+  assert.match(dialog, /data-testid="assisted-delivery-etrap"/);
+  assert.match(dialog, /deliveryEtrapId: values\.deliveryEtrapId/);
+  assert.match(dialog, /estimatedDeliveryFee\.toFixed\(2\)/);
   assert.match(dialog, /variantId: variant\.id/);
   assert.match(dialog, /assisted-product-variant-/);
   assert.match(dialog, /activeVariants\(product\)/);

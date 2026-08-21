@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math"
 	"net"
 	"net/http"
 	"net/url"
@@ -39,17 +40,27 @@ type printItem struct {
 }
 
 type printerJob struct {
-	PrinterIP   string      `json:"printerIp"`
-	Items       []printItem `json:"items"`
-	OrderNumber int         `json:"-"`
+	PrinterIP   string         `json:"printerIp"`
+	Items       []printItem    `json:"items"`
+	OrderNumber int            `json:"-"`
+	Summary     receiptSummary `json:"-"`
+}
+
+type receiptSummary struct {
+	Subtotal         float64 `json:"subtotal"`
+	Discount         float64 `json:"discount"`
+	DeliveryFee      float64 `json:"deliveryFee"`
+	Total            float64 `json:"total"`
+	DeliveryAreaName string  `json:"deliveryAreaName"`
 }
 
 type printRequest struct {
-	DispatchID      string       `json:"dispatchId"`
-	OrderID         string       `json:"orderId"`
-	OrderNumber     int          `json:"orderNumber"`
-	Jobs            []printerJob `json:"jobs"`
-	UnassignedItems []printItem  `json:"unassignedItems"`
+	DispatchID      string         `json:"dispatchId"`
+	OrderID         string         `json:"orderId"`
+	OrderNumber     int            `json:"orderNumber"`
+	Summary         receiptSummary `json:"summary"`
+	Jobs            []printerJob   `json:"jobs"`
+	UnassignedItems []printItem    `json:"unassignedItems"`
 }
 
 type printedPrinter struct {
@@ -209,6 +220,7 @@ func (server *agentServer) print(writer http.ResponseWriter, request *http.Reque
 	}
 	for _, job := range payload.Jobs {
 		job.OrderNumber = payload.OrderNumber
+		job.Summary = payload.Summary
 		chunks, err := server.printer.Print(request.Context(), job)
 		if err != nil {
 			response.Failed = append(response.Failed, failedPrinter{
@@ -236,6 +248,13 @@ func validatePrintRequest(payload printRequest) error {
 	}
 	if len(payload.Jobs) == 0 || len(payload.Jobs) > 20 {
 		return errors.New("Print request must contain between 1 and 20 printer jobs")
+	}
+	if payload.Summary.Subtotal < 0 || payload.Summary.Subtotal > 1_000_000 ||
+		payload.Summary.Discount < 0 || payload.Summary.Discount > payload.Summary.Subtotal ||
+		payload.Summary.DeliveryFee < 0 || payload.Summary.DeliveryFee > 1_000_000 ||
+		payload.Summary.Total < 0 || payload.Summary.Total > 1_000_000 ||
+		math.Abs(payload.Summary.Total-(payload.Summary.Subtotal-payload.Summary.Discount+payload.Summary.DeliveryFee)) > 0.011 {
+		return errors.New("Receipt summary is invalid")
 	}
 	seen := make(map[string]struct{}, len(payload.Jobs))
 	for _, job := range payload.Jobs {
@@ -267,7 +286,7 @@ func isPrivateIPv4(value string) bool {
 }
 
 func (printer *jspeedPrinter) Print(ctx context.Context, job printerJob) (int, error) {
-	chunks := formatJobChunks(job.OrderNumber, job.Items)
+	chunks := formatJobChunks(job.OrderNumber, job.Items, job.Summary)
 	for _, chunk := range chunks {
 		if err := printer.send(ctx, job.PrinterIP, chunk); err != nil {
 			return 0, fmt.Errorf("%s: %w", job.PrinterIP, err)
@@ -323,25 +342,25 @@ func (printer *jspeedPrinter) send(ctx context.Context, printerIP string, payloa
 	return nil
 }
 
-func formatJobChunks(orderNumber int, items []printItem) [][]byte {
+func formatJobChunks(orderNumber int, items []printItem, summary receiptSummary) [][]byte {
 	chunks := make([][]byte, 0, len(items))
 	current := make([]printItem, 0, len(items))
 	for _, item := range items {
 		candidate := append(append([]printItem(nil), current...), item)
-		if len(formatReceipt(orderNumber, candidate)) > maxRawChunkBytes && len(current) > 0 {
-			chunks = append(chunks, formatReceipt(orderNumber, current))
+		if len(formatReceipt(orderNumber, candidate, summary)) > maxRawChunkBytes && len(current) > 0 {
+			chunks = append(chunks, formatReceipt(orderNumber, current, summary))
 			current = []printItem{item}
 			continue
 		}
 		current = candidate
 	}
 	if len(current) > 0 {
-		chunks = append(chunks, formatReceipt(orderNumber, current))
+		chunks = append(chunks, formatReceipt(orderNumber, current, summary))
 	}
 	return chunks
 }
 
-func formatReceipt(orderNumber int, items []printItem) []byte {
+func formatReceipt(orderNumber int, items []printItem, summary receiptSummary) []byte {
 	payload := []byte{0x1b, 0x40, 0x1b, 0x61, 0x00}
 	payload = append(payload, bytes.Repeat([]byte{'\n'}, topPaddingLines)...)
 	payload = append(payload, 0x1b, 0x61, 0x01)
@@ -359,6 +378,15 @@ func formatReceipt(orderNumber int, items []printItem) []byte {
 		payload = appendLargeLine(payload, fmt.Sprintf("PRICE: %.2f", item.UnitPrice))
 		payload = append(payload, []byte("------------------------\n")...)
 	}
+	payload = appendLargeLine(payload, fmt.Sprintf("SUBTOTAL: %.2f", summary.Subtotal))
+	if summary.Discount > 0 {
+		payload = appendLargeLine(payload, fmt.Sprintf("DISCOUNT: %.2f", summary.Discount))
+	}
+	payload = appendLargeLine(payload, fmt.Sprintf("DELIVERY: %.2f", summary.DeliveryFee))
+	if strings.TrimSpace(summary.DeliveryAreaName) != "" {
+		payload = appendLargeLine(payload, "AREA: "+truncateRunes(strings.TrimSpace(summary.DeliveryAreaName), 17))
+	}
+	payload = appendLargeLine(payload, fmt.Sprintf("TOTAL: %.2f", summary.Total))
 	payload = append(payload, bytes.Repeat([]byte{'\n'}, bottomPaddingLines)...)
 	payload = append(payload, 0x1d, 0x56, 0x00)
 	return payload

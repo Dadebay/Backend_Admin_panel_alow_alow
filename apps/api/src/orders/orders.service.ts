@@ -21,6 +21,7 @@ import { PrismaService } from "../prisma/prisma.service";
 import { AddressesService } from "../users/addresses.service";
 import { BranchesService } from "../branches/branches.service";
 import { NotificationsService } from "../notifications/notifications.service";
+import { DeliveryService } from "../delivery/delivery.service";
 import {
   RoutingService,
   RoutingUnavailableError,
@@ -177,6 +178,7 @@ export class OrdersService {
     private readonly tracking: TrackingService,
     private readonly routing: RoutingService,
     private readonly notifications: NotificationsService,
+    private readonly delivery: DeliveryService,
   ) {}
 
   /** Fire-and-forget: a push failure must never fail the status change
@@ -227,6 +229,7 @@ export class OrdersService {
             entrance: true,
             floor: true,
             apartment: true,
+            deliveryEtrapId: true,
             isActive: true,
           },
           orderBy: [
@@ -441,15 +444,19 @@ export class OrdersService {
       discount = Math.min(subtotal, Math.round(discount * 100) / 100);
     }
 
-    const deliveryFee = subtotal >= 150 ? 0 : 15;
-    const total = Math.max(0, subtotal - discount + deliveryFee);
-
     const selectedAddress = await this.addresses.selectForOrder(
       tx,
       customerId,
       dto,
       actorId,
     );
+    const deliveryPricing = await this.delivery.resolvePricing(
+      tx,
+      subtotal,
+      selectedAddress.deliveryEtrapId,
+    );
+    const deliveryFee = deliveryPricing.fee;
+    const total = Math.max(0, subtotal - discount + deliveryFee);
     const nearest = await this.branches.findNearestActive(tx, {
       latitude: Number(selectedAddress.latitude),
       longitude: Number(selectedAddress.longitude),
@@ -479,6 +486,7 @@ export class OrdersService {
         branchId: nearest.branch.id,
         promoCodeId: promo?.id,
         addressId: selectedAddress.id,
+        deliveryEtrapId: deliveryPricing.etrap?.id,
         subtotal,
         discount,
         deliveryFee,
@@ -489,6 +497,8 @@ export class OrdersService {
         entrance: selectedAddress.entrance,
         floor: selectedAddress.floor,
         apartment: selectedAddress.apartment,
+        deliveryWelayatName: deliveryPricing.etrap?.welayat.nameRu,
+        deliveryEtrapName: deliveryPricing.etrap?.nameRu,
         branchName: nearest.branch.name,
         branchAddress: nearest.branch.address,
         branchLatitude: nearest.branch.latitude,
@@ -539,6 +549,8 @@ export class OrdersService {
           customerId,
           branchId: nearest.branch.id,
           branchDistanceMeters: nearest.distanceMeters,
+          deliveryEtrapId: deliveryPricing.etrap?.id ?? null,
+          deliveryFee,
         },
       },
     });
@@ -660,6 +672,11 @@ export class OrdersService {
         id: true,
         number: true,
         status: true,
+        subtotal: true,
+        discount: true,
+        deliveryFee: true,
+        total: true,
+        deliveryEtrapName: true,
         items: {
           select: {
             id: true,

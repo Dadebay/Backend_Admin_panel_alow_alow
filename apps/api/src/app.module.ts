@@ -22,6 +22,7 @@ import { NotificationsModule } from "./notifications/notifications.module";
 import { FavoritesModule } from "./favorites/favorites.module";
 import { ContactModule } from "./contact/contact.module";
 import { GeocodingModule } from "./geocoding/geocoding.module";
+import { DeliveryModule } from "./delivery/delivery.module";
 
 @Module({
   imports: [
@@ -70,6 +71,7 @@ import { GeocodingModule } from "./geocoding/geocoding.module";
     FavoritesModule,
     ContactModule,
     GeocodingModule,
+    DeliveryModule,
   ],
   controllers: [HealthController],
   providers: [

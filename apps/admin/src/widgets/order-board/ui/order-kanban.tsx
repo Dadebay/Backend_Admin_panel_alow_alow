@@ -146,6 +146,9 @@ function OrderCard({
           <div className="order-kanban-address">
             <span>Куда доставить</span>
             <strong>{order.address}</strong>
+            {order.deliveryEtrapName && (
+              <small>{order.deliveryEtrapName}</small>
+            )}
             {meta && <small>{meta}</small>}
           </div>
         )}

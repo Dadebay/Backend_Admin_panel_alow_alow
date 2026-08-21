@@ -10,6 +10,11 @@ type ReceiptPrintSourceItem = {
 type ReceiptPrintSourceOrder = {
   id: string;
   number: number;
+  subtotal: unknown;
+  discount: unknown;
+  deliveryFee: unknown;
+  total: unknown;
+  deliveryEtrapName: string | null;
   items: ReceiptPrintSourceItem[];
 };
 
@@ -54,6 +59,13 @@ export function buildReceiptPrintPlan(order: ReceiptPrintSourceOrder) {
   return {
     orderId: order.id,
     orderNumber: order.number,
+    summary: {
+      subtotal: Number(order.subtotal),
+      discount: Number(order.discount),
+      deliveryFee: Number(order.deliveryFee),
+      total: Number(order.total),
+      deliveryAreaName: order.deliveryEtrapName,
+    },
     jobs: [...jobsByIp.entries()]
       .sort(([left], [right]) => left.localeCompare(right))
       .map(([printerIp, items]) => ({ printerIp, items })),

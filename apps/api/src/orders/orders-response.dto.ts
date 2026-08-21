@@ -25,6 +25,9 @@ export class AssistedCustomerAddressResponseDto {
   @ApiProperty({ format: "uuid" })
   id: string;
 
+  @ApiProperty({ type: Number, nullable: true })
+  deliveryEtrapId: number | null;
+
   @ApiProperty({ type: String, nullable: true })
   label: string | null;
 
@@ -130,12 +133,32 @@ export class ReceiptPrinterJobResponseDto {
   items: ReceiptPrintItemResponseDto[];
 }
 
+export class ReceiptPrintSummaryResponseDto {
+  @ApiProperty()
+  subtotal: number;
+
+  @ApiProperty()
+  discount: number;
+
+  @ApiProperty()
+  deliveryFee: number;
+
+  @ApiProperty()
+  total: number;
+
+  @ApiProperty({ type: String, nullable: true })
+  deliveryAreaName: string | null;
+}
+
 export class ReceiptPrintPlanResponseDto {
   @ApiProperty({ format: "uuid" })
   orderId: string;
 
   @ApiProperty()
   orderNumber: number;
+
+  @ApiProperty({ type: ReceiptPrintSummaryResponseDto })
+  summary: ReceiptPrintSummaryResponseDto;
 
   @ApiProperty({ type: [ReceiptPrinterJobResponseDto] })
   jobs: ReceiptPrinterJobResponseDto[];
@@ -199,6 +222,9 @@ export class OrderCashSettlementResponseDto {
 export class OrderSavedAddressResponseDto {
   @ApiProperty({ format: "uuid" })
   id: string;
+
+  @ApiProperty({ type: Number, nullable: true })
+  deliveryEtrapId: number | null;
 
   @ApiProperty({ format: "uuid" })
   userId: string;
@@ -290,6 +316,9 @@ export class OrderResponseDto {
   @ApiProperty({ type: String, format: "uuid", nullable: true })
   promoCodeId: string | null;
 
+  @ApiProperty({ type: Number, nullable: true })
+  deliveryEtrapId: number | null;
+
   @ApiProperty({ enum: OrderStatus })
   status: OrderStatus;
 
@@ -328,6 +357,12 @@ export class OrderResponseDto {
 
   @ApiProperty({ type: String, nullable: true })
   apartment: string | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  deliveryWelayatName: string | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  deliveryEtrapName: string | null;
 
   @ApiProperty({ type: String, nullable: true })
   branchName: string | null;

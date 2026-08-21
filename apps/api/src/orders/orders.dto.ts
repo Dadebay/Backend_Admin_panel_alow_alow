@@ -54,6 +54,16 @@ export class CreateOrderDto {
   items: CreateOrderItemDto[];
 
   @ApiPropertyOptional({
+    description:
+      "Delivery etrap selected from GET /delivery/config; also updates the selected saved address",
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  deliveryEtrapId?: number;
+
+  @ApiPropertyOptional({
     description: "Saved address owned by the current user",
   })
   @IsOptional()

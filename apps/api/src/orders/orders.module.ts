@@ -4,6 +4,7 @@ import { BranchesModule } from "../branches/branches.module";
 import { NotificationsModule } from "../notifications/notifications.module";
 import { RoutingModule } from "../routing/routing.module";
 import { TrackingModule } from "../tracking/tracking.module";
+import { DeliveryModule } from "../delivery/delivery.module";
 import { OrdersController } from "./orders.controller";
 import { OrdersService } from "./orders.service";
 
@@ -14,6 +15,7 @@ import { OrdersService } from "./orders.service";
     TrackingModule,
     RoutingModule,
     NotificationsModule,
+    DeliveryModule,
   ],
   controllers: [OrdersController],
   providers: [OrdersService],

@@ -132,24 +132,27 @@ model LoginAttempt {
 }
 
 model UserAddress {
-  id         String    @id @default(uuid()) @db.Uuid
-  userId     String    @db.Uuid
-  label      String?   @db.VarChar(60)
-  address    String    @db.VarChar(500)
-  latitude   Decimal   @db.Decimal(10, 7)
-  longitude  Decimal   @db.Decimal(10, 7)
-  entrance   String?   @db.VarChar(40)
-  floor      String?   @db.VarChar(20)
-  apartment  String?   @db.VarChar(20)
-  isActive   Boolean   @default(false)
-  lastUsedAt DateTime?
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
-  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  orders     Order[]
+  id              String    @id @default(uuid()) @db.Uuid
+  userId          String    @db.Uuid
+  deliveryEtrapId Int?
+  label           String?   @db.VarChar(60)
+  address         String    @db.VarChar(500)
+  latitude        Decimal   @db.Decimal(10, 7)
+  longitude       Decimal   @db.Decimal(10, 7)
+  entrance        String?   @db.VarChar(40)
+  floor           String?   @db.VarChar(20)
+  apartment       String?   @db.VarChar(20)
+  isActive        Boolean   @default(false)
+  lastUsedAt      DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deliveryEtrap   Etrap?    @relation(fields: [deliveryEtrapId], references: [id], onDelete: SetNull)
+  orders          Order[]
 
   @@index([userId, isActive])
   @@index([userId, lastUsedAt, createdAt])
+  @@index([deliveryEtrapId])
 }
 
 model RefreshToken {
@@ -283,6 +286,43 @@ model ContactSettings {
   updatedAt         DateTime @updatedAt
 }
 
+model DeliverySettings {
+  id                            String   @id @default("default") @db.VarChar(40)
+  fallbackPrice                 Decimal  @default(15) @db.Decimal(12, 2)
+  fallbackFreeDeliveryThreshold Decimal? @default(150) @db.Decimal(12, 2)
+  createdAt                     DateTime @default(now())
+  updatedAt                     DateTime @updatedAt
+}
+
+model Welayat {
+  id        Int     @id @default(autoincrement())
+  nameEn    String? @db.VarChar(160)
+  nameRu    String  @db.VarChar(160)
+  nameTk    String  @db.VarChar(160)
+  sortOrder Int     @default(0)
+  etraps    Etrap[]
+
+  @@index([sortOrder, nameRu])
+}
+
+model Etrap {
+  id                    Int           @id @default(autoincrement())
+  welayatId             Int
+  nameEn                String?       @db.VarChar(240)
+  nameRu                String        @db.VarChar(240)
+  nameTk                String        @db.VarChar(240)
+  queuePosition         Int?
+  price                 Decimal       @default(15) @db.Decimal(12, 2)
+  freeDeliveryThreshold Decimal?      @default(150) @db.Decimal(12, 2)
+  isDeliveryEnabled     Boolean       @default(false)
+  updatedAt             DateTime      @updatedAt
+  welayat               Welayat       @relation(fields: [welayatId], references: [id], onDelete: Restrict)
+  addresses             UserAddress[]
+  orders                Order[]
+
+  @@index([welayatId, isDeliveryEnabled, queuePosition, nameRu])
+}
+
 model PromoCode {
   id                String            @id @default(uuid()) @db.Uuid
   code              String            @unique @db.VarChar(40)
@@ -341,6 +381,7 @@ model Order {
   cookId               String?           @db.Uuid
   courierId            String?           @db.Uuid
   promoCodeId          String?           @db.Uuid
+  deliveryEtrapId      Int?
   status               OrderStatus       @default(SENT_TO_KITCHEN)
   source               OrderSource       @default(CUSTOMER_APP)
   paymentMethod        PaymentMethod     @default(CASH)
@@ -354,6 +395,8 @@ model Order {
   entrance             String?           @db.VarChar(40)
   floor                String?           @db.VarChar(20)
   apartment            String?           @db.VarChar(20)
+  deliveryWelayatName  String?           @db.VarChar(160)
+  deliveryEtrapName    String?           @db.VarChar(240)
   branchName           String?           @db.VarChar(160)
   branchAddress        String?           @db.VarChar(500)
   branchLatitude       Decimal?          @db.Decimal(10, 7)
@@ -374,6 +417,7 @@ model Order {
   cook                 User?             @relation("CookOrders", fields: [cookId], references: [id], onDelete: SetNull)
   courier              User?             @relation("CourierOrders", fields: [courierId], references: [id], onDelete: SetNull)
   promoCode            PromoCode?        @relation(fields: [promoCodeId], references: [id], onDelete: SetNull)
+  deliveryEtrap        Etrap?            @relation(fields: [deliveryEtrapId], references: [id], onDelete: SetNull)
   items                OrderItem[]
   transitions          OrderTransition[]
   rating               Rating?
@@ -383,6 +427,7 @@ model Order {
   @@index([status, createdAt])
   @@index([customerId, createdAt])
   @@index([addressId])
+  @@index([deliveryEtrapId])
   @@index([branchId, status, createdAt])
   @@index([cookId, status])
   @@index([courierId, status, assignedAt])

@@ -1,14 +1,26 @@
 import { ApiProperty, ApiPropertyOptional, PartialType } from "@nestjs/swagger";
 import {
+  IsInt,
   IsLatitude,
   IsLongitude,
   IsNotEmpty,
   IsOptional,
   IsString,
   MaxLength,
+  Min,
 } from "class-validator";
+import { Type } from "class-transformer";
 
 export class CreateAddressDto {
+  @ApiPropertyOptional({
+    description: "Delivery etrap selected from GET /delivery/config",
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  deliveryEtrapId?: number;
+
   @ApiPropertyOptional({ example: "Дом" })
   @IsOptional()
   @IsString()

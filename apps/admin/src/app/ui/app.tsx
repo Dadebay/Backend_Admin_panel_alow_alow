@@ -38,6 +38,11 @@ const adminRouteComponents = {
       default: module.BranchManager,
     })),
   ),
+  delivery: lazy(() =>
+    import("@/src/widgets/delivery-manager").then((module) => ({
+      default: module.DeliveryManager,
+    })),
+  ),
   catalog: lazy(() =>
     import("@/src/widgets/catalog-manager").then((module) => ({
       default: module.CatalogManager,

@@ -91,6 +91,14 @@ function OrderDetails({ order }: { order: Order }) {
         <article>
           <span>Адрес</span>
           <strong>{order.address}</strong>
+          {order.deliveryEtrapName && (
+            <small>
+              {order.deliveryWelayatName
+                ? `${order.deliveryWelayatName} · `
+                : ""}
+              {order.deliveryEtrapName}
+            </small>
+          )}
           {deliveryDetails(order) && <small>{deliveryDetails(order)}</small>}
         </article>
         <article>

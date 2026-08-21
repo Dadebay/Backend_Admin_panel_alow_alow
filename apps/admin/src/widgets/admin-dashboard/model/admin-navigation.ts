@@ -4,6 +4,7 @@ export type AdminView =
   | "orders"
   | "map"
   | "branches"
+  | "delivery"
   | "catalog"
   | "marketing"
   | "notifications"
@@ -48,6 +49,13 @@ export const adminNavigation: AdminNavigationItem[] = [
     label: "Филиалы",
     icon: "branches",
     path: "/branches",
+    roles: ["ADMIN", "SUPER_ADMIN"],
+  },
+  {
+    id: "delivery",
+    label: "Тарифы доставки",
+    icon: "delivery",
+    path: "/delivery",
     roles: ["ADMIN", "SUPER_ADMIN"],
   },
   {

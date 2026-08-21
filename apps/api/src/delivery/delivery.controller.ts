@@ -1,0 +1,120 @@
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  ParseIntPipe,
+  Patch,
+  Post,
+} from "@nestjs/common";
+import {
+  ApiBearerAuth,
+  ApiCreatedResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiTags,
+} from "@nestjs/swagger";
+import { CurrentUser, Public, Roles } from "../common/auth.decorators";
+import type { AuthUser } from "../common/auth.types";
+import { Role } from "../generated/prisma/client";
+import {
+  CreateDeliveryEtrapDto,
+  CreateDeliveryWelayatDto,
+  UpdateDeliveryEtrapDto,
+  UpdateDeliverySettingsDto,
+  UpdateDeliveryWelayatDto,
+} from "./delivery.dto";
+import {
+  DeliveryConfigResponseDto,
+  DeliveryEtrapResponseDto,
+  DeliverySettingsResponseDto,
+  DeliveryWelayatResponseDto,
+} from "./delivery-response.dto";
+import { DeliveryService } from "./delivery.service";
+
+@ApiTags("delivery")
+@Controller("delivery")
+export class DeliveryController {
+  constructor(private readonly delivery: DeliveryService) {}
+
+  @Get("config")
+  @Public()
+  @ApiOperation({
+    summary: "List delivery-enabled welayats, etraps, prices and free thresholds",
+  })
+  @ApiOkResponse({ type: DeliveryConfigResponseDto })
+  publicConfig() {
+    return this.delivery.publicConfig();
+  }
+
+  @Get("admin/config")
+  @ApiBearerAuth()
+  @Roles(Role.ADMIN)
+  @ApiOperation({ summary: "List the complete delivery price configuration" })
+  @ApiOkResponse({ type: DeliveryConfigResponseDto })
+  adminConfig() {
+    return this.delivery.adminConfig();
+  }
+
+  @Patch("admin/settings")
+  @ApiBearerAuth()
+  @Roles(Role.ADMIN)
+  @ApiOperation({ summary: "Update fallback delivery pricing for legacy addresses" })
+  @ApiOkResponse({ type: DeliverySettingsResponseDto })
+  updateSettings(
+    @CurrentUser() actor: AuthUser,
+    @Body() dto: UpdateDeliverySettingsDto,
+  ) {
+    return this.delivery.updateSettings(actor, dto);
+  }
+
+  @Post("admin/welayats")
+  @ApiBearerAuth()
+  @Roles(Role.ADMIN)
+  @ApiOperation({ summary: "Create a delivery welayat" })
+  @ApiCreatedResponse({ type: DeliveryWelayatResponseDto })
+  createWelayat(
+    @CurrentUser() actor: AuthUser,
+    @Body() dto: CreateDeliveryWelayatDto,
+  ) {
+    return this.delivery.createWelayat(actor, dto);
+  }
+
+  @Patch("admin/welayats/:id")
+  @ApiBearerAuth()
+  @Roles(Role.ADMIN)
+  @ApiOperation({ summary: "Update delivery welayat names and display order" })
+  @ApiOkResponse({ type: DeliveryWelayatResponseDto })
+  updateWelayat(
+    @CurrentUser() actor: AuthUser,
+    @Param("id", ParseIntPipe) id: number,
+    @Body() dto: UpdateDeliveryWelayatDto,
+  ) {
+    return this.delivery.updateWelayat(actor, id, dto);
+  }
+
+  @Post("admin/etraps")
+  @ApiBearerAuth()
+  @Roles(Role.ADMIN)
+  @ApiOperation({ summary: "Create a delivery etrap and its tariff" })
+  @ApiCreatedResponse({ type: DeliveryEtrapResponseDto })
+  createEtrap(
+    @CurrentUser() actor: AuthUser,
+    @Body() dto: CreateDeliveryEtrapDto,
+  ) {
+    return this.delivery.createEtrap(actor, dto);
+  }
+
+  @Patch("admin/etraps/:id")
+  @ApiBearerAuth()
+  @Roles(Role.ADMIN)
+  @ApiOperation({ summary: "Update availability and delivery price for one etrap" })
+  @ApiOkResponse({ type: DeliveryEtrapResponseDto })
+  updateEtrap(
+    @CurrentUser() actor: AuthUser,
+    @Param("id", ParseIntPipe) id: number,
+    @Body() dto: UpdateDeliveryEtrapDto,
+  ) {
+    return this.delivery.updateEtrap(actor, id, dto);
+  }
+}

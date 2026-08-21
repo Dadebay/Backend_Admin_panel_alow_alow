@@ -846,6 +846,125 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/delivery/config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List delivery-enabled welayats, etraps, prices and free thresholds */
+        get: operations["DeliveryController_publicConfig_v1"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/delivery/admin/config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List the complete delivery price configuration */
+        get: operations["DeliveryController_adminConfig_v1"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/delivery/admin/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update fallback delivery pricing for legacy addresses */
+        patch: operations["DeliveryController_updateSettings_v1"];
+        trace?: never;
+    };
+    "/api/v1/delivery/admin/welayats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create a delivery welayat */
+        post: operations["DeliveryController_createWelayat_v1"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/delivery/admin/welayats/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update delivery welayat names and display order */
+        patch: operations["DeliveryController_updateWelayat_v1"];
+        trace?: never;
+    };
+    "/api/v1/delivery/admin/etraps": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create a delivery etrap and its tariff */
+        post: operations["DeliveryController_createEtrap_v1"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/delivery/admin/etraps/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update availability and delivery price for one etrap */
+        patch: operations["DeliveryController_updateEtrap_v1"];
+        trace?: never;
+    };
     "/api/v1/marketing/banners": {
         parameters: {
             query?: never;
@@ -1410,6 +1529,8 @@ export interface components {
         };
         CreateOrderDto: {
             items: components["schemas"]["CreateOrderItemDto"][];
+            /** @description Delivery etrap selected from GET /delivery/config; also updates the selected saved address */
+            deliveryEtrapId?: number;
             /** @description Saved address owned by the current user */
             addressId?: string;
             /**
@@ -1505,6 +1626,7 @@ export interface components {
         OrderSavedAddressResponseDto: {
             /** Format: uuid */
             id: string;
+            deliveryEtrapId: number | null;
             /** Format: uuid */
             userId: string;
             label: string;
@@ -1560,6 +1682,7 @@ export interface components {
             courierId: string | null;
             /** Format: uuid */
             promoCodeId: string | null;
+            deliveryEtrapId: number | null;
             /** @enum {string} */
             status: "NEW" | "CONFIRMED" | "SENT_TO_KITCHEN" | "COOKING" | "READY" | "ASSIGNED_TO_COURIER" | "OUT_FOR_DELIVERY" | "DELIVERED" | "CASH_RETURNED" | "COMPLETED" | "RECONCILED" | "CANCELLED";
             /** @enum {string} */
@@ -1576,6 +1699,8 @@ export interface components {
             entrance: string | null;
             floor: string | null;
             apartment: string | null;
+            deliveryWelayatName: string | null;
+            deliveryEtrapName: string | null;
             branchName: string | null;
             branchAddress: string | null;
             branchLatitude: number | null;
@@ -1609,6 +1734,7 @@ export interface components {
         AssistedCustomerAddressResponseDto: {
             /** Format: uuid */
             id: string;
+            deliveryEtrapId: number | null;
             label: string | null;
             address: string;
             latitude: number;
@@ -1631,6 +1757,8 @@ export interface components {
         };
         CreateAssistedOrderDto: {
             items: components["schemas"]["CreateOrderItemDto"][];
+            /** @description Delivery etrap selected from GET /delivery/config; also updates the selected saved address */
+            deliveryEtrapId?: number;
             /** @description Saved address owned by the current user */
             addressId?: string;
             /**
@@ -1772,6 +1900,13 @@ export interface components {
             recalculateAfterSeconds: number;
             route: components["schemas"]["CourierRoadRouteResponseDto"] | null;
         };
+        ReceiptPrintSummaryResponseDto: {
+            subtotal: number;
+            discount: number;
+            deliveryFee: number;
+            total: number;
+            deliveryAreaName: string | null;
+        };
         ReceiptPrintItemResponseDto: {
             /** Format: uuid */
             id: string;
@@ -1788,6 +1923,7 @@ export interface components {
             /** Format: uuid */
             orderId: string;
             orderNumber: number;
+            summary: components["schemas"]["ReceiptPrintSummaryResponseDto"];
             jobs: components["schemas"]["ReceiptPrinterJobResponseDto"][];
             unassignedItems: components["schemas"]["ReceiptPrintItemResponseDto"][];
         };
@@ -1925,6 +2061,8 @@ export interface components {
             isActive?: boolean;
         };
         CreateAddressDto: {
+            /** @description Delivery etrap selected from GET /delivery/config */
+            deliveryEtrapId?: number;
             /** @example Дом */
             label?: string;
             /** @example Magtymguly şaýoly, 72 */
@@ -1938,6 +2076,8 @@ export interface components {
             apartment?: string;
         };
         UpdateAddressDto: {
+            /** @description Delivery etrap selected from GET /delivery/config */
+            deliveryEtrapId?: number;
             /** @example Дом */
             label?: string;
             /** @example Magtymguly şaýoly, 72 */
@@ -2232,6 +2372,83 @@ export interface components {
              * @enum {string}
              */
             audience: "ALL_CUSTOMERS";
+        };
+        DeliveryEtrapResponseDto: {
+            id: number;
+            welayatId: number;
+            nameEn: string | null;
+            nameRu: string;
+            nameTk: string;
+            queuePosition: number | null;
+            price: number;
+            freeDeliveryThreshold: number | null;
+            isDeliveryEnabled: boolean;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        DeliveryWelayatResponseDto: {
+            id: number;
+            nameEn: string | null;
+            nameRu: string;
+            nameTk: string;
+            sortOrder: number;
+            etraps: components["schemas"]["DeliveryEtrapResponseDto"][];
+        };
+        DeliveryConfigResponseDto: {
+            fallbackPrice: number;
+            fallbackFreeDeliveryThreshold: number | null;
+            welayats: components["schemas"]["DeliveryWelayatResponseDto"][];
+        };
+        UpdateDeliverySettingsDto: {
+            fallbackPrice?: number;
+            /** @description Null disables free delivery for legacy addresses without an etrap */
+            fallbackFreeDeliveryThreshold?: number | null;
+        };
+        DeliverySettingsResponseDto: {
+            id: string;
+            fallbackPrice: number;
+            fallbackFreeDeliveryThreshold: number | null;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        CreateDeliveryWelayatDto: {
+            nameEn?: string | null;
+            nameRu: string;
+            nameTk: string;
+            /** @default 0 */
+            sortOrder: number;
+        };
+        UpdateDeliveryWelayatDto: {
+            nameEn?: string | null;
+            nameRu?: string;
+            nameTk?: string;
+            sortOrder?: number;
+        };
+        CreateDeliveryEtrapDto: {
+            welayatId: number;
+            nameEn?: string | null;
+            nameRu: string;
+            nameTk: string;
+            queuePosition?: number | null;
+            /** @default 15 */
+            price: number;
+            /** @default 150 */
+            freeDeliveryThreshold: number | null;
+            /** @default false */
+            isDeliveryEnabled: boolean;
+        };
+        UpdateDeliveryEtrapDto: {
+            welayatId?: number;
+            nameEn?: string | null;
+            nameRu?: string;
+            nameTk?: string;
+            queuePosition?: number | null;
+            price?: number;
+            /** @description Null disables free delivery for this etrap */
+            freeDeliveryThreshold?: number | null;
+            isDeliveryEnabled?: boolean;
         };
         BannerResponseDto: {
             /** Format: uuid */
@@ -3667,6 +3884,163 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["NotificationCampaignResponseDto"];
+                };
+            };
+        };
+    };
+    DeliveryController_publicConfig_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeliveryConfigResponseDto"];
+                };
+            };
+        };
+    };
+    DeliveryController_adminConfig_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeliveryConfigResponseDto"];
+                };
+            };
+        };
+    };
+    DeliveryController_updateSettings_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateDeliverySettingsDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeliverySettingsResponseDto"];
+                };
+            };
+        };
+    };
+    DeliveryController_createWelayat_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateDeliveryWelayatDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeliveryWelayatResponseDto"];
+                };
+            };
+        };
+    };
+    DeliveryController_updateWelayat_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateDeliveryWelayatDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeliveryWelayatResponseDto"];
+                };
+            };
+        };
+    };
+    DeliveryController_createEtrap_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateDeliveryEtrapDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeliveryEtrapResponseDto"];
+                };
+            };
+        };
+    };
+    DeliveryController_updateEtrap_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateDeliveryEtrapDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeliveryEtrapResponseDto"];
                 };
             };
         };

@@ -62,7 +62,12 @@ type OrderResponse = {
   branchAddress: string | null;
   branchDistanceMeters: number | null;
   subtotal?: number;
+  discount?: number;
+  deliveryFee?: number;
   total?: number;
+  deliveryEtrapId?: number | null;
+  deliveryWelayatName?: string | null;
+  deliveryEtrapName?: string | null;
   items?: Array<{
     id: string;
     productId: string;
@@ -106,6 +111,13 @@ type CatalogProductResponse = {
 type ReceiptPrintPlanResponse = {
   orderId: string;
   orderNumber: number;
+  summary: {
+    subtotal: number;
+    discount: number;
+    deliveryFee: number;
+    total: number;
+    deliveryAreaName: string | null;
+  };
   jobs: Array<{
     printerIp: string;
     items: Array<{
@@ -127,6 +139,19 @@ type BranchResponse = {
   id: string;
   isActive: boolean;
   phone: string | null;
+};
+
+type DeliveryConfigResponse = {
+  welayats: Array<{
+    id: number;
+    etraps: Array<{
+      id: number;
+      nameRu: string;
+      price: number;
+      freeDeliveryThreshold: number | null;
+      isDeliveryEnabled: boolean;
+    }>;
+  }>;
 };
 
 type NotificationCampaignResponse = {
@@ -342,6 +367,254 @@ describe("backend security and critical workflow", () => {
     expect(locationPreflight.headers["access-control-allow-methods"]).toContain(
       "PUT",
     );
+  });
+
+  it("publishes active district prices and lets only administrators configure backend-owned delivery totals", async () => {
+    const publicConfig = await request(server)
+      .get("/api/v1/delivery/config")
+      .expect(200);
+    const config = publicConfig.body as DeliveryConfigResponse;
+    const ashgabat = config.welayats.find((welayat) => welayat.id === 1);
+    expect(ashgabat).toBeDefined();
+    expect(ashgabat?.etraps).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 25,
+          nameRu: "1 мкр",
+          price: 15,
+          freeDeliveryThreshold: 150,
+          isDeliveryEnabled: true,
+        }),
+      ]),
+    );
+
+    await request(server)
+      .get("/api/v1/delivery/admin/config")
+      .set(bearer(tokens.accountant))
+      .expect(403);
+    await request(server)
+      .patch("/api/v1/delivery/admin/etraps/25")
+      .set(bearer(tokens.customer))
+      .send({ price: 22 })
+      .expect(403);
+
+    await request(server)
+      .post("/api/v1/delivery/admin/welayats")
+      .set(bearer(tokens.accountant))
+      .send({ nameRu: "Запрещённый", nameTk: "Gadagan" })
+      .expect(403);
+    const createdWelayatResponse = await request(server)
+      .post("/api/v1/delivery/admin/welayats")
+      .set(bearer(tokens.admin))
+      .send({
+        nameEn: "Test region",
+        nameRu: "Тестовый велаят",
+        nameTk: "Synag welaýaty",
+        sortOrder: 99,
+      })
+      .expect(201);
+    const createdWelayat = createdWelayatResponse.body as {
+      id: number;
+      nameRu: string;
+      sortOrder: number;
+      etraps: unknown[];
+    };
+    expect(typeof createdWelayat.id).toBe("number");
+    expect(createdWelayat).toMatchObject({
+      nameRu: "Тестовый велаят",
+      sortOrder: 99,
+      etraps: [],
+    });
+    await request(server)
+      .post("/api/v1/delivery/admin/welayats")
+      .set(bearer(tokens.admin))
+      .send({ nameRu: "Тестовый велаят", nameTk: "Başga at" })
+      .expect(409);
+    await request(server)
+      .patch(`/api/v1/delivery/admin/welayats/${createdWelayat.id}`)
+      .set(bearer(tokens.admin))
+      .send({ nameRu: "Новый велаят", sortOrder: 7 })
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body).toMatchObject({
+          id: createdWelayat.id,
+          nameRu: "Новый велаят",
+          sortOrder: 7,
+        });
+      });
+
+    await request(server)
+      .post("/api/v1/delivery/admin/etraps")
+      .set(bearer(tokens.admin))
+      .send({
+        welayatId: 999_999,
+        nameRu: "Нет региона",
+        nameTk: "Welaýatsyz",
+      })
+      .expect(404);
+    const createdEtrapResponse = await request(server)
+      .post("/api/v1/delivery/admin/etraps")
+      .set(bearer(tokens.admin))
+      .send({
+        welayatId: createdWelayat.id,
+        nameEn: "Test district",
+        nameRu: "Тестовый район",
+        nameTk: "Synag etraby",
+        queuePosition: 3,
+        price: 31.5,
+        freeDeliveryThreshold: null,
+        isDeliveryEnabled: true,
+      })
+      .expect(201);
+    const createdEtrap = createdEtrapResponse.body as {
+      id: number;
+      welayatId: number;
+      nameRu: string;
+      nameTk: string;
+      queuePosition: number | null;
+      price: number;
+      freeDeliveryThreshold: number | null;
+      isDeliveryEnabled: boolean;
+    };
+    expect(typeof createdEtrap.id).toBe("number");
+    expect(createdEtrap).toMatchObject({
+      welayatId: createdWelayat.id,
+      nameRu: "Тестовый район",
+      nameTk: "Synag etraby",
+      queuePosition: 3,
+      price: 31.5,
+      freeDeliveryThreshold: null,
+      isDeliveryEnabled: true,
+    });
+    await request(server)
+      .post("/api/v1/delivery/admin/etraps")
+      .set(bearer(tokens.admin))
+      .send({
+        welayatId: createdWelayat.id,
+        nameRu: "Тестовый район",
+        nameTk: "Başga etrap",
+      })
+      .expect(409);
+    await request(server)
+      .patch(`/api/v1/delivery/admin/etraps/${createdEtrap.id}`)
+      .set(bearer(tokens.admin))
+      .send({
+        nameRu: "Новый район",
+        queuePosition: null,
+        price: 32,
+        freeDeliveryThreshold: 250,
+      })
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body).toMatchObject({
+          nameRu: "Новый район",
+          queuePosition: null,
+          price: 32,
+          freeDeliveryThreshold: 250,
+        });
+      });
+
+    const configurablePublic = await request(server)
+      .get("/api/v1/delivery/config")
+      .expect(200);
+    const configurableConfig =
+      configurablePublic.body as DeliveryConfigResponse;
+    const configuredWelayat = configurableConfig.welayats.find(
+      ({ id }) => id === createdWelayat.id,
+    );
+    expect(configuredWelayat?.nameRu).toBe("Новый велаят");
+    const configuredEtrap = configuredWelayat?.etraps.find(
+      ({ id }) => id === createdEtrap.id,
+    );
+    expect(configuredEtrap).toMatchObject({
+      nameRu: "Новый район",
+      price: 32,
+    });
+
+    await request(server)
+      .patch("/api/v1/delivery/admin/etraps/25")
+      .set(bearer(tokens.admin))
+      .send({
+        price: 22,
+        freeDeliveryThreshold: 200,
+        isDeliveryEnabled: true,
+      })
+      .expect(200);
+
+    const districtOrder = await createOrder(tokens.customer, {
+      deliveryEtrapId: 25,
+      address: "District pricing street",
+      latitude: 37.95031,
+      longitude: 58.38031,
+    });
+    expect(districtOrder).toMatchObject({
+      subtotal: 150,
+      deliveryFee: 22,
+      total: 172,
+      deliveryEtrapId: 25,
+      deliveryWelayatName: "Ашхабад",
+      deliveryEtrapName: "1 мкр",
+    });
+
+    await request(server)
+      .patch("/api/v1/delivery/admin/etraps/25")
+      .set(bearer(tokens.admin))
+      .send({ price: null })
+      .expect(400);
+    await request(server)
+      .patch("/api/v1/delivery/admin/etraps/25")
+      .set(bearer(tokens.admin))
+      .send({ freeDeliveryThreshold: null })
+      .expect(200);
+
+    await request(server)
+      .patch("/api/v1/delivery/admin/etraps/25")
+      .set(bearer(tokens.admin))
+      .send({ isDeliveryEnabled: false })
+      .expect(200);
+    await request(server)
+      .post("/api/v1/orders")
+      .set(bearer(tokens.customer))
+      .send({
+        items: [{ productId, quantity: 2 }],
+        deliveryEtrapId: 25,
+        address: "Disabled district street",
+        latitude: 37.95032,
+        longitude: 58.38032,
+      })
+      .expect(400);
+
+    await request(server)
+      .patch("/api/v1/delivery/admin/settings")
+      .set(bearer(tokens.admin))
+      .send({ fallbackPrice: 18, fallbackFreeDeliveryThreshold: 160 })
+      .expect(200);
+    const legacyOrder = await createOrder(tokens.customer, {
+      address: "Legacy delivery street",
+      latitude: 37.95033,
+      longitude: 58.38033,
+    });
+    expect(legacyOrder).toMatchObject({
+      subtotal: 150,
+      deliveryFee: 18,
+      total: 168,
+      deliveryEtrapId: null,
+    });
+
+    await request(server)
+      .patch("/api/v1/delivery/admin/etraps/25")
+      .set(bearer(tokens.admin))
+      .send({
+        price: 15,
+        freeDeliveryThreshold: 150,
+        isDeliveryEnabled: true,
+      })
+      .expect(200);
+    await request(server)
+      .patch("/api/v1/delivery/admin/settings")
+      .set(bearer(tokens.admin))
+      .send({ fallbackPrice: 15, fallbackFreeDeliveryThreshold: 150 })
+      .expect(200);
   });
 
   it("rejects missing, malformed, wrong-audience and inactive-user tokens", async () => {
@@ -1065,6 +1338,13 @@ describe("backend security and critical workflow", () => {
     const plan = response.body as ReceiptPrintPlanResponse;
 
     expect(plan.orderId).toBe(order.id);
+    expect(plan.summary).toEqual({
+      subtotal: 135,
+      discount: 0,
+      deliveryFee: 15,
+      total: 150,
+      deliveryAreaName: null,
+    });
     expect(plan.jobs).toEqual([
       {
         printerIp: "192.168.123.100",

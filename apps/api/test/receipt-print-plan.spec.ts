@@ -6,6 +6,11 @@ describe("receipt print plan", () => {
     const plan = buildReceiptPrintPlan({
       id: "00000000-0000-4000-8000-000000000001",
       number: 42,
+      subtotal: 140,
+      discount: 10,
+      deliveryFee: 15,
+      total: 145,
+      deliveryEtrapName: "Мир 1",
       items: [
         {
           id: "00000000-0000-4000-8000-000000000011",
@@ -45,6 +50,13 @@ describe("receipt print plan", () => {
     expect(plan).toEqual({
       orderId: "00000000-0000-4000-8000-000000000001",
       orderNumber: 42,
+      summary: {
+        subtotal: 140,
+        discount: 10,
+        deliveryFee: 15,
+        total: 145,
+        deliveryAreaName: "Мир 1",
+      },
       jobs: [
         {
           printerIp: "192.168.123.100",

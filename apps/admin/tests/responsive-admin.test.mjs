@@ -22,9 +22,14 @@ test("admin tables avoid nested horizontal scrolling on constrained screens", as
 
   assert.match(styles, /table-layout: auto;/);
   assert.match(styles, /container-name: admin-data-table;/);
+  assert.match(styles, /@container admin-data-table \(max-width: 760px\)/);
   assert.match(
     styles,
-    /@container admin-data-table \(max-width: 760px\)/,
+    /@container admin-data-table \(max-width: 760px\)[\s\S]*?\.data-table--orders\s*\{/,
+  );
+  assert.doesNotMatch(
+    styles,
+    /@container admin-data-table \(max-width: 1200px\)/,
   );
   assert.match(styles, /height: max-content;/);
   assert.match(styles, /content: attr\(data-label\);/);

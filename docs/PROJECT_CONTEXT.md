@@ -717,6 +717,15 @@ three/two/one-column board. It adds no dependency or polling loop: the active
 view keeps one existing 12-second TanStack Query observer, with a server-side
 multi-status filter ensuring cook/courier queues are not displaced by history.
 
+The 2026-08-21 compact-order-queue build measures the static SPA bootstrap at
+240.9 KB raw / 77.4 KB gzip, the lazy order-board chunk at 56.9 KB / 15.9 KB
+gzip, and CSS at 130.1 KB / 26.2 KB gzip. The density change adds no dependency,
+request or polling loop. A 50-order visual fixture at 1440 px and 390 px keeps
+every active card collapsed at a 79 px summary height, renders only the
+virtualized viewport, and has no page-level horizontal overflow. The detailed
+table remains a dense table above the phone breakpoint and becomes labelled
+cards only at 760 px or below.
+
 ## Decision log
 
 - 2026-07-27: media moved to private S3-compatible storage.
@@ -1064,3 +1073,8 @@ multi-status filter ensuring cook/courier queues are not displaced by history.
   products/categories instead of deleting rows, so old order references remain
   valid; banners are unchanged and production still requires a verified backup
   plus dry-run before apply.
+- 2026-08-21: the order workspace stopped auto-expanding active orders. Every
+  virtualized Kanban card now starts as a compact summary and exposes its full
+  workflow only on demand; the detailed order table retains dense desktop and
+  laptop rows instead of turning them into large cards before the 760 px phone
+  breakpoint.

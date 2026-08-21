@@ -85,6 +85,16 @@ test("kanban virtualizes large lanes and keeps history collapsed", async () => {
   assert.match(source, /useFlushSync: false/);
   assert.match(source, /data-testid="order-kanban-archive"/);
   assert.match(source, /className="order-kanban-card-summary"/);
+  assert.match(
+    source,
+    /data-testid=\{`order-kanban-summary-\$\{order\.id\}`\}/,
+  );
+  assert.match(
+    source,
+    /const \[isExpanded, setIsExpanded\] = useState\(false\)/,
+  );
+  assert.match(source, /estimateSize: \(\) => 78/);
+  assert.doesNotMatch(source, /startsExpanded/);
 });
 
 test("courier workspace renders assigned orders beside GPS sharing", async () => {

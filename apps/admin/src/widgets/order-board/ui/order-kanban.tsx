@@ -69,12 +69,6 @@ function deliveryMeta(order: Order) {
     .join(" · ");
 }
 
-function startsExpanded(status: OrderStatus) {
-  return ["NEW", "CONFIRMED", "SENT_TO_KITCHEN", "COOKING", "READY"].includes(
-    status,
-  );
-}
-
 function OrderCard({
   order,
   role,
@@ -103,9 +97,7 @@ function OrderCard({
     order.status === "READY" &&
     !order.packingConfirmedAt &&
     ["ADMIN", "SUPER_ADMIN"].includes(role);
-  const [isExpanded, setIsExpanded] = useState(() =>
-    startsExpanded(order.status),
-  );
+  const [isExpanded, setIsExpanded] = useState(false);
 
   return (
     <details
@@ -114,7 +106,10 @@ function OrderCard({
       open={isExpanded}
       onToggle={(event) => setIsExpanded(event.currentTarget.open)}
     >
-      <summary className="order-kanban-card-summary">
+      <summary
+        className="order-kanban-card-summary"
+        data-testid={`order-kanban-summary-${order.id}`}
+      >
         <span className="order-kanban-card-summary-main">
           <strong>#{order.number}</strong>
           <time dateTime={order.createdAt}>
@@ -325,7 +320,7 @@ function VirtualizedOrderLane({
   const virtualizer = useVirtualizer({
     count: orders.length,
     getScrollElement: () => scrollRef.current,
-    estimateSize: () => (archive ? 150 : 420),
+    estimateSize: () => 78,
     getItemKey,
     overscan: 3,
     useFlushSync: false,

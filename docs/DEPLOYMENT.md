@@ -236,6 +236,22 @@ npm --prefix apps/api run catalog:seed -- \
   --apply
 ```
 
+To replace the visible menu rather than only upsert supplied slugs, add the
+separate explicit flag below. Product rows may include a nullable
+`receiptPrinterIp`; non-private or malformed IPv4 values fail validation.
+Products may also provide a selector label and up to 30 explicit sellable
+variants. Supplied variants are synchronized by name; omitting the variants
+field preserves existing options. The replacement soft-disables omitted
+products and categories in the same transaction, preserving historical orders,
+and does not replace banners:
+
+```bash
+npm --prefix apps/api run catalog:seed -- \
+  --source /absolute/path/to/seed_package \
+  --apply \
+  --replace-catalog
+```
+
 For production, first create and verify a timestamped full PostgreSQL backup,
 copy only `seed_export.json` plus the canonical `images/` directory into a
 private mode-700 directory below `/opt/alowalow/production/imports`, and run
@@ -246,10 +262,12 @@ URL, public catalog/banner responses, API health, and the audit entry before
 removing the private working copy. Retain the database backup according to the
 backup policy.
 
-The import is safe to repeat: categories/products match by slug and banners by
-media path. It does not delete unlisted catalog records, variants, users,
-orders, or the pre-existing banner set. Products with no image in the package
-do not lose an image later added through the admin. The importer preserves
+The default import is safe to repeat: categories/products match by slug and
+banners by media path. It does not delete unlisted catalog records, variants,
+users, orders, or the pre-existing banner set. The optional replacement mode
+only soft-disables omitted products/categories; it never deletes them or
+touches the pre-existing banner set. Products with no image in the package do
+not lose an image later added through the admin. The importer preserves
 existing variants and keeps product price at the cheapest active variant.
 
 ## Active HTTPS and certificate renewal

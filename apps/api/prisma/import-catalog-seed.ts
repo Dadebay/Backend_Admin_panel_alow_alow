@@ -14,15 +14,20 @@ import {
 
 const CACHE_CONTROL = "public, max-age=31536000, immutable";
 
-type CliOptions = { source: string; apply: boolean };
+type CliOptions = { source: string; apply: boolean; replaceCatalog: boolean };
 
 function parseOptions(argv: string[]): CliOptions {
   let source: string | undefined;
   let apply = false;
+  let replaceCatalog = false;
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index];
     if (argument === "--apply") {
       apply = true;
+      continue;
+    }
+    if (argument === "--replace-catalog") {
+      replaceCatalog = true;
       continue;
     }
     if (argument === "--source") {
@@ -37,7 +42,7 @@ function parseOptions(argv: string[]): CliOptions {
     throw new Error(`Unknown catalog seed option: ${argument ?? ""}`);
   }
   if (!source) throw new Error("Use --source <directory> for the seed package");
-  return { source, apply };
+  return { source, apply, replaceCatalog };
 }
 
 function requiredEnv(name: string) {
@@ -99,6 +104,7 @@ async function main() {
     images: bundle.images.length,
     imageBytes: bundle.images.reduce((sum, image) => sum + image.bytes, 0),
     normalization: bundle.seed.normalization,
+    replaceCatalog: options.replaceCatalog,
   };
 
   if (!options.apply) {
@@ -114,7 +120,9 @@ async function main() {
   });
   try {
     await uploadImages(s3, bucket, bundle.images);
-    const result = await applyCatalogSeed(prisma, bundle.seed);
+    const result = await applyCatalogSeed(prisma, bundle.seed, {
+      replaceCatalog: options.replaceCatalog,
+    });
     console.log(
       JSON.stringify({ mode: "applied", ...summary, result }, null, 2),
     );

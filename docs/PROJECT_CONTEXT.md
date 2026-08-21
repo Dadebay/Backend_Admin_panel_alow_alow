@@ -480,13 +480,19 @@ separate gateway computer.
 
 External catalog seed packages are never executed as supplied. The repository
 CLI first performs a non-mutating strict JSON/file-set/WebP validation and only
-mutates with an explicit `--apply`. It uploads all validated objects before one
-serializable PostgreSQL transaction, upserts by category/product slug and
-banner media path, preserves product variants and existing images when an
-imported product has no image, and records an aggregate audit event. Re-running
-the same package does not duplicate catalog rows. Production requires a
-database backup before apply; the general development `db:seed` command is not
-a production import mechanism.
+mutates with an explicit `--apply`. It validates an optional private LAN
+receipt-printer IPv4 address per product and optional generic sellable variants,
+uploads all validated objects before one serializable PostgreSQL transaction,
+upserts by category/product slug and banner media path, synchronizes variants
+only when the package explicitly supplies them, preserves existing variants
+otherwise, preserves existing images when an imported product has no image,
+and records an aggregate audit event. Re-running the same package does not
+duplicate catalog rows. An additional explicit
+`--replace-catalog` mode soft-disables categories and products missing from the
+package in that same transaction, preserving historical order references;
+banners are not replaced by this option. Production requires a database backup
+before apply; the general development `db:seed` command is not a production
+import mechanism.
 
 New order clients send `variantId` for a configured variant. For backward
 compatibility, omitting it selects the cheapest active variant; an ID belonging
@@ -1052,3 +1058,9 @@ multi-status filter ensuring cook/courier queues are not displaced by history.
   role-scoped sidebar remain mounted. Direct access to a role-forbidden section
   redirects to the role's default allowed route, and Nginx continues to serve
   all browser routes through the static SPA entry document.
+- 2026-08-21: the controlled catalog importer gained per-product private LAN
+  receipt-printer routing, optional variant synchronization, and an explicit
+  atomic replacement mode. Replacement soft-disables unlisted
+  products/categories instead of deleting rows, so old order references remain
+  valid; banners are unchanged and production still requires a verified backup
+  plus dry-run before apply.

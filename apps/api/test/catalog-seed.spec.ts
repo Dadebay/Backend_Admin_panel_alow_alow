@@ -40,6 +40,9 @@ function rawSeed(
         name: "AlowAlow Burger",
         description: "Говяжья котлета",
         price: 48,
+        receiptPrinterIp: "192.168.123.100",
+        variantLabel: null,
+        variants: [],
         sortOrder: 0,
         isActive: true,
         categorySlug,
@@ -74,6 +77,7 @@ describe("catalog seed", () => {
 
     expect(seed.products[0]).toMatchObject({
       name: "A7-tagam Burger",
+      receiptPrinterIp: "192.168.123.100",
       images: [],
     });
     expect(seed.banners[0]).toMatchObject({
@@ -86,6 +90,30 @@ describe("catalog seed", () => {
       placeholderBannerFieldsRemoved: 2,
       externalBannerLinksRemoved: 1,
     });
+  });
+
+  it("rejects malformed and public receipt-printer addresses", () => {
+    const malformed = rawSeed();
+    malformed.products[0]!.receiptPrinterIp = "192.168.1.999";
+    expect(() => parseCatalogSeed(malformed)).toThrow(/private LAN IPv4/);
+
+    const publicAddress = rawSeed();
+    publicAddress.products[0]!.receiptPrinterIp = "8.8.8.8";
+    expect(() => parseCatalogSeed(publicAddress)).toThrow(/private LAN IPv4/);
+  });
+
+  it("requires a selector label for imported variants", () => {
+    const raw = rawSeed();
+    raw.products[0]!.variants = [
+      {
+        name: "Большая",
+        description: null,
+        price: 65,
+        sortOrder: 0,
+        isActive: true,
+      },
+    ];
+    expect(() => parseCatalogSeed(raw)).toThrow(/variantLabel.*required/);
   });
 
   it("rejects unknown fields, unsafe image names and missing category relations", () => {
@@ -188,6 +216,7 @@ describe("catalog seed", () => {
       });
       expect(Number(saved.price)).toBe(65);
       expect(saved.name).toBe("A7-tagam Burger");
+      expect(saved.receiptPrinterIp).toBe("192.168.123.100");
       expect(saved.images).toHaveLength(1);
       expect(saved.variants).toHaveLength(1);
       expect(
@@ -203,6 +232,171 @@ describe("catalog seed", () => {
       await prisma.banner.deleteMany({ where: { imageUrl } });
       await prisma.product.deleteMany({ where: { slug: productSlug } });
       await prisma.category.deleteMany({ where: { slug: categorySlug } });
+    }
+  });
+
+  it("imports explicit variants idempotently and deactivates omitted options", async () => {
+    const suffix = randomUUID();
+    const categorySlug = `variant-category-${suffix}`;
+    const productSlug = `variant-product-${suffix}`;
+    const exportedAt = new Date().toISOString();
+    const raw = rawSeed({ categorySlug, productSlug, exportedAt });
+    raw.products[0]!.variantLabel = "Размер";
+    raw.products[0]!.variants = [
+      {
+        name: "Маленькая",
+        description: null,
+        price: 48,
+        sortOrder: 0,
+        isActive: true,
+      },
+      {
+        name: "Большая",
+        description: null,
+        price: 65,
+        sortOrder: 1,
+        isActive: true,
+      },
+    ];
+    const firstSeed = parseCatalogSeed(raw);
+
+    try {
+      const first = await applyCatalogSeed(prisma, firstSeed);
+      expect(first.productVariants).toEqual({
+        created: 2,
+        updated: 0,
+        deactivated: 0,
+      });
+      const firstSaved = await prisma.product.findUniqueOrThrow({
+        where: { slug: productSlug },
+        include: { variants: { orderBy: { sortOrder: "asc" } } },
+      });
+      expect(Number(firstSaved.price)).toBe(48);
+      expect(firstSaved).toMatchObject({
+        variantLabel: "Размер",
+        variants: [
+          { name: "Маленькая", isActive: true },
+          { name: "Большая", isActive: true },
+        ],
+      });
+
+      raw.products[0]!.variants = [
+        {
+          name: "Большая",
+          description: null,
+          price: 70,
+          sortOrder: 0,
+          isActive: true,
+        },
+      ];
+      const second = await applyCatalogSeed(prisma, parseCatalogSeed(raw));
+      expect(second.productVariants).toEqual({
+        created: 0,
+        updated: 1,
+        deactivated: 1,
+      });
+      const secondSaved = await prisma.product.findUniqueOrThrow({
+        where: { slug: productSlug },
+        include: { variants: { orderBy: { name: "asc" } } },
+      });
+      expect(Number(secondSaved.price)).toBe(70);
+      expect(secondSaved).toMatchObject({
+        variants: [
+          { name: "Большая", isActive: true },
+          { name: "Маленькая", isActive: false },
+        ],
+      });
+    } finally {
+      await prisma.auditLog.deleteMany({
+        where: { action: "catalog.seed.imported", entityId: exportedAt },
+      });
+      await prisma.banner.deleteMany({
+        where: { imageUrl: `/api/v1/media/${raw.banners[0]!.imageFile}` },
+      });
+      await prisma.product.deleteMany({ where: { slug: productSlug } });
+      await prisma.category.deleteMany({ where: { slug: categorySlug } });
+    }
+  });
+
+  it("atomically deactivates catalog records omitted from an explicit replacement", async () => {
+    const suffix = randomUUID();
+    const keptCategorySlug = `kept-category-${suffix}`;
+    const keptProductSlug = `kept-product-${suffix}`;
+    const oldCategorySlug = `old-category-${suffix}`;
+    const oldProductSlug = `old-product-${suffix}`;
+    const seed = parseCatalogSeed(
+      rawSeed({
+        categorySlug: keptCategorySlug,
+        productSlug: keptProductSlug,
+        exportedAt: new Date().toISOString(),
+      }),
+    );
+    const activeCategoryIds = (
+      await prisma.category.findMany({
+        where: { isActive: true },
+        select: { id: true },
+      })
+    ).map(({ id }) => id);
+    const activeProductIds = (
+      await prisma.product.findMany({
+        where: { isActive: true },
+        select: { id: true },
+      })
+    ).map(({ id }) => id);
+
+    try {
+      const oldCategory = await prisma.category.create({
+        data: { name: "Старое меню", slug: oldCategorySlug },
+      });
+      await prisma.product.create({
+        data: {
+          categoryId: oldCategory.id,
+          name: "Старое блюдо",
+          slug: oldProductSlug,
+          description: "Историческая позиция",
+          price: 10,
+        },
+      });
+
+      const result = await applyCatalogSeed(prisma, seed, {
+        replaceCatalog: true,
+      });
+
+      expect(result.categories.deactivated).toBeGreaterThanOrEqual(1);
+      expect(result.products.deactivated).toBeGreaterThanOrEqual(1);
+      await expect(
+        prisma.category.findUniqueOrThrow({ where: { slug: oldCategorySlug } }),
+      ).resolves.toMatchObject({ isActive: false });
+      await expect(
+        prisma.product.findUniqueOrThrow({ where: { slug: oldProductSlug } }),
+      ).resolves.toMatchObject({ isActive: false });
+      await expect(
+        prisma.product.findUniqueOrThrow({ where: { slug: keptProductSlug } }),
+      ).resolves.toMatchObject({
+        isActive: true,
+        receiptPrinterIp: "192.168.123.100",
+      });
+    } finally {
+      await prisma.auditLog.deleteMany({
+        where: { action: "catalog.seed.imported", entityId: seed.exportedAt },
+      });
+      await prisma.banner.deleteMany({
+        where: { imageUrl: `/api/v1/media/${seed.banners[0]!.imageFile}` },
+      });
+      await prisma.product.deleteMany({
+        where: { slug: { in: [keptProductSlug, oldProductSlug] } },
+      });
+      await prisma.category.deleteMany({
+        where: { slug: { in: [keptCategorySlug, oldCategorySlug] } },
+      });
+      await prisma.category.updateMany({
+        where: { id: { in: activeCategoryIds } },
+        data: { isActive: true },
+      });
+      await prisma.product.updateMany({
+        where: { id: { in: activeProductIds } },
+        data: { isActive: true },
+      });
     }
   });
 });

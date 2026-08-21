@@ -28,11 +28,22 @@ export type CatalogSeedProductImage = {
   alt: string | null;
 };
 
+export type CatalogSeedProductVariant = {
+  name: string;
+  description: string | null;
+  price: number;
+  sortOrder: number;
+  isActive: boolean;
+};
+
 export type CatalogSeedProduct = {
   slug: string;
   name: string;
   description: string;
   price: number;
+  receiptPrinterIp: string | null;
+  variantLabel: string | null;
+  variants: CatalogSeedProductVariant[];
   sortOrder: number;
   isActive: boolean;
   categorySlug: string;
@@ -76,10 +87,15 @@ export type CatalogSeedBundle = {
 };
 
 export type CatalogSeedApplyResult = {
-  categories: { created: number; updated: number };
-  products: { created: number; updated: number };
+  categories: { created: number; updated: number; deactivated: number };
+  products: { created: number; updated: number; deactivated: number };
+  productVariants: { created: number; updated: number; deactivated: number };
   banners: { created: number; updated: number };
   productImages: number;
+};
+
+export type CatalogSeedApplyOptions = {
+  replaceCatalog?: boolean;
 };
 
 type NormalizationCounters = CatalogSeed["normalization"];
@@ -169,6 +185,30 @@ function asPrice(value: unknown, path: string) {
     fail(path, "expected a non-negative price with at most two decimal places");
   }
   return value;
+}
+
+function asPrivateLanIpv4(value: unknown, path: string) {
+  const address = asString(value, path, 15, { nullable: true });
+  if (address === null) return null;
+  const parts = address.split(".");
+  if (
+    parts.length !== 4 ||
+    parts.some(
+      (part) =>
+        !/^(?:0|[1-9]\d{0,2})$/.test(part) ||
+        Number(part) < 0 ||
+        Number(part) > 255,
+    )
+  ) {
+    fail(path, "expected a private LAN IPv4 address");
+  }
+  const [first, second] = parts.map(Number);
+  const isPrivate =
+    first === 10 ||
+    (first === 192 && second === 168) ||
+    (first === 172 && second >= 16 && second <= 31);
+  if (!isPrivate) fail(path, "expected a private LAN IPv4 address");
+  return address;
 }
 
 function asSlug(value: unknown, path: string) {
@@ -285,6 +325,9 @@ export function parseCatalogSeed(value: unknown): CatalogSeed {
           "name",
           "description",
           "price",
+          "receiptPrinterIp",
+          "variantLabel",
+          "variants",
           "sortOrder",
           "isActive",
           "categorySlug",
@@ -315,6 +358,46 @@ export function parseCatalogSeed(value: unknown): CatalogSeed {
         images.map(({ imageFile }) => imageFile),
         `${path}.images.imageFile`,
       );
+      const variants = asArray(product.variants, `${path}.variants`, {
+        max: 30,
+        nullable: true,
+      }).map((rawVariant, variantIndex): CatalogSeedProductVariant => {
+        const variantPath = `${path}.variants[${variantIndex}]`;
+        const variant = asRecord(rawVariant, variantPath);
+        onlyKeys(
+          variant,
+          ["name", "description", "price", "sortOrder", "isActive"],
+          variantPath,
+        );
+        return {
+          name: asString(variant.name, `${variantPath}.name`, 120),
+          description: asString(
+            variant.description,
+            `${variantPath}.description`,
+            300,
+            { nullable: true },
+          ),
+          price: asPrice(variant.price, `${variantPath}.price`),
+          sortOrder: asInteger(variant.sortOrder, `${variantPath}.sortOrder`),
+          isActive: asBoolean(variant.isActive, `${variantPath}.isActive`),
+        };
+      });
+      const normalizedVariantNames = variants.map(({ name }) =>
+        name.toLocaleLowerCase(),
+      );
+      ensureUnique(normalizedVariantNames, `${path}.variants.name`);
+      const variantLabel = asString(
+        product.variantLabel,
+        `${path}.variantLabel`,
+        80,
+        { nullable: true },
+      );
+      if (variants.length > 0 && !variantLabel) {
+        fail(`${path}.variantLabel`, "is required when variants are supplied");
+      }
+      if (variants.length === 0 && variantLabel) {
+        fail(`${path}.variantLabel`, "requires at least one variant");
+      }
       return {
         slug: asSlug(product.slug, `${path}.slug`),
         name: normalizedBrandText(
@@ -326,6 +409,12 @@ export function parseCatalogSeed(value: unknown): CatalogSeed {
           counters,
         ),
         price: asPrice(product.price, `${path}.price`),
+        receiptPrinterIp: asPrivateLanIpv4(
+          product.receiptPrinterIp,
+          `${path}.receiptPrinterIp`,
+        ),
+        variantLabel,
+        variants,
         sortOrder: asInteger(product.sortOrder, `${path}.sortOrder`),
         isActive: asBoolean(product.isActive, `${path}.isActive`),
         categorySlug,
@@ -495,7 +584,11 @@ function mediaUrl(filename: string) {
 export async function applyCatalogSeed(
   prisma: PrismaClient,
   seed: CatalogSeed,
+  options: CatalogSeedApplyOptions = {},
 ): Promise<CatalogSeedApplyResult> {
+  if (options.replaceCatalog && !seed.products.length) {
+    throw new Error("Catalog replacement requires at least one product");
+  }
   return prisma.$transaction(
     async (tx) => {
       const categorySlugs = seed.categories.map(({ slug }) => slug);
@@ -527,6 +620,18 @@ export async function applyCatalogSeed(
           })
         ).map(({ imageUrl }) => imageUrl),
       );
+      const deactivatedProducts = options.replaceCatalog
+        ? await tx.product.updateMany({
+            where: { isActive: true, slug: { notIn: productSlugs } },
+            data: { isActive: false },
+          })
+        : { count: 0 };
+      const deactivatedCategories = options.replaceCatalog
+        ? await tx.category.updateMany({
+            where: { isActive: true, slug: { notIn: categorySlugs } },
+            data: { isActive: false },
+          })
+        : { count: 0 };
 
       const categoryIds = new Map<string, string>();
       for (const category of seed.categories) {
@@ -553,6 +658,9 @@ export async function applyCatalogSeed(
       }
 
       let productImageCount = 0;
+      let productVariantsCreated = 0;
+      let productVariantsUpdated = 0;
+      let productVariantsDeactivated = 0;
       for (const product of seed.products) {
         const categoryId = categoryIds.get(product.categorySlug);
         if (!categoryId) {
@@ -562,9 +670,16 @@ export async function applyCatalogSeed(
           where: { product: { slug: product.slug }, isActive: true },
           select: { price: true },
         });
-        const effectivePrice = activeVariants.length
-          ? Math.min(...activeVariants.map(({ price }) => Number(price)))
-          : product.price;
+        const importedActiveVariants = product.variants.filter(
+          ({ isActive }) => isActive,
+        );
+        const effectivePrice = importedActiveVariants.length
+          ? Math.min(...importedActiveVariants.map(({ price }) => price))
+          : product.variants.length
+            ? product.price
+            : activeVariants.length
+              ? Math.min(...activeVariants.map(({ price }) => Number(price)))
+              : product.price;
         const saved = await tx.product.upsert({
           where: { slug: product.slug },
           create: {
@@ -573,6 +688,8 @@ export async function applyCatalogSeed(
             name: product.name,
             description: product.description,
             price: effectivePrice,
+            receiptPrinterIp: product.receiptPrinterIp,
+            variantLabel: product.variantLabel,
             sortOrder: product.sortOrder,
             isActive: product.isActive,
           },
@@ -581,10 +698,48 @@ export async function applyCatalogSeed(
             name: product.name,
             description: product.description,
             price: effectivePrice,
+            receiptPrinterIp: product.receiptPrinterIp,
+            ...(product.variants.length
+              ? { variantLabel: product.variantLabel }
+              : {}),
             sortOrder: product.sortOrder,
             isActive: product.isActive,
           },
         });
+
+        if (product.variants.length) {
+          const importedVariantNames = product.variants.map(({ name }) => name);
+          const existingVariants = await tx.productVariant.findMany({
+            where: { productId: saved.id },
+            select: { name: true },
+          });
+          const existingVariantNames = new Set(
+            existingVariants.map(({ name }) => name),
+          );
+          const deactivated = await tx.productVariant.updateMany({
+            where: {
+              productId: saved.id,
+              isActive: true,
+              name: { notIn: importedVariantNames },
+            },
+            data: { isActive: false },
+          });
+          productVariantsDeactivated += deactivated.count;
+          for (const variant of product.variants) {
+            await tx.productVariant.upsert({
+              where: {
+                productId_name: { productId: saved.id, name: variant.name },
+              },
+              create: { productId: saved.id, ...variant },
+              update: variant,
+            });
+            if (existingVariantNames.has(variant.name)) {
+              productVariantsUpdated += 1;
+            } else {
+              productVariantsCreated += 1;
+            }
+          }
+        }
 
         if (product.images.length) {
           await tx.productImage.deleteMany({ where: { productId: saved.id } });
@@ -628,7 +783,13 @@ export async function applyCatalogSeed(
             categories: seed.categories.length,
             products: seed.products.length,
             productImages: productImageCount,
+            productVariantsCreated,
+            productVariantsUpdated,
+            productVariantsDeactivated,
             banners: seed.banners.length,
+            replaceCatalog: options.replaceCatalog ?? false,
+            deactivatedCategories: deactivatedCategories.count,
+            deactivatedProducts: deactivatedProducts.count,
             normalization: seed.normalization,
           },
         },
@@ -638,10 +799,17 @@ export async function applyCatalogSeed(
         categories: {
           created: seed.categories.length - existingCategories.size,
           updated: existingCategories.size,
+          deactivated: deactivatedCategories.count,
         },
         products: {
           created: seed.products.length - existingProducts.size,
           updated: existingProducts.size,
+          deactivated: deactivatedProducts.count,
+        },
+        productVariants: {
+          created: productVariantsCreated,
+          updated: productVariantsUpdated,
+          deactivated: productVariantsDeactivated,
         },
         banners: {
           created: seed.banners.length - existingBanners.size,

@@ -764,11 +764,6 @@ export class OrdersService {
       }
       if (dto.status === OrderStatus.DELIVERED) {
         updateData.deliveredAt = new Date();
-      } else if (
-        order.status === OrderStatus.DELIVERED &&
-        dto.status === OrderStatus.OUT_FOR_DELIVERY
-      ) {
-        updateData.deliveredAt = null;
       }
       if (dto.status === OrderStatus.COMPLETED) {
         updateData.completedAt = new Date();

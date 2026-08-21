@@ -43,19 +43,13 @@ const transitions: Partial<
   },
   [OrderStatus.OUT_FOR_DELIVERY]: {
     [Role.COURIER]: [OrderStatus.DELIVERED],
-    [Role.ADMIN]: [OrderStatus.ASSIGNED_TO_COURIER, OrderStatus.DELIVERED],
-    [Role.SUPER_ADMIN]: [
-      OrderStatus.ASSIGNED_TO_COURIER,
-      OrderStatus.DELIVERED,
-    ],
+    [Role.ADMIN]: [OrderStatus.DELIVERED],
+    [Role.SUPER_ADMIN]: [OrderStatus.DELIVERED],
   },
   [OrderStatus.DELIVERED]: {
     [Role.COURIER]: [OrderStatus.CASH_RETURNED],
-    [Role.ADMIN]: [OrderStatus.OUT_FOR_DELIVERY, OrderStatus.CASH_RETURNED],
-    [Role.SUPER_ADMIN]: [
-      OrderStatus.OUT_FOR_DELIVERY,
-      OrderStatus.CASH_RETURNED,
-    ],
+    [Role.ADMIN]: [OrderStatus.CASH_RETURNED],
+    [Role.SUPER_ADMIN]: [OrderStatus.CASH_RETURNED],
   },
   [OrderStatus.CASH_RETURNED]: {
     [Role.OPERATOR]: [OrderStatus.COMPLETED],

@@ -56,6 +56,12 @@ test("frontend keeps operators early-only and gives administrators audited corre
   assert.equal(canCancel("COOK", "NEW"), false);
   assert.equal(previousOrderStatus("OPERATOR", "COOKING"), undefined);
   assert.equal(previousOrderStatus("ADMIN", "COOKING"), "SENT_TO_KITCHEN");
+  assert.equal(
+    previousOrderStatus("ADMIN", "ASSIGNED_TO_COURIER"),
+    "READY",
+  );
+  assert.equal(previousOrderStatus("ADMIN", "OUT_FOR_DELIVERY"), undefined);
+  assert.equal(previousOrderStatus("SUPER_ADMIN", "DELIVERED"), undefined);
   assert.equal(canAdministratorEditOrder("ADMIN", "READY"), true);
   assert.equal(canAdministratorEditOrder("ADMIN", "OUT_FOR_DELIVERY"), false);
 });

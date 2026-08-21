@@ -205,7 +205,8 @@ Prisma access in React, or duplicate backend policies in client state.
 - `COURIER`: handles only assigned orders and returns collected cash.
 - `ACCOUNTANT`: performs final cash reconciliation.
 - `ADMIN`: operational administration, audited correction of active orders,
-  backward workflow control, and late cancellation before cash return.
+  backward workflow control before courier pickup, and late cancellation
+  before cash return.
 - `SUPER_ADMIN`: owner-level administrator with all admin access and protected
   authority over the `SUPER_ADMIN` role.
 
@@ -296,10 +297,12 @@ Cancellation:
 Administrators may move an active order one canonical stage backward through
 the same transition endpoint: `CONFIRMED → NEW`, `SENT_TO_KITCHEN → CONFIRMED`,
 `COOKING → SENT_TO_KITCHEN`, `READY → COOKING`,
-`ASSIGNED_TO_COURIER → READY`, `OUT_FOR_DELIVERY → ASSIGNED_TO_COURIER`, and
-`DELIVERED → OUT_FOR_DELIVERY`. Operators never receive backward transitions.
-Rollback clears state that no longer applies, such as courier assignment when
-returning to `READY` and `deliveredAt` when returning to delivery.
+and `ASSIGNED_TO_COURIER → READY`. Operators never receive backward
+transitions. As soon as the courier confirms pickup and the order becomes
+`OUT_FOR_DELIVERY`, backward transitions are forbidden for every role; an
+administrator may still use the separately authorized cancellation action
+through `DELIVERED`. A pre-pickup rollback clears state that no longer applies,
+such as courier assignment when returning to `READY`.
 
 Before courier pickup, an administrator may edit the complete business-owned
 order content through `PATCH /orders/:id/admin-edit`: add/remove items and
@@ -649,7 +652,9 @@ Current status:
   composition, quantities, catalog additions, address search/map, delivery
   etrap/details, note, and courier. Backend recalculation and audit remain the
   authority. Admin cards also expose one-step rollback and late cancellation;
-  operators keep forward-only transitions and early cancellation;
+  operators keep forward-only transitions and early cancellation. The admin
+  rollback action disappears after courier pickup, and the backend rejects any
+  attempted backward transition from `OUT_FOR_DELIVERY` or `DELIVERED`;
 - Swagger response DTOs generate the TypeScript contract used by the frontend;
 - TanStack Query owns server state and TanStack Table renders admin lists;
 - React Hook Form owns all admin form state and Zod schemas validate values
@@ -1240,7 +1245,8 @@ remain immediate, and no polling or eager route load was added.
   address, configured price and unambiguous etrap match, and marker movement
   updates the visible search field instead of retaining the previous result.
 - 2026-08-21: administrators gained audited, version-locked pre-pickup order
-  editing, canonical one-step rollback, and cancellation through `DELIVERED`.
+  editing, canonical one-step pre-pickup rollback, and cancellation through
+  `DELIVERED`.
   Operators remain forward-only and may cancel only before cooking. Courier
   pickup/completion were documented on the existing transition endpoint.
 - 2026-08-21: assisted official-address search became a 350 ms debounced
@@ -1249,3 +1255,7 @@ remain immediate, and no polling or eager route load was added.
   configured match is stored automatically and every other location uses the
   backend fallback quote, so the operator never repeats the address decision
   in a mandatory district dropdown.
+- 2026-08-22: administrator workflow rollback was limited to pre-pickup
+  orders. After the assigned courier confirms pickup and the order becomes
+  `OUT_FOR_DELIVERY`, neither `ADMIN` nor `SUPER_ADMIN` may move it backward;
+  the separately authorized late-cancellation policy remains unchanged.

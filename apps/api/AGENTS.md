@@ -59,8 +59,10 @@ instructions.
   - `OPERATOR`: `NEW`, `CONFIRMED`, and `SENT_TO_KITCHEN` only;
   - `ADMIN` and `SUPER_ADMIN`: active operational statuses through
     `DELIVERED`, but never `CASH_RETURNED` or a later/terminal status.
-- Only `ADMIN` and `SUPER_ADMIN` may move an active order backward or edit
-  business-owned order content before courier pickup. Recalculate items,
+- Only `ADMIN` and `SUPER_ADMIN` may move an active order backward before
+  courier pickup or edit business-owned order content before courier pickup.
+  Once the courier moves an order to `OUT_FOR_DELIVERY`, no role may move it
+  backward. Recalculate items,
   promo discount, delivery, total, and nearest branch on the backend; never
   accept raw financial totals. Content changes after packing invalidate the
   packing confirmation, and item changes after cooking began return the order

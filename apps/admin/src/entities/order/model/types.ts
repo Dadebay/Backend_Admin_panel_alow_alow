@@ -111,8 +111,6 @@ const previousByStatus: Partial<Record<OrderStatus, OrderStatus>> = {
   COOKING: "SENT_TO_KITCHEN",
   READY: "COOKING",
   ASSIGNED_TO_COURIER: "READY",
-  OUT_FOR_DELIVERY: "ASSIGNED_TO_COURIER",
-  DELIVERED: "OUT_FOR_DELIVERY",
 };
 
 export function previousOrderStatus(role: Role, status: OrderStatus) {

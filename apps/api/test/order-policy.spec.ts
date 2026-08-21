@@ -61,20 +61,20 @@ describe("order workflow policy", () => {
     [`${OrderStatus.OUT_FOR_DELIVERY}:${Role.COURIER}`, OrderStatus.DELIVERED],
     [
       `${OrderStatus.OUT_FOR_DELIVERY}:${Role.ADMIN}`,
-      [OrderStatus.ASSIGNED_TO_COURIER, OrderStatus.DELIVERED],
+      OrderStatus.DELIVERED,
     ],
     [
       `${OrderStatus.OUT_FOR_DELIVERY}:${Role.SUPER_ADMIN}`,
-      [OrderStatus.ASSIGNED_TO_COURIER, OrderStatus.DELIVERED],
+      OrderStatus.DELIVERED,
     ],
     [`${OrderStatus.DELIVERED}:${Role.COURIER}`, OrderStatus.CASH_RETURNED],
     [
       `${OrderStatus.DELIVERED}:${Role.ADMIN}`,
-      [OrderStatus.OUT_FOR_DELIVERY, OrderStatus.CASH_RETURNED],
+      OrderStatus.CASH_RETURNED,
     ],
     [
       `${OrderStatus.DELIVERED}:${Role.SUPER_ADMIN}`,
-      [OrderStatus.OUT_FOR_DELIVERY, OrderStatus.CASH_RETURNED],
+      OrderStatus.CASH_RETURNED,
     ],
     [`${OrderStatus.CASH_RETURNED}:${Role.OPERATOR}`, OrderStatus.COMPLETED],
     [`${OrderStatus.CASH_RETURNED}:${Role.ADMIN}`, OrderStatus.COMPLETED],
@@ -104,6 +104,25 @@ describe("order workflow policy", () => {
         Role.COURIER,
       ),
     ).toThrow("cannot move an order");
+  });
+
+  it("forbids every backward transition after courier pickup", () => {
+    for (const role of [Role.ADMIN, Role.SUPER_ADMIN]) {
+      expect(() =>
+        assertOrderTransition(
+          OrderStatus.OUT_FOR_DELIVERY,
+          OrderStatus.ASSIGNED_TO_COURIER,
+          role,
+        ),
+      ).toThrow("cannot move an order");
+      expect(() =>
+        assertOrderTransition(
+          OrderStatus.DELIVERED,
+          OrderStatus.OUT_FOR_DELIVERY,
+          role,
+        ),
+      ).toThrow("cannot move an order");
+    }
   });
 
   it("keeps operators early-only while administrators may cancel active unsettled orders", () => {

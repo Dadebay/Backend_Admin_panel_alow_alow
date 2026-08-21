@@ -189,7 +189,7 @@ export function BranchManager() {
 
   return (
     <section className="admin-section" data-testid="branch-manager">
-      <header className="section-head">
+      <header className="section-head" data-testid="branch-header">
         <div>
           <span className="eyebrow">ТОЧКИ ПРИГОТОВЛЕНИЯ И ВЫДАЧИ</span>
           <h1>Филиалы</h1>
@@ -199,17 +199,22 @@ export function BranchManager() {
           </p>
         </div>
         {canEdit && (
-          <button
-            className="primary-button"
-            data-testid="branch-create-open"
-            type="button"
-            onClick={() => {
-              if (showForm) closeEditor();
-              else openEditor(null);
-            }}
+          <div
+            className="header-actions section-header-actions"
+            data-testid="branch-header-actions"
           >
-            + Филиал
-          </button>
+            <button
+              className="primary-button"
+              data-testid="branch-create-open"
+              type="button"
+              onClick={() => {
+                if (showForm) closeEditor();
+                else openEditor(null);
+              }}
+            >
+              + Филиал
+            </button>
+          </div>
         )}
       </header>
 
@@ -310,7 +315,11 @@ export function BranchManager() {
         </form>
       )}
 
-      <article className="table-card">
+      <article className="table-card" data-testid="branch-table-card">
+        <div className="card-title">
+          <h2>Все филиалы</h2>
+          <span>{branches.data?.length ?? 0}</span>
+        </div>
         <AsyncPanel
           pending={branches.isPending}
           error={branches.error}

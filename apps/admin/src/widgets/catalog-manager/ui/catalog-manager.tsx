@@ -450,15 +450,18 @@ export function CatalogManager() {
     );
 
   return (
-    <section className="admin-section">
-      <header className="section-head">
+    <section className="admin-section" data-testid="catalog-manager">
+      <header className="section-head" data-testid="catalog-header">
         <div>
           <span className="eyebrow">S3 + POSTGRESQL</span>
           <h1>Каталог кафе</h1>
           <p>Категории, блюда, описание, цена, доступность и WebP-изображения.</p>
         </div>
         {canEdit && (
-          <div className="header-actions">
+          <div
+            className="header-actions section-header-actions"
+            data-testid="catalog-header-actions"
+          >
             <button
               className="secondary-button"
               data-testid="catalog-category-open"

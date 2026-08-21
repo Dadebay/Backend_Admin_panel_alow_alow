@@ -179,8 +179,8 @@ export function StaffManager() {
   const mutationError = actions.createStaff.error || actions.updateStaff.error;
 
   return (
-    <section className="admin-section">
-      <header className="section-head">
+    <section className="admin-section" data-testid="staff-manager">
+      <header className="section-head" data-testid="staff-header">
         <div>
           <span className="eyebrow">ДОСТУПЫ И РОЛИ</span>
           <h1>Команда</h1>
@@ -189,16 +189,22 @@ export function StaffManager() {
           </p>
         </div>
         {canEdit && (
-          <button
-            className="primary-button"
-            onClick={() => {
-              setEditing(null);
-              reset();
-              setShowForm((value) => !value);
-            }}
+          <div
+            className="header-actions section-header-actions"
+            data-testid="staff-header-actions"
           >
-            + Сотрудник
-          </button>
+            <button
+              className="primary-button"
+              data-testid="staff-form-open"
+              onClick={() => {
+                setEditing(null);
+                reset();
+                setShowForm((value) => !value);
+              }}
+            >
+              + Сотрудник
+            </button>
+          </div>
         )}
       </header>
 
@@ -341,7 +347,11 @@ export function StaffManager() {
         </form>
       )}
 
-      <article className="table-card">
+      <article className="table-card" data-testid="staff-table-card">
+        <div className="card-title">
+          <h2>Все сотрудники</h2>
+          <span>{staff.data?.length ?? 0}</span>
+        </div>
         <AsyncPanel
           pending={staff.isPending}
           error={staff.error}

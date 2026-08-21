@@ -52,7 +52,7 @@ export function ContactManager() {
 
   return (
     <section className="admin-section" data-testid="contact-manager">
-      <header className="section-head">
+      <header className="section-head" data-testid="contact-header">
         <div>
           <span className="eyebrow">CONTACT US</span>
           <h1>Контакты</h1>
@@ -84,32 +84,60 @@ export function ContactManager() {
             <div className="form-grid">
               <label>
                 Название поддержки
-                <input {...register("displayName")} autoComplete="organization" />
+                <input
+                  data-testid="contact-display-name"
+                  {...register("displayName")}
+                  autoComplete="organization"
+                />
                 <FormFieldError message={errors.displayName?.message} />
               </label>
               <label>
                 Телефон
-                <input {...register("phone")} autoComplete="tel" inputMode="tel" />
+                <input
+                  data-testid="contact-phone"
+                  {...register("phone")}
+                  autoComplete="tel"
+                  inputMode="tel"
+                />
                 <FormFieldError message={errors.phone?.message} />
               </label>
               <label>
                 Telegram
-                <input {...register("telegram")} placeholder="@alowalow" />
+                <input
+                  data-testid="contact-telegram"
+                  {...register("telegram")}
+                  placeholder="@alowalow"
+                />
                 <FormFieldError message={errors.telegram?.message} />
               </label>
               <label>
                 Email
-                <input {...register("email")} autoComplete="email" inputMode="email" />
+                <input
+                  data-testid="contact-email"
+                  {...register("email")}
+                  autoComplete="email"
+                  inputMode="email"
+                />
                 <FormFieldError message={errors.email?.message} />
               </label>
               <label>
                 Ссылка на политику конфиденциальности
-                <input {...register("privacyLink")} inputMode="url" placeholder="https://…" />
+                <input
+                  data-testid="contact-privacy-link"
+                  {...register("privacyLink")}
+                  inputMode="url"
+                  placeholder="https://…"
+                />
                 <FormFieldError message={errors.privacyLink?.message} />
               </label>
               <label>
                 Ссылка на пользовательское соглашение
-                <input {...register("userAgreementLink")} inputMode="url" placeholder="https://…" />
+                <input
+                  data-testid="contact-user-agreement-link"
+                  {...register("userAgreementLink")}
+                  inputMode="url"
+                  placeholder="https://…"
+                />
                 <FormFieldError message={errors.userAgreementLink?.message} />
               </label>
             </div>
@@ -127,6 +155,7 @@ export function ContactManager() {
             )}
             <button
               className="primary-button"
+              data-testid="contact-save"
               disabled={actions.updateContactSettings.isPending || !isDirty}
               type="submit"
             >

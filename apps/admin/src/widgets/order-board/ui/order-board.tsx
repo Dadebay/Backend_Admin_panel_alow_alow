@@ -484,14 +484,17 @@ export function OrderBoard({
 
   return (
     <section className="admin-section" data-testid="order-board">
-      <header className="section-head orders-section-head">
+      <header
+        className="section-head orders-section-head"
+        data-testid="orders-header"
+      >
         <div>
           <span className="eyebrow">РЕАЛЬНЫЙ BACKEND</span>
           <h1>{title}</h1>
           <p>{description}</p>
         </div>
         <div
-          className="header-actions orders-header-actions"
+          className="header-actions section-header-actions orders-header-actions"
           data-testid="orders-header-actions"
         >
           {tableAllowed && (

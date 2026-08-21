@@ -145,7 +145,7 @@ export function NotificationManager() {
 
   return (
     <section className="admin-section" data-testid="notification-manager">
-      <header className="section-head">
+      <header className="section-head" data-testid="notification-header">
         <div>
           <span className="eyebrow">PUSH-УВЕДОМЛЕНИЯ</span>
           <h1>Уведомления клиентам</h1>

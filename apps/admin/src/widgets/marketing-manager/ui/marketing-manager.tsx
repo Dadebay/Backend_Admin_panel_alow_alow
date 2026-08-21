@@ -335,15 +335,18 @@ export function MarketingManager() {
     media.uploadImage.error;
 
   return (
-    <section className="admin-section">
-      <header className="section-head">
+    <section className="admin-section" data-testid="marketing-manager">
+      <header className="section-head" data-testid="marketing-header">
         <div>
           <span className="eyebrow">МАРКЕТИНГ</span>
           <h1>Баннеры и промокоды</h1>
           <p>Все изменения сохраняются в backend и сразу доступны клиентам.</p>
         </div>
         {canEdit && (
-          <div className="header-actions">
+          <div
+            className="header-actions section-header-actions"
+            data-testid="marketing-header-actions"
+          >
             <button
               className="secondary-button"
               data-testid="banner-form-open"

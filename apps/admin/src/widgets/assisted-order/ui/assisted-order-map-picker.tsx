@@ -138,8 +138,13 @@ export default function AssistedOrderMapPicker({
           </Marker>
         )}
       </MapContainer>
-      <div className="assisted-map-instruction">
-        Нажмите на карту или перетащите маркер в точное место
+      <div
+        className="assisted-map-instruction"
+        data-testid="assisted-map-instruction"
+      >
+        {coordinates
+          ? "Точка выбрана · нажмите другое место или перетащите маркер"
+          : "Нажмите точное место доставки на карте"}
       </div>
       <div
         className={`assisted-map-status ${mapStatus}`}

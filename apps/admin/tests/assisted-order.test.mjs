@@ -96,7 +96,7 @@ test("phone order uses real typed APIs and is lazy-loaded from the order board",
   assert.match(customers, /\/orders\/assisted\/customers\?/);
 });
 
-test("address search is an accessible dropdown and the large map remains a manual fallback", async () => {
+test("address search uses an in-flow choose-then-map workflow", async () => {
   const dialog = await readFile(
     new URL(
       "../src/widgets/assisted-order/ui/assisted-order-dialog.tsx",
@@ -130,12 +130,35 @@ test("address search is an accessible dropdown and the large map remains a manua
   assert.match(dialog, /role="combobox"/);
   assert.match(dialog, /role="listbox"/);
   assert.match(dialog, /role="option"/);
-  assert.match(dialog, /Неофициальный адрес \/ ориентир \(необязательно\)/);
+  assert.match(dialog, /data-testid="assisted-address-workflow"/);
+  assert.match(dialog, /data-testid="assisted-address-search-panel"/);
+  assert.match(dialog, /Выберите вариант — карта переместится к нему/);
+  assert.match(dialog, /Улица, дом или известное место/);
+  assert.match(dialog, /data-testid="assisted-address-change"/);
+  assert.match(dialog, /data-testid="assisted-courier-address-details"/);
+  assert.match(dialog, /selectedLocationLabel/);
+  assert.match(dialog, /setSelectedLocationLabel\(result\.label\)/);
+  assert.match(dialog, /\(!coordinates \|\| isAddressEditing\) &&/);
+  assert.match(
+    dialog,
+    /function findAddress[\s\S]*?setIsAddressEditing\(true\);[\s\S]*?setIsAddressDropdownOpen\(true\);/,
+  );
+  assert.match(dialog, /Эти поля не двигают маркер/);
+  assert.match(dialog, /Ориентир для курьера \(необязательно\)/);
   assert.match(dialog, /buildAssistedDeliveryAddress/);
   assert.match(dialog, /data-testid="assisted-delivery-pricing"/);
   assert.match(dialog, /useDeliveryQuote/);
-  assert.match(dialog, /const officialAddress =/);
-  assert.match(dialog, /setValue\("addressSearch", officialAddress/);
+  assert.doesNotMatch(dialog, /setValue\("addressSearch", officialAddress/);
+  assert.match(
+    dialog,
+    /function editAddressSearch[\s\S]*?setIsAddressEditing\(true\);[\s\S]*?function startAddressSearch/,
+  );
+  assert.doesNotMatch(
+    dialog.match(
+      /function editAddressSearch[\s\S]*?function startAddressSearch/,
+    )?.[0] ?? "",
+    /setCoordinates\(null\)/,
+  );
   assert.match(dialog, /data-testid="assisted-delivery-etrap-auto"/);
   assert.match(dialog, /data-testid="assisted-delivery-fallback"/);
   assert.doesNotMatch(dialog, /Подтвердите тарифный район вручную/);
@@ -152,6 +175,8 @@ test("address search is an accessible dropdown and the large map remains a manua
   assert.match(map, /data-testid="assisted-order-map"/);
   assert.match(map, /ResizeObserver/);
   assert.match(map, /data-testid="assisted-map-status"/);
+  assert.match(map, /data-testid="assisted-map-instruction"/);
+  assert.match(map, /Точка выбрана/);
   assert.match(geocoding, /\/geocoding\/search\?/);
   assert.doesNotMatch(geocoding, /setTimeout|debounce/);
   assert.match(
@@ -162,10 +187,14 @@ test("address search is an accessible dropdown and the large map remains a manua
     styles,
     /@media \(max-width: 620px\)[\s\S]*?\.assisted-order-modal \{[\s\S]*?max-height: 100dvh;/,
   );
-  assert.match(styles, /height: clamp\(390px, 48vh, 570px\)/);
+  assert.match(styles, /height: clamp\(320px, 38vh, 450px\)/);
   assert.match(
     styles,
-    /\.assisted-address-results \{[\s\S]*position: absolute/,
+    /\.assisted-address-results \{[\s\S]*?position: static;[\s\S]*?max-height: 260px;/,
+  );
+  assert.match(
+    styles,
+    /@media \(max-width: 620px\)[\s\S]*?\.assisted-order-map,[\s\S]*?height: 340px;/,
   );
   assert.match(styles, /\.assisted-order-modal input[\s\S]*border-color:/);
 });

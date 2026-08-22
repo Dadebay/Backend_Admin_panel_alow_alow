@@ -650,11 +650,15 @@ Current status:
   a caller by phone, automatically select an exact phone match, prefill the
   active or last-used saved address while still offering every saved address,
   select active catalog items and their configured variants,
-  perform a 350 ms debounced OSM address search with an accessible suggestion
-  dropdown, edit an unofficial landmark, or put a draggable marker on the
-  large map. Enter and the search button bypass the debounce for an immediate
-  request. Its desktop dialog uses the wide,
-  near-full-height workspace while phones keep the full-screen layout.
+  perform a 350 ms debounced OSM address search with an accessible in-flow
+  result list, edit an optional courier landmark, or put a draggable marker on
+  the map. Search is explicitly choose-then-map: typing never pretends to move
+  the marker, selecting a result moves it, and a separate resolved-location
+  summary replaces the previous overloaded search/display field. Entrance,
+  floor and apartment are grouped as courier details with an explicit notice
+  that they do not change geographic coordinates. Enter and the search button
+  bypass the debounce for an immediate request. Its desktop dialog uses the
+  wide, near-full-height workspace while phones keep the full-screen layout.
   TanStack Query owns all remote data,
   React Hook Form/Zod validate the form, and the backend computes the final
   amount and nearest branch;
@@ -693,10 +697,10 @@ Current status:
   `docs/CATALOG_CATEGORY_GROUPING.md`;
 - selecting a searched or reverse-geocoded address in the phone-assisted order
   calls the backend delivery quote. NestJS reverse-geocodes the selected marker,
-  updates the visible official-address field, calculates the current fee, and
-  proposes a delivery etrap only when its multilingual configured name has one
-  unambiguous text match. Unknown, numeric-only, or ambiguous locations use the
-  configured fallback quote automatically instead of requiring a duplicate
+  updates the separate selected-location summary, calculates the current fee,
+  and proposes a delivery etrap only when its multilingual configured name has
+  one unambiguous text match. Unknown, numeric-only, or ambiguous locations use
+  the configured fallback quote automatically instead of requiring a duplicate
   district choice. Moving the marker clears stale location state before the
   coordinate-keyed quote replaces it;
 - administrators see a full pre-pickup order editor from both table and Kanban:
@@ -936,6 +940,16 @@ The 2026-08-22 printer-card layout correction keeps the static SPA bootstrap at
 raw / 0.2 KB gzip increase adds padded desktop controls plus 980 px and phone
 stacking for the main/category printer panels. It adds no dependency, request,
 polling loop or JavaScript to the initial bundle.
+
+The 2026-08-22 assisted-address workflow correction keeps the address search,
+Leaflet map and delivery quote inside the existing lazy phone-order chunk. It
+replaces the overlay result dropdown with a bounded in-flow list, separates the
+search query from the resolved location, and shortens the map to reduce modal
+scrolling. The static SPA bootstrap remains 241.6 KB raw / 77.6 KB gzip. CSS is
+145.9 KB / 28.3 KB gzip, about 3.0 KB raw / 0.3 KB gzip above the preceding
+printer-layout build; the lazy phone-order chunk is 27.5 KB / 8.0 KB gzip, about
+2.2 KB raw / 0.5 KB gzip larger for the explicit search/selection/detail
+states. It adds no dependency, request, polling loop or initial-route code.
 
 ## Decision log
 
@@ -1362,3 +1376,8 @@ polling loop or JavaScript to the initial bundle.
   stack the courier map above its live context, workspaces cannot widen the
   page, coarse-pointer controls are at least 44 px, and the documented real API
   smoke covers every route without browser automation.
+- 2026-08-22: the phone-assisted address editor adopted an explicit
+  choose-then-map workflow. Search results render in normal document flow and
+  move the marker only after selection; the resolved location has a separate
+  summary, while entrance, floor, apartment and courier landmarks are clearly
+  identified as non-geographic delivery details.

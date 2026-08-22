@@ -108,6 +108,7 @@ export default function AssistedOrderDialog({
   const [activeAddressResultIndex, setActiveAddressResultIndex] = useState(0);
   const [selectedAddressResult, setSelectedAddressResult] =
     useState<GeocodeSearchResult | null>(null);
+  const [selectedLocationLabel, setSelectedLocationLabel] = useState("");
   const [selectedCustomer, setSelectedCustomer] =
     useState<AssistedCustomer | null>(null);
   const [coordinates, setCoordinates] =
@@ -249,6 +250,9 @@ export default function AssistedOrderDialog({
   const selectedDeliveryEtrap = deliveryEtraps.find(
     (etrap) => etrap.id === Number(selectedDeliveryEtrapId),
   );
+  const selectedSavedAddress = selectedCustomer?.addresses.find(
+    (address) => address.id === selectedAddressId,
+  );
   const suggestedDeliveryEtrap = deliveryQuote.data?.etrap ?? null;
   const fallbackDeliveryFee = deliveryConfig.data
     ? deliveryConfig.data.fallbackFreeDeliveryThreshold !== null &&
@@ -287,17 +291,6 @@ export default function AssistedOrderDialog({
     suggestedDeliveryEtrap,
   ]);
 
-  useEffect(() => {
-    if (selectedAddressId || isAddressEditing || !deliveryQuote.data) return;
-    const officialAddress =
-      deliveryQuote.data.addressLine ??
-      `Точка на карте: ${deliveryQuote.data.latitude.toFixed(5)}, ${deliveryQuote.data.longitude.toFixed(5)}`;
-    setValue("addressSearch", officialAddress, {
-      shouldDirty: true,
-      shouldValidate: true,
-    });
-  }, [deliveryQuote.data, isAddressEditing, selectedAddressId, setValue]);
-
   function changeQuantity(
     productId: string,
     variantId: string | undefined,
@@ -326,6 +319,7 @@ export default function AssistedOrderDialog({
     setValue("apartment", "");
     setCoordinates(null);
     setSelectedAddressResult(null);
+    setSelectedLocationLabel("");
     setIsAddressEditing(false);
   }, [setValue]);
 
@@ -339,12 +333,13 @@ export default function AssistedOrderDialog({
         shouldValidate: true,
       });
       setValue("addressLabel", selection.values.addressLabel);
-      setValue("address", selection.values.address, { shouldValidate: true });
+      setValue("address", "", { shouldValidate: true });
       setValue("entrance", selection.values.entrance);
       setValue("floor", selection.values.floor);
       setValue("apartment", selection.values.apartment);
       setCoordinates(selection.coordinates);
       setSelectedAddressResult(null);
+      setSelectedLocationLabel(address.address);
       setIsAddressEditing(false);
       setIsAddressDropdownOpen(false);
       setSelectionError("");
@@ -370,6 +365,7 @@ export default function AssistedOrderDialog({
     setValue("deliveryEtrapId", "", { shouldValidate: true });
     setValue("addressSearch", result.label, { shouldValidate: true });
     setSelectedAddressResult(result);
+    setSelectedLocationLabel(result.label);
     setCoordinates({
       latitude: result.latitude,
       longitude: result.longitude,
@@ -414,7 +410,7 @@ export default function AssistedOrderDialog({
       setAddressSearchError("Введите минимум 3 символа");
       return;
     }
-    setIsAddressEditing(false);
+    setIsAddressEditing(true);
     setAddressSearchError("");
     setActiveAddressResultIndex(0);
     setIsAddressDropdownOpen(true);
@@ -430,9 +426,27 @@ export default function AssistedOrderDialog({
     if (event.target.value.trim().length < 3) setSubmittedAddressQuery("");
     setValue("addressId", "", { shouldValidate: true });
     setValue("deliveryEtrapId", "", { shouldValidate: true });
-    setCoordinates(null);
-    setSelectedAddressResult(null);
     setIsAddressEditing(true);
+    setIsAddressDropdownOpen(false);
+    setAddressSearchError("");
+  }
+
+  function startAddressSearch() {
+    const currentAddress =
+      selectedLocationLabel ||
+      selectedSavedAddress?.address ||
+      deliveryQuote.data?.addressLine ||
+      selectedAddressResult?.label;
+    if (currentAddress) {
+      setValue("addressSearch", currentAddress, { shouldValidate: true });
+    }
+    setIsAddressEditing(true);
+    setIsAddressDropdownOpen(false);
+    setAddressSearchError("");
+  }
+
+  function keepCurrentCoordinates() {
+    setIsAddressEditing(false);
     setIsAddressDropdownOpen(false);
     setAddressSearchError("");
   }
@@ -473,7 +487,9 @@ export default function AssistedOrderDialog({
     setValue("deliveryEtrapId", "", { shouldValidate: true });
     setCoordinates(next);
     setSelectedAddressResult(null);
+    setSelectedLocationLabel("");
     setIsAddressEditing(false);
+    setIsAddressDropdownOpen(false);
     setSelectionError("");
   }
 
@@ -503,7 +519,9 @@ export default function AssistedOrderDialog({
             addressLabel: values.addressLabel,
             address: buildAssistedDeliveryAddress({
               officialAddress:
-                deliveryQuote.data?.addressLine ?? selectedAddressResult?.label,
+                deliveryQuote.data?.addressLine ||
+                selectedLocationLabel ||
+                selectedAddressResult?.label,
               unofficialAddress: values.address,
               coordinates: coordinates!,
             }),
@@ -962,164 +980,199 @@ export default function AssistedOrderDialog({
           </div>
 
           <div className="assisted-order-column">
-            <section className="assisted-order-card assisted-address-card">
+            <section
+              className="assisted-order-card assisted-address-card"
+              data-testid="assisted-address-workflow"
+            >
               <div className="assisted-order-section-title">
                 <div>
                   <span>3</span>
                   <strong>Адрес доставки</strong>
                 </div>
-                {coordinates && (
-                  <small>
-                    {coordinates.latitude.toFixed(5)},{" "}
-                    {coordinates.longitude.toFixed(5)}
-                  </small>
-                )}
               </div>
               <p className="assisted-order-hint">
-                Найдите официальный адрес и выберите его из списка. Если адреса
-                нет в базе карты, просто поставьте маркер. Неофициальный
-                ориентир заполняется только при необходимости.
+                Найдите улицу вместе с номером дома и выберите вариант — после
+                этого маркер переместится. Если нужного дома нет, укажите точку
+                прямо на карте.
               </p>
-              <div
-                className="assisted-address-combobox"
-                data-testid="assisted-address-combobox"
-                ref={addressComboboxRef}
-              >
-                <div className="assisted-address-search">
-                  <label>
-                    <span>Поиск официального адреса</span>
-                    <input
-                      {...addressSearchField}
-                      aria-autocomplete="list"
-                      aria-controls={
-                        isAddressDropdownOpen
-                          ? "assisted-address-listbox"
-                          : undefined
-                      }
-                      aria-expanded={isAddressDropdownOpen}
-                      aria-haspopup="listbox"
-                      aria-activedescendant={
-                        isAddressDropdownOpen &&
-                        addressResults.data?.items[activeAddressResultIndex]
-                          ? `assisted-address-option-${activeAddressResultIndex}`
-                          : undefined
-                      }
-                      data-testid="assisted-address-search-input"
-                      onChange={editAddressSearch}
-                      onFocus={() => {
-                        if (
-                          addressResults.data &&
-                          getValues("addressSearch").trim() ===
-                            submittedAddressQuery
-                        ) {
-                          setIsAddressDropdownOpen(true);
-                        }
-                      }}
-                      onKeyDown={handleAddressSearchKeyDown}
-                      placeholder="Например: Garaşsyzlyk 60"
-                      role="combobox"
-                    />
-                    <FormFieldError message={errors.addressSearch?.message} />
-                  </label>
-                  <button
-                    className="secondary-button"
-                    data-testid="assisted-address-search-submit"
-                    type="button"
-                    onClick={findAddress}
-                  >
-                    Найти
-                  </button>
-                </div>
-                {addressSearchError && (
-                  <p className="form-error">{addressSearchError}</p>
-                )}
-                {isAddressDropdownOpen && (
-                  <div
-                    aria-busy={addressResults.isFetching}
-                    className="assisted-search-results assisted-address-results"
-                    data-testid="assisted-address-results"
-                    id="assisted-address-listbox"
-                    role="listbox"
-                  >
-                    {addressResults.isFetching && (
-                      <p className="assisted-order-hint">Ищем на карте…</p>
-                    )}
-                    {addressResults.isError && (
-                      <p className="form-error">
-                        {addressResults.error.message}
-                      </p>
-                    )}
-                    {addressResults.data?.items.map((result, index) => (
-                      <button
-                        aria-selected={index === activeAddressResultIndex}
-                        className={
-                          index === activeAddressResultIndex ? "selected" : ""
-                        }
-                        data-testid={`assisted-address-result-${result.provider}-${result.latitude}-${result.longitude}`}
-                        id={`assisted-address-option-${index}`}
-                        key={`${result.provider}:${result.latitude}:${result.longitude}`}
-                        role="option"
-                        type="button"
-                        onClick={() => selectSearchResult(result)}
-                        onMouseEnter={() => setActiveAddressResultIndex(index)}
-                      >
-                        <strong>{result.label}</strong>
-                        {result.aliases.length > 0 && (
-                          <small>
-                            Также: {result.aliases.slice(0, 3).join(" · ")}
-                          </small>
-                        )}
-                      </button>
-                    ))}
-                    {addressResults.data &&
-                      !addressResults.isFetching &&
-                      !addressResults.data.items.length && (
-                        <p className="assisted-order-hint">
-                          Совпадений нет — поставьте точный маркер на карте.
-                        </p>
-                      )}
-                    {addressResults.data && (
-                      <small className="map-attribution">
-                        {addressResults.data.attribution}
+              {(!coordinates || isAddressEditing) && (
+                <section
+                  className="assisted-address-search-panel"
+                  data-testid="assisted-address-search-panel"
+                >
+                  <div className="assisted-address-stage-heading">
+                    <div>
+                      <strong>Найдите улицу или дом</strong>
+                      <small>
+                        Введите улицу и номер дома, затем выберите один вариант
+                        ниже.
                       </small>
+                    </div>
+                    {coordinates && (
+                      <button
+                        className="text-button compact"
+                        data-testid="assisted-address-search-cancel"
+                        type="button"
+                        onClick={keepCurrentCoordinates}
+                      >
+                        Оставить текущую точку
+                      </button>
                     )}
                   </div>
-                )}
-              </div>
-              {selectedAddressResult && (
-                <p
+                  <div
+                    className="assisted-address-combobox"
+                    data-testid="assisted-address-combobox"
+                    ref={addressComboboxRef}
+                  >
+                    <div className="assisted-address-search">
+                      <label>
+                        <span>Улица, дом или известное место</span>
+                        <input
+                          {...addressSearchField}
+                          aria-autocomplete="list"
+                          aria-controls={
+                            isAddressDropdownOpen
+                              ? "assisted-address-listbox"
+                              : undefined
+                          }
+                          aria-expanded={isAddressDropdownOpen}
+                          aria-haspopup="listbox"
+                          aria-activedescendant={
+                            isAddressDropdownOpen &&
+                            addressResults.data?.items[activeAddressResultIndex]
+                              ? `assisted-address-option-${activeAddressResultIndex}`
+                              : undefined
+                          }
+                          data-testid="assisted-address-search-input"
+                          onChange={editAddressSearch}
+                          onFocus={() => {
+                            if (
+                              addressResults.data &&
+                              getValues("addressSearch").trim() ===
+                                submittedAddressQuery
+                            ) {
+                              setIsAddressDropdownOpen(true);
+                            }
+                          }}
+                          onKeyDown={handleAddressSearchKeyDown}
+                          placeholder="Например: Garaşsyzlyk şaýoly 60"
+                          role="combobox"
+                        />
+                        <FormFieldError
+                          message={errors.addressSearch?.message}
+                        />
+                      </label>
+                      <button
+                        className="secondary-button"
+                        data-testid="assisted-address-search-submit"
+                        type="button"
+                        onClick={findAddress}
+                      >
+                        Найти
+                      </button>
+                    </div>
+                    {addressSearchError && (
+                      <p className="form-error">{addressSearchError}</p>
+                    )}
+                    {isAddressDropdownOpen && (
+                      <div
+                        aria-busy={addressResults.isFetching}
+                        className="assisted-search-results assisted-address-results"
+                        data-testid="assisted-address-results"
+                        id="assisted-address-listbox"
+                        role="listbox"
+                      >
+                        <strong className="assisted-address-results-title">
+                          Выберите вариант — карта переместится к нему
+                        </strong>
+                        {addressResults.isFetching && (
+                          <p className="assisted-order-hint">Ищем на карте…</p>
+                        )}
+                        {addressResults.isError && (
+                          <p className="form-error">
+                            {addressResults.error.message}
+                          </p>
+                        )}
+                        {addressResults.data?.items.map((result, index) => (
+                          <button
+                            aria-selected={index === activeAddressResultIndex}
+                            className={
+                              index === activeAddressResultIndex
+                                ? "selected"
+                                : ""
+                            }
+                            data-testid={`assisted-address-result-${result.provider}-${result.latitude}-${result.longitude}`}
+                            id={`assisted-address-option-${index}`}
+                            key={`${result.provider}:${result.latitude}:${result.longitude}`}
+                            role="option"
+                            type="button"
+                            onClick={() => selectSearchResult(result)}
+                            onMouseEnter={() =>
+                              setActiveAddressResultIndex(index)
+                            }
+                          >
+                            <strong>{result.label}</strong>
+                            {result.aliases.length > 0 && (
+                              <small>
+                                Также: {result.aliases.slice(0, 3).join(" · ")}
+                              </small>
+                            )}
+                            <b>Выбрать и показать на карте</b>
+                          </button>
+                        ))}
+                        {addressResults.data &&
+                          !addressResults.isFetching &&
+                          !addressResults.data.items.length && (
+                            <p className="assisted-address-empty">
+                              Такого адреса нет в базе. Нажмите точное место на
+                              карте ниже — заказ всё равно можно создать.
+                            </p>
+                          )}
+                        {addressResults.data && (
+                          <small className="map-attribution">
+                            {addressResults.data.attribution}
+                          </small>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </section>
+              )}
+              {coordinates && !isAddressEditing && (
+                <div
                   className="assisted-selected-address"
                   data-testid="assisted-selected-address"
                 >
-                  <span>Выбран адрес</span>
-                  <strong>
-                    {deliveryQuote.data?.addressLine ??
-                      selectedAddressResult.label}
-                  </strong>
-                </p>
-              )}
-              <label>
-                <span>Неофициальный адрес / ориентир (необязательно)</span>
-                <textarea
-                  data-testid="assisted-order-address"
-                  {...register("address")}
-                  aria-invalid={Boolean(errors.address)}
-                  maxLength={500}
-                  placeholder="Как объяснил клиент: дом, магазин, школа, поворот…"
-                />
-                <FormFieldError message={errors.address?.message} />
-              </label>
-              {deliveryQuote.data?.addressLine &&
-                !selectedAddressId &&
-                !selectedAddressResult && (
-                  <p
-                    className="reverse-address-button"
-                    data-testid="assisted-address-reverse"
+                  <div>
+                    <span>Точка доставки выбрана</span>
+                    <strong>
+                      {selectedLocationLabel ||
+                        selectedSavedAddress?.address ||
+                        deliveryQuote.data?.addressLine ||
+                        selectedAddressResult?.label ||
+                        `${coordinates.latitude.toFixed(5)}, ${coordinates.longitude.toFixed(5)}`}
+                    </strong>
+                    <small>
+                      Маркер можно уточнить кликом по карте или перетаскиванием.
+                    </small>
+                  </div>
+                  <button
+                    className="secondary-button compact"
+                    data-testid="assisted-address-change"
+                    type="button"
+                    onClick={startAddressSearch}
                   >
-                    Адрес выбранной точки:{" "}
-                    <strong>{deliveryQuote.data.addressLine}</strong>
-                  </p>
-                )}
+                    Найти другую точку
+                  </button>
+                </div>
+              )}
+              <div className="assisted-address-map-heading">
+                <strong>Проверьте точку на карте</strong>
+                <span>
+                  Карта меняется после выбора найденного адреса или клика по
+                  карте.
+                </span>
+              </div>
               <Suspense
                 fallback={
                   <div className="assisted-map-loading">Загружаем карту…</div>
@@ -1130,90 +1183,126 @@ export default function AssistedOrderDialog({
                   onChange={selectMapCoordinates}
                 />
               </Suspense>
-              <div className="modal-grid assisted-address-details">
-                <div
-                  className="wide-field assisted-delivery-summary"
-                  data-testid="assisted-delivery-pricing"
-                >
-                  <input type="hidden" {...register("deliveryEtrapId")} />
-                  <strong>Доставка по выбранному адресу</strong>
-                  {suggestedDeliveryEtrap && (
-                    <span
-                      className="assisted-delivery-match"
-                      data-testid="assisted-delivery-etrap-auto"
-                      role="status"
-                    >
-                      Район определён по адресу: {suggestedDeliveryEtrap.nameRu}
-                      {" · "}доставка {deliveryQuote.data?.fee.toFixed(2)} TMT
-                    </span>
-                  )}
-                  {deliveryQuote.data && !suggestedDeliveryEtrap && (
-                    <span
-                      className="assisted-delivery-match"
-                      data-testid="assisted-delivery-fallback"
-                      role="status"
-                    >
-                      Адрес принят автоматически · доставка по базовому тарифу{" "}
-                      {deliveryQuote.data.fee.toFixed(2)} TMT
-                    </span>
-                  )}
-                  {deliveryQuote.isFetching && !selectedAddressId && (
-                    <span className="assisted-order-hint" role="status">
-                      Определяем официальный адрес и цену доставки…
-                    </span>
-                  )}
-                  {deliveryQuote.isError && !selectedAddressId && (
-                    <span className="form-error">
-                      Не удалось показать предварительную цену. Backend
-                      рассчитает доставку при создании заказа.
-                    </span>
-                  )}
-                  {selectedAddressId && !deliveryQuote.data && (
-                    <span className="assisted-order-hint" role="status">
-                      {selectedDeliveryEtrap
-                        ? `${selectedDeliveryEtrap.nameRu} · доставка ${estimatedDeliveryFee?.toFixed(2)} TMT`
-                        : estimatedDeliveryFee === null
-                          ? "Сохранённый адрес · цена будет рассчитана backend"
-                          : `Сохранённый адрес · базовая доставка ${estimatedDeliveryFee.toFixed(2)} TMT`}
-                    </span>
-                  )}
-                  {!coordinates && !selectedAddressId && (
-                    <span className="assisted-order-hint">
-                      Выберите официальный адрес — район и цена подставятся
-                      автоматически.
-                    </span>
-                  )}
-                </div>
-                <label>
-                  <span>Метка</span>
-                  <input
-                    data-testid="assisted-address-label"
-                    {...register("addressLabel")}
-                    placeholder="Дом / офис"
-                  />
-                </label>
-                <label>
-                  <span>Подъезд</span>
-                  <input
-                    data-testid="assisted-address-entrance"
-                    {...register("entrance")}
-                  />
-                </label>
-                <label>
-                  <span>Этаж</span>
-                  <input
-                    data-testid="assisted-address-floor"
-                    {...register("floor")}
-                  />
-                </label>
-                <label>
-                  <span>Квартира</span>
-                  <input
-                    data-testid="assisted-address-apartment"
-                    {...register("apartment")}
-                  />
-                </label>
+              <div
+                className="assisted-delivery-summary"
+                data-testid="assisted-delivery-pricing"
+              >
+                <input type="hidden" {...register("deliveryEtrapId")} />
+                <strong>Доставка по выбранной точке</strong>
+                {suggestedDeliveryEtrap && (
+                  <span
+                    className="assisted-delivery-match"
+                    data-testid="assisted-delivery-etrap-auto"
+                    role="status"
+                  >
+                    Район определён по адресу: {suggestedDeliveryEtrap.nameRu}
+                    {" · "}доставка {deliveryQuote.data?.fee.toFixed(2)} TMT
+                  </span>
+                )}
+                {deliveryQuote.data && !suggestedDeliveryEtrap && (
+                  <span
+                    className="assisted-delivery-match"
+                    data-testid="assisted-delivery-fallback"
+                    role="status"
+                  >
+                    Точка принята · доставка по базовому тарифу{" "}
+                    {deliveryQuote.data.fee.toFixed(2)} TMT
+                  </span>
+                )}
+                {deliveryQuote.isFetching && !selectedAddressId && (
+                  <span className="assisted-order-hint" role="status">
+                    Определяем адрес и цену доставки…
+                  </span>
+                )}
+                {deliveryQuote.isError && !selectedAddressId && (
+                  <span className="form-error">
+                    Не удалось показать предварительную цену. Backend рассчитает
+                    доставку при создании заказа.
+                  </span>
+                )}
+                {selectedAddressId && !deliveryQuote.data && (
+                  <span className="assisted-order-hint" role="status">
+                    {selectedDeliveryEtrap
+                      ? `${selectedDeliveryEtrap.nameRu} · доставка ${estimatedDeliveryFee?.toFixed(2)} TMT`
+                      : estimatedDeliveryFee === null
+                        ? "Сохранённый адрес · цена будет рассчитана backend"
+                        : `Сохранённый адрес · базовая доставка ${estimatedDeliveryFee.toFixed(2)} TMT`}
+                  </span>
+                )}
+                {!coordinates && !selectedAddressId && (
+                  <span className="assisted-order-hint">
+                    Найдите адрес или поставьте маркер — район и цена подставятся
+                    автоматически.
+                  </span>
+                )}
               </div>
+              <section
+                className="assisted-courier-address-details"
+                data-testid="assisted-courier-address-details"
+              >
+                <header>
+                  <div>
+                    <strong>Детали для курьера</strong>
+                    <small>
+                      Эти поля не двигают маркер: они помогают найти вход после
+                      прибытия к выбранной точке.
+                    </small>
+                  </div>
+                  <span>Не влияют на карту</span>
+                </header>
+                <div className="modal-grid assisted-address-details">
+                  <div
+                    className="wide-field assisted-map-details-note"
+                    role="note"
+                  >
+                    Номер дома вводите в поиске выше. Подъезд, этаж и квартира
+                    добавляются к заказу отдельно и не меняют координаты.
+                  </div>
+                  <label>
+                    <span>Название адреса</span>
+                    <input
+                      data-testid="assisted-address-label"
+                      {...register("addressLabel")}
+                      placeholder="Дом / офис"
+                    />
+                  </label>
+                  <label>
+                    <span>Подъезд</span>
+                    <input
+                      data-testid="assisted-address-entrance"
+                      {...register("entrance")}
+                      placeholder="Например: 2"
+                    />
+                  </label>
+                  <label>
+                    <span>Этаж</span>
+                    <input
+                      data-testid="assisted-address-floor"
+                      {...register("floor")}
+                      placeholder="Например: 4"
+                    />
+                  </label>
+                  <label>
+                    <span>Квартира</span>
+                    <input
+                      data-testid="assisted-address-apartment"
+                      {...register("apartment")}
+                      placeholder="Например: 18"
+                    />
+                  </label>
+                  <label className="wide-field">
+                    <span>Ориентир для курьера (необязательно)</span>
+                    <textarea
+                      data-testid="assisted-order-address"
+                      {...register("address")}
+                      aria-invalid={Boolean(errors.address)}
+                      maxLength={500}
+                      placeholder="Например: синий подъезд со стороны двора"
+                    />
+                    <FormFieldError message={errors.address?.message} />
+                  </label>
+                </div>
+              </section>
             </section>
 
             <section className="assisted-order-card assisted-order-extra">

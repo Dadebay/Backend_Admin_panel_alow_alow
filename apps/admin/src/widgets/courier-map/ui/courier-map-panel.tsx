@@ -8,16 +8,16 @@ import {
 import { orderItemLabel } from "@/src/entities/order";
 import { OtpLoginCard } from "@/src/features/otp-login";
 import { useSession } from "@/src/shared/auth";
+import {
+  courierOverviewCounts,
+  courierPresenceLabels,
+  courierWorkLabel,
+  courierWorkState,
+} from "../model/courier-status";
 
 const CourierMapCanvas = lazy(() => import("./courier-map-canvas"));
 
 const ACCESS_ROLES = new Set(["OPERATOR", "ADMIN", "SUPER_ADMIN"]);
-
-const presenceLabels = {
-  ONLINE: "На линии",
-  STALE: "Связь потеряна",
-  OFFLINE: "Не в сети",
-} as const;
 
 function courierName(courier: DispatchCourier) {
   return (
@@ -44,13 +44,11 @@ export function CourierMapPanel() {
   const branches = dispatch.data?.branches ?? [];
   const couriers = dispatch.data?.couriers ?? [];
   const selected =
-    couriers.find(({ id }) => id === selectedCourierId) ??
-    couriers.find(({ presence }) => presence === "ONLINE") ??
-    couriers[0] ??
-    null;
+    couriers.find(({ id }) => id === selectedCourierId) ?? null;
   const courierRoute = useCourierRoute(selected?.id ?? null);
   const displayedStops =
     courierRoute.data?.stops ?? selected?.activeOrders ?? [];
+  const overviewCounts = courierOverviewCounts(couriers);
 
   if (!ready) {
     return (
@@ -226,10 +224,31 @@ export function CourierMapPanel() {
       ) : (
         <>
           <div className="live-courier-list">
+            <button
+              className={
+                !selected
+                  ? "selected courier-overview-button"
+                  : "courier-overview-button"
+              }
+              data-testid="dispatch-show-all-couriers"
+              onClick={() => setSelectedCourierId(null)}
+            >
+              <span className="presence-dot online" />
+              <span>
+                <strong>Все курьеры</strong>
+                <small>
+                  В заказе: {overviewCounts.busy} · свободных: {overviewCounts.freeOnline}
+                  {" · "}
+                  GPS у {overviewCounts.located} из {overviewCounts.total}
+                </small>
+              </span>
+              <em>{overviewCounts.online} на линии</em>
+            </button>
             {couriers.map((courier) => (
               <button
                 key={courier.id}
                 className={courier.id === selected?.id ? "selected" : ""}
+                data-testid={`dispatch-select-courier-${courier.id}`}
                 onClick={() => setSelectedCourierId(courier.id)}
               >
                 <span
@@ -238,11 +257,15 @@ export function CourierMapPanel() {
                 <span>
                   <strong>{courierName(courier)}</strong>
                   <small>
-                    {courier.activeOrders.length} заказов ·{" "}
-                    {formatLocationTime(courier.location?.recordedAt)}
+                    {formatLocationTime(courier.location?.recordedAt)} ·{" "}
+                    {courierPresenceLabels[courier.presence]}
                   </small>
                 </span>
-                <em>{presenceLabels[courier.presence]}</em>
+                <em
+                  className={`courier-work-status ${courierWorkState(courier).toLowerCase()}`}
+                >
+                  {courierWorkLabel(courier)}
+                </em>
               </button>
             ))}
           </div>

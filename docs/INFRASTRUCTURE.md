@@ -119,7 +119,7 @@ https://a7-tagam.com.tm/tiles/styles/alowalow/style.json
 
 The operations admin uses canonical client-side routes for every sidebar
 section: `/orders`, `/couriers/map`, `/branches`, `/catalog`, `/marketing`,
-`/notifications`, `/staff`, `/contacts`, and `/login-attempts`.
+`/delivery`, `/notifications`, `/staff`, `/contacts`, and `/login-attempts`.
 Static Nginx resolves direct loads of these paths to `/index.html`; React Router
 then enforces the role-scoped view and renders it inside the shared admin
 layout.

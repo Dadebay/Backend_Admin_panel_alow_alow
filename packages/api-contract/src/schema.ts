@@ -703,7 +703,7 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        /** Publish courier GPS; update about every 15 seconds during active delivery */
+        /** Publish courier GPS about every 15 seconds for the complete courier shift */
         put: operations["TrackingController_updateLocation_v1"];
         post?: never;
         /** Stop sharing the authenticated courier location */
@@ -1110,7 +1110,8 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        delete?: never;
+        /** Permanently delete a banner record */
+        delete: operations["MarketingController_deleteBanner_v1"];
         options?: never;
         head?: never;
         patch: operations["MarketingController_updateBanner_v1"];
@@ -4393,6 +4394,27 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BannerResponseDto"][];
+                };
+            };
+        };
+    };
+    MarketingController_deleteBanner_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BannerResponseDto"];
                 };
             };
         };

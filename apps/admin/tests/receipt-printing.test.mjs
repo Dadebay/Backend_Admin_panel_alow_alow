@@ -18,6 +18,14 @@ const alertUrl = new URL(
   "../src/features/new-order-alert/ui/new-order-alert.tsx",
   import.meta.url,
 );
+const categoryRoutesUrl = new URL(
+  "../src/widgets/catalog-manager/ui/category-receipt-routes.tsx",
+  import.meta.url,
+);
+const catalogManagerUrl = new URL(
+  "../src/widgets/catalog-manager/ui/catalog-manager.tsx",
+  import.meta.url,
+);
 
 test("receipt printing uses the backend plan and loopback-only agent", async () => {
   const source = await readFile(printingFeatureUrl, "utf8");
@@ -45,4 +53,24 @@ test("new kitchen orders automatically print and later statuses can reprint", as
   assert.match(board, /Печать не выполнена:/);
   assert.match(kanban, /data-testid=\{`order-kanban-print-\$\{order\.id\}`\}/);
   assert.match(kanban, /onPrintReceipt\(order\)/);
+});
+
+test("catalog exposes a direct per-category printer IP route", async () => {
+  const [routes, catalogManager] = await Promise.all([
+    readFile(categoryRoutesUrl, "utf8"),
+    readFile(catalogManagerUrl, "utf8"),
+  ]);
+
+  assert.match(routes, /data-testid="category-printer-routes"/);
+  assert.match(routes, /category-printer-ip-\$\{category\.id\}/);
+  assert.match(routes, /category-printer-save-\$\{category\.id\}/);
+  assert.match(routes, /category-visibility-\$\{category\.id\}/);
+  assert.match(routes, /Скрыть категорию/);
+  assert.match(routes, /Показать категорию/);
+  assert.match(routes, /не дублируется на принтер категории/);
+  assert.match(catalogManager, /<CategoryReceiptRoutes/);
+  assert.match(catalogManager, /buildCategoryPrinterUpdate/);
+  assert.match(catalogManager, /buildCategoryVisibilityUpdate/);
+  assert.match(catalogManager, /полностью заменяет аппарат/);
+  assert.match(catalogManager, /без копии на принтер категории/);
 });

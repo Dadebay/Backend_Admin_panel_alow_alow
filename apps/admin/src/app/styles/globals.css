@@ -1596,6 +1596,48 @@ td small {
   font-size: 9px;
 }
 
+.courier-map-canvas .leaflet-tooltip.courier-marker-tooltip {
+  display: grid;
+  gap: 2px;
+  padding: 6px 9px;
+  border: 0;
+  border-radius: 9px;
+  color: var(--brand-cream);
+  background: var(--brand-navy);
+  box-shadow: 0 4px 14px rgb(6 47 94 / .2);
+}
+
+.courier-map-canvas .leaflet-tooltip.courier-marker-tooltip.busy {
+  background: var(--brand-orange);
+}
+
+.courier-map-canvas .courier-marker-tooltip strong,
+.courier-map-canvas .courier-marker-tooltip span {
+  display: block;
+  color: inherit;
+  line-height: 1.25;
+  white-space: nowrap;
+}
+
+.courier-map-canvas .courier-marker-tooltip strong {
+  font-size: 10px;
+}
+
+.courier-map-canvas .courier-marker-tooltip span {
+  font-size: 8px;
+  font-weight: 700;
+}
+
+.courier-map-canvas
+  .leaflet-tooltip-top.courier-marker-tooltip.free::before {
+  border-top-color: var(--brand-navy);
+}
+
+.courier-map-canvas
+  .leaflet-tooltip-top.courier-marker-tooltip.busy::before {
+  border-top-color: var(--brand-orange);
+}
+
 .live-courier-list {
   max-height: 152px;
   overflow-y: auto;
@@ -1646,6 +1688,24 @@ td small {
   font-size: 7px;
   font-style: normal;
   font-weight: 700;
+}
+
+.live-courier-list .courier-work-status {
+  max-width: 132px;
+  padding: 4px 7px;
+  border-radius: 999px;
+  text-align: center;
+  white-space: normal;
+}
+
+.live-courier-list .courier-work-status.busy {
+  color: var(--brand-cream);
+  background: var(--brand-orange);
+}
+
+.live-courier-list .courier-work-status.free {
+  color: var(--brand-cream);
+  background: var(--brand-navy);
 }
 
 .presence-dot,
@@ -2567,6 +2627,27 @@ td small {
   margin-top: 22px;
   padding-top: 17px;
   border-top: 1px solid var(--brand-cream);
+}
+
+.banner-delete-modal {
+  width: min(460px, 100%);
+}
+
+.banner-delete-modal p,
+.banner-delete-modal small {
+  display: block;
+  margin: 0;
+  color: var(--brand-navy);
+  line-height: 1.55;
+}
+
+.banner-delete-modal p {
+  font-size: 12px;
+}
+
+.banner-delete-modal small {
+  margin-top: 8px;
+  font-size: 9px;
 }
 
 .text-button {
@@ -4447,10 +4528,168 @@ button:disabled {
   background: var(--field-surface);
 }
 
+.category-printer-routes {
+  display: grid;
+  gap: 16px;
+}
+
+.category-printer-routes > header {
+  display: grid;
+  grid-template-columns: minmax(240px, .8fr) minmax(320px, 1.2fr);
+  align-items: end;
+  gap: 24px;
+}
+
+.category-printer-routes h2 {
+  margin: 4px 0 0;
+  color: var(--brand-navy);
+}
+
+.category-printer-routes header p,
+.category-printer-routes-note,
+.category-printer-routes-state {
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.category-printer-routes header p {
+  margin: 0;
+  font-size: 12px;
+}
+
+.category-printer-route-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(440px, 1fr));
+  gap: 10px;
+}
+
+.category-printer-route-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 1fr) minmax(150px, 210px) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: color-mix(
+    in srgb,
+    var(--brand-cream) 96%,
+    var(--brand-navy)
+  );
+}
+
+.category-printer-route-name strong,
+.category-printer-route-name small {
+  display: block;
+}
+
+.category-printer-route-name strong {
+  overflow: hidden;
+  color: var(--brand-navy);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.category-printer-route-name small,
+.category-printer-route-readonly {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.category-visibility-state {
+  font-weight: 720;
+}
+
+.category-visibility-state.active {
+  color: var(--brand-orange);
+}
+
+.category-visibility-state.hidden {
+  color: var(--brand-navy);
+}
+
+.category-printer-route-row label {
+  min-width: 0;
+}
+
+.category-printer-route-row input {
+  width: 100%;
+  min-height: 40px;
+  padding: 0 11px;
+  border: 1px solid var(--field-border);
+  border-radius: 10px;
+  color: var(--brand-navy);
+  background: var(--field-surface);
+}
+
+.category-printer-route-row input:focus {
+  border-color: var(--brand-orange);
+  outline: 0;
+  box-shadow: 0 0 0 3px var(--field-focus-ring);
+}
+
+.category-printer-route-row input[aria-invalid="true"] {
+  border-color: var(--brand-orange);
+}
+
+.category-printer-route-row .form-field-error {
+  margin-top: 5px;
+}
+
+.category-printer-route-actions {
+  display: grid;
+  min-width: 132px;
+  gap: 5px;
+}
+
+.category-printer-route-actions .text-button {
+  min-height: 28px;
+  justify-content: center;
+  white-space: nowrap;
+}
+
+.category-printer-routes-state {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 0;
+  font-size: 12px;
+}
+
+.category-printer-routes-note {
+  font-size: 10px;
+}
+
 @media (max-width: 860px) {
   .receipt-print-settings-card {
     grid-template-columns: 1fr;
     align-items: stretch;
+  }
+
+  .category-printer-routes > header {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+    gap: 8px;
+  }
+}
+
+@media (max-width: 620px) {
+  .category-printer-route-list {
+    grid-template-columns: 1fr;
+  }
+
+  .category-printer-route-row {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .category-printer-route-actions,
+  .category-printer-route-row .secondary-button,
+  .category-printer-route-readonly {
+    justify-self: stretch;
+    text-align: center;
   }
 }
 
@@ -6529,7 +6768,21 @@ button:disabled {
   .drawer-scrim { position: fixed; inset: 0; display: block; border: 0; background: rgb(6 47 94 / .48); z-index: 60; }
   .mobile-nav-toggle { position: fixed; top: 15px; left: 15px; z-index: 50; width: 42px; height: 42px; display: grid; place-content: center; gap: 5px; border: 1px solid var(--brand-cream); border-radius: 12px; background: var(--brand-cream); box-shadow: 0 8px 22px rgb(6 47 94 / .12); cursor: pointer; }
   .mobile-nav-toggle span { width: 18px; height: 2px; border-radius: 2px; background: var(--brand-navy); }
-  .admin-main { padding-top: 76px; }
+  .admin-main { min-width: 0; width: 100%; max-width: 100vw; padding-top: 76px; overflow-x: clip; }
+  .admin-section, .table-card, .editor-card, .recent-logins, .dispatch-card { min-width: 0; max-width: 100%; }
+}
+
+/* Portrait tablets need the map and live courier context in one readable
+   column; the phone layout below 620 px keeps its own denser heights. */
+@media (min-width: 621px) and (max-width: 860px) {
+  .dispatch-card { display: block; }
+  .courier-map-canvas,
+  .map-loading,
+  .live-dispatch .courier-map-canvas,
+  .live-dispatch .map-loading {
+    height: clamp(520px, 64vh, 720px);
+    border-right: 0;
+  }
 }
 
 .new-order-alert-slot {
@@ -6674,6 +6927,11 @@ button:disabled {
     min-height: 44px;
     touch-action: manipulation;
     -webkit-tap-highlight-color: transparent;
+  }
+
+  .integrated-shell input:not([type="checkbox"]):not([type="radio"]),
+  .integrated-shell textarea {
+    min-height: 44px;
   }
 
   .primary-button.compact,

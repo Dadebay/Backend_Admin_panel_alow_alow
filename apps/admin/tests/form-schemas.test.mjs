@@ -8,6 +8,7 @@ import {
 import { branchFormSchema } from "../src/widgets/branch-manager/model/branch-form.ts";
 import {
   categoryFormSchema,
+  categoryReceiptRouteFormSchema,
   productFormSchema,
   receiptPrintSettingsFormSchema,
 } from "../src/widgets/catalog-manager/model/catalog-forms.ts";
@@ -199,6 +200,17 @@ test("receipt routing forms accept private LAN IPv4 addresses only", () => {
   );
   assert.equal(
     receiptPrintSettingsFormSchema.safeParse({ mainPrinterIp: "8.8.8.8" })
+      .success,
+    false,
+  );
+  assert.equal(
+    categoryReceiptRouteFormSchema.safeParse({
+      receiptPrinterIp: "172.16.5.20",
+    }).success,
+    true,
+  );
+  assert.equal(
+    categoryReceiptRouteFormSchema.safeParse({ receiptPrinterIp: "1.1.1.1" })
       .success,
     false,
   );

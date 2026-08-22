@@ -2,12 +2,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import type { components } from "@alowalow/api-contract";
 import { useSession } from "@/src/shared/auth";
+import { COURIER_LOCATION_UPDATE_INTERVAL_MS } from "../model/location-sharing";
 
 type LocationInput = components["schemas"]["UpdateCourierLocationDto"];
 type LocationResponse =
   components["schemas"]["UpdateCourierLocationResponseDto"];
-
-const UPDATE_INTERVAL_MS = 120_000;
 
 function toLocationInput(position: GeolocationPosition): LocationInput {
   const { coords } = position;
@@ -102,7 +101,7 @@ export function CourierLocationSharing() {
         onError,
         options,
       );
-    }, UPDATE_INTERVAL_MS);
+    }, COURIER_LOCATION_UPDATE_INTERVAL_MS);
 
     return () => {
       navigator.geolocation.clearWatch(watchId);
@@ -122,7 +121,10 @@ export function CourierLocationSharing() {
     publishError instanceof Error ? publishError.message : "";
 
   return (
-    <section className="courier-sharing-card">
+    <section
+      className="courier-sharing-card"
+      data-testid="courier-location-sharing"
+    >
       <div className="sharing-status">
         <span className={sharing ? "sharing-dot active" : "sharing-dot"} />
         <div>
@@ -131,8 +133,8 @@ export function CourierLocationSharing() {
           </strong>
           <p>
             {sharing
-              ? "Новая точка отправляется оператору каждые 2 минуты."
-              : "Включите геолокацию перед началом доставки."}
+              ? "Новая точка отправляется диспетчеру каждые 15 секунд, даже без активного заказа."
+              : "Включите геолокацию в начале смены и выключите после её завершения."}
           </p>
         </div>
       </div>
@@ -152,6 +154,7 @@ export function CourierLocationSharing() {
       {sharing ? (
         <button
           className="secondary-button"
+          data-testid="courier-location-sharing-stop"
           type="button"
           onClick={() => void stopSharing()}
         >
@@ -160,6 +163,7 @@ export function CourierLocationSharing() {
       ) : (
         <button
           className="primary-button"
+          data-testid="courier-location-sharing-start"
           type="button"
           onClick={() => {
             setGeoError("");
@@ -174,8 +178,9 @@ export function CourierLocationSharing() {
         </button>
       )}
       <small>
-        Для стабильной передачи держите страницу открытой. Мобильный браузер
-        может приостанавливать GPS после блокировки экрана.
+        Не выключайте геолокацию после доставки: свободный курьер должен
+        оставаться виден диспетчеру. Мобильный браузер может приостанавливать GPS
+        после блокировки экрана.
       </small>
     </section>
   );

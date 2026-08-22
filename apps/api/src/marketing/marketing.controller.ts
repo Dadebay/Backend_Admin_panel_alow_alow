@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   ParseUUIDPipe,
@@ -71,6 +72,18 @@ export class MarketingController {
     @Body() dto: UpdateBannerDto,
   ) {
     return this.marketing.updateBanner(actor, id, dto);
+  }
+
+  @Delete("banners/:id")
+  @ApiBearerAuth()
+  @Roles(Role.ADMIN)
+  @ApiOperation({ summary: "Permanently delete a banner record" })
+  @ApiOkResponse({ type: BannerResponseDto })
+  deleteBanner(
+    @CurrentUser() actor: AuthUser,
+    @Param("id", ParseUUIDPipe) id: string,
+  ) {
+    return this.marketing.deleteBanner(actor, id);
   }
 
   @Get("promos")

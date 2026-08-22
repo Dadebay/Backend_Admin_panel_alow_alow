@@ -1,0 +1,118 @@
+# Проверка админки A7-tagam на планшетах
+
+Документ фиксирует поддерживаемые планшетные состояния, реальные API каждого
+раздела и воспроизводимые проверки. Он не содержит production-токенов, OTP,
+телефонных номеров или других секретов.
+
+## Поддерживаемые размеры и поведение
+
+- До 1180 px постоянная боковая панель заменяется закрытым по умолчанию drawer.
+  Скрытый drawer не получает клики, закрывается по scrim, ссылке или Escape.
+- Основная область ограничена шириной viewport и не создаёт горизонтальный
+  scroll всей страницы. Таблицы используют собственный container breakpoint и
+  превращаются в подписанные карточки, когда их фактическая ширина не больше
+  760 px.
+- Kanban заказов показывает две колонки до 1180 px и одну до 760 px.
+- Карта курьеров на портретном планшете 621–860 px идёт отдельной полноширинной
+  строкой над списком и деталями курьеров. На более широком планшете сохраняется
+  двухколоночное рабочее место.
+- Формы переходят с трёх колонок на две до 1100 px и на одну на телефоне.
+- Для устройств с coarse pointer кнопки, ссылки действий, поля и select имеют
+  высоту касания не меньше 44 px.
+- Модальные окна ограничены viewport, а редакторы каталога, заказа и филиала
+  прокручиваются внутри собственной панели.
+
+## Маршруты и реальные API
+
+Все запросы ниже выполняются с ролью `ADMIN` или `SUPER_ADMIN`, кроме явно
+публичных запросов. Клиент использует один общий авторизованный API-клиент.
+
+| Раздел админки | Основные GET API для открытия экрана |
+| --- | --- |
+| `/orders` | `/orders?page=1&limit=1`, `/staff/couriers`, `/branches` |
+| `/couriers/map` | `/tracking/dispatch`, выбранный маршрут `/orders/couriers/:courierId/route` |
+| `/branches` | `/branches` |
+| `/delivery` | `/delivery/admin/config` |
+| `/catalog` | `/catalog/admin/categories`, `/catalog/admin/products`, `/catalog/admin/receipt-print-settings` |
+| `/marketing` | `/marketing/admin/banners`, `/marketing/promos` |
+| `/notifications` | `/notifications/admin/campaigns?page=1&limit=25` |
+| `/staff` | `/staff`, `/staff/recent-logins` |
+| `/contacts` | `/contacts` |
+| `/login-attempts` | `/staff/login-attempts?page=1&limit=25` |
+
+## Выполненный API smoke
+
+22 августа 2026 года локальный NestJS API был поднят с PostgreSQL, Redis и
+MinIO. Через обычный OTP endpoint была создана локальная `SUPER_ADMIN`-сессия,
+после чего все API из таблицы были запрошены тем же bearer-контрактом, который
+использует админка. Каждый запрос вернул HTTP `200`:
+
+```text
+orders: 200
+courier map: 200
+branches: 200
+delivery: 200
+catalog categories: 200
+catalog products: 200
+printer settings: 200
+marketing banners: 200
+marketing promos: 200
+notifications: 200
+staff: 200
+recent logins: 200
+contacts: 200
+login attempts: 200
+```
+
+Проверка выполнялась через API без браузерной автоматизации. Она доказывает
+доступность реальных данных и контрактов всех экранов. Адаптивные гарантии
+проверяются отдельными frontend-тестами по маршрутам, стабильным `data-testid`,
+container/media breakpoints и отсутствию page-level overflow.
+
+## Повторная авторизованная API-проверка
+
+Перед запуском задаются только локальные переменные оболочки; токен не следует
+передавать аргументом команды, печатать или сохранять в файле:
+
+```bash
+export ADMIN_API_BASE_URL="https://a7-tagam.com.tm/api/v1"
+export ADMIN_ACCESS_TOKEN="<temporary bearer token>"
+
+curl --fail --silent --show-error \
+  --header "Authorization: Bearer ${ADMIN_ACCESS_TOKEN}" \
+  "${ADMIN_API_BASE_URL}/orders?page=1&limit=1" >/dev/null
+curl --fail --silent --show-error \
+  --header "Authorization: Bearer ${ADMIN_ACCESS_TOKEN}" \
+  "${ADMIN_API_BASE_URL}/tracking/dispatch" >/dev/null
+```
+
+Остальные пути берутся из таблицы выше. После проверки переменная с токеном
+удаляется из текущей оболочки.
+
+## Автоматические проверки перед релизом
+
+```bash
+npm --prefix apps/admin run lint
+npm --prefix apps/admin run typecheck
+npm --prefix apps/admin test
+npm --prefix apps/admin audit --audit-level=low
+npm --prefix apps/admin audit --omit=dev --audit-level=low
+
+npm --prefix apps/api run lint
+npm --prefix apps/api run build
+npm --prefix apps/api test
+npm --prefix apps/api audit --audit-level=low
+npm --prefix apps/api audit --omit=dev --audit-level=low
+```
+
+`apps/admin/tests/responsive-admin.test.mjs` удерживает планшетный drawer,
+touch-размеры, адаптивный Kanban, карточные таблицы, портретную карту, корневые
+селекторы всех десяти экранов и эту route/API-матрицу.
+
+## Ручная приёмка без автоматизации браузера
+
+Если оператор проверяет планшет вручную, открыть каждый маршрут из таблицы в
+портретной и альбомной ориентации, проверить drawer, отсутствие горизонтального
+scroll всей страницы, формы, таблицы, модальные окна и touch-действия. Консоль
+не должна содержать runtime-ошибок. Эта ручная проверка не отмечается
+выполненной, пока её действительно не провели на устройстве.

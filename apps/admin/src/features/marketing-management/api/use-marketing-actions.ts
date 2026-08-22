@@ -13,15 +13,21 @@ import { useSession } from "@/src/shared/auth";
 export function useMarketingActions() {
   const { authorizedRequest } = useSession();
   const queryClient = useQueryClient();
-  const refresh = () =>
-    queryClient.invalidateQueries({ queryKey: marketingQueryKeys.all });
+  const refreshBanners = () =>
+    queryClient.invalidateQueries({
+      queryKey: [...marketingQueryKeys.all, "banners"],
+    });
+  const refreshPromos = () =>
+    queryClient.invalidateQueries({
+      queryKey: [...marketingQueryKeys.all, "promos"],
+    });
   const createBanner = useMutation({
     mutationFn: (body: CreateBanner) =>
       authorizedRequest<Banner>("/marketing/banners", {
         method: "POST",
         body: JSON.stringify(body),
       }),
-    onSuccess: refresh,
+    onSuccess: refreshBanners,
   });
   const updateBanner = useMutation({
     mutationFn: ({ id, body }: { id: string; body: UpdateBanner }) =>
@@ -29,7 +35,14 @@ export function useMarketingActions() {
         method: "PATCH",
         body: JSON.stringify(body),
       }),
-    onSuccess: refresh,
+    onSuccess: refreshBanners,
+  });
+  const deleteBanner = useMutation({
+    mutationFn: (id: string) =>
+      authorizedRequest<Banner>(`/marketing/banners/${id}`, {
+        method: "DELETE",
+      }),
+    onSuccess: refreshBanners,
   });
   const createPromo = useMutation({
     mutationFn: (body: CreatePromo) =>
@@ -37,7 +50,7 @@ export function useMarketingActions() {
         method: "POST",
         body: JSON.stringify(body),
       }),
-    onSuccess: refresh,
+    onSuccess: refreshPromos,
   });
   const updatePromo = useMutation({
     mutationFn: ({ id, body }: { id: string; body: UpdatePromo }) =>
@@ -45,7 +58,13 @@ export function useMarketingActions() {
         method: "PATCH",
         body: JSON.stringify(body),
       }),
-    onSuccess: refresh,
+    onSuccess: refreshPromos,
   });
-  return { createBanner, updateBanner, createPromo, updatePromo };
+  return {
+    createBanner,
+    updateBanner,
+    deleteBanner,
+    createPromo,
+    updatePromo,
+  };
 }

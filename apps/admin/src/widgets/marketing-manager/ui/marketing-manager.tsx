@@ -40,6 +40,7 @@ export function MarketingManager() {
   const categories = useAdminCategories();
   const products = useAdminProducts();
   const [bannerEdit, setBannerEdit] = useState<Banner | null>(null);
+  const [bannerDelete, setBannerDelete] = useState<Banner | null>(null);
   const [promoEdit, setPromoEdit] = useState<Promo | null>(null);
   const [showBanner, setShowBanner] = useState(false);
   const [showPromo, setShowPromo] = useState(false);
@@ -163,6 +164,9 @@ export function MarketingManager() {
               </button>
               <button
                 className="text-button"
+                data-testid={`banner-toggle-${row.original.id}`}
+                disabled={marketing.updateBanner.isPending}
+                type="button"
                 onClick={() =>
                   marketing.updateBanner.mutate({
                     id: row.original.id,
@@ -172,11 +176,28 @@ export function MarketingManager() {
               >
                 {row.original.isActive ? "Выключить" : "Включить"}
               </button>
+              <button
+                className="danger-button compact"
+                data-testid={`banner-delete-open-${row.original.id}`}
+                disabled={marketing.deleteBanner.isPending}
+                type="button"
+                onClick={() => {
+                  marketing.deleteBanner.reset();
+                  setBannerDelete(row.original);
+                }}
+              >
+                Удалить
+              </button>
             </div>
           ),
       },
     ],
-    [canEdit, marketing.updateBanner, resetBanner],
+    [
+      canEdit,
+      marketing.deleteBanner,
+      marketing.updateBanner,
+      resetBanner,
+    ],
   );
 
   const promoColumns = useMemo<ColumnDef<Promo, unknown>[]>(
@@ -327,9 +348,25 @@ export function MarketingManager() {
     resetPromo();
   }
 
+  async function deleteSelectedBanner() {
+    if (!bannerDelete) return;
+    try {
+      await marketing.deleteBanner.mutateAsync(bannerDelete.id);
+      if (bannerEdit?.id === bannerDelete.id) {
+        setBannerEdit(null);
+        setShowBanner(false);
+        resetBanner();
+      }
+      setBannerDelete(null);
+    } catch {
+      // TanStack Mutation exposes the normalized API error in the dialog.
+    }
+  }
+
   const mutationError =
     marketing.createBanner.error ||
     marketing.updateBanner.error ||
+    marketing.deleteBanner.error ||
     marketing.createPromo.error ||
     marketing.updatePromo.error ||
     media.uploadImage.error;
@@ -378,6 +415,68 @@ export function MarketingManager() {
       {mutationError && (
         <div className="inline-alert">
           {mutationError instanceof Error ? mutationError.message : ""}
+        </div>
+      )}
+
+      {bannerDelete && (
+        <div
+          className="modal-backdrop"
+          data-testid="banner-delete-dialog"
+        >
+          <section
+            aria-labelledby="banner-delete-title"
+            aria-modal="true"
+            className="modal banner-delete-modal"
+            role="alertdialog"
+          >
+            <header className="modal-head">
+              <div>
+                <span className="eyebrow">БЕЗ ВОССТАНОВЛЕНИЯ</span>
+                <h2 id="banner-delete-title">Удалить баннер?</h2>
+              </div>
+            </header>
+            <p>
+              Баннер «{bannerDelete.title}» исчезнет из админки и клиентских
+              приложений.
+            </p>
+            <small>
+              Запись удаляется навсегда. Файл изображения останется в приватном
+              хранилище и не удалит другие материалы.
+            </small>
+            {marketing.deleteBanner.error && (
+              <p className="form-error" role="alert">
+                {marketing.deleteBanner.error instanceof Error
+                  ? marketing.deleteBanner.error.message
+                  : "Не удалось удалить баннер"}
+              </p>
+            )}
+            <div className="modal-actions">
+              <button
+                className="secondary-button"
+                data-testid="banner-delete-cancel"
+                disabled={marketing.deleteBanner.isPending}
+                type="button"
+                autoFocus
+                onClick={() => {
+                  marketing.deleteBanner.reset();
+                  setBannerDelete(null);
+                }}
+              >
+                Отмена
+              </button>
+              <button
+                className="danger-button"
+                data-testid="banner-delete-confirm"
+                disabled={marketing.deleteBanner.isPending}
+                type="button"
+                onClick={() => void deleteSelectedBanner()}
+              >
+                {marketing.deleteBanner.isPending
+                  ? "Удаляем…"
+                  : "Удалить навсегда"}
+              </button>
+            </div>
+          </section>
         </div>
       )}
 

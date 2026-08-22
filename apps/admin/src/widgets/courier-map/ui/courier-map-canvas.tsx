@@ -12,6 +12,11 @@ import type { LatLngBoundsExpression, LatLngTuple } from "leaflet";
 import type { CourierRoute } from "@/src/entities/courier";
 import { MAP_ATTRIBUTION, MAP_TILE_URL } from "@/src/shared/map";
 import { brandColors } from "@/src/shared/ui";
+import {
+  courierPresenceLabels,
+  courierWorkLabel,
+  courierWorkState,
+} from "../model/courier-status";
 import type {
   DispatchBranchDto,
   DispatchCourier,
@@ -56,7 +61,7 @@ export default function CourierMapCanvas({
   onSelectCourier: (courierId: string) => void;
 }) {
   const selected =
-    couriers.find(({ id }) => id === selectedCourierId) ?? couriers[0];
+    couriers.find(({ id }) => id === selectedCourierId) ?? null;
   const deliveryStops = route?.stops ?? selected?.activeOrders ?? [];
   const routeLine: LatLngTuple[] =
     route?.routingStatus === "READY" && route.route
@@ -66,20 +71,25 @@ export default function CourierMapCanvas({
         ])
       : [];
   const points: LatLngTuple[] = [...routeLine];
-  if (!points.length) {
+  for (const courier of couriers) {
+    if (courier.location) {
+      points.push([courier.location.latitude, courier.location.longitude]);
+    }
+  }
+  if (!selected) {
     for (const branch of branches) {
       points.push([branch.latitude, branch.longitude]);
     }
-    for (const courier of couriers) {
-      if (courier.location) {
-        points.push([courier.location.latitude, courier.location.longitude]);
-      }
+  }
+  for (const order of deliveryStops) {
+    if (order.branch?.latitude != null && order.branch.longitude != null) {
+      points.push([order.branch.latitude, order.branch.longitude]);
     }
-    for (const order of deliveryStops) {
-      if (order.branch?.latitude != null && order.branch.longitude != null) {
-        points.push([order.branch.latitude, order.branch.longitude]);
-      }
-      points.push([order.latitude, order.longitude]);
+    points.push([order.latitude, order.longitude]);
+  }
+  if (!points.length) {
+    for (const branch of branches) {
+      points.push([branch.latitude, branch.longitude]);
     }
   }
 
@@ -131,8 +141,11 @@ export default function CourierMapCanvas({
           </Popup>
         </CircleMarker>
       ))}
-      {couriers.map((courier) =>
-        courier.location ? (
+      {couriers.map((courier) => {
+        if (!courier.location) return null;
+        const workState = courierWorkState(courier);
+        const workLabel = courierWorkLabel(courier);
+        return (
           <CircleMarker
             key={courier.id}
             center={[
@@ -143,25 +156,33 @@ export default function CourierMapCanvas({
             pathOptions={{
               color: brandColors.cream,
               fillColor:
-                courier.presence === "ONLINE"
-                  ? brandColors.navy
-                  : brandColors.orange,
-              fillOpacity: 1,
+                workState === "BUSY" ? brandColors.orange : brandColors.navy,
+              fillOpacity: courier.presence === "ONLINE" ? 1 : 0.62,
               weight: 3,
+              ...(courier.presence === "ONLINE" ? {} : { dashArray: "4 3" }),
             }}
             eventHandlers={{ click: () => onSelectCourier(courier.id) }}
           >
-            <Tooltip direction="top">{courierName(courier)}</Tooltip>
+            <Tooltip
+              className={`courier-marker-tooltip ${workState.toLowerCase()}`}
+              direction="top"
+              permanent
+            >
+              <strong>{courierName(courier)}</strong>
+              <span>{workLabel}</span>
+            </Tooltip>
             <Popup>
               <strong>{courierName(courier)}</strong>
               <br />
-              {courier.phone}
+              {workLabel}
               <br />
-              {courier.activeOrders.length} активных заказов
+              {courierPresenceLabels[courier.presence]}
+              <br />
+              {courier.phone}
             </Popup>
           </CircleMarker>
-        ) : null,
-      )}
+        );
+      })}
       {deliveryStops.map((order, index) => (
         <CircleMarker
           key={"id" in order ? order.id : order.orderId}

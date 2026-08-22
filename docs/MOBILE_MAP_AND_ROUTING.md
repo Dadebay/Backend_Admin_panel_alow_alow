@@ -75,11 +75,14 @@ Content-Type: application/json
 }
 ```
 
-During an active delivery, publish a fresh point about every 10–15 seconds
+During the complete courier shift, including gaps between orders and after an
+order becomes `DELIVERED`, publish a fresh point about every 10–15 seconds
 (subject to Android/iOS background and battery rules). The API returns
-`nextUpdateInSeconds=15`. Every accepted point is pushed to the dispatch map
-immediately; a two-minute mobile interval would still make the visible marker
-two minutes stale even though SSE itself is live.
+`nextUpdateInSeconds=15`. Delivery completion changes the dispatch workload
+label to `Свободен` but must not stop GPS. Every accepted point is pushed to the
+dispatch map immediately; a two-minute mobile interval would still make the
+visible marker two minutes stale even though SSE itself is live. Stop sharing
+only when the courier explicitly ends the shift.
 
 Route request:
 

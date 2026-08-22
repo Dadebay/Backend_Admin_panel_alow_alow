@@ -1883,7 +1883,7 @@
             "bearer": []
           }
         ],
-        "summary": "Publish courier GPS; update about every 15 seconds during active delivery",
+        "summary": "Publish courier GPS about every 15 seconds for the complete courier shift",
         "tags": [
           "tracking"
         ]
@@ -2835,6 +2835,40 @@
             "bearer": []
           }
         ],
+        "tags": [
+          "marketing"
+        ]
+      },
+      "delete": {
+        "operationId": "MarketingController_deleteBanner_v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BannerResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Permanently delete a banner record",
         "tags": [
           "marketing"
         ]

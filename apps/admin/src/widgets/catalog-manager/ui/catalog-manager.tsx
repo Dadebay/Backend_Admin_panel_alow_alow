@@ -28,6 +28,11 @@ import {
   type ProductFormValues,
   type ReceiptPrintSettingsFormValues,
 } from "../model/catalog-forms";
+import {
+  buildCategoryPrinterUpdate,
+  buildCategoryVisibilityUpdate,
+} from "../model/category-receipt-route";
+import { CategoryReceiptRoutes } from "./category-receipt-routes";
 
 function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : "";
@@ -310,7 +315,7 @@ export function CatalogManager() {
             </strong>
             <small>
               {row.original.receiptPrinterIp
-                ? "Переопределение блюда"
+                ? "Свой IP · без копии на принтер категории"
                 : row.original.effectiveReceiptPrinterIp
                   ? "Наследуется от категории"
                   : "Укажите IP у категории или блюда"}
@@ -620,6 +625,29 @@ export function CatalogManager() {
         )}
       </form>
 
+      <CategoryReceiptRoutes
+        categories={categories.data ?? []}
+        canEdit={canEdit}
+        isLoading={categories.isPending}
+        isPending={actions.updateCategory.isPending}
+        onRetry={() => void categories.refetch()}
+        onSave={async (category, values) => {
+          await actions.updateCategory.mutateAsync({
+            id: category.id,
+            body: buildCategoryPrinterUpdate(
+              category,
+              values.receiptPrinterIp,
+            ),
+          });
+        }}
+        onToggleActive={(category) => {
+          actions.updateCategory.mutate({
+            id: category.id,
+            body: buildCategoryVisibilityUpdate(category),
+          });
+        }}
+      />
+
       <section className="catalog-search-panel" aria-label="Поиск по каталогу">
         <div>
           <span className="eyebrow">БЫСТРЫЙ ПОИСК</span>
@@ -914,8 +942,9 @@ export function CatalogManager() {
                   message={productErrors.receiptPrinterIp?.message}
                 />
                 <small>
-                  Необязательно. Заполненный IP переопределяет аппарат
-                  категории; пустое поле наследует категорию.
+                  Необязательно. Заполненный IP полностью заменяет аппарат
+                  категории: блюдо печатается только здесь. Пустое поле
+                  наследует IP категории.
                 </small>
               </label>
               <label>

@@ -82,6 +82,31 @@ export class MarketingService {
     });
   }
 
+  deleteBanner(actor: AuthUser, id: string) {
+    return this.prisma.$transaction(async (tx) => {
+      const banner = await tx.banner.findUnique({ where: { id } });
+      if (!banner) throw new NotFoundException("Banner not found");
+      const deleted = await tx.banner.deleteMany({ where: { id } });
+      if (deleted.count !== 1) {
+        throw new NotFoundException("Banner not found");
+      }
+      await tx.auditLog.create({
+        data: {
+          actorId: actor.id,
+          action: "marketing.banner.deleted",
+          entityType: "Banner",
+          entityId: id,
+          metadata: {
+            title: banner.title,
+            imageUrl: banner.imageUrl,
+            isActive: banner.isActive,
+          },
+        },
+      });
+      return toApiResponse(banner);
+    });
+  }
+
   async promoCodes() {
     const promos = await this.prisma.promoCode.findMany({
       orderBy: { createdAt: "desc" },

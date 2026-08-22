@@ -50,6 +50,10 @@ export const receiptPrintSettingsFormSchema = z.object({
   mainPrinterIp: receiptPrinterIpSchema,
 });
 
+export const categoryReceiptRouteFormSchema = z.object({
+  receiptPrinterIp: receiptPrinterIpSchema,
+});
+
 export const productFormSchema = z
   .object({
     categoryId: z.uuid("Выберите категорию"),
@@ -100,6 +104,9 @@ export type CategoryFormValues = z.infer<typeof categoryFormSchema>;
 export type ProductFormValues = z.infer<typeof productFormSchema>;
 export type ReceiptPrintSettingsFormValues = z.infer<
   typeof receiptPrintSettingsFormSchema
+>;
+export type CategoryReceiptRouteFormValues = z.infer<
+  typeof categoryReceiptRouteFormSchema
 >;
 
 export function slugify(value: string) {

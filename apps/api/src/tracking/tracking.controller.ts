@@ -40,7 +40,7 @@ export class TrackingController {
   @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @ApiOperation({
     summary:
-      "Publish courier GPS; update about every 15 seconds during active delivery",
+      "Publish courier GPS about every 15 seconds for the complete courier shift",
   })
   @ApiOkResponse({ type: UpdateCourierLocationResponseDto })
   updateLocation(

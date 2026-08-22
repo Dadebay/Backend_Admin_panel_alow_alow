@@ -784,6 +784,113 @@ describe("backend security and critical workflow", () => {
     );
   });
 
+  it("allows only administrators to permanently delete banner records", async () => {
+    const bannerInput = {
+      title: "Deletable banner",
+      subtitle: "Removed from public and admin lists",
+      imageUrl: mediaUrl(120),
+      link: "/orders",
+      sortOrder: 8,
+      isActive: true,
+    };
+
+    await request(server)
+      .post("/api/v1/marketing/banners")
+      .set(bearer(tokens.operator))
+      .send(bannerInput)
+      .expect(403);
+    const created = await request(server)
+      .post("/api/v1/marketing/banners")
+      .set(bearer(tokens.admin))
+      .send(bannerInput)
+      .expect(201);
+    const bannerId = (created.body as { id: string }).id;
+    expect(
+      (
+        (
+          await request(server)
+            .get("/api/v1/marketing/banners")
+            .expect(200)
+        ).body as Array<{ id: string }>
+      ).some(({ id }) => id === bannerId),
+    ).toBe(true);
+
+    await request(server)
+      .delete(`/api/v1/marketing/banners/${bannerId}`)
+      .set(bearer(tokens.operator))
+      .expect(403);
+    await request(server)
+      .delete(`/api/v1/marketing/banners/${bannerId}`)
+      .set(bearer(tokens.customer))
+      .expect(403);
+    await request(server)
+      .delete(
+        "/api/v1/marketing/banners/00000000-0000-4000-8000-000000009999",
+      )
+      .set(bearer(tokens.admin))
+      .expect(404);
+
+    const deleted = await request(server)
+      .delete(`/api/v1/marketing/banners/${bannerId}`)
+      .set(bearer(tokens.admin))
+      .expect(200);
+    expect(deleted.body).toMatchObject({
+      id: bannerId,
+      title: bannerInput.title,
+      imageUrl: bannerInput.imageUrl,
+    });
+    await request(server)
+      .delete(`/api/v1/marketing/banners/${bannerId}`)
+      .set(bearer(tokens.admin))
+      .expect(404);
+
+    const [publicAfterDelete, adminAfterDelete] = await Promise.all([
+      request(server).get("/api/v1/marketing/banners").expect(200),
+      request(server)
+        .get("/api/v1/marketing/admin/banners")
+        .set(bearer(tokens.admin))
+        .expect(200),
+    ]);
+    for (const response of [publicAfterDelete, adminAfterDelete]) {
+      expect(
+        (response.body as Array<{ id: string }>).some(
+          ({ id }) => id === bannerId,
+        ),
+      ).toBe(false);
+    }
+    expect(
+      await prisma.auditLog.findFirst({
+        where: {
+          action: "marketing.banner.deleted",
+          entityId: bannerId,
+        },
+      }),
+    ).toMatchObject({
+      actorId: users.admin.id,
+      entityType: "Banner",
+      metadata: {
+        title: bannerInput.title,
+        imageUrl: bannerInput.imageUrl,
+        isActive: true,
+      },
+    });
+
+    const superAdminBanner = await request(server)
+      .post("/api/v1/marketing/banners")
+      .set(bearer(tokens.admin))
+      .send({
+        ...bannerInput,
+        title: "Super admin deletable banner",
+        imageUrl: mediaUrl(121),
+      })
+      .expect(201);
+    const superAdminBannerId = (superAdminBanner.body as { id: string }).id;
+    await request(server)
+      .delete(`/api/v1/marketing/banners/${superAdminBannerId}`)
+      .set(bearer(tokens.superAdmin))
+      .expect(200);
+  });
+
   it("enforces admin-only catalog mutations", async () => {
     await request(server)
       .post("/api/v1/catalog/categories")
@@ -1238,6 +1345,91 @@ describe("backend security and critical workflow", () => {
     expect(publicVariantProduct?.variants[0]).toMatchObject({
       id: largeVariant.id,
       price: 70,
+    });
+  });
+
+  it("hides a category without losing its kitchen printer route", async () => {
+    const createdCategory = await request(server)
+      .post("/api/v1/catalog/categories")
+      .set(bearer(tokens.admin))
+      .send({
+        name: "Hidden kitchen category",
+        slug: "hidden-kitchen-category",
+        receiptPrinterIp: "192.168.123.110",
+        sortOrder: 12,
+      })
+      .expect(201);
+    const categoryId = (createdCategory.body as { id: string }).id;
+    const createdProduct = await request(server)
+      .post("/api/v1/catalog/products")
+      .set(bearer(tokens.admin))
+      .send({
+        categoryId,
+        name: "Hidden category product",
+        slug: "hidden-category-product",
+        description: "Disappears when its parent category is hidden",
+        price: 20,
+      })
+      .expect(201);
+    const productId = (createdProduct.body as { id: string }).id;
+
+    await request(server)
+      .patch(`/api/v1/catalog/categories/${categoryId}`)
+      .set(bearer(tokens.operator))
+      .send({ isActive: false })
+      .expect(403);
+    const hidden = await request(server)
+      .patch(`/api/v1/catalog/categories/${categoryId}`)
+      .set(bearer(tokens.admin))
+      .send({ isActive: false })
+      .expect(200);
+    expect(hidden.body).toMatchObject({
+      id: categoryId,
+      isActive: false,
+      receiptPrinterIp: "192.168.123.110",
+      sortOrder: 12,
+    });
+
+    const [publicCategories, publicProducts, adminCategories] =
+      await Promise.all([
+        request(server).get("/api/v1/catalog/categories").expect(200),
+        request(server)
+          .get(`/api/v1/catalog/products?categoryId=${categoryId}`)
+          .expect(200),
+        request(server)
+          .get("/api/v1/catalog/admin/categories")
+          .set(bearer(tokens.admin))
+          .expect(200),
+      ]);
+    expect(
+      (publicCategories.body as Array<{ id: string }>).some(
+        ({ id }) => id === categoryId,
+      ),
+    ).toBe(false);
+    expect(
+      (publicProducts.body as Array<{ id: string }>).some(
+        ({ id }) => id === productId,
+      ),
+    ).toBe(false);
+    expect(
+      (adminCategories.body as Array<Record<string, unknown>>).find(
+        ({ id }) => id === categoryId,
+      ),
+    ).toMatchObject({
+      isActive: false,
+      receiptPrinterIp: "192.168.123.110",
+    });
+    expect(
+      await prisma.auditLog.findFirst({
+        where: {
+          action: "catalog.category.updated",
+          entityId: categoryId,
+        },
+        orderBy: { createdAt: "desc" },
+      }),
+    ).toMatchObject({
+      actorId: users.admin.id,
+      metadata: { changedFields: ["isActive"] },
     });
   });
 
@@ -2638,6 +2830,80 @@ describe("backend security and critical workflow", () => {
       .get("/api/v1/tracking/dispatch")
       .set(bearer(tokens.superAdmin))
       .expect(200);
+
+    for (const assignedOrder of assignedOrders) {
+      let delivery = await transition(
+        tokens.courier,
+        assignedOrder,
+        OrderStatus.OUT_FOR_DELIVERY,
+      );
+      delivery = await transition(
+        tokens.courier,
+        delivery,
+        OrderStatus.DELIVERED,
+      );
+      expect(delivery.status).toBe(OrderStatus.DELIVERED);
+    }
+    const freeAfterDelivery = await request(server)
+      .get("/api/v1/tracking/dispatch")
+      .set(bearer(tokens.operator))
+      .expect(200);
+    expect(
+      (
+        freeAfterDelivery.body as {
+          couriers: Array<{
+            id: string;
+            presence: string;
+            location: { latitude: number; longitude: number } | null;
+            activeOrders: Array<{ id: string }>;
+          }>;
+        }
+      ).couriers.find(({ id }) => id === users.courier.id),
+    ).toMatchObject({
+      presence: "ONLINE",
+      location: {
+        latitude: location.latitude,
+        longitude: location.longitude,
+      },
+      activeOrders: [],
+    });
+
+    const afterDeliveryLocation = {
+      ...location,
+      latitude: 37.96021,
+      longitude: 58.39021,
+      recordedAt: new Date(
+        Math.max(Date.now(), Date.parse(location.recordedAt) + 1),
+      ).toISOString(),
+    };
+    await request(server)
+      .put("/api/v1/tracking/me/location")
+      .set(bearer(tokens.courier))
+      .send(afterDeliveryLocation)
+      .expect(200);
+    const movingFreeCourier = await request(server)
+      .get("/api/v1/tracking/dispatch")
+      .set(bearer(tokens.operator))
+      .expect(200);
+    expect(
+      (
+        movingFreeCourier.body as {
+          couriers: Array<{
+            id: string;
+            presence: string;
+            location: { latitude: number; longitude: number } | null;
+            activeOrders: Array<{ id: string }>;
+          }>;
+        }
+      ).couriers.find(({ id }) => id === users.courier.id),
+    ).toMatchObject({
+      presence: "ONLINE",
+      location: {
+        latitude: afterDeliveryLocation.latitude,
+        longitude: afterDeliveryLocation.longitude,
+      },
+      activeOrders: [],
+    });
 
     await request(server)
       .delete("/api/v1/tracking/me/location")

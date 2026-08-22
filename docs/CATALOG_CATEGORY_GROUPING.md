@@ -1,5 +1,9 @@
 # Catalog category grouping
 
+Category visibility and X-printer regression scenarios are maintained in
+`docs/COURIER_MAP_AND_PRINTER_ROUTING_QA.md`; this document remains the source
+for grouped catalog navigation and filtering behavior.
+
 This document is the maintenance and QA contract for category grouping in the
 operations catalog and phone-assisted order flow.
 
@@ -23,6 +27,15 @@ group opens by default, every category header is a keyboard-operable button,
 and administrators may expand or collapse all groups. Starting a text search
 or selecting a category expands the resulting groups so matches are not hidden.
 Only expanded groups mount their product tables.
+
+Printer routing has a separate quick-settings block above the catalog search.
+It renders one private-LAN IPv4 field per category and saves only that
+category's route, so an administrator does not need to open the full category
+editor. The same row can hide or show the complete category; a hidden category
+and its products remain editable in admin but disappear from customer ordering.
+Clearing the field disables the category default. Product-level IPs remain in
+the product editor and exclusively override this default: a routed product is
+not also sent to the category printer.
 
 ## Data and ordering contract
 
@@ -75,6 +88,11 @@ Tests and QA automation may rely on these selectors:
 - `catalog-product-group-panel-{categoryId}`
 - `catalog-product-groups-collapse`
 - `catalog-product-groups-expand`
+- `category-printer-routes`
+- `category-printer-route-{categoryId}`
+- `category-printer-ip-{categoryId}`
+- `category-printer-save-{categoryId}`
+- `category-visibility-{categoryId}`
 - `assisted-product-search`
 - `assisted-product-categories`
 - `assisted-product-category-all`
@@ -132,10 +150,16 @@ products, missing images, long names, and at least 50 products.
 3. Filter one category and confirm exactly one expanded group remains.
 4. Search by product, category, slug, description, and printer IP; matching
    groups must open automatically.
-5. Set the main printer, a category printer and a different product printer;
-   verify the table labels the product route as inherited or overridden.
-6. Combine search with a category and verify both filters apply.
-7. Confirm hidden records remain editable and a no-match query shows the empty
+5. Set the main printer, save a category printer from the quick-settings block,
+   and set a different product printer; verify the table labels the product
+   route as inherited or overridden and that its kitchen job exists only for
+   the product IP. Clear the category field and verify that its default is
+   disabled after saving.
+6. Hide a category from its quick-settings row. Confirm the complete category
+   remains visible and marked hidden in admin but disappears, together with all
+   its products, from the customer catalog; show it again from the same row.
+7. Combine search with a category and verify both filters apply.
+8. Confirm hidden records remain editable and a no-match query shows the empty
    state.
 
 ### Phone-assisted order

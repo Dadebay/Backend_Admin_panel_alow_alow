@@ -8,6 +8,19 @@ const tableSourceUrl = new URL(
 );
 const stylesUrl = new URL("../src/app/styles/globals.css", import.meta.url);
 
+const tabletWorkspaces = [
+  ["order-board/ui/order-board.tsx", "order-board"],
+  ["dispatch-map/ui/dispatch-map.tsx", "dispatch-map-page"],
+  ["branch-manager/ui/branch-manager.tsx", "branch-manager"],
+  ["delivery-manager/ui/delivery-manager.tsx", "delivery-manager"],
+  ["catalog-manager/ui/catalog-manager.tsx", "catalog-manager"],
+  ["marketing-manager/ui/marketing-manager.tsx", "marketing-manager"],
+  ["notification-manager/ui/notification-manager.tsx", "notification-manager"],
+  ["staff-manager/ui/staff-manager.tsx", "staff-manager"],
+  ["contact-manager/ui/contact-manager.tsx", "contact-manager"],
+  ["login-attempt-manager/ui/login-attempt-manager.tsx", "login-attempt-manager"],
+];
+
 test("shared data tables expose readable labels to responsive rows", async () => {
   const source = await readFile(tableSourceUrl, "utf8");
 
@@ -54,6 +67,39 @@ test("tablet navigation is a touch-safe drawer", async () => {
     styles,
     /@media \(pointer: coarse\)[\s\S]*?\.integrated-shell button,[\s\S]*?min-height: 44px;[^}]*touch-action: manipulation;/,
   );
+  assert.match(
+    styles,
+    /\.integrated-shell input:not\(\[type="checkbox"\]\):not\(\[type="radio"\]\),[\s\S]*?min-height: 44px;/,
+  );
+});
+
+test("every administrator workspace exposes a stable tablet QA root", async () => {
+  await Promise.all(
+    tabletWorkspaces.map(async ([relativePath, testId]) => {
+      const source = await readFile(
+        new URL(`../src/widgets/${relativePath}`, import.meta.url),
+        "utf8",
+      );
+      assert.match(source, new RegExp(`data-testid=["']${testId}["']`));
+    }),
+  );
+});
+
+test("tablet workspaces cannot widen the page and portrait maps stack", async () => {
+  const styles = await readFile(stylesUrl, "utf8");
+
+  assert.match(
+    styles,
+    /@media \(max-width: 1180px\)[\s\S]*?\.admin-main\s*\{[^}]*max-width: 100vw;[^}]*overflow-x: clip;/,
+  );
+  assert.match(
+    styles,
+    /\.admin-section, \.table-card, \.editor-card, \.recent-logins, \.dispatch-card\s*\{[^}]*min-width: 0;[^}]*max-width: 100%;/,
+  );
+  assert.match(
+    styles,
+    /@media \(min-width: 621px\) and \(max-width: 860px\)[\s\S]*?\.dispatch-card\s*\{[^}]*display: block;[\s\S]*?height: clamp\(520px, 64vh, 720px\);/,
+  );
 });
 
 test("tablet drawer controls expose stable automation hooks", async () => {
@@ -89,4 +135,43 @@ test("order kanban wraps at desktop, tablet, and phone breakpoints", async () =>
     styles,
     /\.courier-screen \.order-kanban\s*\{[^}]*grid-template-columns: minmax\(0, 1fr\);/s,
   );
+});
+
+test("tablet QA documentation maps every admin route to its real API", async () => {
+  const documentation = await readFile(
+    new URL("../../../docs/ADMIN_TABLET_QA.md", import.meta.url),
+    "utf8",
+  );
+  const routes = [
+    "/orders",
+    "/couriers/map",
+    "/branches",
+    "/delivery",
+    "/catalog",
+    "/marketing",
+    "/notifications",
+    "/staff",
+    "/contacts",
+    "/login-attempts",
+  ];
+  const apiPaths = [
+    "/orders?page=1&limit=1",
+    "/tracking/dispatch",
+    "/branches",
+    "/delivery/admin/config",
+    "/catalog/admin/categories",
+    "/catalog/admin/products",
+    "/catalog/admin/receipt-print-settings",
+    "/marketing/admin/banners",
+    "/marketing/promos",
+    "/notifications/admin/campaigns?page=1&limit=25",
+    "/staff",
+    "/staff/recent-logins",
+    "/contacts",
+    "/staff/login-attempts?page=1&limit=25",
+  ];
+
+  for (const value of [...routes, ...apiPaths]) {
+    assert.ok(documentation.includes(`\`${value}\``), `${value} is documented`);
+  }
 });

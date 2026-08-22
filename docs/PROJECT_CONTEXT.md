@@ -94,7 +94,9 @@ alowalow/
 │       └── ci-cd.yml
 ├── docs/
 │   ├── ANDROID_SMS_GATEWAY.md
+│   ├── ADMIN_TABLET_QA.md
 │   ├── CATALOG_CATEGORY_GROUPING.md
+│   ├── COURIER_MAP_AND_PRINTER_ROUTING_QA.md
 │   ├── DEPLOYMENT.md
 │   ├── INFRASTRUCTURE.md
 │   ├── MOBILE_DELIVERY_AND_COURIER_UPDATE.md
@@ -355,15 +357,32 @@ restricted to `OPERATOR`, `ADMIN`, and `SUPER_ADMIN` and includes each active
 courier, latest location, all active assigned orders, delivery coordinates,
 customer contact details, items, and cash to collect.
 
+The dispatch map opens in an explicit all-couriers overview instead of
+auto-selecting one courier. Every courier with a latest GPS point remains in
+the fitted map bounds and every located courier has a permanent marker label
+with their name and backend-derived workload: `Свободен`, one order number, or
+the active-order count. Presence remains a separate signal, so a busy courier
+with stale GPS is not incorrectly shown as free. SSE updates move the marker.
+Selecting a courier overlays that courier's road route and delivery stops
+without removing the other live courier markers; the `Все курьеры` control
+returns to the overview and reports busy/free/online/GPS counts.
+
 The previous 120-second courier publish interval plus 30-second admin polling
 is only a near-real-time fallback and is no longer the accepted live-tracking
-target. During an active delivery the mobile client should publish a fresh GPS
+target. During the complete courier shift—including the time between orders and
+after an order becomes `DELIVERED`—the mobile client should publish a fresh GPS
 reading approximately every 10–15 seconds, adapting to platform background and
-battery restrictions. NestJS remains the authenticated ingestion boundary,
-stores the newest point in Redis, and pushes each accepted point through the
-role-protected `/tracking/dispatch/live` SSE stream. The admin applies those
-events directly to the existing TanStack Query snapshot cache. A slower
-periodic snapshot remains only for initial state and reconnect recovery.
+battery restrictions. Delivery completion removes the order from
+`activeOrders` and changes the map label to `Свободен`; it does not delete the
+latest point. Only explicit end-of-shift location deletion stops sharing.
+NestJS remains the authenticated ingestion boundary, stores the newest point in
+Redis, and pushes each accepted point through the role-protected
+`/tracking/dispatch/live` SSE stream. The admin applies those events directly
+to the existing TanStack Query snapshot cache. A slower periodic snapshot
+remains only for initial state and reconnect recovery.
+The maintained regression matrix, automated coverage map, and manual QA cases
+for courier visibility and printer routing live in
+`docs/COURIER_MAP_AND_PRINTER_ROUTING_QA.md`.
 
 The base-map service is independent from courier tracking. It serves only the
 public base-map style, vector PBF data, and Leaflet-compatible raster PNG tiles;
@@ -489,7 +508,11 @@ heights; visual density must not be reduced to the previous pale compact map.
 ## Catalog and marketing
 
 Admins control branches, categories, products, descriptions, active status,
-images, banners, and promo codes. Branch creation, editing, activation, and
+images, banners, and promo codes. `ADMIN` and `SUPER_ADMIN` may permanently
+delete a banner record after an explicit admin confirmation. The deletion is
+audited and immediately removes the banner from admin and customer lists; its
+private S3 image object is retained because media paths may be reused by other
+content and storage cleanup is a separate operation. Branch creation, editing, activation, and
 deactivation are limited to `ADMIN` and `SUPER_ADMIN`; trusted operations roles
 may list branches. The catalog is currently global and shared by every branch.
 Images are validated, converted to WebP, and stored privately in S3-compatible
@@ -513,7 +536,14 @@ common-image limit for the single-image compatibility endpoint.
 
 An administrator may assign a default private LAN receipt-printer IPv4 address
 to a category and an optional override to an individual product. A product
-without an override inherits its category route; a product override always wins.
+without an override inherits its category route; a product override always wins
+and selects one exclusive effective kitchen route, never both addresses.
+The catalog workspace exposes all category routes in one quick-settings block,
+where each category IP can be validated and saved and the complete category can
+be hidden or shown without opening the full category editor. Hiding a category
+removes it and all of its products from customer ordering without changing the
+individual product records; the existing category and product editors remain
+available.
 The addresses and effective route are visible only through authenticated
 catalog-management responses and are never exposed in the public catalog or
 customer order responses. New order lines snapshot the effective kitchen
@@ -637,8 +667,18 @@ Current status:
   to them below the GPS-sharing control;
 - the dispatch map and courier GPS-sharing screen use Redis-backed tracking;
   accepted locations reach authorized dispatchers immediately through SSE,
-  with the 30-second snapshot poll retained only as reconnect recovery;
+  with the 30-second snapshot poll retained only as reconnect recovery. The
+  initial map view contains every located courier, permanent labels distinguish
+  free and busy couriers, delivery completion preserves shift tracking, and
+  selecting a route keeps the remaining courier markers visible;
 - media forms upload validated WebP images to S3-compatible storage;
+- banner management supports an explicit-confirmation permanent delete through
+  the role-protected API; deletion refreshes the existing TanStack marketing
+  cache and retains the underlying private media object;
+- every administrator route supports tablet widths through the shared drawer,
+  bounded workspaces, container-responsive tables, coarse-pointer targets and
+  a portrait-tablet courier-map stack. The route/API and regression matrix is
+  maintained in `docs/ADMIN_TABLET_QA.md`;
 - the catalog editor creates and updates a dish with category, name, slug,
   description, base price, optional private LAN receipt-printer IPv4 address,
   availability, ordering, and up to 10 common S3 images; it also configures a
@@ -868,6 +908,28 @@ at 241.5 KB raw / 77.6 KB gzip and CSS at 136.8 KB / 27.2 KB gzip. The lazy
 phone-assisted order is 25.3 KB / 7.5 KB gzip. Typing issues one cancellable
 geocoding query only after a 350 ms quiet period; Enter and the search button
 remain immediate, and no polling or eager route load was added.
+
+The 2026-08-22 all-courier/category-printer build measures the static SPA
+bootstrap at 241.6 KB raw / 77.6 KB gzip and CSS at 141.2 KB / 27.8 KB gzip.
+The lazy dispatcher is 8.9 KB / 3.1 KB gzip, its map canvas is 4.0 KB / 1.7 KB
+gzip, their shared pure courier-status helper is 0.7 KB / 0.4 KB gzip, the
+catalog manager is 33.7 KB / 8.1 KB gzip, and Leaflet remains isolated at
+153.3 KB / 44.9 KB gzip. The overview derives from the existing dispatch
+snapshot/SSE cache and the category forms reuse the existing catalog query and
+mutation, so no dependency, request stream, polling loop, or initial route
+preload was added.
+
+The 2026-08-22 banner-deletion build keeps the static SPA bootstrap at 241.6 KB
+raw / 77.6 KB gzip and CSS at 141.5 KB / 27.8 KB gzip. The lazy marketing
+manager is 19.1 KB / 4.9 KB gzip; deletion only sends its authenticated mutation
+after explicit confirmation and adds no dependency, polling loop, or eager
+route load.
+
+The 2026-08-22 tablet-complete build keeps the static SPA bootstrap at 241.6 KB
+raw / 77.6 KB gzip. CSS is 142.0 KB / 27.9 KB gzip, an increase of about
+0.5 KB raw / 0.1 KB gzip for bounded tablet workspaces, the portrait dispatch
+stack and coarse-pointer fields. Route chunks, dependencies, API ownership and
+polling behavior are unchanged.
 
 ## Decision log
 
@@ -1260,6 +1322,16 @@ remain immediate, and no polling or eager route load was added.
   contains one complete administrator copy plus kitchen copies grouped by the
   effective route snapshotted on order creation; public catalog responses still
   expose no private printer address.
+- 2026-08-22: the dispatcher map began in an explicit all-couriers live
+  overview, kept every located courier in view while a selected route is
+  overlaid, and permanently labelled couriers with their free/busy state.
+  Courier GPS now remains a whole-shift contract, including after delivery,
+  until explicit stop sharing. Catalog administrators also gained direct
+  per-category visibility and X-printer controls. A category address is the
+  default, while a product address exclusively overrides it and does not create
+  a duplicate kitchen copy on the category printer. The accompanying regression
+  contract records pure frontend cases, API authorization/public-visibility
+  coverage, post-delivery movement, print-plan grouping, and manual QA.
 - 2026-08-21: administrators gained audited, version-locked pre-pickup order
   editing, canonical one-step pre-pickup rollback, and cancellation through
   `DELIVERED`.
@@ -1275,3 +1347,12 @@ remain immediate, and no polling or eager route load was added.
   orders. After the assigned courier confirms pickup and the order becomes
   `OUT_FOR_DELIVERY`, neither `ADMIN` nor `SUPER_ADMIN` may move it backward;
   the separately authorized late-cancellation policy remains unchanged.
+- 2026-08-22: banner management gained an audited permanent-delete operation
+  for `ADMIN` and `SUPER_ADMIN`. The admin requires a separate confirmation,
+  removes the record from both admin and customer queries, invalidates the
+  existing marketing cache, and deliberately retains the private image object.
+- 2026-08-22: all ten administrator routes gained one maintained tablet QA
+  contract. The shared drawer covers widths through 1180 px, portrait tablets
+  stack the courier map above its live context, workspaces cannot widen the
+  page, coarse-pointer controls are at least 44 px, and the documented real API
+  smoke covers every route without browser automation.

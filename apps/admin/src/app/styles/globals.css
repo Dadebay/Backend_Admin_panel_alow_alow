@@ -4497,14 +4497,20 @@ button:disabled {
 
 .receipt-print-settings-card {
   display: grid;
-  grid-template-columns: minmax(260px, 1fr) minmax(220px, 320px) auto;
-  align-items: end;
-  gap: 18px;
+  grid-template-columns: minmax(0, 1fr) minmax(430px, .72fr);
+  align-items: center;
+  gap: clamp(24px, 4vw, 64px);
+  padding: 20px 22px;
+}
+
+.receipt-print-settings-copy {
+  min-width: 0;
 }
 
 .receipt-print-settings-card h2 {
   margin: 4px 0 6px;
   color: var(--brand-navy);
+  line-height: 1.25;
 }
 
 .receipt-print-settings-card p,
@@ -4512,7 +4518,24 @@ button:disabled {
   color: var(--brand-navy);
 }
 
+.receipt-print-settings-card p {
+  max-width: 760px;
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.receipt-print-settings-controls {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) auto;
+  align-items: end;
+  gap: 12px;
+}
+
 .receipt-print-settings-card label {
+  min-width: 0;
   display: grid;
   gap: 6px;
   font-size: 12px;
@@ -4520,6 +4543,7 @@ button:disabled {
 }
 
 .receipt-print-settings-card input {
+  width: 100%;
   min-height: 44px;
   padding: 0 12px;
   border: 1px solid var(--field-border);
@@ -4528,9 +4552,22 @@ button:disabled {
   background: var(--field-surface);
 }
 
+.receipt-print-settings-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.receipt-print-settings-actions button {
+  white-space: nowrap;
+}
+
 .category-printer-routes {
   display: grid;
   gap: 16px;
+  padding: 18px;
 }
 
 .category-printer-routes > header {
@@ -4662,10 +4699,15 @@ button:disabled {
   font-size: 10px;
 }
 
-@media (max-width: 860px) {
+@media (max-width: 980px) {
   .receipt-print-settings-card {
     grid-template-columns: 1fr;
     align-items: stretch;
+    gap: 18px;
+  }
+
+  .receipt-print-settings-controls {
+    grid-template-columns: minmax(220px, 1fr) auto;
   }
 
   .category-printer-routes > header {
@@ -4676,6 +4718,30 @@ button:disabled {
 }
 
 @media (max-width: 620px) {
+  .receipt-print-settings-card {
+    padding: 16px;
+  }
+
+  .receipt-print-settings-controls {
+    grid-template-columns: 1fr;
+  }
+
+  .receipt-print-settings-actions,
+  .receipt-print-settings-actions button {
+    width: 100%;
+  }
+
+  .receipt-print-settings-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .category-printer-routes > header {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+    gap: 8px;
+  }
+
   .category-printer-route-list {
     grid-template-columns: 1fr;
   }

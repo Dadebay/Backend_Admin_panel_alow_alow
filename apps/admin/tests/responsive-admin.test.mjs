@@ -7,6 +7,10 @@ const tableSourceUrl = new URL(
   import.meta.url,
 );
 const stylesUrl = new URL("../src/app/styles/globals.css", import.meta.url);
+const catalogManagerUrl = new URL(
+  "../src/widgets/catalog-manager/ui/catalog-manager.tsx",
+  import.meta.url,
+);
 
 const tabletWorkspaces = [
   ["order-board/ui/order-board.tsx", "order-board"],
@@ -99,6 +103,37 @@ test("tablet workspaces cannot widen the page and portrait maps stack", async ()
   assert.match(
     styles,
     /@media \(min-width: 621px\) and \(max-width: 860px\)[\s\S]*?\.dispatch-card\s*\{[^}]*display: block;[\s\S]*?height: clamp\(520px, 64vh, 720px\);/,
+  );
+});
+
+test("receipt printer settings keep padded aligned controls at every width", async () => {
+  const [styles, catalogManager] = await Promise.all([
+    readFile(stylesUrl, "utf8"),
+    readFile(catalogManagerUrl, "utf8"),
+  ]);
+
+  assert.match(catalogManager, /className="receipt-print-settings-copy"/);
+  assert.match(catalogManager, /className="receipt-print-settings-controls"/);
+  assert.match(catalogManager, /className="receipt-print-settings-actions"/);
+  assert.match(
+    styles,
+    /\.receipt-print-settings-card\s*\{[^}]*grid-template-columns: minmax\(0, 1fr\) minmax\(430px, \.72fr\);[^}]*padding: 20px 22px;/s,
+  );
+  assert.match(
+    styles,
+    /\.receipt-print-settings-controls\s*\{[^}]*grid-template-columns: minmax\(220px, 1fr\) auto;[^}]*align-items: end;/s,
+  );
+  assert.match(
+    styles,
+    /@media \(max-width: 980px\)[\s\S]*?\.receipt-print-settings-card\s*\{[^}]*grid-template-columns: 1fr;/,
+  );
+  assert.match(
+    styles,
+    /@media \(max-width: 620px\)[\s\S]*?\.receipt-print-settings-controls\s*\{[^}]*grid-template-columns: 1fr;/,
+  );
+  assert.match(
+    styles,
+    /\.category-printer-routes\s*\{[^}]*padding: 18px;/s,
   );
 });
 

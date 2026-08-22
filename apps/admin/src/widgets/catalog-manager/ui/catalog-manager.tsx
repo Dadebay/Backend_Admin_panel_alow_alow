@@ -582,7 +582,7 @@ export function CatalogManager() {
         noValidate
         onSubmit={handleReceiptPrintSettingsSubmit(submitReceiptPrintSettings)}
       >
-        <div>
+        <div className="receipt-print-settings-copy">
           <span className="eyebrow">ПЕЧАТЬ ЗАКАЗА</span>
           <h2>Главный чековый аппарат</h2>
           <p>
@@ -590,39 +590,43 @@ export function CatalogManager() {
             маршрутизируются отдельно по категориям.
           </p>
         </div>
-        <label>
-          <span>IP главного аппарата</span>
-          <input
-            data-testid="main-receipt-printer-ip"
-            {...registerReceiptPrintSettings("mainPrinterIp")}
-            aria-invalid={Boolean(receiptPrintSettingsErrors.mainPrinterIp)}
-            disabled={!canEdit || receiptPrintSettings.isPending}
-            inputMode="decimal"
-            placeholder="192.168.1.50"
-          />
-          <FormFieldError
-            message={receiptPrintSettingsErrors.mainPrinterIp?.message}
-          />
-        </label>
-        {receiptPrintSettings.isError && (
-          <button
-            className="text-button compact"
-            data-testid="main-receipt-printer-retry"
-            type="button"
-            onClick={() => void receiptPrintSettings.refetch()}
-          >
-            Повторить загрузку
-          </button>
-        )}
-        {canEdit && (
-          <button
-            className="primary-button compact"
-            data-testid="main-receipt-printer-save"
-            disabled={actions.updateReceiptPrintSettings.isPending}
-          >
-            Сохранить аппарат
-          </button>
-        )}
+        <div className="receipt-print-settings-controls">
+          <label>
+            <span>IP главного аппарата</span>
+            <input
+              data-testid="main-receipt-printer-ip"
+              {...registerReceiptPrintSettings("mainPrinterIp")}
+              aria-invalid={Boolean(receiptPrintSettingsErrors.mainPrinterIp)}
+              disabled={!canEdit || receiptPrintSettings.isPending}
+              inputMode="decimal"
+              placeholder="192.168.1.50"
+            />
+            <FormFieldError
+              message={receiptPrintSettingsErrors.mainPrinterIp?.message}
+            />
+          </label>
+          <div className="receipt-print-settings-actions">
+            {receiptPrintSettings.isError && (
+              <button
+                className="text-button compact"
+                data-testid="main-receipt-printer-retry"
+                type="button"
+                onClick={() => void receiptPrintSettings.refetch()}
+              >
+                Повторить загрузку
+              </button>
+            )}
+            {canEdit && (
+              <button
+                className="primary-button compact"
+                data-testid="main-receipt-printer-save"
+                disabled={actions.updateReceiptPrintSettings.isPending}
+              >
+                Сохранить аппарат
+              </button>
+            )}
+          </div>
+        </div>
       </form>
 
       <CategoryReceiptRoutes

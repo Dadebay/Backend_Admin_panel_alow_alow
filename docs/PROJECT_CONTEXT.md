@@ -931,6 +931,12 @@ raw / 77.6 KB gzip. CSS is 142.0 KB / 27.9 KB gzip, an increase of about
 stack and coarse-pointer fields. Route chunks, dependencies, API ownership and
 polling behavior are unchanged.
 
+The 2026-08-22 printer-card layout correction keeps the static SPA bootstrap at
+241.6 KB raw / 77.6 KB gzip. CSS is 142.9 KB / 28.1 KB gzip; the roughly 0.9 KB
+raw / 0.2 KB gzip increase adds padded desktop controls plus 980 px and phone
+stacking for the main/category printer panels. It adds no dependency, request,
+polling loop or JavaScript to the initial bundle.
+
 ## Decision log
 
 - 2026-07-27: media moved to private S3-compatible storage.

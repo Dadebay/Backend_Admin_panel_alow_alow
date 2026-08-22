@@ -26,6 +26,8 @@ test("receipt printing uses the backend plan and loopback-only agent", async () 
   assert.match(source, /\/orders\/\$\{orderId\}\/receipt-print-plan/);
   assert.match(source, /\/v1\/print/);
   assert.match(source, /crypto\.randomUUID\(\)/);
+  assert.match(source, /plan\.mainJob \? \[plan\.mainJob\] : \[\]/);
+  assert.match(source, /\.\.\.plan\.jobs/);
   assert.match(source, /retry: false/);
 });
 

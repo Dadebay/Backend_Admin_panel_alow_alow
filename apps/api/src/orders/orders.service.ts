@@ -351,7 +351,7 @@ export class OrdersService {
         isActive: true,
         category: { isActive: true },
       },
-      include: { variants: true },
+      include: { variants: true, category: true },
     });
     if (products.length !== productIds.length) {
       throw new BadRequestException("One or more products are unavailable");
@@ -530,7 +530,8 @@ export class OrdersService {
               productVariantId: variant?.id,
               productName: product.name,
               variantName: variant?.name,
-              receiptPrinterIp: product.receiptPrinterIp,
+              receiptPrinterIp:
+                product.receiptPrinterIp ?? product.category.receiptPrinterIp,
               unitPrice,
               quantity,
               lineTotal: Number(unitPrice) * quantity,
@@ -683,30 +684,36 @@ export class OrdersService {
   }
 
   async receiptPrintPlan(id: string) {
-    const order = await this.prisma.order.findUnique({
-      where: { id },
-      select: {
-        id: true,
-        number: true,
-        status: true,
-        subtotal: true,
-        discount: true,
-        deliveryFee: true,
-        total: true,
-        deliveryEtrapName: true,
-        items: {
-          select: {
-            id: true,
-            productName: true,
-            variantName: true,
-            receiptPrinterIp: true,
-            unitPrice: true,
-            quantity: true,
+    const [order, settings] = await Promise.all([
+      this.prisma.order.findUnique({
+        where: { id },
+        select: {
+          id: true,
+          number: true,
+          status: true,
+          subtotal: true,
+          discount: true,
+          deliveryFee: true,
+          total: true,
+          deliveryEtrapName: true,
+          items: {
+            select: {
+              id: true,
+              productName: true,
+              variantName: true,
+              receiptPrinterIp: true,
+              unitPrice: true,
+              quantity: true,
+            },
+            orderBy: { id: "asc" },
           },
-          orderBy: { id: "asc" },
         },
-      },
-    });
+      }),
+      this.prisma.receiptPrintSettings.findUnique({
+        where: { id: "default" },
+        select: { mainPrinterIp: true },
+      }),
+    ]);
     if (!order) throw new NotFoundException("Order not found");
     if (order.status === OrderStatus.NEW) {
       throw new ConflictException("Confirm the order before printing");
@@ -714,7 +721,9 @@ export class OrdersService {
     if (order.status === OrderStatus.CANCELLED) {
       throw new ConflictException("Cancelled orders cannot be printed");
     }
-    return toApiResponse(buildReceiptPrintPlan(order));
+    return toApiResponse(
+      buildReceiptPrintPlan(order, settings?.mainPrinterIp ?? null),
+    );
   }
 
   async transition(user: AuthUser, id: string, dto: TransitionOrderDto) {
@@ -895,10 +904,7 @@ export class OrdersService {
       let nextStatus = order.status;
       let assignedAt = order.assignedAt;
       let packingConfirmedAt = order.packingConfirmedAt;
-      if (
-        itemsChanged &&
-        ITEM_EDIT_RESET_STATUSES.includes(order.status)
-      ) {
+      if (itemsChanged && ITEM_EDIT_RESET_STATUSES.includes(order.status)) {
         nextStatus = OrderStatus.SENT_TO_KITCHEN;
         cookId = null;
         courierId = null;
@@ -984,7 +990,8 @@ export class OrdersService {
               productVariantId: variant?.id,
               productName: product.name,
               variantName: variant?.name,
-              receiptPrinterIp: product.receiptPrinterIp,
+              receiptPrinterIp:
+                product.receiptPrinterIp ?? product.category.receiptPrinterIp,
               unitPrice,
               quantity,
               lineTotal: Number(unitPrice) * quantity,

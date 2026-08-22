@@ -275,7 +275,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CatalogCategorySummaryResponseDto"
+                  "$ref": "#/components/schemas/CatalogAdminCategorySummaryResponseDto"
                 }
               }
             }
@@ -389,6 +389,33 @@
         ]
       }
     },
+    "/api/v1/catalog/admin/receipt-print-settings": {
+      "get": {
+        "operationId": "CatalogController_receiptPrintSettings_v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReceiptPrintSettingsResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Get the complete administrator receipt printer",
+        "tags": [
+          "catalog"
+        ]
+      }
+    },
     "/api/v1/catalog/categories/{id}": {
       "patch": {
         "operationId": "CatalogController_updateCategory_v1",
@@ -418,7 +445,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CatalogCategorySummaryResponseDto"
+                  "$ref": "#/components/schemas/CatalogAdminCategorySummaryResponseDto"
                 }
               }
             }
@@ -429,6 +456,43 @@
             "bearer": []
           }
         ],
+        "tags": [
+          "catalog"
+        ]
+      }
+    },
+    "/api/v1/catalog/receipt-print-settings": {
+      "patch": {
+        "operationId": "CatalogController_updateReceiptPrintSettings_v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateReceiptPrintSettingsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReceiptPrintSettingsResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Configure the complete administrator receipt printer",
         "tags": [
           "catalog"
         ]
@@ -922,7 +986,7 @@
             "bearer": []
           }
         ],
-        "summary": "Build the accepted order receipt jobs grouped by snapshotted LAN printer IP",
+        "summary": "Build one complete administrator receipt and kitchen jobs grouped by snapshotted LAN printer IP",
         "tags": [
           "orders"
         ]
@@ -3839,7 +3903,13 @@
           "receiptPrinterIp": {
             "type": "string",
             "nullable": true,
-            "example": "192.168.1.50"
+            "example": "192.168.1.50",
+            "description": "Explicit product override; null means inherit the category route"
+          },
+          "effectiveReceiptPrinterIp": {
+            "type": "string",
+            "nullable": true,
+            "example": "192.168.1.51"
           }
         },
         "required": [
@@ -3859,7 +3929,8 @@
           "updatedAt",
           "images",
           "variants",
-          "receiptPrinterIp"
+          "receiptPrinterIp",
+          "effectiveReceiptPrinterIp"
         ]
       },
       "CatalogAdminCategoryResponseDto": {
@@ -3893,6 +3964,11 @@
             "type": "string",
             "format": "date-time"
           },
+          "receiptPrinterIp": {
+            "type": "string",
+            "nullable": true,
+            "example": "192.168.1.51"
+          },
           "products": {
             "type": "array",
             "items": {
@@ -3909,7 +3985,27 @@
           "isActive",
           "createdAt",
           "updatedAt",
+          "receiptPrinterIp",
           "products"
+        ]
+      },
+      "ReceiptPrintSettingsResponseDto": {
+        "type": "object",
+        "properties": {
+          "mainPrinterIp": {
+            "type": "string",
+            "nullable": true,
+            "example": "192.168.1.50"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        },
+        "required": [
+          "mainPrinterIp",
+          "updatedAt"
         ]
       },
       "CreateCategoryDto": {
@@ -3923,6 +4019,12 @@
           },
           "imageUrl": {
             "type": "string"
+          },
+          "receiptPrinterIp": {
+            "type": "string",
+            "nullable": true,
+            "example": "192.168.1.51",
+            "description": "Default private LAN receipt-printer IPv4 address for products in this category"
           },
           "sortOrder": {
             "type": "number",
@@ -3938,6 +4040,55 @@
           "slug"
         ]
       },
+      "CatalogAdminCategorySummaryResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "imageUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "sortOrder": {
+            "type": "number"
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "receiptPrinterIp": {
+            "type": "string",
+            "nullable": true,
+            "example": "192.168.1.51"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "slug",
+          "imageUrl",
+          "sortOrder",
+          "isActive",
+          "createdAt",
+          "updatedAt",
+          "receiptPrinterIp"
+        ]
+      },
       "UpdateCategoryDto": {
         "type": "object",
         "properties": {
@@ -3950,6 +4101,12 @@
           "imageUrl": {
             "type": "string"
           },
+          "receiptPrinterIp": {
+            "type": "string",
+            "nullable": true,
+            "example": "192.168.1.51",
+            "description": "Default private LAN receipt-printer IPv4 address for products in this category"
+          },
           "sortOrder": {
             "type": "number",
             "default": 0
@@ -3959,6 +4116,20 @@
             "default": true
           }
         }
+      },
+      "UpdateReceiptPrintSettingsDto": {
+        "type": "object",
+        "properties": {
+          "mainPrinterIp": {
+            "type": "string",
+            "nullable": true,
+            "example": "192.168.1.50",
+            "description": "Private LAN printer that receives one complete administrator receipt; null disables the complete copy"
+          }
+        },
+        "required": [
+          "mainPrinterIp"
+        ]
       },
       "ProductVariantInputDto": {
         "type": "object",
@@ -4026,7 +4197,7 @@
             "type": "string",
             "nullable": true,
             "example": "192.168.1.50",
-            "description": "Private IPv4 address of the LAN receipt printer assigned to this product"
+            "description": "Optional private LAN receipt-printer IPv4 override for this product; null inherits the category route"
           },
           "variantLabel": {
             "type": "string",
@@ -4093,7 +4264,7 @@
             "type": "string",
             "nullable": true,
             "example": "192.168.1.50",
-            "description": "Private IPv4 address of the LAN receipt printer assigned to this product"
+            "description": "Optional private LAN receipt-printer IPv4 override for this product; null inherits the category route"
           },
           "variantLabel": {
             "type": "string",
@@ -5627,6 +5798,15 @@
           "summary": {
             "$ref": "#/components/schemas/ReceiptPrintSummaryResponseDto"
           },
+          "mainJob": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ReceiptPrinterJobResponseDto"
+              }
+            ]
+          },
           "jobs": {
             "type": "array",
             "items": {
@@ -5644,6 +5824,7 @@
           "orderId",
           "orderNumber",
           "summary",
+          "mainJob",
           "jobs",
           "unassignedItems"
         ]

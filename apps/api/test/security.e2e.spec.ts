@@ -127,6 +127,15 @@ type ReceiptPrintPlanResponse = {
       unitPrice: number;
     }>;
   }>;
+  mainJob: {
+    printerIp: string;
+    items: Array<{
+      id: string;
+      name: string;
+      quantity: number;
+      unitPrice: number;
+    }>;
+  } | null;
   unassignedItems: Array<{
     id: string;
     name: string;
@@ -795,9 +804,16 @@ describe("backend security and critical workflow", () => {
     const categoryResponse = await request(server)
       .post("/api/v1/catalog/categories")
       .set(bearer(tokens.admin))
-      .send({ name: "Admin category", slug: "admin-category" })
+      .send({
+        name: "Admin category",
+        slug: "admin-category",
+        receiptPrinterIp: "192.168.10.52",
+      })
       .expect(201);
     const categoryId = (categoryResponse.body as { id: string }).id;
+    expect(categoryResponse.body).toMatchObject({
+      receiptPrinterIp: "192.168.10.52",
+    });
 
     await request(server)
       .post("/api/v1/catalog/products")
@@ -951,6 +967,14 @@ describe("backend security and critical workflow", () => {
       replacementUrls,
     );
     expect(publicCreatedProduct).not.toHaveProperty("receiptPrinterIp");
+    const publicCategories = await request(server)
+      .get("/api/v1/catalog/categories")
+      .expect(200);
+    expect(
+      (publicCategories.body as Array<Record<string, unknown>>).find(
+        ({ id }) => id === categoryId,
+      ),
+    ).not.toHaveProperty("receiptPrinterIp");
 
     const adminProducts = await request(server)
       .get(`/api/v1/catalog/admin/products?categoryId=${categoryId}`)
@@ -1293,6 +1317,13 @@ describe("backend security and critical workflow", () => {
       data: {
         name: "Receipt routing category",
         slug: "receipt-routing-category",
+        receiptPrinterIp: "192.168.123.100",
+      },
+    });
+    const unassignedCategory = await prisma.category.create({
+      data: {
+        name: "Unassigned receipt routing category",
+        slug: "unassigned-receipt-routing-category",
       },
     });
     const [first, second, unassigned] = await Promise.all([
@@ -1303,7 +1334,6 @@ describe("backend security and critical workflow", () => {
           slug: "printer-one-meal",
           description: "Routes to the first kitchen printer",
           price: 25,
-          receiptPrinterIp: "192.168.123.100",
         },
       }),
       prisma.product.create({
@@ -1318,7 +1348,7 @@ describe("backend security and critical workflow", () => {
       }),
       prisma.product.create({
         data: {
-          categoryId: category.id,
+          categoryId: unassignedCategory.id,
           name: "Unassigned meal",
           slug: "unassigned-printer-meal",
           description: "Remains visible when a printer route is missing",
@@ -1344,6 +1374,29 @@ describe("backend security and critical workflow", () => {
     expect(order.status).toBe(OrderStatus.SENT_TO_KITCHEN);
 
     await request(server)
+      .patch("/api/v1/catalog/receipt-print-settings")
+      .set(bearer(tokens.operator))
+      .send({ mainPrinterIp: "192.168.123.99" })
+      .expect(403);
+    await request(server)
+      .patch("/api/v1/catalog/receipt-print-settings")
+      .set(bearer(tokens.admin))
+      .send({ mainPrinterIp: "8.8.8.8" })
+      .expect(400);
+    await request(server)
+      .patch("/api/v1/catalog/receipt-print-settings")
+      .set(bearer(tokens.admin))
+      .send({ mainPrinterIp: "192.168.123.99" })
+      .expect(200);
+    const settingsResponse = await request(server)
+      .get("/api/v1/catalog/admin/receipt-print-settings")
+      .set(bearer(tokens.operator))
+      .expect(200);
+    expect(settingsResponse.body).toMatchObject({
+      mainPrinterIp: "192.168.123.99",
+    });
+
+    await request(server)
       .get(`/api/v1/orders/${order.id}/receipt-print-plan`)
       .set(bearer(tokens.customer))
       .expect(403);
@@ -1366,6 +1419,17 @@ describe("backend security and critical workflow", () => {
       total: 150,
       deliveryAreaName: null,
     });
+    expect(plan.mainJob?.printerIp).toBe("192.168.123.99");
+    expect(plan.mainJob?.items).toHaveLength(3);
+    expect(
+      plan.mainJob?.items
+        .map(({ name, quantity }) => ({ name, quantity }))
+        .sort((left, right) => left.name.localeCompare(right.name)),
+    ).toEqual([
+      { name: "Printer one meal", quantity: 2 },
+      { name: "Printer two meal", quantity: 1 },
+      { name: "Unassigned meal", quantity: 3 },
+    ]);
     expect(plan.jobs).toEqual([
       {
         printerIp: "192.168.123.100",
@@ -1395,6 +1459,14 @@ describe("backend security and critical workflow", () => {
         unitPrice: 15,
       }),
     ]);
+    expect(
+      await prisma.auditLog.count({
+        where: {
+          action: "catalog.receipt-print-settings.updated",
+          entityType: "ReceiptPrintSettings",
+        },
+      }),
+    ).toBe(1);
     expect(response.text).not.toContain("customerId");
   });
 

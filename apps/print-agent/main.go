@@ -246,8 +246,8 @@ func validatePrintRequest(payload printRequest) error {
 	if strings.TrimSpace(payload.DispatchID) == "" || strings.TrimSpace(payload.OrderID) == "" || payload.OrderNumber < 1 {
 		return errors.New("Missing order print identity")
 	}
-	if len(payload.Jobs) == 0 || len(payload.Jobs) > 20 {
-		return errors.New("Print request must contain between 1 and 20 printer jobs")
+	if len(payload.Jobs) == 0 || len(payload.Jobs) > 51 {
+		return errors.New("Print request must contain between 1 and 51 printer jobs")
 	}
 	if payload.Summary.Subtotal < 0 || payload.Summary.Subtotal > 1_000_000 ||
 		payload.Summary.Discount < 0 || payload.Summary.Discount > payload.Summary.Subtotal ||
@@ -256,15 +256,10 @@ func validatePrintRequest(payload printRequest) error {
 		math.Abs(payload.Summary.Total-(payload.Summary.Subtotal-payload.Summary.Discount+payload.Summary.DeliveryFee)) > 0.011 {
 		return errors.New("Receipt summary is invalid")
 	}
-	seen := make(map[string]struct{}, len(payload.Jobs))
 	for _, job := range payload.Jobs {
 		if !isPrivateIPv4(job.PrinterIP) {
 			return fmt.Errorf("Printer %q is not a private IPv4 address", job.PrinterIP)
 		}
-		if _, duplicate := seen[job.PrinterIP]; duplicate {
-			return fmt.Errorf("Printer %q is duplicated", job.PrinterIP)
-		}
-		seen[job.PrinterIP] = struct{}{}
 		if len(job.Items) == 0 || len(job.Items) > 50 {
 			return fmt.Errorf("Printer %q must contain between 1 and 50 items", job.PrinterIP)
 		}

@@ -147,7 +147,10 @@ It binds only to `127.0.0.1:17873` on Windows or macOS. It sends bounded print
 requests to explicitly configured private printer IPv4 addresses over LAN port
 80; neither the VDS nor Nginx exposes or routes that private traffic. The wired
 workstation adapter uses the printer subnet without a gateway, while Wi-Fi may
-continue to own internet access.
+continue to own internet access. PostgreSQL stores the audited main-printer
+setting, category kitchen defaults and product overrides; the loopback agent
+contains no routing configuration. A main and kitchen copy may intentionally
+target the same physical IP and are sent as two bounded sequential jobs.
 
 The active Nginx site is `a7-tagam-production.conf`. The versioned
 `a7-tagam-http-temporary.conf` is retained only as historical rollback context

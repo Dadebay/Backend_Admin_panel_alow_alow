@@ -4414,6 +4414,46 @@ button:disabled {
   );
 }
 
+.receipt-print-settings-card {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) minmax(220px, 320px) auto;
+  align-items: end;
+  gap: 18px;
+}
+
+.receipt-print-settings-card h2 {
+  margin: 4px 0 6px;
+  color: var(--brand-navy);
+}
+
+.receipt-print-settings-card p,
+.receipt-print-settings-card label {
+  color: var(--brand-navy);
+}
+
+.receipt-print-settings-card label {
+  display: grid;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.receipt-print-settings-card input {
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--field-border);
+  border-radius: 11px;
+  color: var(--brand-navy);
+  background: var(--field-surface);
+}
+
+@media (max-width: 860px) {
+  .receipt-print-settings-card {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+}
+
 .catalog-search-panel strong { display: block; margin-top: 4px; color: var(--brand-navy); font-size: 14px; }
 .catalog-search-input { display: flex; align-items: center; min-height: 44px; gap: 9px; padding: 0 12px; border: 1px solid var(--field-border); border-radius: 11px; background: var(--field-surface); }
 .catalog-search-input:focus-within { border-color: var(--brand-orange); background: var(--brand-cream); box-shadow: 0 0 0 3px var(--field-focus-ring); }

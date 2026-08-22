@@ -87,7 +87,7 @@ func TestFormatJobUsesLargeTextSeparatorsAndBoundedHexChunks(t *testing.T) {
 	}
 }
 
-func TestPrintRequestRejectsPublicAndDuplicateAddresses(t *testing.T) {
+func TestPrintRequestRejectsPublicAddressesAndAllowsTwoCopiesOnOnePrinter(t *testing.T) {
 	payload := validPrintRequest()
 	payload.Jobs[0].PrinterIP = "8.8.8.8"
 	if err := validatePrintRequest(payload); err == nil {
@@ -96,8 +96,8 @@ func TestPrintRequestRejectsPublicAndDuplicateAddresses(t *testing.T) {
 
 	payload = validPrintRequest()
 	payload.Jobs = append(payload.Jobs, payload.Jobs[0])
-	if err := validatePrintRequest(payload); err == nil {
-		t.Fatal("expected duplicate printer IP to be rejected")
+	if err := validatePrintRequest(payload); err != nil {
+		t.Fatalf("expected main and kitchen copies on one printer to be accepted: %v", err)
 	}
 }
 

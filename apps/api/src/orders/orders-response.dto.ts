@@ -160,6 +160,9 @@ export class ReceiptPrintPlanResponseDto {
   @ApiProperty({ type: ReceiptPrintSummaryResponseDto })
   summary: ReceiptPrintSummaryResponseDto;
 
+  @ApiProperty({ type: ReceiptPrinterJobResponseDto, nullable: true })
+  mainJob: ReceiptPrinterJobResponseDto | null;
+
   @ApiProperty({ type: [ReceiptPrinterJobResponseDto] })
   jobs: ReceiptPrinterJobResponseDto[];
 

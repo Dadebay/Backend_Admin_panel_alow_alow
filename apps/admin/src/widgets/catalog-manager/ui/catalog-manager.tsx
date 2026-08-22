@@ -10,6 +10,7 @@ import {
   MAX_PRODUCT_IMAGES,
   useAdminCategories,
   useAdminProducts,
+  useReceiptPrintSettings,
   type Category,
   type Product,
 } from "@/src/entities/catalog";
@@ -21,9 +22,11 @@ import { AsyncPanel, DataTable } from "@/src/shared/ui";
 import {
   categoryFormSchema,
   productFormSchema,
+  receiptPrintSettingsFormSchema,
   slugify,
   type CategoryFormValues,
   type ProductFormValues,
+  type ReceiptPrintSettingsFormValues,
 } from "../model/catalog-forms";
 
 function errorMessage(error: unknown) {
@@ -34,6 +37,7 @@ export function CatalogManager() {
   const { session } = useSession();
   const categories = useAdminCategories();
   const products = useAdminProducts();
+  const receiptPrintSettings = useReceiptPrintSettings();
   const actions = useCatalogActions();
   const [categoryEdit, setCategoryEdit] = useState<Category | null>(null);
   const [productEdit, setProductEdit] = useState<Product | null>(null);
@@ -62,9 +66,21 @@ export function CatalogManager() {
     defaultValues: {
       name: "",
       slug: "",
+      receiptPrinterIp: "",
       sortOrder: 0,
       isActive: true,
       image: undefined,
+    },
+  });
+  const {
+    register: registerReceiptPrintSettings,
+    handleSubmit: handleReceiptPrintSettingsSubmit,
+    formState: { errors: receiptPrintSettingsErrors },
+  } = useForm<ReceiptPrintSettingsFormValues>({
+    resolver: zodResolver(receiptPrintSettingsFormSchema),
+    mode: "onBlur",
+    values: {
+      mainPrinterIp: receiptPrintSettings.data?.mainPrinterIp ?? "",
     },
   });
   const {
@@ -103,8 +119,7 @@ export function CatalogManager() {
   const watchedProductVariants =
     useWatch({ control: productControl, name: "variants" }) ?? [];
   const canEdit = Boolean(
-    session &&
-      ["ADMIN", "SUPER_ADMIN"].includes(session.user.role),
+    session && ["ADMIN", "SUPER_ADMIN"].includes(session.user.role),
   );
   const hasSearch = Boolean(catalogSearch.trim());
   const filteredCategories = useMemo(
@@ -174,6 +189,10 @@ export function CatalogManager() {
         header: "Товаров",
         cell: ({ row }) => row.original.products.length,
       },
+      {
+        header: "Кухонный аппарат",
+        cell: ({ row }) => row.original.receiptPrinterIp ?? "Не назначен",
+      },
       { header: "Порядок", accessorKey: "sortOrder" },
       {
         header: "Статус",
@@ -196,6 +215,7 @@ export function CatalogManager() {
                   resetCategory({
                     name: row.original.name,
                     slug: row.original.slug,
+                    receiptPrinterIp: row.original.receiptPrinterIp ?? "",
                     sortOrder: row.original.sortOrder,
                     isActive: row.original.isActive,
                     image: undefined,
@@ -283,7 +303,20 @@ export function CatalogManager() {
       },
       {
         header: "Чековый аппарат",
-        cell: ({ row }) => row.original.receiptPrinterIp ?? "Не назначен",
+        cell: ({ row }) => (
+          <div className="primary-cell">
+            <strong>
+              {row.original.effectiveReceiptPrinterIp ?? "Не назначен"}
+            </strong>
+            <small>
+              {row.original.receiptPrinterIp
+                ? "Переопределение блюда"
+                : row.original.effectiveReceiptPrinterIp
+                  ? "Наследуется от категории"
+                  : "Укажите IP у категории или блюда"}
+            </small>
+          </div>
+        ),
       },
       {
         header: "Статус",
@@ -363,6 +396,7 @@ export function CatalogManager() {
     const body = {
       name: values.name,
       slug: values.slug,
+      receiptPrinterIp: values.receiptPrinterIp || null,
       sortOrder: values.sortOrder,
       isActive: values.isActive,
       ...(imageUrl ? { imageUrl } : {}),
@@ -378,6 +412,14 @@ export function CatalogManager() {
     setCategoryEdit(null);
     setShowCategoryForm(false);
     resetCategory();
+  }
+
+  async function submitReceiptPrintSettings(
+    values: ReceiptPrintSettingsFormValues,
+  ) {
+    await actions.updateReceiptPrintSettings.mutateAsync({
+      mainPrinterIp: values.mainPrinterIp || null,
+    });
   }
 
   async function submitProduct(values: ProductFormValues) {
@@ -420,10 +462,7 @@ export function CatalogManager() {
         return {
           ...variant,
           description: variant.description || undefined,
-          imageUrls: [
-            ...variant.imageUrls,
-            ...uploaded.map(({ url }) => url),
-          ],
+          imageUrls: [...variant.imageUrls, ...uploaded.map(({ url }) => url)],
         };
       }),
     );
@@ -462,8 +501,10 @@ export function CatalogManager() {
         actions.uploadImages.error ||
         actions.createCategory.error ||
         actions.updateCategory.error ||
+        actions.updateReceiptPrintSettings.error ||
         actions.createProduct.error ||
-        actions.updateProduct.error,
+        actions.updateProduct.error ||
+        receiptPrintSettings.error,
     );
 
   return (
@@ -472,7 +513,9 @@ export function CatalogManager() {
         <div>
           <span className="eyebrow">S3 + POSTGRESQL</span>
           <h1>Каталог кафе</h1>
-          <p>Категории, блюда, описание, цена, доступность и WebP-изображения.</p>
+          <p>
+            Категории, блюда, описание, цена, доступность и WebP-изображения.
+          </p>
         </div>
         {canEdit && (
           <div
@@ -487,6 +530,7 @@ export function CatalogManager() {
                 resetCategory({
                   name: "",
                   slug: "",
+                  receiptPrinterIp: "",
                   sortOrder: 0,
                   isActive: true,
                   image: undefined,
@@ -525,9 +569,56 @@ export function CatalogManager() {
         )}
       </header>
 
-      {mutationMessage && (
-        <div className="inline-alert">{mutationMessage}</div>
-      )}
+      {mutationMessage && <div className="inline-alert">{mutationMessage}</div>}
+
+      <form
+        className="table-card receipt-print-settings-card"
+        data-testid="receipt-print-settings-form"
+        noValidate
+        onSubmit={handleReceiptPrintSettingsSubmit(submitReceiptPrintSettings)}
+      >
+        <div>
+          <span className="eyebrow">ПЕЧАТЬ ЗАКАЗА</span>
+          <h2>Главный чековый аппарат</h2>
+          <p>
+            Получает один полный чек со всеми блюдами. Кухонные копии ниже
+            маршрутизируются отдельно по категориям.
+          </p>
+        </div>
+        <label>
+          <span>IP главного аппарата</span>
+          <input
+            data-testid="main-receipt-printer-ip"
+            {...registerReceiptPrintSettings("mainPrinterIp")}
+            aria-invalid={Boolean(receiptPrintSettingsErrors.mainPrinterIp)}
+            disabled={!canEdit || receiptPrintSettings.isPending}
+            inputMode="decimal"
+            placeholder="192.168.1.50"
+          />
+          <FormFieldError
+            message={receiptPrintSettingsErrors.mainPrinterIp?.message}
+          />
+        </label>
+        {receiptPrintSettings.isError && (
+          <button
+            className="text-button compact"
+            data-testid="main-receipt-printer-retry"
+            type="button"
+            onClick={() => void receiptPrintSettings.refetch()}
+          >
+            Повторить загрузку
+          </button>
+        )}
+        {canEdit && (
+          <button
+            className="primary-button compact"
+            data-testid="main-receipt-printer-save"
+            disabled={actions.updateReceiptPrintSettings.isPending}
+          >
+            Сохранить аппарат
+          </button>
+        )}
+      </form>
 
       <section className="catalog-search-panel" aria-label="Поиск по каталогу">
         <div>
@@ -546,7 +637,13 @@ export function CatalogManager() {
             placeholder="Название, slug или описание…"
           />
           {catalogSearch && (
-            <button type="button" aria-label="Очистить поиск" onClick={() => setCatalogSearch("")}>×</button>
+            <button
+              type="button"
+              aria-label="Очистить поиск"
+              onClick={() => setCatalogSearch("")}
+            >
+              ×
+            </button>
           )}
         </label>
         <label className="catalog-category-filter">
@@ -560,7 +657,9 @@ export function CatalogManager() {
           >
             <option value="">Все категории</option>
             {(categories.data ?? []).map((category) => (
-              <option key={category.id} value={category.id}>{category.name}</option>
+              <option key={category.id} value={category.id}>
+                {category.name}
+              </option>
             ))}
           </select>
         </label>
@@ -586,93 +685,112 @@ export function CatalogManager() {
             aria-modal="true"
             aria-labelledby="category-editor-title"
           >
-          <div className="editor-title catalog-editor-title">
-            <div>
-              <span className="eyebrow">КАТАЛОГ</span>
-              <h2 id="category-editor-title">{categoryEdit ? "Изменить категорию" : "Новая категория"}</h2>
+            <div className="editor-title catalog-editor-title">
+              <div>
+                <span className="eyebrow">КАТАЛОГ</span>
+                <h2 id="category-editor-title">
+                  {categoryEdit ? "Изменить категорию" : "Новая категория"}
+                </h2>
+              </div>
+              <button
+                className="catalog-editor-close"
+                data-testid="category-form-close"
+                type="button"
+                aria-label="Закрыть редактор категории"
+                onClick={() => {
+                  setShowCategoryForm(false);
+                  setCategoryEdit(null);
+                  resetCategory();
+                }}
+              >
+                ×
+              </button>
+            </div>
+            <div className="form-grid">
+              <label>
+                <span>Название</span>
+                <input
+                  data-testid="category-name"
+                  {...registerCategory("name", {
+                    onBlur(event) {
+                      if (!getCategoryValues("slug")) {
+                        setCategoryValue("slug", slugify(event.target.value), {
+                          shouldDirty: true,
+                          shouldValidate: true,
+                        });
+                      }
+                    },
+                  })}
+                  aria-invalid={Boolean(categoryErrors.name)}
+                  maxLength={100}
+                />
+                <FormFieldError message={categoryErrors.name?.message} />
+              </label>
+              <label>
+                <span>Slug</span>
+                <input
+                  data-testid="category-slug"
+                  {...registerCategory("slug")}
+                  aria-invalid={Boolean(categoryErrors.slug)}
+                />
+                <FormFieldError message={categoryErrors.slug?.message} />
+              </label>
+              <label>
+                <span>IP кухонного аппарата</span>
+                <input
+                  data-testid="category-receipt-printer-ip"
+                  {...registerCategory("receiptPrinterIp")}
+                  aria-invalid={Boolean(categoryErrors.receiptPrinterIp)}
+                  inputMode="decimal"
+                  placeholder="192.168.1.51"
+                />
+                <FormFieldError
+                  message={categoryErrors.receiptPrinterIp?.message}
+                />
+                <small>
+                  Все блюда категории наследуют этот аппарат, если у блюда не
+                  указан собственный IP.
+                </small>
+              </label>
+              <label>
+                <span>Порядок</span>
+                <input
+                  data-testid="category-sort-order"
+                  {...registerCategory("sortOrder", { valueAsNumber: true })}
+                  aria-invalid={Boolean(categoryErrors.sortOrder)}
+                  type="number"
+                />
+                <FormFieldError message={categoryErrors.sortOrder?.message} />
+              </label>
+              <label>
+                <span>Изображение до 5 МБ</span>
+                <input
+                  data-testid="category-image"
+                  {...registerCategory("image")}
+                  type="file"
+                  accept="image/*"
+                />
+              </label>
+              <label className="check-field">
+                <input
+                  data-testid="category-active"
+                  {...registerCategory("isActive")}
+                  type="checkbox"
+                />
+                Активна
+              </label>
             </div>
             <button
-              className="catalog-editor-close"
-              data-testid="category-form-close"
-              type="button"
-              aria-label="Закрыть редактор категории"
-              onClick={() => {
-                setShowCategoryForm(false);
-                setCategoryEdit(null);
-                resetCategory();
-              }}
+              className="primary-button"
+              data-testid="category-save"
+              disabled={
+                actions.uploadImage.isPending ||
+                actions.createCategory.isPending ||
+                actions.updateCategory.isPending
+              }
             >
-              ×
+              Сохранить категорию
             </button>
-          </div>
-          <div className="form-grid">
-            <label>
-              <span>Название</span>
-              <input
-                data-testid="category-name"
-                {...registerCategory("name", {
-                  onBlur(event) {
-                    if (!getCategoryValues("slug")) {
-                      setCategoryValue("slug", slugify(event.target.value), {
-                        shouldDirty: true,
-                        shouldValidate: true,
-                      });
-                    }
-                  },
-                })}
-                aria-invalid={Boolean(categoryErrors.name)}
-                maxLength={100}
-              />
-              <FormFieldError message={categoryErrors.name?.message} />
-            </label>
-            <label>
-              <span>Slug</span>
-              <input
-                data-testid="category-slug"
-                {...registerCategory("slug")}
-                aria-invalid={Boolean(categoryErrors.slug)}
-              />
-              <FormFieldError message={categoryErrors.slug?.message} />
-            </label>
-            <label>
-              <span>Порядок</span>
-              <input
-                data-testid="category-sort-order"
-                {...registerCategory("sortOrder", { valueAsNumber: true })}
-                aria-invalid={Boolean(categoryErrors.sortOrder)}
-                type="number"
-              />
-              <FormFieldError message={categoryErrors.sortOrder?.message} />
-            </label>
-            <label>
-              <span>Изображение до 5 МБ</span>
-              <input
-                data-testid="category-image"
-                {...registerCategory("image")}
-                type="file"
-                accept="image/*"
-              />
-            </label>
-            <label className="check-field">
-              <input
-                data-testid="category-active"
-                {...registerCategory("isActive")}
-                type="checkbox"
-              />
-              Активна
-            </label>
-          </div>
-          <button
-            className="primary-button"
-            data-testid="category-save"
-            disabled={
-              actions.uploadImage.isPending ||
-              actions.createCategory.isPending ||
-              actions.updateCategory.isPending
-            }
-          >
-            Сохранить категорию
-          </button>
           </form>
         </div>
       )}
@@ -700,417 +818,453 @@ export function CatalogManager() {
             aria-modal="true"
             aria-labelledby="product-editor-title"
           >
-          <div className="editor-title catalog-editor-title">
-            <div>
-              <span className="eyebrow">КАТАЛОГ</span>
-              <h2 id="product-editor-title">{productEdit ? "Изменить блюдо" : "Новое блюдо"}</h2>
-            </div>
-            <button
-              className="catalog-editor-close"
-              data-testid="product-form-close"
-              type="button"
-              aria-label="Закрыть редактор блюда"
-              onClick={() => {
-                setShowProductForm(false);
-                setProductEdit(null);
-                setStoredProductImages([]);
-                setSelectedProductFiles([]);
-                setProductImageError("");
-                resetProduct();
-              }}
-            >
-              ×
-            </button>
-          </div>
-          <div className="form-grid">
-            <label>
-              <span>Категория</span>
-              <select
-                data-testid="product-category"
-                {...registerProduct("categoryId")}
-                aria-invalid={Boolean(productErrors.categoryId)}
+            <div className="editor-title catalog-editor-title">
+              <div>
+                <span className="eyebrow">КАТАЛОГ</span>
+                <h2 id="product-editor-title">
+                  {productEdit ? "Изменить блюдо" : "Новое блюдо"}
+                </h2>
+              </div>
+              <button
+                className="catalog-editor-close"
+                data-testid="product-form-close"
+                type="button"
+                aria-label="Закрыть редактор блюда"
+                onClick={() => {
+                  setShowProductForm(false);
+                  setProductEdit(null);
+                  setStoredProductImages([]);
+                  setSelectedProductFiles([]);
+                  setProductImageError("");
+                  resetProduct();
+                }}
               >
-                {(categories.data ?? []).map((category) => (
-                  <option key={category.id} value={category.id}>
-                    {category.name}
-                  </option>
-                ))}
-              </select>
-              <FormFieldError message={productErrors.categoryId?.message} />
-            </label>
-            <label>
-              <span>Название</span>
-              <input
-                data-testid="product-name"
-                {...registerProduct("name", {
-                  onBlur(event) {
-                    if (!getProductValues("slug")) {
-                      setProductValue("slug", slugify(event.target.value), {
-                        shouldDirty: true,
-                        shouldValidate: true,
-                      });
+                ×
+              </button>
+            </div>
+            <div className="form-grid">
+              <label>
+                <span>Категория</span>
+                <select
+                  data-testid="product-category"
+                  {...registerProduct("categoryId")}
+                  aria-invalid={Boolean(productErrors.categoryId)}
+                >
+                  {(categories.data ?? []).map((category) => (
+                    <option key={category.id} value={category.id}>
+                      {category.name}
+                    </option>
+                  ))}
+                </select>
+                <FormFieldError message={productErrors.categoryId?.message} />
+              </label>
+              <label>
+                <span>Название</span>
+                <input
+                  data-testid="product-name"
+                  {...registerProduct("name", {
+                    onBlur(event) {
+                      if (!getProductValues("slug")) {
+                        setProductValue("slug", slugify(event.target.value), {
+                          shouldDirty: true,
+                          shouldValidate: true,
+                        });
+                      }
+                    },
+                  })}
+                  aria-invalid={Boolean(productErrors.name)}
+                />
+                <FormFieldError message={productErrors.name?.message} />
+              </label>
+              <label>
+                <span>Slug</span>
+                <input
+                  data-testid="product-slug"
+                  {...registerProduct("slug")}
+                  aria-invalid={Boolean(productErrors.slug)}
+                />
+                <FormFieldError message={productErrors.slug?.message} />
+              </label>
+              <label>
+                <span>Базовая цена TMT</span>
+                <input
+                  data-testid="product-price"
+                  {...registerProduct("price", { valueAsNumber: true })}
+                  aria-invalid={Boolean(productErrors.price)}
+                  type="number"
+                  min="0"
+                  step="0.01"
+                />
+                <FormFieldError message={productErrors.price?.message} />
+                <small>
+                  Используется без вариантов. С вариантами цена блюда считается
+                  по самому дешёвому активному варианту.
+                </small>
+              </label>
+              <label>
+                <span>Свой IP чекового аппарата</span>
+                <input
+                  data-testid="product-receipt-printer-ip"
+                  {...registerProduct("receiptPrinterIp")}
+                  aria-invalid={Boolean(productErrors.receiptPrinterIp)}
+                  inputMode="decimal"
+                  placeholder="192.168.1.50"
+                />
+                <FormFieldError
+                  message={productErrors.receiptPrinterIp?.message}
+                />
+                <small>
+                  Необязательно. Заполненный IP переопределяет аппарат
+                  категории; пустое поле наследует категорию.
+                </small>
+              </label>
+              <label>
+                <span>Порядок</span>
+                <input
+                  data-testid="product-sort-order"
+                  {...registerProduct("sortOrder", { valueAsNumber: true })}
+                  aria-invalid={Boolean(productErrors.sortOrder)}
+                  type="number"
+                />
+                <FormFieldError message={productErrors.sortOrder?.message} />
+              </label>
+              <section
+                className="wide-field product-variants-editor"
+                data-testid="product-variants-editor"
+              >
+                <div className="product-variants-heading">
+                  <div>
+                    <strong>Варианты блюда</strong>
+                    <small>
+                      Размер пиццы, способ нарезки или любой другой выбор с
+                      отдельной ценой и фотографиями.
+                    </small>
+                  </div>
+                  <button
+                    className="secondary-button compact"
+                    data-testid="product-variant-add"
+                    type="button"
+                    onClick={() =>
+                      appendProductVariant({
+                        name: "",
+                        description: "",
+                        price: getProductValues("price") || 0,
+                        sortOrder: productVariantFields.length,
+                        isActive: true,
+                        imageUrls: [],
+                        imageFiles: undefined,
+                      })
                     }
-                  },
-                })}
-                aria-invalid={Boolean(productErrors.name)}
-              />
-              <FormFieldError message={productErrors.name?.message} />
-            </label>
-            <label>
-              <span>Slug</span>
-              <input
-                data-testid="product-slug"
-                {...registerProduct("slug")}
-                aria-invalid={Boolean(productErrors.slug)}
-              />
-              <FormFieldError message={productErrors.slug?.message} />
-            </label>
-            <label>
-              <span>Базовая цена TMT</span>
-              <input
-                data-testid="product-price"
-                {...registerProduct("price", { valueAsNumber: true })}
-                aria-invalid={Boolean(productErrors.price)}
-                type="number"
-                min="0"
-                step="0.01"
-              />
-              <FormFieldError message={productErrors.price?.message} />
-              <small>
-                Используется без вариантов. С вариантами цена блюда считается
-                по самому дешёвому активному варианту.
-              </small>
-            </label>
-            <label>
-              <span>IP чекового аппарата</span>
-              <input
-                data-testid="product-receipt-printer-ip"
-                {...registerProduct("receiptPrinterIp")}
-                aria-invalid={Boolean(productErrors.receiptPrinterIp)}
-                inputMode="decimal"
-                placeholder="192.168.1.50"
-              />
-              <FormFieldError message={productErrors.receiptPrinterIp?.message} />
-              <small>
-                LAN-аппарат, на который должна отправляться эта позиция заказа.
-              </small>
-            </label>
-            <label>
-              <span>Порядок</span>
-              <input
-                data-testid="product-sort-order"
-                {...registerProduct("sortOrder", { valueAsNumber: true })}
-                aria-invalid={Boolean(productErrors.sortOrder)}
-                type="number"
-              />
-              <FormFieldError message={productErrors.sortOrder?.message} />
-            </label>
-            <section
-              className="wide-field product-variants-editor"
-              data-testid="product-variants-editor"
-            >
-              <div className="product-variants-heading">
-                <div>
-                  <strong>Варианты блюда</strong>
+                  >
+                    + Добавить вариант
+                  </button>
+                </div>
+                {productVariantFields.length > 0 && (
+                  <label className="product-variant-label-field">
+                    <span>Название выбора для клиента</span>
+                    <input
+                      data-testid="product-variant-label"
+                      {...registerProduct("variantLabel")}
+                      aria-invalid={Boolean(productErrors.variantLabel)}
+                      placeholder="Например: Размер или Способ нарезки"
+                      maxLength={80}
+                    />
+                    <FormFieldError
+                      message={productErrors.variantLabel?.message}
+                    />
+                  </label>
+                )}
+                <div className="product-variant-list">
+                  {productVariantFields.map((field, index) => {
+                    const variant = watchedProductVariants[index];
+                    const storedUrls = variant?.imageUrls ?? [];
+                    const selectedFiles = Array.from(
+                      (variant?.imageFiles as FileList | undefined) ?? [],
+                    );
+                    const variantError = productErrors.variants?.[index];
+                    const variantTestId = variant?.id ?? field.formKey;
+                    return (
+                      <article
+                        className="product-variant-card"
+                        data-testid={`product-variant-card-${variantTestId}`}
+                        key={field.formKey}
+                      >
+                        <header>
+                          <strong>Вариант {index + 1}</strong>
+                          <button
+                            className="text-button danger"
+                            data-testid={`product-variant-toggle-${variantTestId}`}
+                            type="button"
+                            onClick={() => {
+                              if (variant?.id) {
+                                setProductValue(
+                                  `variants.${index}.isActive`,
+                                  !variant.isActive,
+                                  { shouldDirty: true },
+                                );
+                              } else {
+                                removeProductVariant(index);
+                              }
+                            }}
+                          >
+                            {variant?.id
+                              ? variant.isActive
+                                ? "Убрать из продажи"
+                                : "Вернуть в продажу"
+                              : "Удалить"}
+                          </button>
+                        </header>
+                        <div className="product-variant-fields">
+                          <label>
+                            <span>Название</span>
+                            <input
+                              data-testid={`product-variant-name-${variantTestId}`}
+                              {...registerProduct(`variants.${index}.name`)}
+                              aria-invalid={Boolean(variantError?.name)}
+                              placeholder="Маленькая, 25 см"
+                              maxLength={120}
+                            />
+                            <FormFieldError
+                              message={variantError?.name?.message}
+                            />
+                          </label>
+                          <label>
+                            <span>Цена TMT</span>
+                            <input
+                              data-testid={`product-variant-price-${variantTestId}`}
+                              {...registerProduct(`variants.${index}.price`, {
+                                valueAsNumber: true,
+                              })}
+                              aria-invalid={Boolean(variantError?.price)}
+                              type="number"
+                              min="0"
+                              step="0.01"
+                            />
+                            <FormFieldError
+                              message={variantError?.price?.message}
+                            />
+                          </label>
+                          <label>
+                            <span>Порядок</span>
+                            <input
+                              data-testid={`product-variant-sort-${variantTestId}`}
+                              {...registerProduct(
+                                `variants.${index}.sortOrder`,
+                                { valueAsNumber: true },
+                              )}
+                              aria-invalid={Boolean(variantError?.sortOrder)}
+                              type="number"
+                            />
+                            <FormFieldError
+                              message={variantError?.sortOrder?.message}
+                            />
+                          </label>
+                          <label className="check-field">
+                            <input
+                              data-testid={`product-variant-active-${variantTestId}`}
+                              {...registerProduct(`variants.${index}.isActive`)}
+                              type="checkbox"
+                            />
+                            В продаже
+                          </label>
+                          <label className="wide-field">
+                            <span>Описание варианта (необязательно)</span>
+                            <input
+                              data-testid={`product-variant-description-${variantTestId}`}
+                              {...registerProduct(
+                                `variants.${index}.description`,
+                              )}
+                              aria-invalid={Boolean(variantError?.description)}
+                              maxLength={300}
+                            />
+                            <FormFieldError
+                              message={variantError?.description?.message}
+                            />
+                          </label>
+                        </div>
+                        {storedUrls.length > 0 && (
+                          <div className="product-variant-images">
+                            {storedUrls.map((url, imageIndex) => (
+                              <div key={`${url}-${imageIndex}`}>
+                                <img
+                                  src={resolveApiUrl(url)}
+                                  alt=""
+                                  loading="lazy"
+                                  width={88}
+                                  height={64}
+                                />
+                                <button
+                                  className="text-button"
+                                  data-testid={`product-variant-image-remove-${variantTestId}-${imageIndex}`}
+                                  type="button"
+                                  aria-label={`Убрать фото варианта ${imageIndex + 1}`}
+                                  onClick={() =>
+                                    setProductValue(
+                                      `variants.${index}.imageUrls`,
+                                      storedUrls.filter(
+                                        (_, candidateIndex) =>
+                                          candidateIndex !== imageIndex,
+                                      ),
+                                      { shouldDirty: true },
+                                    )
+                                  }
+                                >
+                                  ×
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        <label className="product-file-picker">
+                          <span>
+                            Фото варианта:{" "}
+                            {storedUrls.length + selectedFiles.length}/
+                            {MAX_PRODUCT_IMAGES}
+                          </span>
+                          <input
+                            data-testid={`product-variant-images-${variantTestId}`}
+                            {...registerProduct(`variants.${index}.imageFiles`)}
+                            type="file"
+                            accept="image/*"
+                            multiple
+                          />
+                        </label>
+                        {selectedFiles.length > 0 && (
+                          <small className="product-variant-file-names">
+                            Будут добавлены:{" "}
+                            {selectedFiles.map(({ name }) => name).join(", ")}
+                          </small>
+                        )}
+                      </article>
+                    );
+                  })}
+                </div>
+              </section>
+              <div className="wide-field product-image-editor">
+                <div className="product-image-heading">
+                  <span>Изображения блюда</span>
                   <small>
-                    Размер пиццы, способ нарезки или любой другой выбор с
-                    отдельной ценой и фотографиями.
+                    {storedProductImages.length + selectedProductFiles.length}/
+                    {MAX_PRODUCT_IMAGES}. Первое изображение будет главным.
                   </small>
                 </div>
-                <button
-                  className="secondary-button compact"
-                  data-testid="product-variant-add"
-                  type="button"
-                  onClick={() =>
-                    appendProductVariant({
-                      name: "",
-                      description: "",
-                      price: getProductValues("price") || 0,
-                      sortOrder: productVariantFields.length,
-                      isActive: true,
-                      imageUrls: [],
-                      imageFiles: undefined,
-                    })
-                  }
-                >
-                  + Добавить вариант
-                </button>
-              </div>
-              {productVariantFields.length > 0 && (
-                <label className="product-variant-label-field">
-                  <span>Название выбора для клиента</span>
-                  <input
-                    data-testid="product-variant-label"
-                    {...registerProduct("variantLabel")}
-                    aria-invalid={Boolean(productErrors.variantLabel)}
-                    placeholder="Например: Размер или Способ нарезки"
-                    maxLength={80}
-                  />
-                  <FormFieldError message={productErrors.variantLabel?.message} />
-                </label>
-              )}
-              <div className="product-variant-list">
-                {productVariantFields.map((field, index) => {
-                  const variant = watchedProductVariants[index];
-                  const storedUrls = variant?.imageUrls ?? [];
-                  const selectedFiles = Array.from(
-                    (variant?.imageFiles as FileList | undefined) ?? [],
-                  );
-                  const variantError = productErrors.variants?.[index];
-                  const variantTestId = variant?.id ?? field.formKey;
-                  return (
-                    <article
-                      className="product-variant-card"
-                      data-testid={`product-variant-card-${variantTestId}`}
-                      key={field.formKey}
-                    >
-                      <header>
-                        <strong>Вариант {index + 1}</strong>
-                        <button
-                          className="text-button danger"
-                          data-testid={`product-variant-toggle-${variantTestId}`}
-                          type="button"
-                          onClick={() => {
-                            if (variant?.id) {
-                              setProductValue(
-                                `variants.${index}.isActive`,
-                                !variant.isActive,
-                                { shouldDirty: true },
-                              );
-                            } else {
-                              removeProductVariant(index);
-                            }
-                          }}
-                        >
-                          {variant?.id
-                            ? variant.isActive
-                              ? "Убрать из продажи"
-                              : "Вернуть в продажу"
-                            : "Удалить"}
-                        </button>
-                      </header>
-                      <div className="product-variant-fields">
-                        <label>
-                          <span>Название</span>
-                          <input
-                            data-testid={`product-variant-name-${variantTestId}`}
-                            {...registerProduct(`variants.${index}.name`)}
-                            aria-invalid={Boolean(variantError?.name)}
-                            placeholder="Маленькая, 25 см"
-                            maxLength={120}
-                          />
-                          <FormFieldError message={variantError?.name?.message} />
-                        </label>
-                        <label>
-                          <span>Цена TMT</span>
-                          <input
-                            data-testid={`product-variant-price-${variantTestId}`}
-                            {...registerProduct(`variants.${index}.price`, { valueAsNumber: true })}
-                            aria-invalid={Boolean(variantError?.price)}
-                            type="number"
-                            min="0"
-                            step="0.01"
-                          />
-                          <FormFieldError message={variantError?.price?.message} />
-                        </label>
-                        <label>
-                          <span>Порядок</span>
-                          <input
-                            data-testid={`product-variant-sort-${variantTestId}`}
-                            {...registerProduct(`variants.${index}.sortOrder`, { valueAsNumber: true })}
-                            aria-invalid={Boolean(variantError?.sortOrder)}
-                            type="number"
-                          />
-                          <FormFieldError message={variantError?.sortOrder?.message} />
-                        </label>
-                        <label className="check-field">
-                          <input
-                            data-testid={`product-variant-active-${variantTestId}`}
-                            {...registerProduct(`variants.${index}.isActive`)}
-                            type="checkbox"
-                          />
-                          В продаже
-                        </label>
-                        <label className="wide-field">
-                          <span>Описание варианта (необязательно)</span>
-                          <input
-                            data-testid={`product-variant-description-${variantTestId}`}
-                            {...registerProduct(`variants.${index}.description`)}
-                            aria-invalid={Boolean(variantError?.description)}
-                            maxLength={300}
-                          />
-                          <FormFieldError message={variantError?.description?.message} />
-                        </label>
-                      </div>
-                      {storedUrls.length > 0 && (
-                        <div className="product-variant-images">
-                          {storedUrls.map((url, imageIndex) => (
-                            <div key={`${url}-${imageIndex}`}>
-                              <img src={resolveApiUrl(url)} alt="" loading="lazy" width={88} height={64} />
-                              <button
-                                className="text-button"
-                                data-testid={`product-variant-image-remove-${variantTestId}-${imageIndex}`}
-                                type="button"
-                                aria-label={`Убрать фото варианта ${imageIndex + 1}`}
-                                onClick={() =>
-                                  setProductValue(
-                                    `variants.${index}.imageUrls`,
-                                    storedUrls.filter((_, candidateIndex) => candidateIndex !== imageIndex),
-                                    { shouldDirty: true },
-                                  )
-                                }
-                              >
-                                ×
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                      <label className="product-file-picker">
-                        <span>
-                          Фото варианта: {storedUrls.length + selectedFiles.length}/{MAX_PRODUCT_IMAGES}
-                        </span>
-                        <input
-                          data-testid={`product-variant-images-${variantTestId}`}
-                          {...registerProduct(`variants.${index}.imageFiles`)}
-                          type="file"
-                          accept="image/*"
-                          multiple
+                {storedProductImages.length > 0 && (
+                  <div className="product-image-grid">
+                    {storedProductImages.map((image, index) => (
+                      <article className="product-image-card" key={image.id}>
+                        <img
+                          src={resolveApiUrl(image.url)}
+                          alt={image.alt ?? ""}
+                          loading="lazy"
+                          width={160}
+                          height={110}
                         />
-                      </label>
-                      {selectedFiles.length > 0 && (
-                        <small className="product-variant-file-names">
-                          Будут добавлены: {selectedFiles.map(({ name }) => name).join(", ")}
-                        </small>
-                      )}
-                    </article>
-                  );
-                })}
-              </div>
-            </section>
-            <div className="wide-field product-image-editor">
-              <div className="product-image-heading">
-                <span>Изображения блюда</span>
-                <small>
-                  {storedProductImages.length + selectedProductFiles.length}/
-                  {MAX_PRODUCT_IMAGES}. Первое изображение будет главным.
-                </small>
-              </div>
-              {storedProductImages.length > 0 && (
-                <div className="product-image-grid">
-                  {storedProductImages.map((image, index) => (
-                    <article className="product-image-card" key={image.id}>
-                      <img
-                        src={resolveApiUrl(image.url)}
-                        alt={image.alt ?? ""}
-                        loading="lazy"
-                        width={160}
-                        height={110}
-                      />
-                      <div>
-                        <small>
-                          {index === 0 ? "Главное" : `Фото ${index + 1}`}
-                        </small>
+                        <div>
+                          <small>
+                            {index === 0 ? "Главное" : `Фото ${index + 1}`}
+                          </small>
+                          <button
+                            className="text-button"
+                            type="button"
+                            aria-label={`Убрать изображение ${index + 1}`}
+                            onClick={() =>
+                              setStoredProductImages((images) =>
+                                images.filter(({ id }) => id !== image.id),
+                              )
+                            }
+                          >
+                            Убрать
+                          </button>
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                )}
+                <label className="product-file-picker">
+                  <span>Добавить файлы до 5 МБ каждый</span>
+                  <input
+                    data-testid="product-images"
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    onChange={(event) => {
+                      const files = Array.from(event.currentTarget.files ?? []);
+                      if (
+                        !canAddProductImages(
+                          storedProductImages.length,
+                          files.length,
+                        )
+                      ) {
+                        setSelectedProductFiles([]);
+                        setProductImageError(
+                          `Можно сохранить не больше ${MAX_PRODUCT_IMAGES} изображений.`,
+                        );
+                        event.currentTarget.value = "";
+                        return;
+                      }
+                      setSelectedProductFiles(files);
+                      setProductImageError("");
+                    }}
+                  />
+                </label>
+                {selectedProductFiles.length > 0 && (
+                  <div className="selected-product-files" aria-live="polite">
+                    {selectedProductFiles.map((file, index) => (
+                      <span
+                        key={`${file.name}-${file.size}-${file.lastModified}`}
+                      >
+                        {storedProductImages.length === 0 && index === 0
+                          ? "Главное: "
+                          : ""}
+                        {file.name}
                         <button
                           className="text-button"
                           type="button"
-                          aria-label={`Убрать изображение ${index + 1}`}
+                          aria-label={`Убрать выбранный файл ${file.name}`}
                           onClick={() =>
-                            setStoredProductImages((images) =>
-                              images.filter(({ id }) => id !== image.id),
+                            setSelectedProductFiles((files) =>
+                              files.filter((candidate) => candidate !== file),
                             )
                           }
                         >
-                          Убрать
+                          ×
                         </button>
-                      </div>
-                    </article>
-                  ))}
-                </div>
-              )}
-              <label className="product-file-picker">
-                <span>Добавить файлы до 5 МБ каждый</span>
-                <input
-                  data-testid="product-images"
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  onChange={(event) => {
-                    const files = Array.from(event.currentTarget.files ?? []);
-                    if (
-                      !canAddProductImages(
-                        storedProductImages.length,
-                        files.length,
-                      )
-                    ) {
-                      setSelectedProductFiles([]);
-                      setProductImageError(
-                        `Можно сохранить не больше ${MAX_PRODUCT_IMAGES} изображений.`,
-                      );
-                      event.currentTarget.value = "";
-                      return;
-                    }
-                    setSelectedProductFiles(files);
-                    setProductImageError("");
-                  }}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <label className="wide-field">
+                <span>Описание</span>
+                <textarea
+                  data-testid="product-description"
+                  {...registerProduct("description")}
+                  aria-invalid={Boolean(productErrors.description)}
+                  rows={3}
+                  maxLength={4000}
                 />
+                <FormFieldError message={productErrors.description?.message} />
               </label>
-              {selectedProductFiles.length > 0 && (
-                <div className="selected-product-files" aria-live="polite">
-                  {selectedProductFiles.map((file, index) => (
-                    <span key={`${file.name}-${file.size}-${file.lastModified}`}>
-                      {storedProductImages.length === 0 && index === 0
-                        ? "Главное: "
-                        : ""}
-                      {file.name}
-                      <button
-                        className="text-button"
-                        type="button"
-                        aria-label={`Убрать выбранный файл ${file.name}`}
-                        onClick={() =>
-                          setSelectedProductFiles((files) =>
-                            files.filter((candidate) => candidate !== file),
-                          )
-                        }
-                      >
-                        ×
-                      </button>
-                    </span>
-                  ))}
-                </div>
-              )}
+              <label className="check-field">
+                <input
+                  data-testid="product-active"
+                  {...registerProduct("isActive")}
+                  type="checkbox"
+                />
+                В продаже
+              </label>
             </div>
-            <label className="wide-field">
-              <span>Описание</span>
-              <textarea
-                data-testid="product-description"
-                {...registerProduct("description")}
-                aria-invalid={Boolean(productErrors.description)}
-                rows={3}
-                maxLength={4000}
-              />
-              <FormFieldError message={productErrors.description?.message} />
-            </label>
-            <label className="check-field">
-              <input
-                data-testid="product-active"
-                {...registerProduct("isActive")}
-                type="checkbox"
-              />
-              В продаже
-            </label>
-          </div>
-          <button
-            className="primary-button"
-            data-testid="product-save"
-            disabled={
-              actions.uploadImages.isPending ||
-              actions.createProduct.isPending ||
-              actions.updateProduct.isPending
-            }
-          >
-            Сохранить блюдо
-          </button>
+            <button
+              className="primary-button"
+              data-testid="product-save"
+              disabled={
+                actions.uploadImages.isPending ||
+                actions.createProduct.isPending ||
+                actions.updateProduct.isPending
+              }
+            >
+              Сохранить блюдо
+            </button>
           </form>
         </div>
       )}
@@ -1119,7 +1273,10 @@ export function CatalogManager() {
         <article className="table-card">
           <div className="card-title">
             <h2>Категории</h2>
-            <span>{filteredCategories.length}{hasSearch ? ` / ${categories.data?.length ?? 0}` : ""}</span>
+            <span>
+              {filteredCategories.length}
+              {hasSearch ? ` / ${categories.data?.length ?? 0}` : ""}
+            </span>
           </div>
           <AsyncPanel
             pending={categories.isPending}
@@ -1142,7 +1299,12 @@ export function CatalogManager() {
               <small>{productGroups.length} групп</small>
             </div>
             <div className="catalog-accordion-actions">
-              <span>{filteredProducts.length}{(hasSearch || productCategoryFilter) ? ` / ${products.data?.length ?? 0}` : ""}</span>
+              <span>
+                {filteredProducts.length}
+                {hasSearch || productCategoryFilter
+                  ? ` / ${products.data?.length ?? 0}`
+                  : ""}
+              </span>
               <button
                 className="text-button compact"
                 data-testid="catalog-product-groups-collapse"
@@ -1204,7 +1366,10 @@ export function CatalogManager() {
                           </span>
                           <span className="catalog-product-group-meta">
                             <span>{group.products.length}</span>
-                            <span aria-hidden="true" className="catalog-product-group-chevron">
+                            <span
+                              aria-hidden="true"
+                              className="catalog-product-group-chevron"
+                            >
                               ⌄
                             </span>
                           </span>

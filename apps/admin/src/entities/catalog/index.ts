@@ -1,4 +1,9 @@
-export { catalogQueryKeys, useAdminCategories, useAdminProducts } from "./api/catalog-queries";
+export {
+  catalogQueryKeys,
+  useAdminCategories,
+  useAdminProducts,
+  useReceiptPrintSettings,
+} from "./api/catalog-queries";
 export {
   canAddProductImages,
   MAX_PRODUCT_IMAGES,
@@ -16,6 +21,8 @@ export type {
   CreateProduct,
   MediaUpload,
   Product,
+  ReceiptPrintSettings,
   UpdateCategory,
   UpdateProduct,
+  UpdateReceiptPrintSettings,
 } from "./model/types";

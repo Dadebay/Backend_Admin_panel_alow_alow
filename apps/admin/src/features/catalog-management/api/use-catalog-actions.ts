@@ -6,8 +6,10 @@ import {
   type CreateProduct,
   type MediaUpload,
   type Product,
+  type ReceiptPrintSettings,
   type UpdateCategory,
   type UpdateProduct,
+  type UpdateReceiptPrintSettings,
 } from "@/src/entities/catalog";
 import { useSession } from "@/src/shared/auth";
 
@@ -48,6 +50,17 @@ export function useCatalogActions() {
       }),
     onSuccess: refresh,
   });
+  const updateReceiptPrintSettings = useMutation({
+    mutationFn: (body: UpdateReceiptPrintSettings) =>
+      authorizedRequest<ReceiptPrintSettings>(
+        "/catalog/receipt-print-settings",
+        {
+          method: "PATCH",
+          body: JSON.stringify(body),
+        },
+      ),
+    onSuccess: refresh,
+  });
   const createProduct = useMutation({
     mutationFn: (body: CreateProduct) =>
       authorizedRequest<Product>("/catalog/products", {
@@ -69,6 +82,7 @@ export function useCatalogActions() {
     uploadImages,
     createCategory,
     updateCategory,
+    updateReceiptPrintSettings,
     createProduct,
     updateProduct,
   };

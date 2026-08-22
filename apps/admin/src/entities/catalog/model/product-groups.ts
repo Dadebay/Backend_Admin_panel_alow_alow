@@ -29,7 +29,7 @@ export function filterCatalogCategories(
   if (!search) return [...categories];
 
   return categories.filter((category) =>
-    `${category.name} ${category.slug}`
+    `${category.name} ${category.slug} ${category.receiptPrinterIp ?? ""}`
       .toLocaleLowerCase("ru-RU")
       .includes(search),
   );
@@ -45,7 +45,7 @@ export function filterCatalogProducts(
     if (categoryId && product.categoryId !== categoryId) return false;
     if (!search) return true;
 
-    return `${product.name} ${product.slug} ${product.description} ${product.receiptPrinterIp ?? ""} ${product.category?.name ?? ""}`
+    return `${product.name} ${product.slug} ${product.description} ${product.receiptPrinterIp ?? ""} ${product.effectiveReceiptPrinterIp ?? ""} ${product.category?.name ?? ""}`
       .toLocaleLowerCase("ru-RU")
       .includes(search);
   });
@@ -64,7 +64,8 @@ export function filterOrderableProducts(
 
     return (
       product.name.toLocaleLowerCase("ru-RU").includes(search) ||
-      product.category?.name.toLocaleLowerCase("ru-RU").includes(search) === true
+      product.category?.name.toLocaleLowerCase("ru-RU").includes(search) ===
+        true
     );
   });
 }

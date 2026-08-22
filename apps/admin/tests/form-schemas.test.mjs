@@ -9,6 +9,7 @@ import { branchFormSchema } from "../src/widgets/branch-manager/model/branch-for
 import {
   categoryFormSchema,
   productFormSchema,
+  receiptPrintSettingsFormSchema,
 } from "../src/widgets/catalog-manager/model/catalog-forms.ts";
 import {
   bannerFormSchema,
@@ -100,6 +101,7 @@ test("catalog schemas reject invalid slug and money precision", () => {
     categoryFormSchema.safeParse({
       name: "Пицца",
       slug: "pizza",
+      receiptPrinterIp: "192.168.10.51",
       sortOrder: 0,
       isActive: true,
     }).success,
@@ -109,6 +111,7 @@ test("catalog schemas reject invalid slug and money precision", () => {
     categoryFormSchema.safeParse({
       name: "Пицца",
       slug: "Pizza с пробелом",
+      receiptPrinterIp: "",
       sortOrder: 0,
       isActive: true,
     }).success,
@@ -184,6 +187,30 @@ test("catalog schemas reject invalid slug and money precision", () => {
       isActive: true,
     }).success,
     false,
+  );
+});
+
+test("receipt routing forms accept private LAN IPv4 addresses only", () => {
+  assert.equal(
+    receiptPrintSettingsFormSchema.safeParse({
+      mainPrinterIp: "192.168.10.50",
+    }).success,
+    true,
+  );
+  assert.equal(
+    receiptPrintSettingsFormSchema.safeParse({ mainPrinterIp: "8.8.8.8" })
+      .success,
+    false,
+  );
+  assert.equal(
+    categoryFormSchema.safeParse({
+      name: "Супы",
+      slug: "soups",
+      receiptPrinterIp: "",
+      sortOrder: 0,
+      isActive: true,
+    }).success,
+    true,
   );
 });
 

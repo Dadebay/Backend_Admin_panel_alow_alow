@@ -41,12 +41,17 @@ function toPrintItem(item: ReceiptPrintSourceItem): ReceiptPrintItem {
   };
 }
 
-export function buildReceiptPrintPlan(order: ReceiptPrintSourceOrder) {
+export function buildReceiptPrintPlan(
+  order: ReceiptPrintSourceOrder,
+  mainPrinterIp: string | null,
+) {
   const jobsByIp = new Map<string, ReceiptPrintItem[]>();
   const unassignedItems: ReceiptPrintItem[] = [];
+  const allItems: ReceiptPrintItem[] = [];
 
   for (const sourceItem of order.items) {
     const item = toPrintItem(sourceItem);
+    allItems.push(item);
     if (!sourceItem.receiptPrinterIp) {
       unassignedItems.push(item);
       continue;
@@ -66,6 +71,9 @@ export function buildReceiptPrintPlan(order: ReceiptPrintSourceOrder) {
       total: Number(order.total),
       deliveryAreaName: order.deliveryEtrapName,
     },
+    mainJob: mainPrinterIp
+      ? { printerIp: mainPrinterIp, items: allItems }
+      : null,
     jobs: [...jobsByIp.entries()]
       .sort(([left], [right]) => left.localeCompare(right))
       .map(([printerIp, items]) => ({ printerIp, items })),

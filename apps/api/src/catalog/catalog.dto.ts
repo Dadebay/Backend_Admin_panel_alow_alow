@@ -5,6 +5,7 @@ import {
   ArrayUnique,
   IsArray,
   IsBoolean,
+  IsDefined,
   IsInt,
   IsIP,
   IsNumber,
@@ -14,6 +15,7 @@ import {
   Matches,
   MaxLength,
   Min,
+  ValidateIf,
   ValidateNested,
 } from "class-validator";
 
@@ -41,6 +43,21 @@ export class CreateCategoryDto {
   @MaxLength(500)
   imageUrl?: string;
 
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    example: "192.168.1.51",
+    description:
+      "Default private LAN receipt-printer IPv4 address for products in this category",
+  })
+  @IsOptional()
+  @Transform(({ value }) => normalizeOptionalIp(value))
+  @IsIP(4)
+  @Matches(/^(?:10\.|192\.168\.|172\.(?:1[6-9]|2\d|3[01])\.)/, {
+    message: "receiptPrinterIp must be a private LAN IPv4 address",
+  })
+  receiptPrinterIp?: string | null;
+
   @ApiPropertyOptional({ default: 0 })
   @IsOptional()
   @IsInt()
@@ -53,6 +70,24 @@ export class CreateCategoryDto {
 }
 
 export class UpdateCategoryDto extends PartialType(CreateCategoryDto) {}
+
+export class UpdateReceiptPrintSettingsDto {
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    example: "192.168.1.50",
+    description:
+      "Private LAN printer that receives one complete administrator receipt; null disables the complete copy",
+  })
+  @IsDefined()
+  @Transform(({ value }) => normalizeOptionalIp(value))
+  @ValidateIf((_object, value) => value !== null)
+  @IsIP(4)
+  @Matches(/^(?:10\.|192\.168\.|172\.(?:1[6-9]|2\d|3[01])\.)/, {
+    message: "mainPrinterIp must be a private LAN IPv4 address",
+  })
+  mainPrinterIp: string | null;
+}
 
 export class ProductVariantInputDto {
   @ApiPropertyOptional({
@@ -144,7 +179,7 @@ export class CreateProductDto {
     nullable: true,
     example: "192.168.1.50",
     description:
-      "Private IPv4 address of the LAN receipt printer assigned to this product",
+      "Optional private LAN receipt-printer IPv4 override for this product; null inherits the category route",
   })
   @IsOptional()
   @Transform(({ value }) => normalizeOptionalIp(value))

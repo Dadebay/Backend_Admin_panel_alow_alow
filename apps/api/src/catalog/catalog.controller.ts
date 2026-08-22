@@ -24,15 +24,17 @@ import {
   CreateProductDto,
   UpdateCategoryDto,
   UpdateProductDto,
+  UpdateReceiptPrintSettingsDto,
 } from "./catalog.dto";
 import { CatalogService } from "./catalog.service";
 import {
   CatalogAdminCategoryResponseDto,
+  CatalogAdminCategorySummaryResponseDto,
   CatalogAdminProductResponseDto,
   CatalogCategoryResponseDto,
-  CatalogCategorySummaryResponseDto,
   CatalogProductImageResponseDto,
   CatalogProductResponseDto,
+  ReceiptPrintSettingsResponseDto,
 } from "./catalog-response.dto";
 
 @ApiTags("catalog")
@@ -65,10 +67,19 @@ export class CatalogController {
     return this.catalog.categories(true);
   }
 
+  @Get("admin/receipt-print-settings")
+  @ApiBearerAuth()
+  @Roles(Role.ADMIN, Role.OPERATOR)
+  @ApiOperation({ summary: "Get the complete administrator receipt printer" })
+  @ApiOkResponse({ type: ReceiptPrintSettingsResponseDto })
+  receiptPrintSettings() {
+    return this.catalog.receiptPrintSettings();
+  }
+
   @Post("categories")
   @ApiBearerAuth()
   @Roles(Role.ADMIN)
-  @ApiCreatedResponse({ type: CatalogCategorySummaryResponseDto })
+  @ApiCreatedResponse({ type: CatalogAdminCategorySummaryResponseDto })
   createCategory(
     @CurrentUser() actor: AuthUser,
     @Body() dto: CreateCategoryDto,
@@ -79,13 +90,27 @@ export class CatalogController {
   @Patch("categories/:id")
   @ApiBearerAuth()
   @Roles(Role.ADMIN)
-  @ApiOkResponse({ type: CatalogCategorySummaryResponseDto })
+  @ApiOkResponse({ type: CatalogAdminCategorySummaryResponseDto })
   updateCategory(
     @CurrentUser() actor: AuthUser,
     @Param("id", ParseUUIDPipe) id: string,
     @Body() dto: UpdateCategoryDto,
   ) {
     return this.catalog.updateCategory(actor, id, dto);
+  }
+
+  @Patch("receipt-print-settings")
+  @ApiBearerAuth()
+  @Roles(Role.ADMIN)
+  @ApiOperation({
+    summary: "Configure the complete administrator receipt printer",
+  })
+  @ApiOkResponse({ type: ReceiptPrintSettingsResponseDto })
+  updateReceiptPrintSettings(
+    @CurrentUser() actor: AuthUser,
+    @Body() dto: UpdateReceiptPrintSettingsDto,
+  ) {
+    return this.catalog.updateReceiptPrintSettings(actor, dto);
   }
 
   @Get("admin/products")
@@ -100,10 +125,7 @@ export class CatalogController {
   @ApiBearerAuth()
   @Roles(Role.ADMIN)
   @ApiCreatedResponse({ type: CatalogAdminProductResponseDto })
-  createProduct(
-    @CurrentUser() actor: AuthUser,
-    @Body() dto: CreateProductDto,
-  ) {
+  createProduct(@CurrentUser() actor: AuthUser, @Body() dto: CreateProductDto) {
     return this.catalog.createProduct(actor, dto);
   }
 

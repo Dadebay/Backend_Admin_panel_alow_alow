@@ -14,6 +14,7 @@ function category({ id, name, sortOrder = 0, isActive = true }) {
     name,
     slug: `${id}-slug`,
     imageUrl: null,
+    receiptPrinterIp: null,
     sortOrder,
     isActive,
     createdAt: "2026-08-21T00:00:00.000Z",
@@ -45,6 +46,8 @@ function product({
     variantLabel: variants.length > 0 ? "Ölçegi" : null,
     displayImageUrl: null,
     receiptPrinterIp,
+    effectiveReceiptPrinterIp:
+      receiptPrinterIp ?? productCategory?.receiptPrinterIp ?? null,
     isActive,
     sortOrder: 0,
     createdAt: "2026-08-21T00:00:00.000Z",
@@ -147,6 +150,11 @@ test("catalog category search is trimmed, case-insensitive, and keeps hidden cat
     hiddenDrinks,
   ]);
   assert.deepEqual(filterCatalogCategories(categories, "   "), categories);
+
+  const routedSoups = { ...soups, receiptPrinterIp: "192.168.123.105" };
+  assert.deepEqual(filterCatalogCategories([hot, routedSoups], "123.105"), [
+    routedSoups,
+  ]);
 });
 
 test("catalog search covers name, slug, description, printer IP, and category", () => {

@@ -12,10 +12,11 @@ The same catalog response powers two different staff workflows:
 - `Заказ по звонку` is an order-entry view. It includes only products that can
   currently be ordered and never offers a product from a hidden category.
 
-Grouping is a frontend projection of the existing cached catalog response. It
-does not add an API request, polling loop, database table, role rule, price
-calculation, or printer-routing rule. The backend remains authoritative for
-availability, variants, prices, receipt-printer IPs, and final order totals.
+Visual grouping is a frontend projection of the existing cached catalog
+response and does not add its own request or routing decision. Category records
+now also own the default kitchen-printer IP, while a product may override that
+default. The backend remains authoritative for availability, variants, prices,
+effective receipt-printer routes, immutable order snapshots, and final totals.
 
 The `/catalog` product groups are an accessible accordion. The first visible
 group opens by default, every category header is a keyboard-operable button,
@@ -35,8 +36,8 @@ object to be absent:
 3. Preserve the API order of products inside each group.
 4. Put a product without expanded category metadata in `Без категории`, after
    groups with a real sort order.
-5. Never clone or rewrite a product, its variants, images, printer IP, price, or
-   active state while grouping.
+5. Never clone or rewrite a product, its variants, images, explicit/effective
+   printer IP, price, or active state while grouping.
 
 The shared pure functions live in
 `apps/admin/src/entities/catalog/model/product-groups.ts`. Both widgets import
@@ -131,8 +132,10 @@ products, missing images, long names, and at least 50 products.
 3. Filter one category and confirm exactly one expanded group remains.
 4. Search by product, category, slug, description, and printer IP; matching
    groups must open automatically.
-5. Combine search with a category and verify both filters apply.
-6. Confirm hidden records remain editable and a no-match query shows the empty
+5. Set the main printer, a category printer and a different product printer;
+   verify the table labels the product route as inherited or overridden.
+6. Combine search with a category and verify both filters apply.
+7. Confirm hidden records remain editable and a no-match query shows the empty
    state.
 
 ### Phone-assisted order

@@ -15,6 +15,7 @@ import {
   ProductVariantInputDto,
   UpdateCategoryDto,
   UpdateProductDto,
+  UpdateReceiptPrintSettingsDto,
 } from "./catalog.dto";
 
 const MAX_PRODUCT_IMAGES = 10;
@@ -31,6 +32,16 @@ type ProductWithRelations = Prisma.ProductGetPayload<{
   include: typeof productRelations;
 }>;
 
+function categoryResponse<
+  TCategory extends { receiptPrinterIp: string | null },
+>(category: TCategory, includeAdminFields: boolean) {
+  const { receiptPrinterIp, ...publicCategory } = category;
+  return {
+    ...publicCategory,
+    ...(includeAdminFields ? { receiptPrinterIp } : {}),
+  };
+}
+
 function activeVariants(product: ProductWithRelations) {
   return product.variants
     .filter(({ isActive }) => isActive)
@@ -46,14 +57,21 @@ function productResponse(
   product: ProductWithRelations,
   includeAdminFields: boolean,
 ) {
-  const { receiptPrinterIp, ...publicProduct } = product;
+  const { receiptPrinterIp, category, ...publicProduct } = product;
   const active = activeVariants(product);
   const minPrice = active[0]?.price ?? product.price;
   const displayImageUrl =
     active[0]?.images[0]?.url ?? product.images[0]?.url ?? null;
   return toApiResponse({
     ...publicProduct,
-    ...(includeAdminFields ? { receiptPrinterIp } : {}),
+    ...(includeAdminFields
+      ? {
+          receiptPrinterIp,
+          effectiveReceiptPrinterIp:
+            receiptPrinterIp ?? category.receiptPrinterIp,
+        }
+      : {}),
+    category: categoryResponse(category, false),
     price: minPrice,
     minPrice,
     hasVariants: active.length > 0,
@@ -128,7 +146,7 @@ export class CatalogService {
     });
     return toApiResponse(
       categories.map(({ products, ...category }) => ({
-        ...category,
+        ...categoryResponse(category, includeInactive),
         products: products.map((product) =>
           productResponse(product, includeInactive),
         ),
@@ -162,7 +180,7 @@ export class CatalogService {
           metadata: { name: category.name, slug: category.slug },
         },
       });
-      return toApiResponse(category);
+      return toApiResponse(categoryResponse(category, true));
     });
   }
 
@@ -180,7 +198,43 @@ export class CatalogService {
           metadata: { changedFields: Object.keys(dto) },
         },
       });
-      return toApiResponse(updated);
+      return toApiResponse(categoryResponse(updated, true));
+    });
+  }
+
+  async receiptPrintSettings() {
+    const settings = await this.prisma.receiptPrintSettings.findUnique({
+      where: { id: "default" },
+    });
+    return toApiResponse({
+      mainPrinterIp: settings?.mainPrinterIp ?? null,
+      updatedAt: settings?.updatedAt ?? null,
+    });
+  }
+
+  updateReceiptPrintSettings(
+    actor: AuthUser,
+    dto: UpdateReceiptPrintSettingsDto,
+  ) {
+    return this.prisma.$transaction(async (tx) => {
+      const settings = await tx.receiptPrintSettings.upsert({
+        where: { id: "default" },
+        create: { id: "default", mainPrinterIp: dto.mainPrinterIp },
+        update: { mainPrinterIp: dto.mainPrinterIp },
+      });
+      await tx.auditLog.create({
+        data: {
+          actorId: actor.id,
+          action: "catalog.receipt-print-settings.updated",
+          entityType: "ReceiptPrintSettings",
+          entityId: settings.id,
+          metadata: { changedFields: ["mainPrinterIp"] },
+        },
+      });
+      return toApiResponse({
+        mainPrinterIp: settings.mainPrinterIp,
+        updatedAt: settings.updatedAt,
+      });
     });
   }
 

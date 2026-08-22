@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useSession } from "@/src/shared/auth";
-import type { Category, Product } from "../model/types";
+import type { Category, Product, ReceiptPrintSettings } from "../model/types";
 
 export const catalogQueryKeys = {
   all: ["catalog"] as const,
@@ -8,6 +8,8 @@ export const catalogQueryKeys = {
     [...catalogQueryKeys.all, "categories", userId] as const,
   products: (userId: string) =>
     [...catalogQueryKeys.all, "products", userId] as const,
+  receiptPrintSettings: (userId: string) =>
+    [...catalogQueryKeys.all, "receipt-print-settings", userId] as const,
 };
 
 export function useAdminCategories() {
@@ -16,6 +18,22 @@ export function useAdminCategories() {
     queryKey: catalogQueryKeys.categories(session?.user.id ?? "anonymous"),
     queryFn: ({ signal }) =>
       authorizedRequest<Category[]>("/catalog/admin/categories", { signal }),
+    enabled: Boolean(session),
+    staleTime: 30_000,
+  });
+}
+
+export function useReceiptPrintSettings() {
+  const { session, authorizedRequest } = useSession();
+  return useQuery({
+    queryKey: catalogQueryKeys.receiptPrintSettings(
+      session?.user.id ?? "anonymous",
+    ),
+    queryFn: ({ signal }) =>
+      authorizedRequest<ReceiptPrintSettings>(
+        "/catalog/admin/receipt-print-settings",
+        { signal },
+      ),
     enabled: Boolean(session),
     staleTime: 30_000,
   });

@@ -191,6 +191,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/catalog/admin/receipt-print-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get the complete administrator receipt printer */
+        get: operations["CatalogController_receiptPrintSettings_v1"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/catalog/categories/{id}": {
         parameters: {
             query?: never;
@@ -205,6 +222,23 @@ export interface paths {
         options?: never;
         head?: never;
         patch: operations["CatalogController_updateCategory_v1"];
+        trace?: never;
+    };
+    "/api/v1/catalog/receipt-print-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Configure the complete administrator receipt printer */
+        patch: operations["CatalogController_updateReceiptPrintSettings_v1"];
         trace?: never;
     };
     "/api/v1/catalog/admin/products": {
@@ -348,7 +382,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Build the accepted order receipt jobs grouped by snapshotted LAN printer IP */
+        /** Build one complete administrator receipt and kitchen jobs grouped by snapshotted LAN printer IP */
         get: operations["OrdersController_receiptPrintPlan_v1"];
         put?: never;
         post?: never;
@@ -1423,8 +1457,13 @@ export interface components {
             images: components["schemas"]["CatalogProductImageResponseDto"][];
             variants: components["schemas"]["CatalogProductVariantResponseDto"][];
             category?: components["schemas"]["CatalogCategorySummaryResponseDto"];
-            /** @example 192.168.1.50 */
+            /**
+             * @description Explicit product override; null means inherit the category route
+             * @example 192.168.1.50
+             */
             receiptPrinterIp: string | null;
+            /** @example 192.168.1.51 */
+            effectiveReceiptPrinterIp: string | null;
         };
         CatalogAdminCategoryResponseDto: {
             /** Format: uuid */
@@ -1438,25 +1477,65 @@ export interface components {
             createdAt: string;
             /** Format: date-time */
             updatedAt: string;
+            /** @example 192.168.1.51 */
+            receiptPrinterIp: string | null;
             products: components["schemas"]["CatalogAdminProductResponseDto"][];
+        };
+        ReceiptPrintSettingsResponseDto: {
+            /** @example 192.168.1.50 */
+            mainPrinterIp: string | null;
+            /** Format: date-time */
+            updatedAt: string | null;
         };
         CreateCategoryDto: {
             name: string;
             slug: string;
             imageUrl?: string;
+            /**
+             * @description Default private LAN receipt-printer IPv4 address for products in this category
+             * @example 192.168.1.51
+             */
+            receiptPrinterIp?: string | null;
             /** @default 0 */
             sortOrder: number;
             /** @default true */
             isActive: boolean;
         };
+        CatalogAdminCategorySummaryResponseDto: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            slug: string;
+            imageUrl: string | null;
+            sortOrder: number;
+            isActive: boolean;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+            /** @example 192.168.1.51 */
+            receiptPrinterIp: string | null;
+        };
         UpdateCategoryDto: {
             name?: string;
             slug?: string;
             imageUrl?: string;
+            /**
+             * @description Default private LAN receipt-printer IPv4 address for products in this category
+             * @example 192.168.1.51
+             */
+            receiptPrinterIp?: string | null;
             /** @default 0 */
             sortOrder: number;
             /** @default true */
             isActive: boolean;
+        };
+        UpdateReceiptPrintSettingsDto: {
+            /**
+             * @description Private LAN printer that receives one complete administrator receipt; null disables the complete copy
+             * @example 192.168.1.50
+             */
+            mainPrinterIp: string | null;
         };
         ProductVariantInputDto: {
             /**
@@ -1488,7 +1567,7 @@ export interface components {
              */
             price: number;
             /**
-             * @description Private IPv4 address of the LAN receipt printer assigned to this product
+             * @description Optional private LAN receipt-printer IPv4 override for this product; null inherits the category route
              * @example 192.168.1.50
              */
             receiptPrinterIp?: string | null;
@@ -1522,7 +1601,7 @@ export interface components {
              */
             price?: number;
             /**
-             * @description Private IPv4 address of the LAN receipt printer assigned to this product
+             * @description Optional private LAN receipt-printer IPv4 override for this product; null inherits the category route
              * @example 192.168.1.50
              */
             receiptPrinterIp?: string | null;
@@ -1958,6 +2037,7 @@ export interface components {
             orderId: string;
             orderNumber: number;
             summary: components["schemas"]["ReceiptPrintSummaryResponseDto"];
+            mainJob: components["schemas"]["ReceiptPrinterJobResponseDto"] | null;
             jobs: components["schemas"]["ReceiptPrinterJobResponseDto"][];
             unassignedItems: components["schemas"]["ReceiptPrintItemResponseDto"][];
         };
@@ -2886,7 +2966,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["CatalogCategorySummaryResponseDto"];
+                    "application/json": components["schemas"]["CatalogAdminCategorySummaryResponseDto"];
                 };
             };
         };
@@ -2954,6 +3034,25 @@ export interface operations {
             };
         };
     };
+    CatalogController_receiptPrintSettings_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReceiptPrintSettingsResponseDto"];
+                };
+            };
+        };
+    };
     CatalogController_updateCategory_v1: {
         parameters: {
             query?: never;
@@ -2974,7 +3073,30 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["CatalogCategorySummaryResponseDto"];
+                    "application/json": components["schemas"]["CatalogAdminCategorySummaryResponseDto"];
+                };
+            };
+        };
+    };
+    CatalogController_updateReceiptPrintSettings_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateReceiptPrintSettingsDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReceiptPrintSettingsResponseDto"];
                 };
             };
         };

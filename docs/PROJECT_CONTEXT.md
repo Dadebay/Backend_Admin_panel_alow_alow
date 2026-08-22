@@ -459,10 +459,11 @@ heights; visual density must not be reduced to the previous pale compact map.
   the marker triggers a new quote and replaces the visible official-address
   search value and stale tariff selection.
 - Orders keep immutable snapshots of the address plus product/variant name,
-  price, and the product's optional LAN receipt-printer IPv4 address. Later
-  catalog edits never rewrite historical order lines. The only exception is
-  the explicit audited administrator edit of an active pre-pickup order; that
-  action intentionally replaces its current snapshots and recalculates totals.
+  price, and the effective kitchen receipt-printer IPv4 address resolved as
+  `product override → category default`. Later catalog edits never rewrite
+  historical order lines. The only exception is the explicit audited
+  administrator edit of an active pre-pickup order; that action intentionally
+  replaces its current snapshots and recalculates totals.
 - An operator/admin phone order resolves an existing active customer by phone
   or creates a `CUSTOMER` record without issuing OTP, JWT, or refresh tokens.
   A staff phone number or inactive customer is rejected. Staff may reuse one
@@ -510,11 +511,16 @@ may independently have up to 10. Removed persisted variants are soft-disabled
 so historical order references remain valid. The backend enforces the same
 common-image limit for the single-image compatibility endpoint.
 
-An administrator may assign one private LAN receipt-printer IPv4 address to a
-product. The address is visible only through authenticated catalog-management
-responses and is never exposed in the public catalog or customer order
-responses. New order lines snapshot the configured address so a later catalog
-edit cannot reroute an existing order. The intended non-fiscal printer payload
+An administrator may assign a default private LAN receipt-printer IPv4 address
+to a category and an optional override to an individual product. A product
+without an override inherits its category route; a product override always wins.
+The addresses and effective route are visible only through authenticated
+catalog-management responses and are never exposed in the public catalog or
+customer order responses. New order lines snapshot the effective kitchen
+address so a later catalog edit cannot reroute an existing order. A separate
+audited singleton setting selects the main administrator printer; it is resolved
+when a print or reprint plan is requested so replacing that physical device does
+not require rewriting orders. The intended non-fiscal printer payload
 contains the selected product/variant display name, quantity, backend-
 snapshotted unit price, and an authoritative order summary with subtotal,
 discount when present, delivery fee, configured etrap name when present, and
@@ -527,9 +533,11 @@ new order ID, and is also available as an explicit reprint for a
 non-new, non-cancelled order. A browser-shared bounded claim list prevents the
 same workstation's tabs from intentionally dispatching the same new order
 twice; a failed automatic attempt remains visible and staff may use the manual
-print action. NestJS builds the authoritative plan by grouping
-immutable order lines by their snapshotted printer IP and reports any line with
-no configured route. The remote VDS never connects to a private LAN address.
+print action. NestJS builds the authoritative plan with one complete main-printer
+job containing every order line plus kitchen jobs grouped by each line's
+snapshotted effective printer IP. A line without a kitchen route remains visible
+as unassigned but is still included in the complete main copy. The remote VDS
+never connects to a private LAN address.
 Instead, the HTTPS admin sends that plan to the A7-tagam receipt print agent on
 the same workstation at loopback `127.0.0.1:17873`. The agent has one Go source
 and CI-built executables for Windows x64/ARM64 and macOS Intel/Apple Silicon.
@@ -537,7 +545,10 @@ It accepts only allowlisted admin origins, rejects non-private IPv4 targets,
 formats a prominent `ONLINE ORDER #<number>` header on every printer chunk,
 then large item text with separators, delivery price and final total plus blank
 paper space above and below the content before cutting, and sends bounded hexadecimal ESC/POS payloads
-through the tested J-Speed WebConfig HTTP interface on each printer's LAN port 80. The agent contains no API token and binds to loopback only. A working
+through the tested J-Speed WebConfig HTTP interface on each printer's LAN port
+80. Two jobs may target the same IP when the administrator and kitchen copies
+share one physical apparatus; they print sequentially. The agent contains no
+API token and binds to loopback only. A working
 workstation remains necessary while accepting/printing an order; it is not a
 separate gateway computer.
 
@@ -1244,6 +1255,11 @@ remain immediate, and no polling or eager route load was added.
   delivery through `POST /delivery/quote`; the server returns the official
   address, configured price and unambiguous etrap match, and marker movement
   updates the visible search field instead of retaining the previous result.
+- 2026-08-22: receipt routing gained an audited main-printer setting, category
+  kitchen-printer defaults and product-level overrides. Every print plan now
+  contains one complete administrator copy plus kitchen copies grouped by the
+  effective route snapshotted on order creation; public catalog responses still
+  expose no private printer address.
 - 2026-08-21: administrators gained audited, version-locked pre-pickup order
   editing, canonical one-step pre-pickup rollback, and cancellation through
   `DELIVERED`.

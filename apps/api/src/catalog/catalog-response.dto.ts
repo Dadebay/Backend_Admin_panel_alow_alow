@@ -152,8 +152,17 @@ export class CatalogProductResponseDto {
 }
 
 export class CatalogAdminProductResponseDto extends CatalogProductResponseDto {
-  @ApiProperty({ type: String, nullable: true, example: "192.168.1.50" })
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    example: "192.168.1.50",
+    description:
+      "Explicit product override; null means inherit the category route",
+  })
   receiptPrinterIp: string | null;
+
+  @ApiProperty({ type: String, nullable: true, example: "192.168.1.51" })
+  effectiveReceiptPrinterIp: string | null;
 }
 
 export class CatalogCategoryResponseDto extends CatalogCategorySummaryResponseDto {
@@ -161,7 +170,20 @@ export class CatalogCategoryResponseDto extends CatalogCategorySummaryResponseDt
   products: CatalogProductResponseDto[];
 }
 
-export class CatalogAdminCategoryResponseDto extends CatalogCategorySummaryResponseDto {
+export class CatalogAdminCategorySummaryResponseDto extends CatalogCategorySummaryResponseDto {
+  @ApiProperty({ type: String, nullable: true, example: "192.168.1.51" })
+  receiptPrinterIp: string | null;
+}
+
+export class CatalogAdminCategoryResponseDto extends CatalogAdminCategorySummaryResponseDto {
   @ApiProperty({ type: [CatalogAdminProductResponseDto] })
   products: CatalogAdminProductResponseDto[];
+}
+
+export class ReceiptPrintSettingsResponseDto {
+  @ApiProperty({ type: String, nullable: true, example: "192.168.1.50" })
+  mainPrinterIp: string | null;
+
+  @ApiProperty({ format: "date-time", type: String, nullable: true })
+  updatedAt: string | null;
 }

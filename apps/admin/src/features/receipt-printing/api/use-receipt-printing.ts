@@ -35,8 +35,12 @@ async function sendToReceiptPrintAgent(plan: ReceiptPrintPlan) {
       signal: controller.signal,
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        ...plan,
         dispatchId: crypto.randomUUID(),
+        orderId: plan.orderId,
+        orderNumber: plan.orderNumber,
+        summary: plan.summary,
+        jobs: [...(plan.mainJob ? [plan.mainJob] : []), ...plan.jobs],
+        unassignedItems: plan.unassignedItems,
       }),
     });
     const body = (await response.json().catch(() => null)) as
@@ -75,9 +79,9 @@ export function useReceiptPrinting() {
       const plan = await authorizedRequest<ReceiptPrintPlan>(
         `/orders/${orderId}/receipt-print-plan`,
       );
-      if (plan.jobs.length === 0) {
+      if (!plan.mainJob && plan.jobs.length === 0) {
         throw new ReceiptPrintAgentError(
-          "В заказе нет блюд с указанным IP чекового аппарата.",
+          "Не указан ни главный аппарат, ни кухонный маршрут для блюд заказа.",
         );
       }
       const result = await sendToReceiptPrintAgent(plan);

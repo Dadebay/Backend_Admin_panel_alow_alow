@@ -1,6 +1,20 @@
 import { z } from "zod";
 import { slugSchema } from "../../../shared/forms/schema.ts";
 
+export const receiptPrinterIpSchema = z
+  .string()
+  .trim()
+  .refine(
+    (value) => value === "" || z.ipv4().safeParse(value).success,
+    "Введите IPv4 адрес, например 192.168.1.50",
+  )
+  .refine(
+    (value) =>
+      value === "" ||
+      /^(?:10\.|192\.168\.|172\.(?:1[6-9]|2\d|3[01])\.)/.test(value),
+    "Укажите локальный IP аппарата, например 192.168.1.50",
+  );
+
 export const categoryFormSchema = z.object({
   name: z
     .string()
@@ -8,6 +22,7 @@ export const categoryFormSchema = z.object({
     .min(1, "Укажите название категории")
     .max(100, "Не больше 100 символов"),
   slug: slugSchema.max(120, "Не больше 120 символов"),
+  receiptPrinterIp: receiptPrinterIpSchema,
   sortOrder: z.number({ error: "Укажите порядок" }).int("Введите целое число"),
   isActive: z.boolean(),
   image: z.unknown().optional(),
@@ -31,19 +46,9 @@ const productVariantSchema = z.object({
   imageFiles: z.unknown().optional(),
 });
 
-const receiptPrinterIpSchema = z
-  .string()
-  .trim()
-  .refine(
-    (value) => value === "" || z.ipv4().safeParse(value).success,
-    "Введите IPv4 адрес, например 192.168.1.50",
-  )
-  .refine(
-    (value) =>
-      value === "" ||
-      /^(?:10\.|192\.168\.|172\.(?:1[6-9]|2\d|3[01])\.)/.test(value),
-    "Укажите локальный IP аппарата, например 192.168.1.50",
-  );
+export const receiptPrintSettingsFormSchema = z.object({
+  mainPrinterIp: receiptPrinterIpSchema,
+});
 
 export const productFormSchema = z
   .object({
@@ -93,6 +98,9 @@ export const productFormSchema = z
 
 export type CategoryFormValues = z.infer<typeof categoryFormSchema>;
 export type ProductFormValues = z.infer<typeof productFormSchema>;
+export type ReceiptPrintSettingsFormValues = z.infer<
+  typeof receiptPrintSettingsFormSchema
+>;
 
 export function slugify(value: string) {
   return value

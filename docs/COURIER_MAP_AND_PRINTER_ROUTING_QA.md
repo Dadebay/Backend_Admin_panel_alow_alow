@@ -38,7 +38,8 @@ records how those decisions are verified.
   the configured category printer address. The authenticated admin catalog
   continues to return the hidden category.
 - Only private LAN IPv4 addresses are accepted for main, category, and product
-  printer routes. An empty quick-settings field stores `null`.
+  printer routes. An empty quick-settings field stores `null`; the catalog UI
+  also provides explicit clear actions for every routing level.
 - Effective kitchen routing is exclusive:
   `product.receiptPrinterIp ?? category.receiptPrinterIp`. A product override
   creates one job on the product printer and no duplicate job on the category
@@ -46,6 +47,11 @@ records how those decisions are verified.
 - Each order item snapshots its effective route. Later catalog changes do not
   reroute an existing order. The complete main-printer job always contains all
   order lines; missing kitchen routes remain visible as unassigned items.
+- `ADMIN` and `SUPER_ADMIN` may permanently delete an unused product or an
+  unused category and all of its products after confirmation. The API audits
+  the deletion and retains media objects. Any order-history reference protects
+  the product and its category with `409 Conflict`; staff must hide the record
+  instead.
 
 ## Automated coverage
 
@@ -54,7 +60,8 @@ records how those decisions are verified.
 | Courier labels and overview | `apps/admin/tests/courier-map.test.mjs` | Empty/mixed courier sets, one/multiple orders, stale busy courier, online/free and GPS counts, permanent markers, whole-shift interval |
 | Category quick settings | `apps/admin/tests/category-receipt-routes.test.mjs` | Printer update preserves visibility/order, blank IP becomes `null`, visibility toggle preserves printer route |
 | LAN validation and UI wiring | `apps/admin/tests/form-schemas.test.mjs`, `apps/admin/tests/receipt-printing.test.mjs` | Private IPv4 validation, stable selectors, quick-settings integration and printer hierarchy copy |
-| API authorization and public visibility | `apps/api/test/security.e2e.spec.ts` | Forbidden roles, audited category hiding, public product removal, admin visibility, GPS persistence and a new point after `DELIVERED`, explicit stop sharing |
+| Catalog deletion UI | `apps/admin/tests/catalog-deletion.test.mjs` | Authenticated DELETE mutations, cache refresh, accessible confirmation, pending and failure states |
+| API authorization and public visibility | `apps/api/test/security.e2e.spec.ts` | Forbidden roles, audited category hiding/deletion, deletion conflicts for order history, public product removal, admin visibility, GPS persistence and a new point after `DELIVERED`, explicit stop sharing |
 | Immutable print plan | `apps/api/test/receipt-print-plan.spec.ts` | Main copy, grouping by snapshotted IP, exclusive product/category result and unassigned items |
 
 Required release checks are the root `AGENTS.md` backend and frontend command
@@ -76,10 +83,16 @@ verification.
 4. In `/catalog`, set a category printer, hide the category, reload, and show
    it again. Verify the printer address and sort order are preserved and the
    customer catalog hides/shows all products with the category.
-5. Create one product without an override and one with another private IP.
+5. Clear the main and category printer with their visible actions. Give one
+   product its own IP, then use `Убрать свой IP`; verify it immediately resumes
+   category inheritance.
+6. Delete an unused dish and an unused category after confirmation. Then try to
+   delete a dish and category used by an order; verify the dialog shows the
+   conflict and both records remain available to hide.
+7. Create one product without an override and one with another private IP.
    Print a mixed order. Verify one complete main receipt, one inherited kitchen
    receipt, and one override kitchen receipt with no duplicate product line.
-6. Repeat the affected screens in Chrome, Firefox, and Safari at desktop and
+8. Repeat the affected screens in Chrome, Firefox, and Safari at desktop and
    phone widths. Check keyboard focus, disabled/pending states, console errors,
    marker-label overlap, and long courier/category names.
 

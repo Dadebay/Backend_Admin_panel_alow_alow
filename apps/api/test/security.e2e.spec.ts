@@ -1433,6 +1433,148 @@ describe("backend security and critical workflow", () => {
     });
   });
 
+  it("permanently deletes unused catalog records and preserves order history", async () => {
+    const deletableCategoryResponse = await request(server)
+      .post("/api/v1/catalog/categories")
+      .set(bearer(tokens.admin))
+      .send({
+        name: "Deletable catalog category",
+        slug: "deletable-catalog-category",
+        receiptPrinterIp: "192.168.123.120",
+      })
+      .expect(201);
+    const deletableCategoryId = (
+      deletableCategoryResponse.body as { id: string }
+    ).id;
+    const firstProductResponse = await request(server)
+      .post("/api/v1/catalog/products")
+      .set(bearer(tokens.admin))
+      .send({
+        categoryId: deletableCategoryId,
+        name: "Individually deletable product",
+        slug: "individually-deletable-product",
+        description: "Has no order history",
+        price: 19,
+      })
+      .expect(201);
+    const firstProductId = (firstProductResponse.body as { id: string }).id;
+    await request(server)
+      .post("/api/v1/catalog/products")
+      .set(bearer(tokens.admin))
+      .send({
+        categoryId: deletableCategoryId,
+        name: "Cascade deletable product",
+        slug: "cascade-deletable-product",
+        description: "Deleted with its unused category",
+        price: 21,
+      })
+      .expect(201);
+
+    await request(server)
+      .delete(`/api/v1/catalog/products/${firstProductId}`)
+      .set(bearer(tokens.operator))
+      .expect(403);
+    await request(server)
+      .delete(`/api/v1/catalog/products/${firstProductId}`)
+      .set(bearer(tokens.admin))
+      .expect(204);
+    await request(server)
+      .delete(`/api/v1/catalog/products/${firstProductId}`)
+      .set(bearer(tokens.admin))
+      .expect(404);
+    await request(server)
+      .delete(`/api/v1/catalog/categories/${deletableCategoryId}`)
+      .set(bearer(tokens.superAdmin))
+      .expect(204);
+    expect(
+      await prisma.product.count({
+        where: { categoryId: deletableCategoryId },
+      }),
+    ).toBe(0);
+    expect(
+      await prisma.category.count({ where: { id: deletableCategoryId } }),
+    ).toBe(0);
+
+    const protectedCategoryResponse = await request(server)
+      .post("/api/v1/catalog/categories")
+      .set(bearer(tokens.admin))
+      .send({
+        name: "Order history catalog category",
+        slug: "order-history-catalog-category",
+      })
+      .expect(201);
+    const protectedCategoryId = (
+      protectedCategoryResponse.body as { id: string }
+    ).id;
+    const protectedProductResponse = await request(server)
+      .post("/api/v1/catalog/products")
+      .set(bearer(tokens.admin))
+      .send({
+        categoryId: protectedCategoryId,
+        name: "Order history product",
+        slug: "order-history-product",
+        description: "Must remain available to historical order rows",
+        price: 24,
+      })
+      .expect(201);
+    const protectedProductId = (
+      protectedProductResponse.body as { id: string }
+    ).id;
+    await request(server)
+      .post("/api/v1/orders")
+      .set(bearer(tokens.customer))
+      .send({
+        items: [{ productId: protectedProductId, quantity: 1 }],
+        address: "Catalog deletion history street",
+        latitude: 37.95021,
+        longitude: 58.38021,
+      })
+      .expect(201);
+
+    const productConflict = await request(server)
+      .delete(`/api/v1/catalog/products/${protectedProductId}`)
+      .set(bearer(tokens.admin))
+      .expect(409);
+    expect((productConflict.body as { message: string }).message).toContain(
+      "Скройте блюдо",
+    );
+    const categoryConflict = await request(server)
+      .delete(`/api/v1/catalog/categories/${protectedCategoryId}`)
+      .set(bearer(tokens.admin))
+      .expect(409);
+    expect((categoryConflict.body as { message: string }).message).toContain(
+      "Скройте категорию",
+    );
+    expect(
+      await prisma.product.count({ where: { id: protectedProductId } }),
+    ).toBe(1);
+
+    expect(
+      await prisma.auditLog.findFirst({
+        where: {
+          action: "catalog.product.deleted",
+          entityId: firstProductId,
+        },
+      }),
+    ).toMatchObject({
+      actorId: users.admin.id,
+      entityType: "Product",
+      metadata: { retainedMediaObjects: true },
+    });
+    expect(
+      await prisma.auditLog.findFirst({
+        where: {
+          action: "catalog.category.deleted",
+          entityId: deletableCategoryId,
+        },
+      }),
+    ).toMatchObject({
+      actorId: users.superAdmin.id,
+      entityType: "Category",
+      metadata: { productCount: 1, retainedMediaObjects: true },
+    });
+  });
+
   it("prices multiple variants independently and aggregates duplicate selections", async () => {
     const category = await prisma.category.create({
       data: {

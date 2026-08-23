@@ -128,6 +128,16 @@ function variantCreateData(variant: ProductVariantInputDto) {
   };
 }
 
+function rethrowDeleteConstraint(error: unknown, message: string): never {
+  if (
+    error instanceof Prisma.PrismaClientKnownRequestError &&
+    error.code === "P2003"
+  ) {
+    throw new ConflictException(message);
+  }
+  throw error;
+}
+
 @Injectable()
 export class CatalogService {
   constructor(private readonly prisma: PrismaService) {}
@@ -200,6 +210,49 @@ export class CatalogService {
       });
       return toApiResponse(categoryResponse(updated, true));
     });
+  }
+
+  async deleteCategory(actor: AuthUser, id: string): Promise<void> {
+    const conflictMessage =
+      "Категория содержит блюда из истории заказов. Скройте категорию вместо удаления.";
+    try {
+      await this.prisma.$transaction(async (tx) => {
+        const category = await tx.category.findUnique({
+          where: { id },
+          include: { products: { select: { id: true } } },
+        });
+        if (!category) throw new NotFoundException("Category not found");
+
+        const orderItemCount = await tx.orderItem.count({
+          where: { product: { categoryId: id } },
+        });
+        if (orderItemCount > 0) {
+          throw new ConflictException(conflictMessage);
+        }
+
+        await tx.product.deleteMany({ where: { categoryId: id } });
+        await tx.category.delete({ where: { id } });
+        await tx.auditLog.create({
+          data: {
+            actorId: actor.id,
+            action: "catalog.category.deleted",
+            entityType: "Category",
+            entityId: id,
+            metadata: {
+              name: category.name,
+              slug: category.slug,
+              productCount: category.products.length,
+              retainedMediaObjects: true,
+            },
+          },
+        });
+      });
+    } catch (error) {
+      if (error instanceof ConflictException) {
+        throw error;
+      }
+      rethrowDeleteConstraint(error, conflictMessage);
+    }
   }
 
   async receiptPrintSettings() {
@@ -442,6 +495,45 @@ export class CatalogService {
       });
       return productResponse(updated, true);
     });
+  }
+
+  async deleteProduct(actor: AuthUser, id: string): Promise<void> {
+    const conflictMessage =
+      "Блюдо есть в истории заказов. Скройте блюдо вместо удаления.";
+    try {
+      await this.prisma.$transaction(async (tx) => {
+        const product = await tx.product.findUnique({ where: { id } });
+        if (!product) throw new NotFoundException("Product not found");
+
+        const orderItemCount = await tx.orderItem.count({
+          where: { productId: id },
+        });
+        if (orderItemCount > 0) {
+          throw new ConflictException(conflictMessage);
+        }
+
+        await tx.product.delete({ where: { id } });
+        await tx.auditLog.create({
+          data: {
+            actorId: actor.id,
+            action: "catalog.product.deleted",
+            entityType: "Product",
+            entityId: id,
+            metadata: {
+              name: product.name,
+              slug: product.slug,
+              categoryId: product.categoryId,
+              retainedMediaObjects: true,
+            },
+          },
+        });
+      });
+    } catch (error) {
+      if (error instanceof ConflictException) {
+        throw error;
+      }
+      rethrowDeleteConstraint(error, conflictMessage);
+    }
   }
 
   addImage(actor: AuthUser, productId: string, dto: AddProductImageDto) {

@@ -33,6 +33,16 @@ import {
   buildCategoryVisibilityUpdate,
 } from "../model/category-receipt-route";
 import { CategoryReceiptRoutes } from "./category-receipt-routes";
+import { ProductReceiptRoute } from "./product-receipt-route";
+
+type CatalogDeleteTarget =
+  | {
+      kind: "category";
+      id: string;
+      name: string;
+      productCount: number;
+    }
+  | { kind: "product"; id: string; name: string };
 
 function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : "";
@@ -58,6 +68,8 @@ export function CatalogManager() {
   >([]);
   const [selectedProductFiles, setSelectedProductFiles] = useState<File[]>([]);
   const [productImageError, setProductImageError] = useState("");
+  const [catalogDelete, setCatalogDelete] =
+    useState<CatalogDeleteTarget | null>(null);
   const {
     register: registerCategory,
     handleSubmit: handleCategorySubmit,
@@ -215,6 +227,7 @@ export function CatalogManager() {
             <div className="row-actions">
               <button
                 className="secondary-button compact"
+                data-testid={`category-edit-${row.original.id}`}
                 onClick={() => {
                   setCategoryEdit(row.original);
                   resetCategory({
@@ -232,6 +245,7 @@ export function CatalogManager() {
               </button>
               <button
                 className="text-button"
+                data-testid={`category-visibility-table-${row.original.id}`}
                 disabled={actions.updateCategory.isPending}
                 onClick={() =>
                   actions.updateCategory.mutate({
@@ -245,11 +259,28 @@ export function CatalogManager() {
               >
                 {row.original.isActive ? "Скрыть" : "Включить"}
               </button>
+              <button
+                className="text-button danger"
+                data-testid={`category-delete-table-open-${row.original.id}`}
+                disabled={actions.deleteCategory.isPending}
+                type="button"
+                onClick={() => {
+                  actions.deleteCategory.reset();
+                  setCatalogDelete({
+                    kind: "category",
+                    id: row.original.id,
+                    name: row.original.name,
+                    productCount: row.original.products.length,
+                  });
+                }}
+              >
+                Удалить
+              </button>
             </div>
           ),
       },
     ],
-    [actions.updateCategory, canEdit, resetCategory],
+    [actions.deleteCategory, actions.updateCategory, canEdit, resetCategory],
   );
 
   const productColumns = useMemo<ColumnDef<Product, unknown>[]>(
@@ -309,18 +340,21 @@ export function CatalogManager() {
       {
         header: "Чековый аппарат",
         cell: ({ row }) => (
-          <div className="primary-cell">
-            <strong>
-              {row.original.effectiveReceiptPrinterIp ?? "Не назначен"}
-            </strong>
-            <small>
-              {row.original.receiptPrinterIp
-                ? "Свой IP · без копии на принтер категории"
-                : row.original.effectiveReceiptPrinterIp
-                  ? "Наследуется от категории"
-                  : "Укажите IP у категории или блюда"}
-            </small>
-          </div>
+          <ProductReceiptRoute
+            product={row.original}
+            canEdit={canEdit}
+            isPending={actions.updateProduct.isPending}
+            onSave={async (product, receiptPrinterIp) => {
+              await actions.updateProduct.mutateAsync({
+                id: product.id,
+                body: {
+                  receiptPrinterIp: receiptPrinterIp || null,
+                  sortOrder: product.sortOrder,
+                  isActive: product.isActive,
+                },
+              });
+            }}
+          />
         ),
       },
       {
@@ -339,6 +373,7 @@ export function CatalogManager() {
             <div className="row-actions">
               <button
                 className="secondary-button compact"
+                data-testid={`product-edit-${row.original.id}`}
                 onClick={() => {
                   setProductEdit(row.original);
                   setStoredProductImages(row.original.images);
@@ -372,6 +407,7 @@ export function CatalogManager() {
               </button>
               <button
                 className="text-button"
+                data-testid={`product-visibility-${row.original.id}`}
                 disabled={actions.updateProduct.isPending}
                 onClick={() =>
                   actions.updateProduct.mutate({
@@ -385,11 +421,32 @@ export function CatalogManager() {
               >
                 {row.original.isActive ? "Скрыть" : "Включить"}
               </button>
+              <button
+                className="text-button danger"
+                data-testid={`product-delete-open-${row.original.id}`}
+                disabled={actions.deleteProduct.isPending}
+                type="button"
+                onClick={() => {
+                  actions.deleteProduct.reset();
+                  setCatalogDelete({
+                    kind: "product",
+                    id: row.original.id,
+                    name: row.original.name,
+                  });
+                }}
+              >
+                Удалить
+              </button>
             </div>
           ),
       },
     ],
-    [actions.updateProduct, canEdit, resetProduct],
+    [
+      actions.deleteProduct,
+      actions.updateProduct,
+      canEdit,
+      resetProduct,
+    ],
   );
 
   async function submitCategory(values: CategoryFormValues) {
@@ -499,6 +556,16 @@ export function CatalogManager() {
     resetProduct();
   }
 
+  async function deleteSelectedCatalogItem() {
+    if (!catalogDelete) return;
+    if (catalogDelete.kind === "category") {
+      await actions.deleteCategory.mutateAsync(catalogDelete.id);
+    } else {
+      await actions.deleteProduct.mutateAsync(catalogDelete.id);
+    }
+    setCatalogDelete(null);
+  }
+
   const mutationMessage =
     productImageError ||
     errorMessage(
@@ -506,9 +573,11 @@ export function CatalogManager() {
         actions.uploadImages.error ||
         actions.createCategory.error ||
         actions.updateCategory.error ||
+        actions.deleteCategory.error ||
         actions.updateReceiptPrintSettings.error ||
         actions.createProduct.error ||
         actions.updateProduct.error ||
+        actions.deleteProduct.error ||
         receiptPrintSettings.error,
     );
 
@@ -576,6 +645,79 @@ export function CatalogManager() {
 
       {mutationMessage && <div className="inline-alert">{mutationMessage}</div>}
 
+      {catalogDelete && (
+        <div className="modal-backdrop" data-testid="catalog-delete-dialog">
+          <section
+            aria-labelledby="catalog-delete-title"
+            aria-modal="true"
+            className="modal banner-delete-modal catalog-delete-modal"
+            role="alertdialog"
+          >
+            <header className="modal-head">
+              <div>
+                <span className="eyebrow">БЕЗ ВОССТАНОВЛЕНИЯ</span>
+                <h2 id="catalog-delete-title">
+                  {catalogDelete.kind === "category"
+                    ? "Удалить категорию?"
+                    : "Удалить блюдо?"}
+                </h2>
+              </div>
+            </header>
+            <p>
+              {catalogDelete.kind === "category"
+                ? `Категория «${catalogDelete.name}» и все её блюда (${catalogDelete.productCount}) исчезнут из каталога.`
+                : `Блюдо «${catalogDelete.name}» исчезнет из каталога.`}
+            </p>
+            <small>
+              Если блюдо уже есть в истории заказов, API сохранит данные и
+              откажет в удалении. В таком случае используйте «Скрыть».
+              Изображения останутся в приватном хранилище.
+            </small>
+            {(actions.deleteCategory.error || actions.deleteProduct.error) && (
+              <p className="form-error" role="alert">
+                {errorMessage(
+                  actions.deleteCategory.error || actions.deleteProduct.error,
+                ) || "Не удалось удалить запись"}
+              </p>
+            )}
+            <div className="modal-actions">
+              <button
+                autoFocus
+                className="secondary-button"
+                data-testid="catalog-delete-cancel"
+                disabled={
+                  actions.deleteCategory.isPending ||
+                  actions.deleteProduct.isPending
+                }
+                type="button"
+                onClick={() => {
+                  actions.deleteCategory.reset();
+                  actions.deleteProduct.reset();
+                  setCatalogDelete(null);
+                }}
+              >
+                Отмена
+              </button>
+              <button
+                className="danger-button"
+                data-testid="catalog-delete-confirm"
+                disabled={
+                  actions.deleteCategory.isPending ||
+                  actions.deleteProduct.isPending
+                }
+                type="button"
+                onClick={() => void deleteSelectedCatalogItem()}
+              >
+                {actions.deleteCategory.isPending ||
+                actions.deleteProduct.isPending
+                  ? "Удаляем…"
+                  : "Удалить навсегда"}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
+
       <form
         className="table-card receipt-print-settings-card"
         data-testid="receipt-print-settings-form"
@@ -617,13 +759,31 @@ export function CatalogManager() {
               </button>
             )}
             {canEdit && (
-              <button
-                className="primary-button compact"
-                data-testid="main-receipt-printer-save"
-                disabled={actions.updateReceiptPrintSettings.isPending}
-              >
-                Сохранить аппарат
-              </button>
+              <>
+                <button
+                  className="text-button compact"
+                  data-testid="main-receipt-printer-clear"
+                  disabled={
+                    !receiptPrintSettings.data?.mainPrinterIp ||
+                    actions.updateReceiptPrintSettings.isPending
+                  }
+                  type="button"
+                  onClick={() =>
+                    actions.updateReceiptPrintSettings.mutate({
+                      mainPrinterIp: null,
+                    })
+                  }
+                >
+                  Очистить IP
+                </button>
+                <button
+                  className="primary-button compact"
+                  data-testid="main-receipt-printer-save"
+                  disabled={actions.updateReceiptPrintSettings.isPending}
+                >
+                  Сохранить аппарат
+                </button>
+              </>
             )}
           </div>
         </div>
@@ -633,7 +793,9 @@ export function CatalogManager() {
         categories={categories.data ?? []}
         canEdit={canEdit}
         isLoading={categories.isPending}
-        isPending={actions.updateCategory.isPending}
+        isPending={
+          actions.updateCategory.isPending || actions.deleteCategory.isPending
+        }
         onRetry={() => void categories.refetch()}
         onSave={async (category, values) => {
           await actions.updateCategory.mutateAsync({
@@ -642,6 +804,21 @@ export function CatalogManager() {
               category,
               values.receiptPrinterIp,
             ),
+          });
+        }}
+        onClear={async (category) => {
+          await actions.updateCategory.mutateAsync({
+            id: category.id,
+            body: buildCategoryPrinterUpdate(category, ""),
+          });
+        }}
+        onDelete={(category) => {
+          actions.deleteCategory.reset();
+          setCatalogDelete({
+            kind: "category",
+            id: category.id,
+            name: category.name,
+            productCount: category.products.length,
           });
         }}
         onToggleActive={(category) => {

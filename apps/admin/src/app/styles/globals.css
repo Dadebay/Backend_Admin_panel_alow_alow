@@ -4596,13 +4596,13 @@ button:disabled {
 
 .category-printer-route-list {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(440px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(620px, 100%), 1fr));
   gap: 10px;
 }
 
 .category-printer-route-row {
   display: grid;
-  grid-template-columns: minmax(120px, 1fr) minmax(150px, 210px) auto;
+  grid-template-columns: minmax(120px, 1fr) minmax(150px, 210px) minmax(210px, 240px);
   align-items: center;
   gap: 10px;
   padding: 12px;
@@ -4677,14 +4677,58 @@ button:disabled {
 
 .category-printer-route-actions {
   display: grid;
-  min-width: 132px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  min-width: 210px;
   gap: 5px;
 }
 
 .category-printer-route-actions .text-button {
   min-height: 28px;
   justify-content: center;
-  white-space: nowrap;
+  white-space: normal;
+}
+
+.product-printer-route {
+  display: grid;
+  min-width: 250px;
+  gap: 5px;
+}
+
+.product-printer-route label {
+  min-width: 0;
+}
+
+.product-printer-route input {
+  width: 100%;
+  min-height: 38px;
+  padding: 0 10px;
+  border: 1px solid var(--field-border);
+  border-radius: 9px;
+  color: var(--brand-navy);
+  background: var(--field-surface);
+}
+
+.product-printer-route input:focus {
+  border-color: var(--brand-orange);
+  outline: 0;
+  box-shadow: 0 0 0 3px var(--field-focus-ring);
+}
+
+.product-printer-route > small {
+  color: var(--muted);
+  font-size: 9px;
+  line-height: 1.4;
+}
+
+.product-printer-route-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.product-printer-route-actions button {
+  min-height: 30px;
 }
 
 .category-printer-routes-state {
@@ -4756,6 +4800,11 @@ button:disabled {
   .category-printer-route-readonly {
     justify-self: stretch;
     text-align: center;
+  }
+
+  .product-printer-route {
+    width: 100%;
+    min-width: 0;
   }
 }
 

@@ -459,6 +459,36 @@
         "tags": [
           "catalog"
         ]
+      },
+      "delete": {
+        "operationId": "CatalogController_deleteCategory_v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Category deleted"
+          },
+          "409": {
+            "description": "Category contains a product referenced by order history"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Permanently delete an unused category",
+        "tags": [
+          "catalog"
+        ]
       }
     },
     "/api/v1/catalog/receipt-print-settings": {
@@ -576,6 +606,36 @@
             "bearer": []
           }
         ],
+        "tags": [
+          "catalog"
+        ]
+      },
+      "delete": {
+        "operationId": "CatalogController_deleteProduct_v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Product deleted"
+          },
+          "409": {
+            "description": "Product is referenced by order history"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Permanently delete an unused product",
         "tags": [
           "catalog"
         ]

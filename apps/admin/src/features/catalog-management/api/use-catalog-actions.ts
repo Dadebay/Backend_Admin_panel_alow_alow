@@ -50,6 +50,13 @@ export function useCatalogActions() {
       }),
     onSuccess: refresh,
   });
+  const deleteCategory = useMutation({
+    mutationFn: (id: string) =>
+      authorizedRequest<void>(`/catalog/categories/${id}`, {
+        method: "DELETE",
+      }),
+    onSuccess: refresh,
+  });
   const updateReceiptPrintSettings = useMutation({
     mutationFn: (body: UpdateReceiptPrintSettings) =>
       authorizedRequest<ReceiptPrintSettings>(
@@ -77,13 +84,22 @@ export function useCatalogActions() {
       }),
     onSuccess: refresh,
   });
+  const deleteProduct = useMutation({
+    mutationFn: (id: string) =>
+      authorizedRequest<void>(`/catalog/products/${id}`, {
+        method: "DELETE",
+      }),
+    onSuccess: refresh,
+  });
   return {
     uploadImage,
     uploadImages,
     createCategory,
     updateCategory,
+    deleteCategory,
     updateReceiptPrintSettings,
     createProduct,
     updateProduct,
+    deleteProduct,
   };
 }

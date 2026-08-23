@@ -218,7 +218,8 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        delete?: never;
+        /** Permanently delete an unused category */
+        delete: operations["CatalogController_deleteCategory_v1"];
         options?: never;
         head?: never;
         patch: operations["CatalogController_updateCategory_v1"];
@@ -267,7 +268,8 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        delete?: never;
+        /** Permanently delete an unused product */
+        delete: operations["CatalogController_deleteProduct_v1"];
         options?: never;
         head?: never;
         patch: operations["CatalogController_updateProduct_v1"];
@@ -3054,6 +3056,33 @@ export interface operations {
             };
         };
     };
+    CatalogController_deleteCategory_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Category deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Category contains a product referenced by order history */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     CatalogController_updateCategory_v1: {
         parameters: {
             query?: never;
@@ -3120,6 +3149,33 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["CatalogAdminProductResponseDto"][];
                 };
+            };
+        };
+    };
+    CatalogController_deleteProduct_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Product deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Product is referenced by order history */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

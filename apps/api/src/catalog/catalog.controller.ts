@@ -1,7 +1,10 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   ParseUUIDPipe,
   Patch,
@@ -11,6 +14,8 @@ import {
 import {
   ApiBearerAuth,
   ApiCreatedResponse,
+  ApiConflictResponse,
+  ApiNoContentResponse,
   ApiOkResponse,
   ApiOperation,
   ApiTags,
@@ -99,6 +104,22 @@ export class CatalogController {
     return this.catalog.updateCategory(actor, id, dto);
   }
 
+  @Delete("categories/:id")
+  @ApiBearerAuth()
+  @Roles(Role.ADMIN)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: "Permanently delete an unused category" })
+  @ApiNoContentResponse({ description: "Category deleted" })
+  @ApiConflictResponse({
+    description: "Category contains a product referenced by order history",
+  })
+  deleteCategory(
+    @CurrentUser() actor: AuthUser,
+    @Param("id", ParseUUIDPipe) id: string,
+  ) {
+    return this.catalog.deleteCategory(actor, id);
+  }
+
   @Patch("receipt-print-settings")
   @ApiBearerAuth()
   @Roles(Role.ADMIN)
@@ -139,6 +160,22 @@ export class CatalogController {
     @Body() dto: UpdateProductDto,
   ) {
     return this.catalog.updateProduct(actor, id, dto);
+  }
+
+  @Delete("products/:id")
+  @ApiBearerAuth()
+  @Roles(Role.ADMIN)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: "Permanently delete an unused product" })
+  @ApiNoContentResponse({ description: "Product deleted" })
+  @ApiConflictResponse({
+    description: "Product is referenced by order history",
+  })
+  deleteProduct(
+    @CurrentUser() actor: AuthUser,
+    @Param("id", ParseUUIDPipe) id: string,
+  ) {
+    return this.catalog.deleteProduct(actor, id);
   }
 
   @Post("products/:id/images")

@@ -26,6 +26,10 @@ const catalogManagerUrl = new URL(
   "../src/widgets/catalog-manager/ui/catalog-manager.tsx",
   import.meta.url,
 );
+const productRouteUrl = new URL(
+  "../src/widgets/catalog-manager/ui/product-receipt-route.tsx",
+  import.meta.url,
+);
 
 test("receipt printing uses the backend plan and loopback-only agent", async () => {
   const source = await readFile(printingFeatureUrl, "utf8");
@@ -55,15 +59,18 @@ test("new kitchen orders automatically print and later statuses can reprint", as
   assert.match(kanban, /onPrintReceipt\(order\)/);
 });
 
-test("catalog exposes a direct per-category printer IP route", async () => {
-  const [routes, catalogManager] = await Promise.all([
+test("catalog exposes direct printer IP assignment and clearing", async () => {
+  const [routes, catalogManager, productRoute] = await Promise.all([
     readFile(categoryRoutesUrl, "utf8"),
     readFile(catalogManagerUrl, "utf8"),
+    readFile(productRouteUrl, "utf8"),
   ]);
 
   assert.match(routes, /data-testid="category-printer-routes"/);
   assert.match(routes, /category-printer-ip-\$\{category\.id\}/);
   assert.match(routes, /category-printer-save-\$\{category\.id\}/);
+  assert.match(routes, /category-printer-clear-\$\{category\.id\}/);
+  assert.match(routes, /category-delete-open-\$\{category\.id\}/);
   assert.match(routes, /category-visibility-\$\{category\.id\}/);
   assert.match(routes, /Скрыть категорию/);
   assert.match(routes, /Показать категорию/);
@@ -72,5 +79,10 @@ test("catalog exposes a direct per-category printer IP route", async () => {
   assert.match(catalogManager, /buildCategoryPrinterUpdate/);
   assert.match(catalogManager, /buildCategoryVisibilityUpdate/);
   assert.match(catalogManager, /полностью заменяет аппарат/);
-  assert.match(catalogManager, /без копии на принтер категории/);
+  assert.match(catalogManager, /data-testid="main-receipt-printer-clear"/);
+  assert.match(catalogManager, /<ProductReceiptRoute/);
+  assert.match(productRoute, /product-printer-ip-\$\{product\.id\}/);
+  assert.match(productRoute, /product-printer-clear-\$\{product\.id\}/);
+  assert.match(productRoute, /Убрать свой IP/);
+  assert.match(productRoute, /Свой IP: категория не используется/);
 });

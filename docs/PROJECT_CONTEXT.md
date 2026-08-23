@@ -512,7 +512,13 @@ images, banners, and promo codes. `ADMIN` and `SUPER_ADMIN` may permanently
 delete a banner record after an explicit admin confirmation. The deletion is
 audited and immediately removes the banner from admin and customer lists; its
 private S3 image object is retained because media paths may be reused by other
-content and storage cleanup is a separate operation. Branch creation, editing, activation, and
+content and storage cleanup is a separate operation. They may also permanently
+delete a product that has never appeared in an order, or an unused category
+together with all of its products, after a separate confirmation. Catalog
+deletion is audited and retains private media objects. A product referenced by
+an `OrderItem`, or a category containing such a product, returns `409 Conflict`
+and must be hidden instead so historical orders and receipts remain valid.
+Branch creation, editing, activation, and
 deactivation are limited to `ADMIN` and `SUPER_ADMIN`; trusted operations roles
 may list branches. The catalog is currently global and shared by every branch.
 Images are validated, converted to WebP, and stored privately in S3-compatible
@@ -540,7 +546,10 @@ without an override inherits its category route; a product override always wins
 and selects one exclusive effective kitchen route, never both addresses.
 The catalog workspace exposes all category routes in one quick-settings block,
 where each category IP can be validated and saved and the complete category can
-be hidden or shown without opening the full category editor. Hiding a category
+be hidden, shown, cleared, or permanently deleted without opening the full
+category editor. The main printer and every product override also have explicit
+clear actions; expanded product tables expose inline override editing, where an
+empty product address resumes category inheritance. Hiding a category
 removes it and all of its products from customer ordering without changing the
 individual product records; the existing category and product editors remain
 available.
@@ -679,6 +688,11 @@ Current status:
 - banner management supports an explicit-confirmation permanent delete through
   the role-protected API; deletion refreshes the existing TanStack marketing
   cache and retains the underlying private media object;
+- catalog management exposes explicit-confirmation permanent deletion for
+  unused categories and products, while API conflicts direct staff to hide any
+  record protected by order history. Main/category/product printer routes have
+  visible clear actions, and a product override retains priority over its
+  category default;
 - every administrator route supports tablet widths through the shared drawer,
   bounded workspaces, container-responsive tables, coarse-pointer targets and
   a portrait-tablet courier-map stack. The route/API and regression matrix is
@@ -950,6 +964,13 @@ scrolling. The static SPA bootstrap remains 241.6 KB raw / 77.6 KB gzip. CSS is
 printer-layout build; the lazy phone-order chunk is 27.5 KB / 8.0 KB gzip, about
 2.2 KB raw / 0.5 KB gzip larger for the explicit search/selection/detail
 states. It adds no dependency, request, polling loop or initial-route code.
+
+The 2026-08-23 catalog-delete/IP-control build keeps the static SPA bootstrap
+at 241.6 KB raw / 77.6 KB gzip. CSS is 146.6 KB / 28.4 KB gzip, and the lazy
+catalog manager is 39.6 KB / 9.1 KB gzip. The increase adds inline product IP
+controls, explicit main/category/product clear actions, and the accessible
+delete confirmation. No dependency, polling loop, or eager route load was
+added; all mutations invalidate the existing catalog cache.
 
 ## Decision log
 
@@ -1381,3 +1402,10 @@ states. It adds no dependency, request, polling loop or initial-route code.
   move the marker only after selection; the resolved location has a separate
   summary, while entrance, floor, apartment and courier landmarks are clearly
   identified as non-geographic delivery details.
+- 2026-08-23: catalog administrators gained audited permanent deletion for
+  products and categories that have no order history. A protected product or
+  category returns `409 Conflict` and remains available for hiding, preserving
+  historical orders and receipt snapshots. `/catalog` now presents deletion
+  confirmations plus explicit clear controls for main, category, and
+  product-level printer addresses; clearing a product override resumes category
+  inheritance.

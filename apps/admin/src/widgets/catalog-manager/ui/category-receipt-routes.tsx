@@ -12,6 +12,8 @@ function CategoryReceiptRouteRow({
   canEdit,
   isPending,
   onSave,
+  onClear,
+  onDelete,
   onToggleActive,
 }: {
   category: Category;
@@ -21,6 +23,8 @@ function CategoryReceiptRouteRow({
     category: Category,
     values: CategoryReceiptRouteFormValues,
   ) => Promise<void>;
+  onClear: (category: Category) => Promise<void>;
+  onDelete: (category: Category) => void;
   onToggleActive: (category: Category) => void;
 }) {
   const {
@@ -83,12 +87,30 @@ function CategoryReceiptRouteRow({
           </button>
           <button
             className="text-button compact"
+            data-testid={`category-printer-clear-${category.id}`}
+            disabled={!category.receiptPrinterIp || isPending}
+            type="button"
+            onClick={() => void onClear(category)}
+          >
+            Очистить IP
+          </button>
+          <button
+            className="text-button compact"
             data-testid={`category-visibility-${category.id}`}
             disabled={isPending}
             type="button"
             onClick={() => onToggleActive(category)}
           >
             {category.isActive ? "Скрыть категорию" : "Показать категорию"}
+          </button>
+          <button
+            className="text-button compact danger"
+            data-testid={`category-delete-open-${category.id}`}
+            disabled={isPending}
+            type="button"
+            onClick={() => onDelete(category)}
+          >
+            Удалить категорию
           </button>
         </div>
       ) : (
@@ -107,6 +129,8 @@ export function CategoryReceiptRoutes({
   isLoading,
   onRetry,
   onSave,
+  onClear,
+  onDelete,
   onToggleActive,
 }: {
   categories: Category[];
@@ -118,6 +142,8 @@ export function CategoryReceiptRoutes({
     category: Category,
     values: CategoryReceiptRouteFormValues,
   ) => Promise<void>;
+  onClear: (category: Category) => Promise<void>;
+  onDelete: (category: Category) => void;
   onToggleActive: (category: Category) => void;
 }) {
   return (
@@ -151,6 +177,8 @@ export function CategoryReceiptRoutes({
               canEdit={canEdit}
               isPending={isPending}
               onSave={onSave}
+              onClear={onClear}
+              onDelete={onDelete}
               onToggleActive={onToggleActive}
             />
           ))}

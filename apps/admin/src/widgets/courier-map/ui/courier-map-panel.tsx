@@ -3,12 +3,13 @@ import {
   useCourierRoute,
   useDispatchLiveUpdates,
   useDispatchSnapshot,
-  type DispatchCourier,
 } from "@/src/entities/courier";
 import { orderItemLabel } from "@/src/entities/order";
 import { OtpLoginCard } from "@/src/features/otp-login";
 import { useSession } from "@/src/shared/auth";
 import {
+  courierLocationCoverage,
+  courierName,
   courierOverviewCounts,
   courierPresenceLabels,
   courierWorkLabel,
@@ -18,13 +19,6 @@ import {
 const CourierMapCanvas = lazy(() => import("./courier-map-canvas"));
 
 const ACCESS_ROLES = new Set(["OPERATOR", "ADMIN", "SUPER_ADMIN"]);
-
-function courierName(courier: DispatchCourier) {
-  return (
-    [courier.firstName, courier.lastName].filter(Boolean).join(" ") ||
-    courier.phone
-  );
-}
 
 function formatLocationTime(value?: string) {
   if (!value) return "GPS ещё не получен";
@@ -49,9 +43,7 @@ export function CourierMapPanel() {
   const displayedStops =
     courierRoute.data?.stops ?? selected?.activeOrders ?? [];
   const overviewCounts = courierOverviewCounts(couriers);
-  const couriersWithoutLocation = couriers.filter(
-    ({ location }) => !location,
-  );
+  const locationCoverage = courierLocationCoverage(couriers);
 
   if (!ready) {
     return (
@@ -177,7 +169,7 @@ export function CourierMapPanel() {
         </button>
       </div>
 
-      {couriersWithoutLocation.length > 0 && (
+      {locationCoverage.missing.length > 0 && (
         <div
           className="dispatch-location-coverage"
           data-testid="dispatch-location-coverage"
@@ -185,7 +177,7 @@ export function CourierMapPanel() {
         >
           <div>
             <strong>
-              GPS передают {overviewCounts.located} из {overviewCounts.total}
+              GPS передают {locationCoverage.located} из {locationCoverage.total}
             </strong>
             <p>
               На телефоне курьера откройте <code>a7-tagam.com.tm/courier</code>,
@@ -195,8 +187,8 @@ export function CourierMapPanel() {
             </p>
           </div>
           <small>
-            Без GPS: {couriersWithoutLocation.map(courierName).join(", ")}.
-            {overviewCounts.located === 0
+            Без GPS: {locationCoverage.missing.map(courierName).join(", ")}.
+            {locationCoverage.located === 0
               ? " Видимые служебные точки на карте — филиалы, а не курьеры."
               : " Эти курьеры есть в списке, но их нельзя поставить на карту без координат."}
           </small>

@@ -4,6 +4,7 @@ import type { components } from "@alowalow/api-contract";
 import { openApiEventStream } from "@/src/shared/api/api-client";
 import { useSession } from "@/src/shared/auth";
 import { courierQueryKeys } from "./dispatch-query";
+import { applyDispatchLocationUpdate } from "../model/dispatch-location-update";
 import type { DispatchSnapshot } from "../model/types";
 
 type DispatchLiveEvent = components["schemas"]["DispatchLiveEventDto"];
@@ -42,26 +43,16 @@ export function useDispatchLiveUpdates(): DispatchLiveState {
       });
       const current = queryClient.getQueryData<DispatchSnapshot>(queryKey);
       if (!current) return;
-      if (!current.couriers.some(({ id }) => id === event.courierId)) {
+      const updated = applyDispatchLocationUpdate(current, {
+        courierId: event.courierId,
+        location: event.location,
+        sentAt: event.sentAt,
+      });
+      if (!updated) {
         void queryClient.invalidateQueries({ queryKey });
         return;
       }
-      queryClient.setQueryData<DispatchSnapshot>(queryKey, (snapshot) => {
-        if (!snapshot) return snapshot;
-        return {
-          ...snapshot,
-          generatedAt: event.sentAt,
-          couriers: snapshot.couriers.map((courier) =>
-            courier.id === event.courierId
-              ? {
-                  ...courier,
-                  presence: event.location ? "ONLINE" : "OFFLINE",
-                  location: event.location,
-                }
-              : courier,
-          ),
-        };
-      });
+      queryClient.setQueryData<DispatchSnapshot>(queryKey, updated);
     };
 
     const connect = async () => {

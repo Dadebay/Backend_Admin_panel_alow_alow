@@ -2,43 +2,31 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import type { components } from "@alowalow/api-contract";
 import { useSession } from "@/src/shared/auth";
-import { COURIER_LOCATION_UPDATE_INTERVAL_MS } from "../model/location-sharing";
+import {
+  courierLocationErrorMessage,
+  startCourierLocationFeed,
+  stopCourierLocationSession,
+  toCourierLocationInput,
+  type CourierLocationInput,
+} from "../model/location-sharing";
 
-type LocationInput = components["schemas"]["UpdateCourierLocationDto"];
 type LocationResponse =
   components["schemas"]["UpdateCourierLocationResponseDto"];
-
-function toLocationInput(position: GeolocationPosition): LocationInput {
-  const { coords } = position;
-  return {
-    latitude: coords.latitude,
-    longitude: coords.longitude,
-    ...(Number.isFinite(coords.accuracy)
-      ? { accuracy: coords.accuracy }
-      : {}),
-    ...(coords.heading !== null && Number.isFinite(coords.heading)
-      ? { heading: coords.heading }
-      : {}),
-    ...(coords.speed !== null && Number.isFinite(coords.speed)
-      ? { speed: coords.speed }
-      : {}),
-    recordedAt: new Date(position.timestamp).toISOString(),
-  };
-}
 
 export function CourierLocationSharing() {
   const { authorizedRequest } = useSession();
   const [sharing, setSharing] = useState(false);
   const [geoError, setGeoError] = useState("");
   const [lastSentAt, setLastSentAt] = useState<string | null>(null);
-  const latestPosition = useRef<GeolocationPosition | null>(null);
   const publishPending = useRef(false);
+  const pendingPublish = useRef<Promise<unknown> | null>(null);
+  const stopFeed = useRef<(() => void) | null>(null);
 
   const {
     mutateAsync: publishLocation,
     error: publishError,
   } = useMutation({
-    mutationFn: (location: LocationInput) =>
+    mutationFn: (location: CourierLocationInput) =>
       authorizedRequest<LocationResponse>("/tracking/me/location", {
         method: "PUT",
         body: JSON.stringify(location),
@@ -53,11 +41,14 @@ export function CourierLocationSharing() {
     async (position: GeolocationPosition) => {
       if (publishPending.current) return;
       publishPending.current = true;
+      const request = publishLocation(toCourierLocationInput(position));
+      pendingPublish.current = request;
       try {
-        await publishLocation(toLocationInput(position));
+        await request;
       } catch {
         // TanStack Mutation exposes the normalized API error in the UI.
       } finally {
+        if (pendingPublish.current === request) pendingPublish.current = null;
         publishPending.current = false;
       }
     },
@@ -67,54 +58,34 @@ export function CourierLocationSharing() {
   useEffect(() => {
     if (!sharing) return;
 
-    let firstReadingSent = false;
-    const onPosition = (position: GeolocationPosition) => {
-      latestPosition.current = position;
-      if (!firstReadingSent) {
-        firstReadingSent = true;
-        void publish(position);
-      }
-    };
     const onError = (error: GeolocationPositionError) => {
-      setGeoError(
-        error.code === error.PERMISSION_DENIED
-          ? "Доступ к геолокации запрещён. Разрешите его в настройках браузера."
-          : "Не удалось получить свежую GPS-точку.",
-      );
+      setGeoError(courierLocationErrorMessage(error.code));
     };
-    const options: PositionOptions = {
-      enableHighAccuracy: true,
-      timeout: 20_000,
-      maximumAge: 90_000,
-    };
-    const watchId = navigator.geolocation.watchPosition(
-      onPosition,
-      onError,
-      options,
-    );
-    const interval = window.setInterval(() => {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          latestPosition.current = position;
-          void publish(position);
-        },
-        onError,
-        options,
-      );
-    }, COURIER_LOCATION_UPDATE_INTERVAL_MS);
-
+    const stop = startCourierLocationFeed({
+      geolocation: navigator.geolocation,
+      intervals: window,
+      publish: (position) => void publish(position),
+      reportError: onError,
+    });
+    stopFeed.current = stop;
     return () => {
-      navigator.geolocation.clearWatch(watchId);
-      window.clearInterval(interval);
+      stop();
+      if (stopFeed.current === stop) stopFeed.current = null;
     };
   }, [publish, sharing]);
 
   async function stopSharing() {
+    const currentStopFeed = stopFeed.current;
+    stopFeed.current = null;
     setSharing(false);
-    latestPosition.current = null;
-    await authorizedRequest("/tracking/me/location", {
-      method: "DELETE",
-    }).catch(() => undefined);
+    await stopCourierLocationSession({
+      stopFeed: currentStopFeed,
+      pendingPublish: pendingPublish.current,
+      clearLocation: () =>
+        authorizedRequest("/tracking/me/location", {
+          method: "DELETE",
+        }).catch(() => undefined),
+    });
   }
 
   const mutationError =

@@ -1,3 +1,5 @@
+import type { DispatchCourier } from "@/src/entities/courier";
+
 type CourierStatusSource = {
   activeOrders: Array<{ number: number }>;
   presence: "ONLINE" | "STALE" | "OFFLINE";
@@ -22,6 +24,46 @@ export type CourierOverviewCounts = {
   online: number;
   total: number;
 };
+
+export type CourierMapLocation = {
+  courier: DispatchCourier;
+  latitude: number;
+  longitude: number;
+};
+
+export function courierName(
+  courier: Pick<DispatchCourier, "firstName" | "lastName" | "phone">,
+) {
+  return (
+    [courier.firstName, courier.lastName].filter(Boolean).join(" ") ||
+    courier.phone
+  );
+}
+
+export function courierMapLocations(
+  couriers: DispatchCourier[],
+): CourierMapLocation[] {
+  return couriers.flatMap((courier) =>
+    courier.location
+      ? [
+          {
+            courier,
+            latitude: courier.location.latitude,
+            longitude: courier.location.longitude,
+          },
+        ]
+      : [],
+  );
+}
+
+export function courierLocationCoverage(couriers: DispatchCourier[]) {
+  const located = courierMapLocations(couriers);
+  return {
+    located: located.length,
+    total: couriers.length,
+    missing: couriers.filter(({ location }) => !location),
+  };
+}
 
 export function courierWorkState(courier: CourierStatusSource): CourierWorkState {
   return courier.activeOrders.length ? "BUSY" : "FREE";

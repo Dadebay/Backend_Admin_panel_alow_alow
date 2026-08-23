@@ -66,7 +66,9 @@ records how those decisions are verified.
 
 | Area | Test | Contract covered |
 | --- | --- | --- |
-| Courier labels, coverage and overview | `apps/admin/tests/courier-map.test.mjs` | Empty/mixed courier sets, one/multiple orders, stale busy courier, online/free and GPS counts, branch distinction, missing-GPS guidance, permanent markers, whole-shift interval |
+| Courier markers and coverage | `apps/admin/tests/courier-map.test.mjs` | Empty/mixed courier sets, every courier retained in the list, markers created only from real coordinates, missing names/phone fallbacks, one/multiple orders, stale busy courier, online/free and GPS counts, branch distinction |
+| Whole-shift browser GPS | `apps/admin/tests/courier-map.test.mjs` | Immediate first point, 15-second polling after delivery, shared high-accuracy options, permission/general errors, valid sensor payload, non-finite optional sensor values, idempotent cleanup, suppression of late GPS callbacks after end shift, and DELETE ordered after any in-flight final PUT |
+| Dispatcher live cache | `apps/admin/tests/courier-map.test.mjs` | A GPS SSE update moves only its courier, preserves every other located/missing courier and an empty post-delivery `activeOrders`, explicit stop produces `OFFLINE`/`null`, unknown couriers require snapshot recovery |
 | Web courier isolation | `apps/admin/tests/role-navigation.test.mjs`, `apps/admin/tests/admin-routing.test.mjs` | `/courier` session is allowed only as a dedicated workflow; `COURIER` remains excluded from every admin navigation item |
 | Category quick settings | `apps/admin/tests/category-receipt-routes.test.mjs` | Printer update preserves visibility/order, blank IP becomes `null`, visibility toggle preserves printer route |
 | LAN validation and UI wiring | `apps/admin/tests/form-schemas.test.mjs`, `apps/admin/tests/receipt-printing.test.mjs` | Private IPv4 validation, stable selectors, quick-settings integration and printer hierarchy copy |

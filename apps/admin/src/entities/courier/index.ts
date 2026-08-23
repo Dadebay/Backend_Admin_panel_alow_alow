@@ -7,6 +7,10 @@ export {
   useDispatchLiveUpdates,
   type DispatchLiveState,
 } from "./api/dispatch-live";
+export {
+  applyDispatchLocationUpdate,
+  type DispatchLocationUpdate,
+} from "./model/dispatch-location-update";
 export type {
   CourierLocation,
   CourierRoute,

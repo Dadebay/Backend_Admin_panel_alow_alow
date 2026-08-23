@@ -13,6 +13,8 @@ import type { CourierRoute } from "@/src/entities/courier";
 import { MAP_ATTRIBUTION, MAP_TILE_URL } from "@/src/shared/map";
 import { brandColors } from "@/src/shared/ui";
 import {
+  courierMapLocations,
+  courierName,
   courierPresenceLabels,
   courierWorkLabel,
   courierWorkState,
@@ -40,13 +42,6 @@ function FitMap({ points }: { points: LatLngTuple[] }) {
   return null;
 }
 
-function courierName(courier: DispatchCourier) {
-  return (
-    [courier.firstName, courier.lastName].filter(Boolean).join(" ") ||
-    courier.phone
-  );
-}
-
 export default function CourierMapCanvas({
   branches,
   couriers,
@@ -71,10 +66,9 @@ export default function CourierMapCanvas({
         ])
       : [];
   const points: LatLngTuple[] = [...routeLine];
-  for (const courier of couriers) {
-    if (courier.location) {
-      points.push([courier.location.latitude, courier.location.longitude]);
-    }
+  const courierLocations = courierMapLocations(couriers);
+  for (const location of courierLocations) {
+    points.push([location.latitude, location.longitude]);
   }
   if (!selected) {
     for (const branch of branches) {
@@ -141,17 +135,13 @@ export default function CourierMapCanvas({
           </Popup>
         </CircleMarker>
       ))}
-      {couriers.map((courier) => {
-        if (!courier.location) return null;
+      {courierLocations.map(({ courier, latitude, longitude }) => {
         const workState = courierWorkState(courier);
         const workLabel = courierWorkLabel(courier);
         return (
           <CircleMarker
             key={courier.id}
-            center={[
-              courier.location.latitude,
-              courier.location.longitude,
-            ]}
+            center={[latitude, longitude]}
             radius={courier.id === selected?.id ? 11 : 8}
             pathOptions={{
               color: brandColors.cream,

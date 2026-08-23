@@ -69,7 +69,12 @@ test("the SPA uses history routing, role guards and a nested admin layout", asyn
   assert.match(appSource, /<Routes>/);
   assert.match(appSource, /adminNavigation\.map/);
   assert.match(appSource, /navigationItem\.roles\.includes\(session\.user\.role\)/);
-  assert.match(appSource, /<Navigate[\s\S]*?to="\/orders"/);
+  assert.match(appSource, /function RootRedirect/);
+  assert.match(appSource, /path="\/courier"/);
+  assert.match(
+    appSource,
+    /session\?\.user\.role === "COURIER" \? "\/courier" : "\/orders"/,
+  );
   assert.match(appSource, /<Route path="\*" element=\{<NotFound \/>\}/);
   assert.match(dashboardSource, /<NavLink/);
   assert.match(dashboardSource, /<Outlet \/>/);

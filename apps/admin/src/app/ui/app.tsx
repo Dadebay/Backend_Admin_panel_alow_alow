@@ -75,6 +75,12 @@ const adminRouteComponents = {
   ),
 } satisfies Record<AdminView, LazyExoticComponent<ComponentType>>;
 
+const CourierTrackingScreen = lazy(() =>
+  import("@/src/widgets/courier-tracking").then((module) => ({
+    default: module.CourierTrackingScreen,
+  })),
+);
+
 function RouteFallback() {
   return (
     <main className="login-page" data-testid="app-route-loading">
@@ -123,10 +129,22 @@ function RoleProtectedView({
   return children;
 }
 
+function RootRedirect() {
+  const { session, ready } = useSession();
+  if (!ready) return <RouteFallback />;
+  return (
+    <Navigate
+      replace
+      to={session?.user.role === "COURIER" ? "/courier" : "/orders"}
+    />
+  );
+}
+
 function AdminRoutes() {
   return (
     <Routes>
-      <Route path="/" element={<Navigate replace to="/orders" />} />
+      <Route path="/" element={<RootRedirect />} />
+      <Route path="/courier" element={<CourierTrackingScreen />} />
       <Route element={<AdminDashboard />}>
         {adminNavigation.map((navigationItem) => {
           const Component = adminRouteComponents[navigationItem.id];

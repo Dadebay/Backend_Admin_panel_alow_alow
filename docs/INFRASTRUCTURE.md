@@ -110,6 +110,7 @@ Active same-origin production URLs:
 https://a7-tagam.com.tm/
 https://a7-tagam.com.tm/orders
 https://a7-tagam.com.tm/couriers/map
+https://a7-tagam.com.tm/courier
 https://a7-tagam.com.tm/api/v1
 https://a7-tagam.com.tm/docs
 https://a7-tagam.com.tm/docs-json
@@ -120,6 +121,9 @@ https://a7-tagam.com.tm/tiles/styles/alowalow/style.json
 The operations admin uses canonical client-side routes for every sidebar
 section: `/orders`, `/couriers/map`, `/branches`, `/catalog`, `/marketing`,
 `/delivery`, `/notifications`, `/staff`, `/contacts`, and `/login-attempts`.
+The isolated `/courier` route is not an admin section: it accepts a `COURIER`
+workflow session for whole-shift GPS and assigned orders without exposing admin
+navigation.
 Static Nginx resolves direct loads of these paths to `/index.html`; React Router
 then enforces the role-scoped view and renders it inside the shared admin
 layout.

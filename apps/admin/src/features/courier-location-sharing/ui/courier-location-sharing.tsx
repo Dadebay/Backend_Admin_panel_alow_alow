@@ -158,7 +158,7 @@ export function CourierLocationSharing() {
           type="button"
           onClick={() => void stopSharing()}
         >
-          Завершить смену и скрыть точку
+          Завершить смену и убрать себя с карты
         </button>
       ) : (
         <button
@@ -174,7 +174,7 @@ export function CourierLocationSharing() {
             setSharing(true);
           }}
         >
-          Включить геолокацию
+          Начать смену и показать себя на карте
         </button>
       )}
       <small>

@@ -6601,6 +6601,55 @@ button:disabled {
   border-color: var(--line);
 }
 
+.dispatch-location-coverage {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 0.7fr);
+  gap: 12px 20px;
+  align-items: center;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--line);
+  color: var(--brand-navy);
+  background: color-mix(
+    in srgb,
+    var(--brand-cream) 91%,
+    var(--brand-orange)
+  );
+}
+
+.dispatch-location-coverage strong,
+.dispatch-location-coverage p,
+.dispatch-location-coverage small {
+  display: block;
+  margin: 0;
+}
+
+.dispatch-location-coverage strong {
+  font-size: 13px;
+}
+
+.dispatch-location-coverage p,
+.dispatch-location-coverage small {
+  margin-top: 5px;
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.dispatch-location-coverage small {
+  margin-top: 0;
+  color: var(--muted);
+}
+
+.dispatch-location-coverage code {
+  padding: 2px 5px;
+  border-radius: 5px;
+  color: var(--brand-navy);
+  background: var(--brand-cream);
+  font-family: inherit;
+  font-weight: 750;
+  overflow-wrap: anywhere;
+}
+
 .live-dispatch .courier-map-canvas,
 .live-dispatch .map-loading {
   height: clamp(500px, 62vh, 740px);
@@ -7027,12 +7076,20 @@ button:disabled {
    column; the phone layout below 620 px keeps its own denser heights. */
 @media (min-width: 621px) and (max-width: 860px) {
   .dispatch-card { display: block; }
+  .dispatch-location-coverage { grid-template-columns: 1fr; }
   .courier-map-canvas,
   .map-loading,
   .live-dispatch .courier-map-canvas,
   .live-dispatch .map-loading {
     height: clamp(520px, 64vh, 720px);
     border-right: 0;
+  }
+}
+
+@media (max-width: 620px) {
+  .dispatch-location-coverage {
+    grid-template-columns: 1fr;
+    padding: 13px 15px;
   }
 }
 

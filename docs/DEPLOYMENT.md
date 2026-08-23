@@ -283,6 +283,7 @@ Current routes:
 
 ```text
 /                       React admin
+/courier                isolated courier shift SPA route
 /api/v1/                NestJS API and media
 /docs, /docs-json       Swagger
 /tile/{z}/{x}/{y}.png   admin/mobile raster map of Turkmenistan

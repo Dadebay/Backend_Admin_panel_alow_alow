@@ -222,10 +222,13 @@ their own staff account as the customer of an ordinary order.
 Only `SUPER_ADMIN` may manage another `SUPER_ADMIN`, and the system must retain
 at least one active `SUPER_ADMIN`.
 
-The React/Vite web admin accepts sessions only for `ACCOUNTANT`, `ADMIN`, and
-`SUPER_ADMIN`. `CUSTOMER`, `OPERATOR`, `COOK`, and `COURIER` cannot enter the
-web admin or retain an OTP session there; their backend roles and mobile/API
-workflows remain unchanged. The web courier route is intentionally absent.
+The React/Vite operations admin accepts admin-navigation access only for
+`ACCOUNTANT`, `ADMIN`, and `SUPER_ADMIN`. `CUSTOMER`, `OPERATOR`, and `COOK`
+cannot retain a web session. `COURIER` may retain a session only for the
+isolated `/courier` shift screen, where the courier publishes their own GPS and
+works with backend-scoped orders; that role still cannot enter any operations-
+admin route. The dedicated screen is a production fallback when a native
+courier client is not yet publishing location.
 
 Every operations-admin section owns a canonical browser URL and is composed
 through React Router's declarative `BrowserRouter` layout. `/` redirects to
@@ -380,6 +383,13 @@ Redis, and pushes each accepted point through the role-protected
 `/tracking/dispatch/live` SSE stream. The admin applies those events directly
 to the existing TanStack Query snapshot cache. A slower periodic snapshot
 remains only for initial state and reconnect recovery.
+The same contract is available at `/courier`: a courier signs in with their own
+OTP, explicitly starts the shift, and keeps the page active until pressing the
+separate end-shift action. Delivery completion never unmounts or stops its GPS
+publisher. The dispatcher map must state how many active couriers currently
+have coordinates, list the couriers without GPS, and label branch points as
+branches so staff never mistake a branch for a courier marker. No client may
+invent a courier coordinate when the courier has not published one.
 The maintained regression matrix, automated coverage map, and manual QA cases
 for courier visibility and printer routing live in
 `docs/COURIER_MAP_AND_PRINTER_ROUTING_QA.md`.
@@ -683,7 +693,10 @@ Current status:
   with the 30-second snapshot poll retained only as reconnect recovery. The
   initial map view contains every located courier, permanent labels distinguish
   free and busy couriers, delivery completion preserves shift tracking, and
-  selecting a route keeps the remaining courier markers visible;
+  selecting a route keeps the remaining courier markers visible. The isolated
+  `/courier` web shift screen lets a `COURIER` start whole-shift GPS without
+  granting access to the operations admin, while the dispatcher explicitly
+  names couriers without GPS and distinguishes branch markers;
 - media forms upload validated WebP images to S3-compatible storage;
 - banner management supports an explicit-confirmation permanent delete through
   the role-protected API; deletion refreshes the existing TanStack marketing
@@ -971,6 +984,13 @@ catalog manager is 39.6 KB / 9.1 KB gzip. The increase adds inline product IP
 controls, explicit main/category/product clear actions, and the accessible
 delete confirmation. No dependency, polling loop, or eager route load was
 added; all mutations invalidate the existing catalog cache.
+
+The 2026-08-23 courier-visibility build measures the static SPA bootstrap at
+242.2 KB raw / 77.7 KB gzip and CSS at 147.8 KB / 28.6 KB gzip. The lazy
+dispatcher is 10.0 KB / 3.4 KB gzip, the restored isolated courier screen is
+6.3 KB / 2.7 KB gzip, and Leaflet remains separate at 153.3 KB / 44.9 KB gzip.
+The change adds one role-gated route and GPS-coverage guidance; it adds no
+dependency, poller, SSE stream, or Leaflet preload to the initial document.
 
 ## Decision log
 
@@ -1409,3 +1429,10 @@ added; all mutations invalidate the existing catalog cache.
   confirmations plus explicit clear controls for main, category, and
   product-level printer addresses; clearing a product override resumes category
   inheritance.
+- 2026-08-23: production diagnostics found two active couriers but no current
+  Redis GPS keys; the single visible dispatch point was a branch. The dedicated
+  `/courier` web shift route was restored as an isolated `COURIER` workflow
+  without admin-navigation access. Dispatch now reports GPS coverage, names
+  couriers without coordinates, and labels branch markers explicitly. Delivery
+  completion leaves the publisher mounted; only the end-shift action deletes
+  the point.

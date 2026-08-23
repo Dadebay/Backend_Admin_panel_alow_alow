@@ -99,6 +99,15 @@ export function AdminDashboard() {
             Для роли «{roleLabels[session.user.role]}» вход закрыт. Веб-админка
             доступна только администраторам и бухгалтерам.
           </p>
+          {session.user.role === "COURIER" && (
+            <Link
+              className="primary-button link-button"
+              data-testid="admin-open-courier-screen"
+              to="/courier"
+            >
+              Открыть экран курьера
+            </Link>
+          )}
           <button
             type="button"
             className="secondary-button"

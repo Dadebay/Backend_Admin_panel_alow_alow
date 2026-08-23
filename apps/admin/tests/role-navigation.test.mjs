@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
-import { canAccessAdminPortal } from "../src/shared/auth/model/admin-portal-access.ts";
+import {
+  canAccessAdminPortal,
+  canAccessWebSession,
+} from "../src/shared/auth/model/admin-portal-access.ts";
 import {
   adminNavigation,
   navigationForRole,
@@ -19,6 +22,16 @@ test("only accountants and administrators may enter the admin portal", () => {
     assert.equal(canAccessAdminPortal(role), false, role);
     assert.deepEqual(views(role), [], role);
   }
+});
+
+test("couriers may keep a dedicated web session without entering the admin portal", () => {
+  for (const role of ["ACCOUNTANT", "ADMIN", "SUPER_ADMIN", "COURIER"]) {
+    assert.equal(canAccessWebSession(role), true, role);
+  }
+  for (const role of ["CUSTOMER", "OPERATOR", "COOK"]) {
+    assert.equal(canAccessWebSession(role), false, role);
+  }
+  assert.equal(canAccessAdminPortal("COURIER"), false);
 });
 
 test("accountant navigation contains only the lifecycle order board", () => {
@@ -61,12 +74,19 @@ test("dashboard renders navigation from the tested role matrix", async () => {
   assert.match(source, /!canAccessAdminPortal\(session\.user\.role\)/);
 });
 
-test("the web courier route is absent and OTP sessions enforce portal roles", async () => {
-  const [appSource, sessionSource] = await Promise.all([
+test("the courier screen is isolated from admin navigation and accepts courier sessions", async () => {
+  const [appSource, sessionSource, dashboardSource] = await Promise.all([
     readFile(new URL("../src/app/ui/app.tsx", import.meta.url), "utf8"),
     readFile(
       new URL(
         "../src/shared/auth/model/session-provider.tsx",
+        import.meta.url,
+      ),
+      "utf8",
+    ),
+    readFile(
+      new URL(
+        "../src/widgets/admin-dashboard/ui/admin-dashboard.tsx",
         import.meta.url,
       ),
       "utf8",
@@ -77,7 +97,14 @@ test("the web courier route is absent and OTP sessions enforce portal roles", as
     adminNavigation.some(({ path }) => path === "/courier"),
     false,
   );
-  assert.doesNotMatch(appSource, /path=["']\/courier["']/);
-  assert.match(sessionSource, /!canAccessAdminPortal\(response\.user\.role\)/);
-  assert.match(sessionSource, /Доступ к админке разрешён только/);
+  assert.match(appSource, /path="\/courier"/);
+  assert.match(appSource, /CourierTrackingScreen/);
+  assert.match(
+    appSource,
+    /session\?\.user\.role === "COURIER" \? "\/courier" : "\/orders"/,
+  );
+  assert.match(sessionSource, /!canAccessWebSession\(response\.user\.role\)/);
+  assert.match(sessionSource, /Веб-доступ разрешён/);
+  assert.match(dashboardSource, /!canAccessAdminPortal\(session\.user\.role\)/);
+  assert.match(dashboardSource, /data-testid="admin-open-courier-screen"/);
 });

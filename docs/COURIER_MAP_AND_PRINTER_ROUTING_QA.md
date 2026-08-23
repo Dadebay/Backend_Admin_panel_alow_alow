@@ -21,6 +21,11 @@ records how those decisions are verified.
 - The overview counts busy couriers across all active couriers, free couriers
   only while online, located couriers with a point, online couriers, and the
   total courier count independently.
+- If any active courier has no point, the dispatch screen reports GPS coverage,
+  names those couriers, and explains how to start the shift at `/courier`.
+  Branch labels include `Филиал`; a branch must never look like the missing
+  courier. A courier without coordinates stays in the list but receives no
+  invented map position.
 - Moving an order to `DELIVERED` removes it from `activeOrders`, changes the
   workload label to `Свободен`, and preserves the courier point. The courier
   may continue publishing new points after delivery.
@@ -28,6 +33,10 @@ records how those decisions are verified.
   including between orders. Only explicit end-of-shift deletion stops sharing.
   A point without new updates becomes `STALE` after five minutes and expires
   from Redis after fifteen minutes.
+- The production web fallback `/courier` accepts an authenticated `COURIER`
+  session without granting any operations-admin navigation. Its start action
+  publishes GPS independently of active orders; its end-shift action is the
+  only UI action that deletes the point.
 
 ### Category visibility and receipt routing
 
@@ -57,7 +66,8 @@ records how those decisions are verified.
 
 | Area | Test | Contract covered |
 | --- | --- | --- |
-| Courier labels and overview | `apps/admin/tests/courier-map.test.mjs` | Empty/mixed courier sets, one/multiple orders, stale busy courier, online/free and GPS counts, permanent markers, whole-shift interval |
+| Courier labels, coverage and overview | `apps/admin/tests/courier-map.test.mjs` | Empty/mixed courier sets, one/multiple orders, stale busy courier, online/free and GPS counts, branch distinction, missing-GPS guidance, permanent markers, whole-shift interval |
+| Web courier isolation | `apps/admin/tests/role-navigation.test.mjs`, `apps/admin/tests/admin-routing.test.mjs` | `/courier` session is allowed only as a dedicated workflow; `COURIER` remains excluded from every admin navigation item |
 | Category quick settings | `apps/admin/tests/category-receipt-routes.test.mjs` | Printer update preserves visibility/order, blank IP becomes `null`, visibility toggle preserves printer route |
 | LAN validation and UI wiring | `apps/admin/tests/form-schemas.test.mjs`, `apps/admin/tests/receipt-printing.test.mjs` | Private IPv4 validation, stable selectors, quick-settings integration and printer hierarchy copy |
 | Catalog deletion UI | `apps/admin/tests/catalog-deletion.test.mjs` | Authenticated DELETE mutations, cache refresh, accessible confirmation, pending and failure states |
@@ -72,12 +82,13 @@ verification.
 
 1. Open `/couriers/map` with at least one free online courier, one busy online
    courier, one busy stale courier, and one courier without GPS. Verify marker
-   labels, colors, dashed stale state, overview counts, and no horizontal
-   overflow on desktop and phone.
+   labels, colors, dashed stale state, overview counts, the missing-GPS warning,
+   explicit `Филиал` labels, and no horizontal overflow on desktop and phone.
 2. Select a busy courier. Verify their backend road route and stops appear
    while every other located courier marker remains visible. Return with
    `Все курьеры`.
-3. Complete the courier's last order. Verify the same marker remains, changes
+3. On that courier's phone open `/courier`, sign in and start the shift. Complete
+   the courier's last order. Verify the same marker remains, changes
    to `Свободен`, and moves when the mobile client publishes the next point.
    End the shift explicitly and verify the point disappears.
 4. In `/catalog`, set a category printer, hide the category, reload, and show
@@ -102,4 +113,7 @@ Android applications are maintained in separate repositories. Their release
 is incomplete until the courier client keeps publishing GPS after delivery and
 stops only through the explicit end-shift action. The API and admin behavior in
 this repository cannot keep a courier visible indefinitely if the mobile app
-stops sending points or the operating system suspends background location.
+stops sending points or the operating system suspends background location. The
+same-origin `/courier` screen is an immediately available web fallback, but a
+native client with approved background-location behavior remains the reliable
+choice while a phone is locked.

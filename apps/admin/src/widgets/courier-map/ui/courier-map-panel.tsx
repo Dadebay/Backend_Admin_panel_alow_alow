@@ -49,6 +49,9 @@ export function CourierMapPanel() {
   const displayedStops =
     courierRoute.data?.stops ?? selected?.activeOrders ?? [];
   const overviewCounts = courierOverviewCounts(couriers);
+  const couriersWithoutLocation = couriers.filter(
+    ({ location }) => !location,
+  );
 
   if (!ready) {
     return (
@@ -173,6 +176,32 @@ export function CourierMapPanel() {
           ↻
         </button>
       </div>
+
+      {couriersWithoutLocation.length > 0 && (
+        <div
+          className="dispatch-location-coverage"
+          data-testid="dispatch-location-coverage"
+          role="status"
+        >
+          <div>
+            <strong>
+              GPS передают {overviewCounts.located} из {overviewCounts.total}
+            </strong>
+            <p>
+              На телефоне курьера откройте <code>a7-tagam.com.tm/courier</code>,
+              войдите под его номером и нажмите «Начать смену и показать себя
+              на карте». Передачу выключают только после завершения смены, не
+              после доставки.
+            </p>
+          </div>
+          <small>
+            Без GPS: {couriersWithoutLocation.map(courierName).join(", ")}.
+            {overviewCounts.located === 0
+              ? " Видимые служебные точки на карте — филиалы, а не курьеры."
+              : " Эти курьеры есть в списке, но их нельзя поставить на карту без координат."}
+          </small>
+        </div>
+      )}
 
       <Suspense fallback={<div className="map-loading">Загружаем карту…</div>}>
         <CourierMapCanvas

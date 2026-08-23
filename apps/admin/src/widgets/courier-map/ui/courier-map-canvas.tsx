@@ -132,10 +132,10 @@ export default function CourierMapCanvas({
           }}
         >
           <Tooltip permanent direction="top">
-            {branch.name}
+            Филиал · {branch.name}
           </Tooltip>
           <Popup>
-            <strong>{branch.name}</strong>
+            <strong>Филиал · {branch.name}</strong>
             <br />
             {branch.address}
           </Popup>

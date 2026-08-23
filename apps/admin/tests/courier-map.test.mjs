@@ -156,33 +156,50 @@ test("dispatch opens with every located courier in view and keeps an explicit ov
   assert.match(canvas, /<Tooltip[\s\S]*?permanent/);
   assert.match(canvas, /<strong>\{courierName\(courier\)\}<\/strong>/);
   assert.match(canvas, /<span>\{workLabel\}<\/span>/);
+  assert.match(canvas, /Филиал · \{branch\.name\}/);
+  assert.match(panel, /data-testid="dispatch-location-coverage"/);
+  assert.match(panel, /GPS передают \{overviewCounts\.located\} из/);
+  assert.match(panel, /a7-tagam\.com\.tm\/courier/);
+  assert.match(panel, /Видимые служебные точки на карте — филиалы/);
 });
 
 test("courier GPS remains a whole-shift feed after an order is delivered", async () => {
-  const [sharing, context, mobileContract, qaContract] = await Promise.all([
-    readFile(
-      new URL(
-        "../src/features/courier-location-sharing/ui/courier-location-sharing.tsx",
-        import.meta.url,
+  const [sharing, app, sessionAccess, context, mobileContract, qaContract] =
+    await Promise.all([
+      readFile(
+        new URL(
+          "../src/features/courier-location-sharing/ui/courier-location-sharing.tsx",
+          import.meta.url,
+        ),
+        "utf8",
       ),
-      "utf8",
-    ),
-    readFile(new URL("../../../docs/PROJECT_CONTEXT.md", import.meta.url), "utf8"),
-    readFile(
-      new URL(
-        "../../../docs/MOBILE_DELIVERY_AND_COURIER_UPDATE.md",
-        import.meta.url,
+      readFile(new URL("../src/app/ui/app.tsx", import.meta.url), "utf8"),
+      readFile(
+        new URL(
+          "../src/shared/auth/model/admin-portal-access.ts",
+          import.meta.url,
+        ),
+        "utf8",
       ),
-      "utf8",
-    ),
-    readFile(
-      new URL(
-        "../../../docs/COURIER_MAP_AND_PRINTER_ROUTING_QA.md",
-        import.meta.url,
+      readFile(
+        new URL("../../../docs/PROJECT_CONTEXT.md", import.meta.url),
+        "utf8",
       ),
-      "utf8",
-    ),
-  ]);
+      readFile(
+        new URL(
+          "../../../docs/MOBILE_DELIVERY_AND_COURIER_UPDATE.md",
+          import.meta.url,
+        ),
+        "utf8",
+      ),
+      readFile(
+        new URL(
+          "../../../docs/COURIER_MAP_AND_PRINTER_ROUTING_QA.md",
+          import.meta.url,
+        ),
+        "utf8",
+      ),
+    ]);
 
   assert.equal(COURIER_LOCATION_UPDATE_INTERVAL_MS, 15_000);
   assert.match(sharing, /COURIER_LOCATION_UPDATE_INTERVAL_MS/);
@@ -191,6 +208,9 @@ test("courier GPS remains a whole-shift feed after an order is delivered", async
   assert.match(sharing, /data-testid="courier-location-sharing-stop"/);
   assert.match(sharing, /даже без активного заказа/);
   assert.match(sharing, /Не выключайте геолокацию после доставки/);
+  assert.match(sharing, /Начать смену и показать себя на карте/);
+  assert.match(app, /path="\/courier"/);
+  assert.match(sessionAccess, /"COURIER"/);
   assert.match(context, /after an order becomes `DELIVERED`/);
   assert.match(context, /COURIER_MAP_AND_PRINTER_ROUTING_QA\.md/);
   assert.match(mobileContract, /Завершение доставки не\s+должно останавливать GPS/);

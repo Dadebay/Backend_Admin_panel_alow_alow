@@ -12,9 +12,11 @@ import {
   AddProductImageDto,
   CreateCategoryDto,
   CreateProductDto,
+  CreateReceiptPrinterDto,
   ProductVariantInputDto,
   UpdateCategoryDto,
   UpdateProductDto,
+  UpdateReceiptPrinterDto,
   UpdateReceiptPrintSettingsDto,
 } from "./catalog.dto";
 
@@ -25,7 +27,8 @@ const productRelations = {
     include: { images: { orderBy: { sortOrder: "asc" as const } } },
     orderBy: [{ sortOrder: "asc" as const }, { name: "asc" as const }],
   },
-  category: true,
+  category: { include: { receiptPrinter: true } },
+  receiptPrinter: true,
 } satisfies Prisma.ProductInclude;
 
 type ProductWithRelations = Prisma.ProductGetPayload<{
@@ -33,12 +36,27 @@ type ProductWithRelations = Prisma.ProductGetPayload<{
 }>;
 
 function categoryResponse<
-  TCategory extends { receiptPrinterIp: string | null },
+  TCategory extends {
+    receiptPrinterId: string | null;
+    receiptPrinterIp: string | null;
+    receiptPrinter?: {
+      id: string;
+      ipAddress: string;
+    } | null;
+  },
 >(category: TCategory, includeAdminFields: boolean) {
-  const { receiptPrinterIp, ...publicCategory } = category;
+  const {
+    receiptPrinterId,
+    receiptPrinterIp: legacyReceiptPrinterIp,
+    receiptPrinter = null,
+    ...publicCategory
+  } = category;
+  const receiptPrinterIp = receiptPrinter?.ipAddress ?? legacyReceiptPrinterIp;
   return {
     ...publicCategory,
-    ...(includeAdminFields ? { receiptPrinterIp } : {}),
+    ...(includeAdminFields
+      ? { receiptPrinterId, receiptPrinterIp, receiptPrinter }
+      : {}),
   };
 }
 
@@ -57,7 +75,19 @@ function productResponse(
   product: ProductWithRelations,
   includeAdminFields: boolean,
 ) {
-  const { receiptPrinterIp, category, ...publicProduct } = product;
+  const {
+    receiptPrinterId,
+    receiptPrinterIp: legacyReceiptPrinterIp,
+    receiptPrinter,
+    category,
+    ...publicProduct
+  } = product;
+  const categoryReceiptPrinterIp =
+    category.receiptPrinter?.ipAddress ?? category.receiptPrinterIp;
+  const receiptPrinterIp = receiptPrinter?.ipAddress ?? legacyReceiptPrinterIp;
+  const effectiveReceiptPrinter =
+    receiptPrinter ??
+    (legacyReceiptPrinterIp ? null : (category.receiptPrinter ?? null));
   const active = activeVariants(product);
   const minPrice = active[0]?.price ?? product.price;
   const displayImageUrl =
@@ -66,9 +96,15 @@ function productResponse(
     ...publicProduct,
     ...(includeAdminFields
       ? {
+          receiptPrinterId,
           receiptPrinterIp,
+          receiptPrinter,
+          effectiveReceiptPrinterId:
+            receiptPrinterId ??
+            (legacyReceiptPrinterIp ? null : category.receiptPrinterId),
           effectiveReceiptPrinterIp:
-            receiptPrinterIp ?? category.receiptPrinterIp,
+            receiptPrinterIp ?? categoryReceiptPrinterIp,
+          effectiveReceiptPrinter,
         }
       : {}),
     category: categoryResponse(category, false),
@@ -138,6 +174,75 @@ function rethrowDeleteConstraint(error: unknown, message: string): never {
   throw error;
 }
 
+function printerReferenceData(input: {
+  receiptPrinterId?: string | null;
+  receiptPrinterIp?: string | null;
+}) {
+  if (
+    input.receiptPrinterId !== undefined &&
+    input.receiptPrinterIp !== undefined
+  ) {
+    throw new BadRequestException(
+      "Provide receiptPrinterId or receiptPrinterIp, not both",
+    );
+  }
+  if (input.receiptPrinterId !== undefined) {
+    return {
+      receiptPrinterId: input.receiptPrinterId,
+      receiptPrinterIp: null,
+    };
+  }
+  if (input.receiptPrinterIp !== undefined) {
+    return {
+      receiptPrinterId: null,
+      receiptPrinterIp: input.receiptPrinterIp,
+    };
+  }
+  return {};
+}
+
+async function assertActivePrinterReference(
+  tx: Prisma.TransactionClient,
+  printerId: string | null | undefined,
+) {
+  if (!printerId) return;
+  const printer = await tx.receiptPrinter.findUnique({
+    where: { id: printerId },
+    select: { isActive: true },
+  });
+  if (!printer?.isActive) {
+    throw new BadRequestException("Receipt printer is missing or inactive");
+  }
+}
+
+function mainPrinterReferenceData(input: UpdateReceiptPrintSettingsDto) {
+  if (input.mainPrinterId === undefined && input.mainPrinterIp === undefined) {
+    throw new BadRequestException(
+      "mainPrinterId or mainPrinterIp must be provided",
+    );
+  }
+  if (input.mainPrinterId !== undefined && input.mainPrinterIp !== undefined) {
+    throw new BadRequestException(
+      "Provide mainPrinterId or mainPrinterIp, not both",
+    );
+  }
+  return input.mainPrinterId !== undefined
+    ? { mainPrinterId: input.mainPrinterId, mainPrinterIp: null }
+    : { mainPrinterId: null, mainPrinterIp: input.mainPrinterIp ?? null };
+}
+
+function rethrowPrinterEndpointConflict(error: unknown): never {
+  if (
+    error instanceof Prisma.PrismaClientKnownRequestError &&
+    error.code === "P2002"
+  ) {
+    throw new ConflictException(
+      "Аппарат с таким IP-адресом и портом уже существует",
+    );
+  }
+  throw error;
+}
+
 @Injectable()
 export class CatalogService {
   constructor(private readonly prisma: PrismaService) {}
@@ -146,6 +251,7 @@ export class CatalogService {
     const categories = await this.prisma.category.findMany({
       where: includeInactive ? {} : { isActive: true },
       include: {
+        receiptPrinter: true,
         products: {
           where: includeInactive ? {} : { isActive: true },
           include: productRelations,
@@ -179,8 +285,16 @@ export class CatalogService {
   }
 
   createCategory(actor: AuthUser, dto: CreateCategoryDto) {
+    const { receiptPrinterId, receiptPrinterIp, ...categoryData } = dto;
     return this.prisma.$transaction(async (tx) => {
-      const category = await tx.category.create({ data: dto });
+      await assertActivePrinterReference(tx, receiptPrinterId);
+      const category = await tx.category.create({
+        data: {
+          ...categoryData,
+          ...printerReferenceData({ receiptPrinterId, receiptPrinterIp }),
+        },
+        include: { receiptPrinter: true },
+      });
       await tx.auditLog.create({
         data: {
           actorId: actor.id,
@@ -195,10 +309,19 @@ export class CatalogService {
   }
 
   updateCategory(actor: AuthUser, id: string, dto: UpdateCategoryDto) {
+    const { receiptPrinterId, receiptPrinterIp, ...categoryData } = dto;
     return this.prisma.$transaction(async (tx) => {
       const category = await tx.category.findUnique({ where: { id } });
       if (!category) throw new NotFoundException("Category not found");
-      const updated = await tx.category.update({ where: { id }, data: dto });
+      await assertActivePrinterReference(tx, receiptPrinterId);
+      const updated = await tx.category.update({
+        where: { id },
+        data: {
+          ...categoryData,
+          ...printerReferenceData({ receiptPrinterId, receiptPrinterIp }),
+        },
+        include: { receiptPrinter: true },
+      });
       await tx.auditLog.create({
         data: {
           actorId: actor.id,
@@ -258,10 +381,118 @@ export class CatalogService {
   async receiptPrintSettings() {
     const settings = await this.prisma.receiptPrintSettings.findUnique({
       where: { id: "default" },
+      include: { mainPrinter: true },
     });
     return toApiResponse({
-      mainPrinterIp: settings?.mainPrinterIp ?? null,
+      mainPrinterId: settings?.mainPrinterId ?? null,
+      mainPrinterIp:
+        settings?.mainPrinter?.ipAddress ?? settings?.mainPrinterIp ?? null,
+      mainPrinter: settings?.mainPrinter ?? null,
       updatedAt: settings?.updatedAt ?? null,
+    });
+  }
+
+  async receiptPrinters() {
+    return toApiResponse(
+      await this.prisma.receiptPrinter.findMany({
+        orderBy: [{ isActive: "desc" }, { name: "asc" }],
+      }),
+    );
+  }
+
+  createReceiptPrinter(actor: AuthUser, dto: CreateReceiptPrinterDto) {
+    return this.prisma
+      .$transaction(async (tx) => {
+        const printer = await tx.receiptPrinter.create({
+          data: { ...dto, name: dto.name.trim() },
+        });
+        await tx.auditLog.create({
+          data: {
+            actorId: actor.id,
+            action: "catalog.receipt-printer.created",
+            entityType: "ReceiptPrinter",
+            entityId: printer.id,
+            metadata: {
+              name: printer.name,
+              ipAddress: printer.ipAddress,
+              port: printer.port,
+              transport: printer.transport,
+            },
+          },
+        });
+        return toApiResponse(printer);
+      })
+      .catch(rethrowPrinterEndpointConflict);
+  }
+
+  updateReceiptPrinter(
+    actor: AuthUser,
+    id: string,
+    dto: UpdateReceiptPrinterDto,
+  ) {
+    return this.prisma
+      .$transaction(async (tx) => {
+        const existing = await tx.receiptPrinter.findUnique({ where: { id } });
+        if (!existing) throw new NotFoundException("Receipt printer not found");
+        const printer = await tx.receiptPrinter.update({
+          where: { id },
+          data: {
+            ...dto,
+            ...(dto.name === undefined ? {} : { name: dto.name.trim() }),
+          },
+        });
+        await tx.auditLog.create({
+          data: {
+            actorId: actor.id,
+            action: "catalog.receipt-printer.updated",
+            entityType: "ReceiptPrinter",
+            entityId: printer.id,
+            metadata: { changedFields: Object.keys(dto) },
+          },
+        });
+        return toApiResponse(printer);
+      })
+      .catch(rethrowPrinterEndpointConflict);
+  }
+
+  async deleteReceiptPrinter(actor: AuthUser, id: string): Promise<void> {
+    await this.prisma.$transaction(async (tx) => {
+      const printer = await tx.receiptPrinter.findUnique({
+        where: { id },
+        include: {
+          _count: {
+            select: {
+              categories: true,
+              products: true,
+              mainSettings: true,
+            },
+          },
+        },
+      });
+      if (!printer) throw new NotFoundException("Receipt printer not found");
+      if (
+        printer._count.categories > 0 ||
+        printer._count.products > 0 ||
+        printer._count.mainSettings > 0
+      ) {
+        throw new ConflictException(
+          "Аппарат используется в настройках. Сначала отвяжите его или отключите.",
+        );
+      }
+      await tx.receiptPrinter.delete({ where: { id } });
+      await tx.auditLog.create({
+        data: {
+          actorId: actor.id,
+          action: "catalog.receipt-printer.deleted",
+          entityType: "ReceiptPrinter",
+          entityId: printer.id,
+          metadata: {
+            name: printer.name,
+            ipAddress: printer.ipAddress,
+            port: printer.port,
+          },
+        },
+      });
     });
   }
 
@@ -269,11 +500,14 @@ export class CatalogService {
     actor: AuthUser,
     dto: UpdateReceiptPrintSettingsDto,
   ) {
+    const reference = mainPrinterReferenceData(dto);
     return this.prisma.$transaction(async (tx) => {
+      await assertActivePrinterReference(tx, dto.mainPrinterId);
       const settings = await tx.receiptPrintSettings.upsert({
         where: { id: "default" },
-        create: { id: "default", mainPrinterIp: dto.mainPrinterIp },
-        update: { mainPrinterIp: dto.mainPrinterIp },
+        create: { id: "default", ...reference },
+        update: reference,
+        include: { mainPrinter: true },
       });
       await tx.auditLog.create({
         data: {
@@ -281,11 +515,14 @@ export class CatalogService {
           action: "catalog.receipt-print-settings.updated",
           entityType: "ReceiptPrintSettings",
           entityId: settings.id,
-          metadata: { changedFields: ["mainPrinterIp"] },
+          metadata: { changedFields: Object.keys(reference) },
         },
       });
       return toApiResponse({
-        mainPrinterIp: settings.mainPrinterIp,
+        mainPrinterId: settings.mainPrinterId,
+        mainPrinterIp:
+          settings.mainPrinter?.ipAddress ?? settings.mainPrinterIp,
+        mainPrinter: settings.mainPrinter,
         updatedAt: settings.updatedAt,
       });
     });
@@ -296,6 +533,8 @@ export class CatalogService {
       imageUrls = [],
       variants = [],
       variantLabel: rawVariantLabel,
+      receiptPrinterId,
+      receiptPrinterIp,
       ...product
     } = dto;
     const variantLabel = normalizedVariantLabel(rawVariantLabel);
@@ -306,9 +545,11 @@ export class CatalogService {
       : product.price;
 
     return this.prisma.$transaction(async (tx) => {
+      await assertActivePrinterReference(tx, receiptPrinterId);
       const created = await tx.product.create({
         data: {
           ...product,
+          ...printerReferenceData({ receiptPrinterId, receiptPrinterIp }),
           price: effectivePrice,
           variantLabel: variants.length ? variantLabel : null,
           images: {
@@ -341,6 +582,8 @@ export class CatalogService {
       imageUrls,
       variants,
       variantLabel: rawVariantLabel,
+      receiptPrinterId,
+      receiptPrinterIp,
       ...product
     } = dto;
 
@@ -350,6 +593,7 @@ export class CatalogService {
         include: { variants: true },
       });
       if (!existing) throw new NotFoundException("Product not found");
+      await assertActivePrinterReference(tx, receiptPrinterId);
 
       const variantLabel = normalizedVariantLabel(
         rawVariantLabel === undefined ? existing.variantLabel : rawVariantLabel,
@@ -460,6 +704,7 @@ export class CatalogService {
         where: { id },
         data: {
           ...product,
+          ...printerReferenceData({ receiptPrinterId, receiptPrinterIp }),
           price: effectivePrice,
           ...(rawVariantLabel !== undefined || variants !== undefined
             ? { variantLabel: variants?.length === 0 ? null : variantLabel }

@@ -28,7 +28,7 @@ function notificationBody(orders: Order[]) {
 
 export function NewOrderAlert({ onOpenOrders }: { onOpenOrders: () => void }) {
   const orders = useOrders({
-    statuses: ["SENT_TO_KITCHEN", "COOKING", "READY"],
+    statuses: ["COOKING", "READY"],
     page: 1,
     limit: 100,
   });

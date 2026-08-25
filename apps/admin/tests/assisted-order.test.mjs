@@ -118,6 +118,13 @@ test("address search uses an in-flow choose-then-map workflow", async () => {
     ),
     "utf8",
   );
+  const deliverySelection = await readFile(
+    new URL(
+      "../src/widgets/assisted-order/model/assisted-order-delivery.ts",
+      import.meta.url,
+    ),
+    "utf8",
+  );
   const styles = await readFile(
     new URL("../src/app/styles/globals.css", import.meta.url),
     "utf8",
@@ -145,7 +152,9 @@ test("address search uses an in-flow choose-then-map workflow", async () => {
   );
   assert.match(dialog, /Эти поля не двигают маркер/);
   assert.match(dialog, /Ориентир для курьера \(необязательно\)/);
-  assert.match(dialog, /buildAssistedDeliveryAddress/);
+  assert.match(dialog, /buildAssistedOrderDeliverySelection/);
+  assert.match(deliverySelection, /buildAssistedDeliveryAddress/);
+  assert.match(deliverySelection, /canReuseAssistedSavedAddress/);
   assert.match(dialog, /data-testid="assisted-delivery-pricing"/);
   assert.match(dialog, /useDeliveryQuote/);
   assert.doesNotMatch(dialog, /setValue\("addressSearch", officialAddress/);
@@ -167,7 +176,7 @@ test("address search uses an in-flow choose-then-map workflow", async () => {
     dialog,
     /setValue\("deliveryEtrapId", "", \{ shouldValidate: true \}\)/,
   );
-  assert.match(dialog, /deliveryEtrapId: values\.deliveryEtrapId/);
+  assert.match(deliverySelection, /values\.deliveryEtrapId/);
   assert.match(dialog, /estimatedDeliveryFee\.toFixed\(2\)/);
   assert.match(dialog, /variantId: variant\.id/);
   assert.match(dialog, /assisted-product-variant-/);

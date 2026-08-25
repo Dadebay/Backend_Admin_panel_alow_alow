@@ -13,6 +13,7 @@ import {
   OrderStatus,
   Prisma,
   PromoType,
+  ReceiptPrinterTransport,
   Role,
 } from "../generated/prisma/client";
 import type { AuthUser } from "../common/auth.types";
@@ -52,6 +53,46 @@ import {
   CourierRoutingStatus,
 } from "./orders-response.dto";
 import { buildReceiptPrintPlan } from "./receipt-print-plan";
+
+type ReceiptPrinterRouteSource = {
+  receiptPrinterId: string | null;
+  receiptPrinterIp: string | null;
+  receiptPrinter: {
+    ipAddress: string;
+    port: number;
+    transport: ReceiptPrinterTransport;
+    isActive: boolean;
+  } | null;
+};
+
+function routeSnapshot(source: ReceiptPrinterRouteSource) {
+  if (source.receiptPrinterId) {
+    return source.receiptPrinter?.isActive
+      ? {
+          receiptPrinterIp: source.receiptPrinter.ipAddress,
+          receiptPrinterPort: source.receiptPrinter.port,
+          receiptPrinterTransport: source.receiptPrinter.transport,
+        }
+      : {
+          receiptPrinterIp: null,
+          receiptPrinterPort: null,
+          receiptPrinterTransport: null,
+        };
+  }
+  return source.receiptPrinterIp
+    ? {
+        receiptPrinterIp: source.receiptPrinterIp,
+        receiptPrinterPort: 80,
+        receiptPrinterTransport: ReceiptPrinterTransport.JSPEED_HTTP,
+      }
+    : null;
+}
+
+function productRouteSnapshot(
+  product: ReceiptPrinterRouteSource & { category: ReceiptPrinterRouteSource },
+) {
+  return routeSnapshot(product) ?? routeSnapshot(product.category);
+}
 
 const detailInclude = {
   customer: {
@@ -136,21 +177,13 @@ const ITEM_EDIT_RESET_STATUSES: OrderStatus[] = [
 ];
 
 /** Only the statuses a customer actually needs to hear about — the later
- * back-office accounting stages (cash returned/completed/reconciled) never
+ * back-office accounting stages (cash returned/reconciled) never
  * reach them, they've already got their food by then. Turkmen first: the
  * app's primary market and the only locale guaranteed to be understood if
  * a device never reported one. */
 const CUSTOMER_STATUS_MESSAGES: Partial<
   Record<OrderStatus, (orderNumber: number) => { title: string; body: string }>
 > = {
-  CONFIRMED: (n) => ({
-    title: `Sargyt #${n} tassyklandy`,
-    body: "Sargydyňyz kabul edildi, ýakynda taýýarlanyp başlanar.",
-  }),
-  SENT_TO_KITCHEN: (n) => ({
-    title: `Sargyt #${n} aşhanada`,
-    body: "Sargydyňyz taýýarlanýar.",
-  }),
   COOKING: (n) => ({
     title: `Sargyt #${n} taýýarlanýar`,
     body: "Aşpezimiz sargydyňyzy taýýarlaýar.",
@@ -351,7 +384,11 @@ export class OrdersService {
         isActive: true,
         category: { isActive: true },
       },
-      include: { variants: true, category: true },
+      include: {
+        variants: true,
+        receiptPrinter: true,
+        category: { include: { receiptPrinter: true } },
+      },
     });
     if (products.length !== productIds.length) {
       throw new BadRequestException("One or more products are unavailable");
@@ -499,7 +536,7 @@ export class OrdersService {
       data: {
         customerId,
         source,
-        status: OrderStatus.SENT_TO_KITCHEN,
+        status: OrderStatus.COOKING,
         branchId: nearest.branch.id,
         promoCodeId: promo?.id,
         addressId: selectedAddress.id,
@@ -525,13 +562,15 @@ export class OrdersService {
         items: {
           create: resolvedItems.map(({ product, variant, quantity }) => {
             const unitPrice = variant?.price ?? product.price;
+            const receiptRoute = productRouteSnapshot(product);
             return {
               productId: product.id,
               productVariantId: variant?.id,
               productName: product.name,
               variantName: variant?.name,
-              receiptPrinterIp:
-                product.receiptPrinterIp ?? product.category.receiptPrinterIp,
+              receiptPrinterIp: receiptRoute?.receiptPrinterIp,
+              receiptPrinterPort: receiptRoute?.receiptPrinterPort,
+              receiptPrinterTransport: receiptRoute?.receiptPrinterTransport,
               unitPrice,
               quantity,
               lineTotal: Number(unitPrice) * quantity,
@@ -585,7 +624,7 @@ export class OrdersService {
             ? {
                 OR: [
                   { cookId: user.id },
-                  { status: OrderStatus.SENT_TO_KITCHEN },
+                  { status: OrderStatus.COOKING, cookId: null },
                 ],
               }
             : {};
@@ -691,6 +730,7 @@ export class OrdersService {
           id: true,
           number: true,
           status: true,
+          cancellationReason: true,
           subtotal: true,
           discount: true,
           deliveryFee: true,
@@ -702,6 +742,8 @@ export class OrdersService {
               productName: true,
               variantName: true,
               receiptPrinterIp: true,
+              receiptPrinterPort: true,
+              receiptPrinterTransport: true,
               unitPrice: true,
               quantity: true,
             },
@@ -711,19 +753,26 @@ export class OrdersService {
       }),
       this.prisma.receiptPrintSettings.findUnique({
         where: { id: "default" },
-        select: { mainPrinterIp: true },
+        include: { mainPrinter: true },
       }),
     ]);
     if (!order) throw new NotFoundException("Order not found");
-    if (order.status === OrderStatus.NEW) {
-      throw new ConflictException("Confirm the order before printing");
-    }
-    if (order.status === OrderStatus.CANCELLED) {
-      throw new ConflictException("Cancelled orders cannot be printed");
-    }
-    return toApiResponse(
-      buildReceiptPrintPlan(order, settings?.mainPrinterIp ?? null),
-    );
+    const mainPrinter = settings?.mainPrinterId
+      ? settings.mainPrinter?.isActive
+        ? {
+            printerIp: settings.mainPrinter.ipAddress,
+            printerPort: settings.mainPrinter.port,
+            transport: settings.mainPrinter.transport,
+          }
+        : null
+      : settings?.mainPrinterIp
+        ? {
+            printerIp: settings.mainPrinterIp,
+            printerPort: 80,
+            transport: ReceiptPrinterTransport.JSPEED_HTTP,
+          }
+        : null;
+    return toApiResponse(buildReceiptPrintPlan(order, mainPrinter));
   }
 
   async transition(user: AuthUser, id: string, dto: TransitionOrderDto) {
@@ -750,16 +799,12 @@ export class OrdersService {
         version: { increment: 1 },
       };
       if (
-        order.status === OrderStatus.SENT_TO_KITCHEN &&
-        (dto.status === OrderStatus.COOKING || dto.status === OrderStatus.READY)
+        user.role === Role.COOK &&
+        order.status === OrderStatus.COOKING &&
+        dto.status === OrderStatus.READY &&
+        !order.cookId
       ) {
         updateData.cookId = user.id;
-      }
-      if (
-        dto.status === OrderStatus.CONFIRMED ||
-        dto.status === OrderStatus.SENT_TO_KITCHEN
-      ) {
-        updateData.cookId = null;
       }
       if (dto.status === OrderStatus.COOKING) {
         updateData.packingConfirmedAt = null;
@@ -774,7 +819,7 @@ export class OrdersService {
       if (dto.status === OrderStatus.DELIVERED) {
         updateData.deliveredAt = new Date();
       }
-      if (dto.status === OrderStatus.COMPLETED) {
+      if (dto.status === OrderStatus.CASH_RETURNED) {
         updateData.completedAt = new Date();
       }
 
@@ -795,13 +840,6 @@ export class OrdersService {
             orderId: order.id,
             courierId: order.courierId,
             amount: order.total,
-          },
-        });
-      } else if (dto.status === OrderStatus.COMPLETED) {
-        await tx.cashSettlement.update({
-          where: { orderId: order.id },
-          data: {
-            operatorId: user.id,
             operatorTakenAt: new Date(),
             status: CashSettlementStatus.CONFIRMED,
           },
@@ -905,7 +943,7 @@ export class OrdersService {
       let assignedAt = order.assignedAt;
       let packingConfirmedAt = order.packingConfirmedAt;
       if (itemsChanged && ITEM_EDIT_RESET_STATUSES.includes(order.status)) {
-        nextStatus = OrderStatus.SENT_TO_KITCHEN;
+        nextStatus = OrderStatus.COOKING;
         cookId = null;
         courierId = null;
         assignedAt = null;
@@ -984,14 +1022,16 @@ export class OrdersService {
         await tx.orderItem.createMany({
           data: resolvedItems.map(({ product, variant, quantity }) => {
             const unitPrice = variant?.price ?? product.price;
+            const receiptRoute = productRouteSnapshot(product);
             return {
               orderId: id,
               productId: product.id,
               productVariantId: variant?.id,
               productName: product.name,
               variantName: variant?.name,
-              receiptPrinterIp:
-                product.receiptPrinterIp ?? product.category.receiptPrinterIp,
+              receiptPrinterIp: receiptRoute?.receiptPrinterIp,
+              receiptPrinterPort: receiptRoute?.receiptPrinterPort,
+              receiptPrinterTransport: receiptRoute?.receiptPrinterTransport,
               unitPrice,
               quantity,
               lineTotal: Number(unitPrice) * quantity,
@@ -1285,7 +1325,6 @@ export class OrdersService {
     const deliveredStatuses: OrderStatus[] = [
       OrderStatus.DELIVERED,
       OrderStatus.CASH_RETURNED,
-      OrderStatus.COMPLETED,
       OrderStatus.RECONCILED,
     ];
     if (!deliveredStatuses.includes(order.status)) {
@@ -1530,7 +1569,7 @@ export class OrdersService {
     if (
       user.role === Role.COOK &&
       order.cookId !== user.id &&
-      order.status !== OrderStatus.SENT_TO_KITCHEN
+      !(order.status === OrderStatus.COOKING && order.cookId === null)
     ) {
       throw new ForbiddenException();
     }

@@ -295,18 +295,17 @@ function OrderCard({
               {statusLabels[next]}
             </button>
           )}
-          {["OPERATOR", "ADMIN", "SUPER_ADMIN"].includes(role) &&
-            !["NEW", "CANCELLED"].includes(order.status) && (
-              <button
-                type="button"
-                className="secondary-button compact"
-                data-testid={`order-kanban-print-${order.id}`}
-                disabled={pending}
-                onClick={() => onPrintReceipt(order)}
-              >
-                Печать
-              </button>
-            )}
+          {["OPERATOR", "ADMIN", "SUPER_ADMIN"].includes(role) && (
+            <button
+              type="button"
+              className="secondary-button compact"
+              data-testid={`order-kanban-print-${order.id}`}
+              disabled={pending}
+              onClick={() => onPrintReceipt(order)}
+            >
+              Печать
+            </button>
+          )}
           {canCancel(role, order.status) && (
             <button
               type="button"

@@ -7,31 +7,23 @@ export type Role = components["schemas"]["Role"];
 export type Courier = components["schemas"]["CourierSummaryResponseDto"];
 
 export const orderStatuses: OrderStatus[] = [
-  "NEW",
-  "CONFIRMED",
-  "SENT_TO_KITCHEN",
   "COOKING",
   "READY",
   "ASSIGNED_TO_COURIER",
   "OUT_FOR_DELIVERY",
   "DELIVERED",
   "CASH_RETURNED",
-  "COMPLETED",
   "RECONCILED",
   "CANCELLED",
 ];
 
 export const statusLabels: Record<OrderStatus, string> = {
-  NEW: "Новый",
-  CONFIRMED: "Подтверждён",
-  SENT_TO_KITCHEN: "На кухне",
   COOKING: "Готовится",
   READY: "Готов",
   ASSIGNED_TO_COURIER: "Назначен курьеру",
   OUT_FOR_DELIVERY: "Доставляется",
   DELIVERED: "Доставлен",
-  CASH_RETURNED: "Наличные сданы",
-  COMPLETED: "Закрыт оператором",
+  CASH_RETURNED: "Завершён · наличные сданы",
   RECONCILED: "Сверен бухгалтером",
   CANCELLED: "Отменён",
 };
@@ -49,13 +41,7 @@ export const roleLabels: Record<Role, string> = {
 const nextByRole: Partial<
   Record<Role, Partial<Record<OrderStatus, OrderStatus>>>
 > = {
-  OPERATOR: {
-    NEW: "CONFIRMED",
-    CONFIRMED: "SENT_TO_KITCHEN",
-    CASH_RETURNED: "COMPLETED",
-  },
   COOK: {
-    SENT_TO_KITCHEN: "READY",
     COOKING: "READY",
   },
   COURIER: {
@@ -64,20 +50,16 @@ const nextByRole: Partial<
     DELIVERED: "CASH_RETURNED",
   },
   ACCOUNTANT: {
-    COMPLETED: "RECONCILED",
+    CASH_RETURNED: "RECONCILED",
   },
 };
 
 const adminNext: Partial<Record<OrderStatus, OrderStatus>> = {
-  NEW: "CONFIRMED",
-  CONFIRMED: "SENT_TO_KITCHEN",
-  SENT_TO_KITCHEN: "READY",
   COOKING: "READY",
   ASSIGNED_TO_COURIER: "OUT_FOR_DELIVERY",
   OUT_FOR_DELIVERY: "DELIVERED",
   DELIVERED: "CASH_RETURNED",
-  CASH_RETURNED: "COMPLETED",
-  COMPLETED: "RECONCILED",
+  CASH_RETURNED: "RECONCILED",
 };
 
 export function nextOrderStatus(role: Role, status: OrderStatus) {
@@ -87,15 +69,9 @@ export function nextOrderStatus(role: Role, status: OrderStatus) {
 }
 
 export function canCancel(role: Role, status: OrderStatus) {
-  if (role === "OPERATOR") {
-    return ["NEW", "CONFIRMED", "SENT_TO_KITCHEN"].includes(status);
-  }
   return (
     ["ADMIN", "SUPER_ADMIN"].includes(role) &&
     [
-      "NEW",
-      "CONFIRMED",
-      "SENT_TO_KITCHEN",
       "COOKING",
       "READY",
       "ASSIGNED_TO_COURIER",
@@ -106,9 +82,6 @@ export function canCancel(role: Role, status: OrderStatus) {
 }
 
 const previousByStatus: Partial<Record<OrderStatus, OrderStatus>> = {
-  CONFIRMED: "NEW",
-  SENT_TO_KITCHEN: "CONFIRMED",
-  COOKING: "SENT_TO_KITCHEN",
   READY: "COOKING",
   ASSIGNED_TO_COURIER: "READY",
 };
@@ -122,14 +95,7 @@ export function previousOrderStatus(role: Role, status: OrderStatus) {
 export function canAdministratorEditOrder(role: Role, status: OrderStatus) {
   return (
     ["ADMIN", "SUPER_ADMIN"].includes(role) &&
-    [
-      "NEW",
-      "CONFIRMED",
-      "SENT_TO_KITCHEN",
-      "COOKING",
-      "READY",
-      "ASSIGNED_TO_COURIER",
-    ].includes(status)
+    ["COOKING", "READY", "ASSIGNED_TO_COURIER"].includes(status)
   );
 }
 

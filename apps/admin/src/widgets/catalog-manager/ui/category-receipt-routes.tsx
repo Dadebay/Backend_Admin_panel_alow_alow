@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
-import type { Category } from "@/src/entities/catalog";
+import type { Category, ReceiptPrinter } from "@/src/entities/catalog";
 import { FormFieldError } from "@/src/shared/forms";
 import {
   categoryReceiptRouteFormSchema,
@@ -9,6 +9,7 @@ import {
 
 function CategoryReceiptRouteRow({
   category,
+  printers,
   canEdit,
   isPending,
   onSave,
@@ -17,6 +18,7 @@ function CategoryReceiptRouteRow({
   onToggleActive,
 }: {
   category: Category;
+  printers: ReceiptPrinter[];
   canEdit: boolean;
   isPending: boolean;
   onSave: (
@@ -34,9 +36,7 @@ function CategoryReceiptRouteRow({
   } = useForm<CategoryReceiptRouteFormValues>({
     resolver: zodResolver(categoryReceiptRouteFormSchema),
     mode: "onBlur",
-    values: {
-      receiptPrinterIp: category.receiptPrinterIp ?? "",
-    },
+    values: { receiptPrinterId: category.receiptPrinterId ?? "" },
   });
 
   return (
@@ -63,18 +63,30 @@ function CategoryReceiptRouteRow({
       </div>
       <label>
         <span className="visually-hidden">
-          IP кухонного X-принтера для категории {category.name}
+          Кухонный X-принтер для категории {category.name}
         </span>
-        <input
-          data-testid={`category-printer-ip-${category.id}`}
-          {...register("receiptPrinterIp")}
-          aria-invalid={Boolean(errors.receiptPrinterIp)}
-          aria-label={`IP кухонного X-принтера для категории ${category.name}`}
+        <select
+          data-testid={`category-printer-select-${category.id}`}
+          {...register("receiptPrinterId")}
+          aria-invalid={Boolean(errors.receiptPrinterId)}
+          aria-label={`Кухонный X-принтер для категории ${category.name}`}
           disabled={!canEdit || isPending}
-          inputMode="decimal"
-          placeholder="192.168.1.51"
-        />
-        <FormFieldError message={errors.receiptPrinterIp?.message} />
+        >
+          <option value="">Без кухонного аппарата</option>
+          {printers.map((printer) => (
+            <option
+              key={printer.id}
+              value={printer.id}
+              disabled={
+                !printer.isActive && printer.id !== category.receiptPrinterId
+              }
+            >
+              {printer.name} · {printer.ipAddress}:{printer.port}
+              {printer.isActive ? "" : " · отключён"}
+            </option>
+          ))}
+        </select>
+        <FormFieldError message={errors.receiptPrinterId?.message} />
       </label>
       {canEdit ? (
         <div className="category-printer-route-actions">
@@ -83,16 +95,19 @@ function CategoryReceiptRouteRow({
             data-testid={`category-printer-save-${category.id}`}
             disabled={!isDirty || isPending}
           >
-            {isPending ? "Сохраняем…" : "Сохранить IP"}
+            {isPending ? "Сохраняем…" : "Сохранить аппарат"}
           </button>
           <button
             className="text-button compact"
             data-testid={`category-printer-clear-${category.id}`}
-            disabled={!category.receiptPrinterIp || isPending}
+            disabled={
+              (!category.receiptPrinterId && !category.receiptPrinterIp) ||
+              isPending
+            }
             type="button"
             onClick={() => void onClear(category)}
           >
-            Очистить IP
+            Убрать аппарат
           </button>
           <button
             className="text-button compact"
@@ -124,6 +139,7 @@ function CategoryReceiptRouteRow({
 
 export function CategoryReceiptRoutes({
   categories,
+  printers,
   canEdit,
   isPending,
   isLoading,
@@ -134,6 +150,7 @@ export function CategoryReceiptRoutes({
   onToggleActive,
 }: {
   categories: Category[];
+  printers: ReceiptPrinter[];
   canEdit: boolean;
   isPending: boolean;
   isLoading: boolean;
@@ -158,9 +175,8 @@ export function CategoryReceiptRoutes({
           <h2 id="category-printer-routes-title">Категории и X-принтеры</h2>
         </div>
         <p>
-          Здесь можно сразу скрыть всю категорию или назначить ей стандартный
-          принтер. Блюдо с собственным IP печатается только на своём аппарате и
-          не дублируется на принтер категории.
+          Назначьте категории стандартный аппарат. Если блюду назначен свой, он
+          имеет приоритет и копия на аппарат категории не дублируется.
         </p>
       </header>
 
@@ -174,6 +190,7 @@ export function CategoryReceiptRoutes({
             <CategoryReceiptRouteRow
               key={category.id}
               category={category}
+              printers={printers}
               canEdit={canEdit}
               isPending={isPending}
               onSave={onSave}
@@ -186,16 +203,19 @@ export function CategoryReceiptRoutes({
       ) : (
         <div className="category-printer-routes-state">
           <span>Категории не загрузились или ещё не созданы.</span>
-          <button className="text-button compact" type="button" onClick={onRetry}>
+          <button
+            className="text-button compact"
+            type="button"
+            onClick={onRetry}
+          >
             Повторить
           </button>
         </div>
       )}
 
       <small className="category-printer-routes-note">
-        Допустимы только адреса локальной сети: 10.x.x.x, 172.16–31.x.x или
-        192.168.x.x. Пустое поле отключает категорийный маршрут для блюд без
-        собственного IP.
+        Аппараты добавляются в реестре выше. Пустой выбор отключает маршрут
+        категории для блюд без собственного аппарата.
       </small>
     </section>
   );

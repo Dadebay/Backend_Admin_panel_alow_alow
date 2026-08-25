@@ -95,7 +95,7 @@ function deliveryDetails(order: Order) {
 export function OrderBoard({
   fixedStatus,
   title = "Заказы",
-  description = "Три рабочие очереди, сегодняшние заказы и обновление каждые 30 секунд",
+  description = "Две рабочие очереди, сегодняшние заказы и обновление каждые 30 секунд",
   defaultView = "kanban",
 }: {
   fixedStatus?: OrderStatus;
@@ -207,13 +207,20 @@ export function OrderBoard({
     (order: Order) => {
       const reason = window.prompt("Причина отмены заказа");
       if (!reason?.trim()) return;
-      actions.cancel.mutate({
-        orderId: order.id,
-        reason: reason.trim(),
-        version: order.version,
-      });
+      actions.cancel.mutate(
+        {
+          orderId: order.id,
+          reason: reason.trim(),
+          version: order.version,
+        },
+        {
+          onSuccess: (cancelledOrder) => {
+            receiptPrinting.mutate(cancelledOrder.id);
+          },
+        },
+      );
     },
-    [actions.cancel],
+    [actions.cancel, receiptPrinting],
   );
 
   const columns = useMemo<ColumnDef<Order, unknown>[]>(
@@ -474,18 +481,17 @@ export function OrderBoard({
                   {statusLabels[next]}
                 </button>
               )}
-              {["OPERATOR", "ADMIN", "SUPER_ADMIN"].includes(role) &&
-                !["NEW", "CANCELLED"].includes(order.status) && (
-                  <button
-                    type="button"
-                    className="secondary-button compact"
-                    data-testid={`order-table-print-${order.id}`}
-                    disabled={receiptPrinting.isPending}
-                    onClick={() => receiptPrinting.mutate(order.id)}
-                  >
-                    Печать
-                  </button>
-                )}
+              {["OPERATOR", "ADMIN", "SUPER_ADMIN"].includes(role) && (
+                <button
+                  type="button"
+                  className="secondary-button compact"
+                  data-testid={`order-table-print-${order.id}`}
+                  disabled={receiptPrinting.isPending}
+                  onClick={() => receiptPrinting.mutate(order.id)}
+                >
+                  Печать
+                </button>
+              )}
               {canCancel(role, order.status) && (
                 <button
                   type="button"

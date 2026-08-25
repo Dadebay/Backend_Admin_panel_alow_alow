@@ -22,7 +22,7 @@ export const categoryFormSchema = z.object({
     .min(1, "Укажите название категории")
     .max(100, "Не больше 100 символов"),
   slug: slugSchema.max(120, "Не больше 120 символов"),
-  receiptPrinterIp: receiptPrinterIpSchema,
+  receiptPrinterId: z.union([z.literal(""), z.uuid("Выберите аппарат")]),
   sortOrder: z.number({ error: "Укажите порядок" }).int("Введите целое число"),
   isActive: z.boolean(),
   image: z.unknown().optional(),
@@ -47,11 +47,30 @@ const productVariantSchema = z.object({
 });
 
 export const receiptPrintSettingsFormSchema = z.object({
-  mainPrinterIp: receiptPrinterIpSchema,
+  mainPrinterId: z.union([z.literal(""), z.uuid("Выберите аппарат")]),
 });
 
 export const categoryReceiptRouteFormSchema = z.object({
-  receiptPrinterIp: receiptPrinterIpSchema,
+  receiptPrinterId: z.union([z.literal(""), z.uuid("Выберите аппарат")]),
+});
+
+export const receiptPrinterFormSchema = z.object({
+  name: z
+    .string()
+    .trim()
+    .min(1, "Укажите название аппарата")
+    .max(100, "Не больше 100 символов"),
+  ipAddress: receiptPrinterIpSchema.refine(
+    (value) => value !== "",
+    "Укажите IP-адрес аппарата",
+  ),
+  port: z
+    .number({ error: "Укажите порт" })
+    .int("Введите целое число")
+    .min(1, "Порт должен быть от 1 до 65535")
+    .max(65535, "Порт должен быть от 1 до 65535"),
+  transport: z.enum(["RAW_TCP", "JSPEED_HTTP"]),
+  isActive: z.boolean(),
 });
 
 export const productFormSchema = z
@@ -72,7 +91,7 @@ export const productFormSchema = z
       .number({ error: "Укажите цену" })
       .min(0, "Цена не может быть отрицательной")
       .multipleOf(0.01, "Не больше двух знаков после запятой"),
-    receiptPrinterIp: receiptPrinterIpSchema,
+    receiptPrinterId: z.union([z.literal(""), z.uuid("Выберите аппарат")]),
     variantLabel: z.string().trim().max(80, "Не больше 80 символов"),
     variants: z.array(productVariantSchema).max(30, "Не больше 30 вариантов"),
     sortOrder: z
@@ -108,6 +127,7 @@ export type ReceiptPrintSettingsFormValues = z.infer<
 export type CategoryReceiptRouteFormValues = z.infer<
   typeof categoryReceiptRouteFormSchema
 >;
+export type ReceiptPrinterFormValues = z.infer<typeof receiptPrinterFormSchema>;
 
 export function slugify(value: string) {
   return value

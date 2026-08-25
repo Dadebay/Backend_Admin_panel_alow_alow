@@ -1,8 +1,20 @@
+import {
+  OrderStatus,
+  ReceiptPrinterTransport,
+} from "../generated/prisma/client";
+
+export enum ReceiptDocumentType {
+  ORDER = "ORDER",
+  CANCELLATION = "CANCELLATION",
+}
+
 type ReceiptPrintSourceItem = {
   id: string;
   productName: string;
   variantName: string | null;
   receiptPrinterIp: string | null;
+  receiptPrinterPort: number | null;
+  receiptPrinterTransport: ReceiptPrinterTransport | null;
   unitPrice: unknown;
   quantity: number;
 };
@@ -10,6 +22,8 @@ type ReceiptPrintSourceItem = {
 type ReceiptPrintSourceOrder = {
   id: string;
   number: number;
+  status: OrderStatus;
+  cancellationReason: string | null;
   subtotal: unknown;
   discount: unknown;
   deliveryFee: unknown;
@@ -27,8 +41,12 @@ export type ReceiptPrintItem = {
 
 export type ReceiptPrinterJob = {
   printerIp: string;
+  printerPort: number;
+  transport: ReceiptPrinterTransport;
   items: ReceiptPrintItem[];
 };
+
+export type ReceiptPrinterEndpoint = Omit<ReceiptPrinterJob, "items">;
 
 function toPrintItem(item: ReceiptPrintSourceItem): ReceiptPrintItem {
   return {
@@ -43,9 +61,12 @@ function toPrintItem(item: ReceiptPrintSourceItem): ReceiptPrintItem {
 
 export function buildReceiptPrintPlan(
   order: ReceiptPrintSourceOrder,
-  mainPrinterIp: string | null,
+  mainPrinter: ReceiptPrinterEndpoint | null,
 ) {
-  const jobsByIp = new Map<string, ReceiptPrintItem[]>();
+  const jobsByEndpoint = new Map<
+    string,
+    { endpoint: ReceiptPrinterEndpoint; items: ReceiptPrintItem[] }
+  >();
   const unassignedItems: ReceiptPrintItem[] = [];
   const allItems: ReceiptPrintItem[] = [];
 
@@ -56,14 +77,30 @@ export function buildReceiptPrintPlan(
       unassignedItems.push(item);
       continue;
     }
-    const items = jobsByIp.get(sourceItem.receiptPrinterIp) ?? [];
-    items.push(item);
-    jobsByIp.set(sourceItem.receiptPrinterIp, items);
+    const endpoint = {
+      printerIp: sourceItem.receiptPrinterIp,
+      printerPort: sourceItem.receiptPrinterPort ?? 80,
+      transport:
+        sourceItem.receiptPrinterTransport ??
+        ReceiptPrinterTransport.JSPEED_HTTP,
+    };
+    const key = `${endpoint.transport}:${endpoint.printerIp}:${endpoint.printerPort}`;
+    const job = jobsByEndpoint.get(key) ?? { endpoint, items: [] };
+    job.items.push(item);
+    jobsByEndpoint.set(key, job);
   }
 
   return {
     orderId: order.id,
     orderNumber: order.number,
+    documentType:
+      order.status === OrderStatus.CANCELLED
+        ? ReceiptDocumentType.CANCELLATION
+        : ReceiptDocumentType.ORDER,
+    cancellationReason:
+      order.status === OrderStatus.CANCELLED
+        ? order.cancellationReason?.trim() || null
+        : null,
     summary: {
       subtotal: Number(order.subtotal),
       discount: Number(order.discount),
@@ -71,12 +108,10 @@ export function buildReceiptPrintPlan(
       total: Number(order.total),
       deliveryAreaName: order.deliveryEtrapName,
     },
-    mainJob: mainPrinterIp
-      ? { printerIp: mainPrinterIp, items: allItems }
-      : null,
-    jobs: [...jobsByIp.entries()]
+    mainJob: mainPrinter ? { ...mainPrinter, items: allItems } : null,
+    jobs: [...jobsByEndpoint.entries()]
       .sort(([left], [right]) => left.localeCompare(right))
-      .map(([printerIp, items]) => ({ printerIp, items })),
+      .map(([, { endpoint, items }]) => ({ ...endpoint, items })),
     unassignedItems,
   };
 }

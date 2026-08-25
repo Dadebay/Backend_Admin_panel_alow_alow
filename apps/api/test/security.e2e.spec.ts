@@ -55,6 +55,7 @@ type OrderResponse = {
   source: OrderSource;
   version: number;
   packingConfirmedAt: string | null;
+  completedAt: string | null;
   courierId?: string | null;
   address: string;
   branchId: string | null;
@@ -108,9 +109,16 @@ type CatalogProductResponse = {
   }>;
 };
 
+type PublicCatalogCategoryResponse = {
+  id: string;
+  products: Array<Record<string, unknown>>;
+};
+
 type ReceiptPrintPlanResponse = {
   orderId: string;
   orderNumber: number;
+  documentType: "ORDER" | "CANCELLATION";
+  cancellationReason: string | null;
   summary: {
     subtotal: number;
     discount: number;
@@ -120,6 +128,8 @@ type ReceiptPrintPlanResponse = {
   };
   jobs: Array<{
     printerIp: string;
+    printerPort: number;
+    transport: "RAW_TCP" | "JSPEED_HTTP";
     items: Array<{
       id: string;
       name: string;
@@ -129,6 +139,8 @@ type ReceiptPrintPlanResponse = {
   }>;
   mainJob: {
     printerIp: string;
+    printerPort: number;
+    transport: "RAW_TCP" | "JSPEED_HTTP";
     items: Array<{
       id: string;
       name: string;
@@ -142,6 +154,15 @@ type ReceiptPrintPlanResponse = {
     quantity: number;
     unitPrice: number;
   }>;
+};
+
+type ReceiptPrinterResponse = {
+  id: string;
+  name: string;
+  ipAddress: string;
+  port: number;
+  transport: "RAW_TCP" | "JSPEED_HTTP";
+  isActive: boolean;
 };
 
 type BranchResponse = {
@@ -807,11 +828,8 @@ describe("backend security and critical workflow", () => {
     const bannerId = (created.body as { id: string }).id;
     expect(
       (
-        (
-          await request(server)
-            .get("/api/v1/marketing/banners")
-            .expect(200)
-        ).body as Array<{ id: string }>
+        (await request(server).get("/api/v1/marketing/banners").expect(200))
+          .body as Array<{ id: string }>
       ).some(({ id }) => id === bannerId),
     ).toBe(true);
 
@@ -824,9 +842,7 @@ describe("backend security and critical workflow", () => {
       .set(bearer(tokens.customer))
       .expect(403);
     await request(server)
-      .delete(
-        "/api/v1/marketing/banners/00000000-0000-4000-8000-000000009999",
-      )
+      .delete("/api/v1/marketing/banners/00000000-0000-4000-8000-000000009999")
       .set(bearer(tokens.admin))
       .expect(404);
 
@@ -1517,9 +1533,8 @@ describe("backend security and critical workflow", () => {
         price: 24,
       })
       .expect(201);
-    const protectedProductId = (
-      protectedProductResponse.body as { id: string }
-    ).id;
+    const protectedProductId = (protectedProductResponse.body as { id: string })
+      .id;
     await request(server)
       .post("/api/v1/orders")
       .set(bearer(tokens.customer))
@@ -1646,12 +1661,190 @@ describe("backend security and critical workflow", () => {
       .expect(400);
   });
 
-  it("builds an authorized accepted-order print plan grouped by snapshot IP", async () => {
+  it("manages printer endpoints and assigns category defaults with product overrides", async () => {
+    await request(server)
+      .get("/api/v1/catalog/admin/receipt-printers")
+      .expect(401);
+    await request(server)
+      .post("/api/v1/catalog/receipt-printers")
+      .set(bearer(tokens.operator))
+      .send({
+        name: "Forbidden printer",
+        ipAddress: "192.168.123.210",
+        port: 9100,
+        transport: "RAW_TCP",
+      })
+      .expect(403);
+    await request(server)
+      .post("/api/v1/catalog/receipt-printers")
+      .set(bearer(tokens.admin))
+      .send({
+        name: "Public IP is forbidden",
+        ipAddress: "8.8.8.8",
+        port: 9100,
+        transport: "RAW_TCP",
+      })
+      .expect(400);
+
+    const categoryPrinter = (
+      await request(server)
+        .post("/api/v1/catalog/receipt-printers")
+        .set(bearer(tokens.admin))
+        .send({
+          name: "Soups kitchen",
+          ipAddress: "192.168.123.210",
+          port: 9100,
+          transport: "RAW_TCP",
+        })
+        .expect(201)
+    ).body as ReceiptPrinterResponse;
+    const productPrinter = (
+      await request(server)
+        .post("/api/v1/catalog/receipt-printers")
+        .set(bearer(tokens.admin))
+        .send({
+          name: "Pizza kitchen",
+          ipAddress: "192.168.123.211",
+          port: 80,
+          transport: "JSPEED_HTTP",
+        })
+        .expect(201)
+    ).body as ReceiptPrinterResponse;
+
+    await request(server)
+      .post("/api/v1/catalog/receipt-printers")
+      .set(bearer(tokens.admin))
+      .send({
+        name: "Duplicate endpoint",
+        ipAddress: categoryPrinter.ipAddress,
+        port: categoryPrinter.port,
+        transport: "RAW_TCP",
+      })
+      .expect(409);
+    const list = await request(server)
+      .get("/api/v1/catalog/admin/receipt-printers")
+      .set(bearer(tokens.operator))
+      .expect(200);
+    expect(list.body).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: categoryPrinter.id }),
+        expect.objectContaining({ id: productPrinter.id }),
+      ]),
+    );
+
+    const category = (
+      await request(server)
+        .post("/api/v1/catalog/categories")
+        .set(bearer(tokens.admin))
+        .send({
+          name: "Registered route category",
+          slug: "registered-route-category",
+          receiptPrinterId: categoryPrinter.id,
+        })
+        .expect(201)
+    ).body as { id: string };
+    const product = (
+      await request(server)
+        .post("/api/v1/catalog/products")
+        .set(bearer(tokens.admin))
+        .send({
+          categoryId: category.id,
+          name: "Registered route meal",
+          slug: "registered-route-meal",
+          description: "Product printer overrides category printer",
+          price: 25,
+          receiptPrinterId: productPrinter.id,
+        })
+        .expect(201)
+    ).body as CatalogProductResponse & {
+      receiptPrinterId: string | null;
+      effectiveReceiptPrinterId: string | null;
+      effectiveReceiptPrinterIp: string | null;
+    };
+    expect(product).toMatchObject({
+      receiptPrinterId: productPrinter.id,
+      effectiveReceiptPrinterId: productPrinter.id,
+      effectiveReceiptPrinterIp: productPrinter.ipAddress,
+    });
+
+    await request(server)
+      .delete(`/api/v1/catalog/receipt-printers/${productPrinter.id}`)
+      .set(bearer(tokens.admin))
+      .expect(409);
+    await request(server)
+      .patch(`/api/v1/catalog/receipt-printers/${productPrinter.id}`)
+      .set(bearer(tokens.admin))
+      .send({ isActive: false })
+      .expect(200);
+    await request(server)
+      .patch(`/api/v1/catalog/categories/${category.id}`)
+      .set(bearer(tokens.admin))
+      .send({ receiptPrinterId: productPrinter.id })
+      .expect(400);
+    await request(server)
+      .patch(`/api/v1/catalog/receipt-printers/${productPrinter.id}`)
+      .set(bearer(tokens.admin))
+      .send({ isActive: true })
+      .expect(200);
+
+    const publicCategories = (
+      await request(server).get("/api/v1/catalog/categories").expect(200)
+    ).body as PublicCatalogCategoryResponse[];
+    const publicCategory = publicCategories.find(
+      ({ id }) => id === category.id,
+    );
+    expect(publicCategory).toBeDefined();
+    if (!publicCategory) throw new Error("Public category was not returned");
+    expect(publicCategory).not.toHaveProperty("receiptPrinterId");
+    expect(publicCategory).not.toHaveProperty("receiptPrinterIp");
+    expect(publicCategory.products[0]).not.toHaveProperty("receiptPrinter");
+
+    await request(server)
+      .delete(`/api/v1/catalog/categories/${category.id}`)
+      .set(bearer(tokens.admin))
+      .expect(204);
+    await request(server)
+      .delete(`/api/v1/catalog/receipt-printers/${categoryPrinter.id}`)
+      .set(bearer(tokens.admin))
+      .expect(204);
+    await request(server)
+      .delete(`/api/v1/catalog/receipt-printers/${productPrinter.id}`)
+      .set(bearer(tokens.admin))
+      .expect(204);
+  });
+
+  it("builds an authorized accepted-order print plan grouped by snapshot endpoint", async () => {
+    const [categoryPrinter, productPrinter, mainPrinter] = await Promise.all([
+      prisma.receiptPrinter.create({
+        data: {
+          name: "Receipt category kitchen",
+          ipAddress: "192.168.123.100",
+          port: 9100,
+          transport: "RAW_TCP",
+        },
+      }),
+      prisma.receiptPrinter.create({
+        data: {
+          name: "Receipt product kitchen",
+          ipAddress: "192.168.123.101",
+          port: 9100,
+          transport: "RAW_TCP",
+        },
+      }),
+      prisma.receiptPrinter.create({
+        data: {
+          name: "Receipt administrator",
+          ipAddress: "192.168.123.99",
+          port: 9100,
+          transport: "RAW_TCP",
+        },
+      }),
+    ]);
     const category = await prisma.category.create({
       data: {
         name: "Receipt routing category",
         slug: "receipt-routing-category",
-        receiptPrinterIp: "192.168.123.100",
+        receiptPrinterId: categoryPrinter.id,
       },
     });
     const unassignedCategory = await prisma.category.create({
@@ -1677,7 +1870,7 @@ describe("backend security and critical workflow", () => {
           slug: "printer-two-meal",
           description: "Routes to the second kitchen printer",
           price: 40,
-          receiptPrinterIp: "192.168.123.101",
+          receiptPrinterId: productPrinter.id,
         },
       }),
       prisma.product.create({
@@ -1705,7 +1898,12 @@ describe("backend security and critical workflow", () => {
       })
       .expect(201);
     const order = created.body as OrderResponse;
-    expect(order.status).toBe(OrderStatus.SENT_TO_KITCHEN);
+    expect(order.status).toBe(OrderStatus.COOKING);
+
+    await prisma.receiptPrinter.update({
+      where: { id: productPrinter.id },
+      data: { ipAddress: "192.168.123.102", port: 9200 },
+    });
 
     await request(server)
       .patch("/api/v1/catalog/receipt-print-settings")
@@ -1720,13 +1918,14 @@ describe("backend security and critical workflow", () => {
     await request(server)
       .patch("/api/v1/catalog/receipt-print-settings")
       .set(bearer(tokens.admin))
-      .send({ mainPrinterIp: "192.168.123.99" })
+      .send({ mainPrinterId: mainPrinter.id })
       .expect(200);
     const settingsResponse = await request(server)
       .get("/api/v1/catalog/admin/receipt-print-settings")
       .set(bearer(tokens.operator))
       .expect(200);
     expect(settingsResponse.body).toMatchObject({
+      mainPrinterId: mainPrinter.id,
       mainPrinterIp: "192.168.123.99",
     });
 
@@ -1746,6 +1945,8 @@ describe("backend security and critical workflow", () => {
     const plan = response.body as ReceiptPrintPlanResponse;
 
     expect(plan.orderId).toBe(order.id);
+    expect(plan.documentType).toBe("ORDER");
+    expect(plan.cancellationReason).toBeNull();
     expect(plan.summary).toEqual({
       subtotal: 135,
       discount: 0,
@@ -1754,6 +1955,10 @@ describe("backend security and critical workflow", () => {
       deliveryAreaName: null,
     });
     expect(plan.mainJob?.printerIp).toBe("192.168.123.99");
+    expect(plan.mainJob).toMatchObject({
+      printerPort: 9100,
+      transport: "RAW_TCP",
+    });
     expect(plan.mainJob?.items).toHaveLength(3);
     expect(
       plan.mainJob?.items
@@ -1767,6 +1972,8 @@ describe("backend security and critical workflow", () => {
     expect(plan.jobs).toEqual([
       {
         printerIp: "192.168.123.100",
+        printerPort: 9100,
+        transport: "RAW_TCP",
         items: [
           expect.objectContaining({
             name: "Printer one meal",
@@ -1777,6 +1984,8 @@ describe("backend security and critical workflow", () => {
       },
       {
         printerIp: "192.168.123.101",
+        printerPort: 9100,
+        transport: "RAW_TCP",
         items: [
           expect.objectContaining({
             name: "Printer two meal",
@@ -1802,6 +2011,22 @@ describe("backend security and critical workflow", () => {
       }),
     ).toBe(1);
     expect(response.text).not.toContain("customerId");
+
+    await request(server)
+      .patch(`/api/v1/orders/${order.id}/cancel`)
+      .set(bearer(tokens.admin))
+      .send({ reason: "Customer cancelled", version: order.version })
+      .expect(200);
+    const cancellationResponse = await request(server)
+      .get(`/api/v1/orders/${order.id}/receipt-print-plan`)
+      .set(bearer(tokens.superAdmin))
+      .expect(200);
+    const cancellationPlan =
+      cancellationResponse.body as ReceiptPrintPlanResponse;
+    expect(cancellationPlan.documentType).toBe("CANCELLATION");
+    expect(cancellationPlan.cancellationReason).toBe("Customer cancelled");
+    expect(cancellationPlan.mainJob?.items).toHaveLength(3);
+    expect(cancellationPlan.jobs).toHaveLength(2);
   });
 
   it("allows only administrators to manage branches", async () => {
@@ -2201,11 +2426,11 @@ describe("backend security and critical workflow", () => {
     });
     await prisma.order.update({
       where: { id: hiddenOrder.id },
-      data: { status: OrderStatus.NEW },
+      data: { status: OrderStatus.DELIVERED },
     });
 
     const queue = await request(server)
-      .get("/api/v1/orders?statuses=SENT_TO_KITCHEN,COOKING,READY&limit=100")
+      .get("/api/v1/orders?statuses=COOKING,READY&limit=100")
       .set(bearer(tokens.cook))
       .expect(200);
     const queueItems = (queue.body as { items: OrderResponse[] }).items;
@@ -2213,11 +2438,7 @@ describe("backend security and critical workflow", () => {
     expect(queueItems.map(({ id }) => id)).not.toContain(hiddenOrder.id);
     expect(
       queueItems.every(({ status }) =>
-        [
-          OrderStatus.SENT_TO_KITCHEN,
-          OrderStatus.COOKING,
-          OrderStatus.READY,
-        ].includes(status),
+        [OrderStatus.COOKING, OrderStatus.READY].includes(status),
       ),
     ).toBe(true);
 
@@ -2242,7 +2463,7 @@ describe("backend security and critical workflow", () => {
     ).not.toContain(hiddenOrder.id);
 
     await request(server)
-      .get("/api/v1/orders?statuses=NEW,NOT_A_STATUS")
+      .get("/api/v1/orders?statuses=COOKING,NOT_A_STATUS")
       .set(bearer(tokens.operator))
       .expect(400);
 
@@ -2293,6 +2514,8 @@ describe("backend security and critical workflow", () => {
       latitude: 37.95021,
       longitude: 58.38021,
       entrance: "2",
+      floor: "4",
+      apartment: "18",
       customerNote: "Позвонить перед доставкой",
     };
 
@@ -2323,10 +2546,13 @@ describe("backend security and critical workflow", () => {
     };
     expect(created).toMatchObject({
       source: OrderSource.STAFF_PHONE,
-      status: OrderStatus.SENT_TO_KITCHEN,
+      status: OrderStatus.COOKING,
       branchId: nearestBranchId,
       branchName: nearestBranchName,
       address: body.address,
+      entrance: body.entrance,
+      floor: body.floor,
+      apartment: body.apartment,
       customer: {
         phone: callerPhone,
         firstName: "Phone",
@@ -2345,6 +2571,9 @@ describe("backend security and critical workflow", () => {
           id: created.addressId,
           isActive: true,
           address: body.address,
+          entrance: body.entrance,
+          floor: body.floor,
+          apartment: body.apartment,
         }),
       ]),
     );
@@ -2447,7 +2676,7 @@ describe("backend security and critical workflow", () => {
         .send({ status: OrderStatus.READY, version: order.version }),
       request(server)
         .patch(`/api/v1/orders/${order.id}/cancel`)
-        .set(bearer(tokens.operator))
+        .set(bearer(tokens.admin))
         .send({ reason: "Kitchen stopped the order", version: order.version }),
     ]);
     expect(outcomes.filter(({ status }) => status === 200)).toHaveLength(1);
@@ -2464,7 +2693,6 @@ describe("backend security and critical workflow", () => {
 
   it("reassigns a courier only before delivery starts with audit and locking", async () => {
     let order = await createOrder(tokens.customer, {});
-    order = await transition(tokens.cook, order, OrderStatus.COOKING);
     order = await transition(tokens.cook, order, OrderStatus.READY);
     order = await confirmPacking(tokens.admin, order);
 
@@ -2524,7 +2752,6 @@ describe("backend security and critical workflow", () => {
 
   it("lets only administrators edit order contents before pickup and recalculates totals", async () => {
     let order = await createOrder(tokens.customer, { deliveryEtrapId: 25 });
-    order = await transition(tokens.cook, order, OrderStatus.COOKING);
     order = await transition(tokens.cook, order, OrderStatus.READY);
     order = await confirmPacking(tokens.admin, order);
     const assigned = await request(server)
@@ -2562,7 +2789,7 @@ describe("backend security and critical workflow", () => {
       .expect(200);
     const edited = editedResponse.body as OrderResponse;
     expect(edited).toMatchObject({
-      status: OrderStatus.SENT_TO_KITCHEN,
+      status: OrderStatus.COOKING,
       cookId: null,
       courierId: null,
       packingConfirmedAt: null,
@@ -2595,10 +2822,11 @@ describe("backend security and critical workflow", () => {
     await request(server)
       .patch(`/api/v1/orders/${order.id}/transition`)
       .set(bearer(tokens.customer))
-      .send({ status: OrderStatus.CONFIRMED, version: order.version })
+      .send({ status: OrderStatus.READY, version: order.version })
       .expect(403);
 
-    order = await transition(tokens.cook, order, OrderStatus.COOKING);
+    order = await transition(tokens.cook, order, OrderStatus.READY);
+    order = await transition(tokens.admin, order, OrderStatus.COOKING);
 
     await request(server)
       .patch(`/api/v1/orders/${order.id}/transition`)
@@ -2667,9 +2895,8 @@ describe("backend security and critical workflow", () => {
       .expect(409);
 
     order = await transition(tokens.courier, order, OrderStatus.CASH_RETURNED);
-    expect(order.cashSettlement?.status).toBe("RECORDED");
-    order = await transition(tokens.operator, order, OrderStatus.COMPLETED);
     expect(order.cashSettlement?.status).toBe("CONFIRMED");
+    expect(order.completedAt).toBeTruthy();
     order = await transition(tokens.accountant, order, OrderStatus.RECONCILED);
     expect(order.cashSettlement?.status).toBe("RECONCILED");
 
@@ -2683,18 +2910,18 @@ describe("backend security and critical workflow", () => {
       comment: "Delivered safely",
     });
     expect(history.transitions?.map(({ toStatus }) => toStatus)).toEqual([
+      OrderStatus.READY,
       OrderStatus.COOKING,
       OrderStatus.READY,
       OrderStatus.ASSIGNED_TO_COURIER,
       OrderStatus.OUT_FOR_DELIVERY,
       OrderStatus.DELIVERED,
       OrderStatus.CASH_RETURNED,
-      OrderStatus.COMPLETED,
       OrderStatus.RECONCILED,
     ]);
   });
 
-  it("keeps operators early-only while administrators may cancel active unsettled orders", async () => {
+  it("allows only administrators to cancel active unsettled orders", async () => {
     for (const role of ["operator", "admin", "superAdmin"] as const) {
       const order = await createOrder(tokens.customer, {});
 
@@ -2711,51 +2938,49 @@ describe("backend security and critical workflow", () => {
         .patch(`/api/v1/orders/${order.id}/cancel`)
         .set(bearer(tokens[role]))
         .send({ reason: `Cancelled by ${role}`, version: order.version })
-        .expect(200);
+        .expect(role === "operator" ? 403 : 200);
     }
-
-    let operatorCooking = await createOrder(tokens.customer, {});
-    operatorCooking = await transition(
+    let rollbackOrder = await createOrder(tokens.customer, {});
+    rollbackOrder = await transition(
       tokens.cook,
-      operatorCooking,
-      OrderStatus.COOKING,
+      rollbackOrder,
+      OrderStatus.READY,
     );
     await request(server)
-      .patch(`/api/v1/orders/${operatorCooking.id}/cancel`)
+      .patch(`/api/v1/orders/${rollbackOrder.id}/cancel`)
       .set(bearer(tokens.operator))
       .send({
         reason: "Operator cannot undo cooking",
-        version: operatorCooking.version,
+        version: rollbackOrder.version,
       })
       .expect(403);
 
     await request(server)
-      .patch(`/api/v1/orders/${operatorCooking.id}/transition`)
+      .patch(`/api/v1/orders/${rollbackOrder.id}/transition`)
       .set(bearer(tokens.operator))
       .send({
-        status: OrderStatus.SENT_TO_KITCHEN,
+        status: OrderStatus.COOKING,
         note: "Operator cannot roll back",
-        version: operatorCooking.version,
+        version: rollbackOrder.version,
       })
       .expect(403);
     const rolledBack = await request(server)
-      .patch(`/api/v1/orders/${operatorCooking.id}/transition`)
+      .patch(`/api/v1/orders/${rollbackOrder.id}/transition`)
       .set(bearer(tokens.admin))
       .send({
-        status: OrderStatus.SENT_TO_KITCHEN,
+        status: OrderStatus.COOKING,
         note: "Administrator corrected the kitchen stage",
-        version: operatorCooking.version,
+        version: rollbackOrder.version,
       })
       .expect(200);
     expect(rolledBack.body).toMatchObject({
-      status: OrderStatus.SENT_TO_KITCHEN,
-      cookId: null,
-      version: operatorCooking.version + 1,
+      status: OrderStatus.COOKING,
+      cookId: users.cook.id,
+      version: rollbackOrder.version + 1,
     });
 
     for (const role of ["admin", "superAdmin"] as const) {
-      let cooking = await createOrder(tokens.customer, {});
-      cooking = await transition(tokens.cook, cooking, OrderStatus.COOKING);
+      const cooking = await createOrder(tokens.customer, {});
       await request(server)
         .patch(`/api/v1/orders/${cooking.id}/cancel`)
         .set(bearer(tokens[role]))
@@ -2832,7 +3057,6 @@ describe("backend security and critical workflow", () => {
     const assignedOrders: OrderResponse[] = [];
     for (let index = 0; index < 2; index += 1) {
       let order = await createOrder(tokens.customer, {});
-      order = await transition(tokens.cook, order, OrderStatus.COOKING);
       order = await transition(tokens.cook, order, OrderStatus.READY);
       order = await confirmPacking(tokens.admin, order);
       const assigned = await request(server)

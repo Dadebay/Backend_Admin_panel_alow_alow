@@ -72,9 +72,6 @@ let order = await api("/orders", {
   },
 });
 
-order = await transition(order.id, order.version, "CONFIRMED", operator.accessToken);
-order = await transition(order.id, order.version, "SENT_TO_KITCHEN", operator.accessToken);
-order = await transition(order.id, order.version, "COOKING", cook.accessToken);
 order = await transition(order.id, order.version, "READY", cook.accessToken);
 order = await api(`/orders/${order.id}/assign-courier`, {
   method: "PATCH",

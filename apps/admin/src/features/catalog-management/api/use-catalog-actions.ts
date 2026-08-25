@@ -4,11 +4,14 @@ import {
   type Category,
   type CreateCategory,
   type CreateProduct,
+  type CreateReceiptPrinter,
   type MediaUpload,
   type Product,
+  type ReceiptPrinter,
   type ReceiptPrintSettings,
   type UpdateCategory,
   type UpdateProduct,
+  type UpdateReceiptPrinter,
   type UpdateReceiptPrintSettings,
 } from "@/src/entities/catalog";
 import { useSession } from "@/src/shared/auth";
@@ -68,6 +71,29 @@ export function useCatalogActions() {
       ),
     onSuccess: refresh,
   });
+  const createReceiptPrinter = useMutation({
+    mutationFn: (body: CreateReceiptPrinter) =>
+      authorizedRequest<ReceiptPrinter>("/catalog/receipt-printers", {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    onSuccess: refresh,
+  });
+  const updateReceiptPrinter = useMutation({
+    mutationFn: ({ id, body }: { id: string; body: UpdateReceiptPrinter }) =>
+      authorizedRequest<ReceiptPrinter>(`/catalog/receipt-printers/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(body),
+      }),
+    onSuccess: refresh,
+  });
+  const deleteReceiptPrinter = useMutation({
+    mutationFn: (id: string) =>
+      authorizedRequest<void>(`/catalog/receipt-printers/${id}`, {
+        method: "DELETE",
+      }),
+    onSuccess: refresh,
+  });
   const createProduct = useMutation({
     mutationFn: (body: CreateProduct) =>
       authorizedRequest<Product>("/catalog/products", {
@@ -98,6 +124,9 @@ export function useCatalogActions() {
     updateCategory,
     deleteCategory,
     updateReceiptPrintSettings,
+    createReceiptPrinter,
+    updateReceiptPrinter,
+    deleteReceiptPrinter,
     createProduct,
     updateProduct,
     deleteProduct,

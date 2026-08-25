@@ -32,34 +32,25 @@ test("frontend order labels cover every generated workflow status", () => {
 });
 
 test("frontend role hints match the backend-owned workflow", () => {
-  assert.equal(nextOrderStatus("OPERATOR", "NEW"), "CONFIRMED");
-  assert.equal(nextOrderStatus("OPERATOR", "CONFIRMED"), "SENT_TO_KITCHEN");
-  assert.equal(nextOrderStatus("COOK", "SENT_TO_KITCHEN"), "READY");
-  assert.equal(nextOrderStatus("ADMIN", "SENT_TO_KITCHEN"), "READY");
   assert.equal(nextOrderStatus("COOK", "COOKING"), "READY");
+  assert.equal(nextOrderStatus("ADMIN", "COOKING"), "READY");
   assert.equal(
     nextOrderStatus("COURIER", "ASSIGNED_TO_COURIER"),
     "OUT_FOR_DELIVERY",
   );
-  assert.equal(nextOrderStatus("ACCOUNTANT", "COMPLETED"), "RECONCILED");
+  assert.equal(nextOrderStatus("ACCOUNTANT", "CASH_RETURNED"), "RECONCILED");
   assert.equal(nextOrderStatus("OPERATOR", "COOKING"), undefined);
 });
 
-test("frontend keeps operators early-only and gives administrators audited corrections", () => {
-  assert.equal(canCancel("OPERATOR", "SENT_TO_KITCHEN"), true);
-  assert.equal(canCancel("ADMIN", "CONFIRMED"), true);
-  assert.equal(canCancel("SUPER_ADMIN", "NEW"), true);
+test("frontend keeps cancellation deny-by-default and gives administrators corrections", () => {
   assert.equal(canCancel("OPERATOR", "COOKING"), false);
   assert.equal(canCancel("ADMIN", "COOKING"), true);
   assert.equal(canCancel("ADMIN", "DELIVERED"), true);
   assert.equal(canCancel("ADMIN", "CASH_RETURNED"), false);
-  assert.equal(canCancel("COOK", "NEW"), false);
+  assert.equal(canCancel("COOK", "COOKING"), false);
   assert.equal(previousOrderStatus("OPERATOR", "COOKING"), undefined);
-  assert.equal(previousOrderStatus("ADMIN", "COOKING"), "SENT_TO_KITCHEN");
-  assert.equal(
-    previousOrderStatus("ADMIN", "ASSIGNED_TO_COURIER"),
-    "READY",
-  );
+  assert.equal(previousOrderStatus("ADMIN", "COOKING"), undefined);
+  assert.equal(previousOrderStatus("ADMIN", "ASSIGNED_TO_COURIER"), "READY");
   assert.equal(previousOrderStatus("ADMIN", "OUT_FOR_DELIVERY"), undefined);
   assert.equal(previousOrderStatus("SUPER_ADMIN", "DELIVERED"), undefined);
   assert.equal(canAdministratorEditOrder("ADMIN", "READY"), true);
@@ -90,7 +81,7 @@ test("frontend renders a complete five-star review scale", () => {
 });
 
 test("full-flow staff roles see the complete order kanban", () => {
-  const expected = ["kitchen", "ready", "courier", "archive"];
+  const expected = ["kitchen", "courier", "archive"];
 
   for (const role of ["OPERATOR", "ACCOUNTANT", "ADMIN", "SUPER_ADMIN"]) {
     assert.deepEqual(
@@ -104,35 +95,34 @@ test("full-flow staff roles see the complete order kanban", () => {
 test("cook and courier kanbans contain only their zones of responsibility", () => {
   assert.deepEqual(
     kanbanLanesForRole("COOK").map((lane) => lane.id),
-    ["kitchen", "ready"],
+    ["kitchen"],
   );
   assert.deepEqual(
     kanbanLanesForRole("COURIER").map((lane) => lane.id),
     ["courier"],
   );
   assert.deepEqual(kanbanLanesForRole("CUSTOMER"), []);
-  assert.deepEqual(kanbanQueueStatusesForRole("COOK"), [
-    "SENT_TO_KITCHEN",
-    "COOKING",
-    "READY",
-  ]);
+  assert.deepEqual(kanbanQueueStatusesForRole("COOK"), ["COOKING", "READY"]);
   assert.deepEqual(kanbanQueueStatusesForRole("COURIER"), [
     "ASSIGNED_TO_COURIER",
     "OUT_FOR_DELIVERY",
     "DELIVERED",
-    "CASH_RETURNED",
   ]);
   assert.equal(kanbanQueueStatusesForRole("OPERATOR"), undefined);
 });
 
-test("full-flow kanban has three active columns and one collapsed archive", () => {
+test("full-flow kanban has two active columns and one collapsed archive", () => {
   const lanes = kanbanLanesForRole("ADMIN");
   assert.deepEqual(
     lanes.filter((lane) => !lane.collapsed).map((lane) => lane.id),
-    ["kitchen", "ready", "courier"],
+    ["kitchen", "courier"],
   );
+  assert.deepEqual(lanes.find((lane) => lane.id === "kitchen")?.statuses, [
+    "COOKING",
+    "READY",
+  ]);
   assert.deepEqual(lanes.find((lane) => lane.collapsed)?.statuses, [
-    "COMPLETED",
+    "CASH_RETURNED",
     "RECONCILED",
     "CANCELLED",
   ]);

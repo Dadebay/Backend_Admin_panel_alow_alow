@@ -200,10 +200,9 @@ Prisma access in React, or duplicate backend policies in client state.
 
 - `CUSTOMER`: own addresses, orders, cancellation where allowed, rating.
 - `OPERATOR`: monitors orders that enter the kitchen automatically, assigns
-  packed orders to couriers, receives returned cash, may cancel before cooking
-  starts, and may create a cash order for a caller through the assisted-order
-  API/admin form.
-- `COOK`: accepts `SENT_TO_KITCHEN` orders and marks them `COOKING`/`READY`.
+  packed orders to couriers, receives returned cash, and may create a cash
+  order for a caller through the assisted-order API/admin form.
+- `COOK`: claims an unowned `COOKING` order by marking it `READY`.
 - `COURIER`: handles only assigned orders and returns collected cash.
 - `ACCOUNTANT`: performs final cash reconciliation.
 - `ADMIN`: operational administration, audited correction of active orders,
@@ -240,28 +239,27 @@ section. Backend authorization remains authoritative.
 
 The admin order workspace defaults to a role-aware Kanban backed by the same
 paginated order API and mutation policy as the table. `ACCOUNTANT`, `ADMIN`,
-and `SUPER_ADMIN` see three active lanes: kitchen (received through cooking),
-ready, and courier (assignment through cash return). Completed, reconciled,
+and `SUPER_ADMIN` see two active lanes: kitchen (`COOKING` and `READY`) and
+courier (assignment through delivery). Cash-returned, reconciled,
 and cancelled orders remain available in one collapsed archive below the
 board. Accountant cards omit customer identity, delivery address, and dish
 composition. There is no separate cash page: cash-return, completion, and
-reconciliation remain order statuses and are handled from `/orders`. The
-detailed table is available only to `ADMIN` and `SUPER_ADMIN`. Hiding frontend
-navigation or card fields is usability and data minimization only—the NestJS
-guards, role scope, and order policy remain the authorization authority.
+reconciliation are handled from `/orders`; cash return itself is the completed
+order state. The detailed table is available only to `ADMIN` and `SUPER_ADMIN`.
+Hiding frontend navigation or card fields is usability and data minimization
+only—the NestJS guards, role scope, and order policy remain the authorization
+authority.
 
 ## Order state machine
 
 ```text
-SENT_TO_KITCHEN
-→ COOKING (optional compatibility step)
+COOKING
 → READY
 → packing confirmed by an administrator
 → ASSIGNED_TO_COURIER
 → OUT_FOR_DELIVERY
 → DELIVERED
 → CASH_RETURNED
-→ COMPLETED
 → RECONCILED
 ```
 
@@ -269,10 +267,10 @@ SENT_TO_KITCHEN
 
 Role ownership:
 
-- customer-app and assisted orders are created directly as
-  `SENT_TO_KITCHEN`; the normal UI has no confirm or kitchen-handoff action;
-- cook/admin may use `SENT_TO_KITCHEN → COOKING → READY` for backward
-  compatibility or move directly `SENT_TO_KITCHEN → READY`;
+- customer-app and assisted orders are created directly as `COOKING`;
+- a new `COOKING` order is visible to cooks without an owner; the first cook
+  who atomically moves it to `READY` becomes its cook, while an administrator
+  may also perform the transition;
 - at `READY`, an `ADMIN` or `SUPER_ADMIN` must check every immutable order
   line in the assembly UI and persist one packing confirmation; courier
   assignment is rejected until that confirmation exists;
@@ -285,24 +283,22 @@ Role ownership:
   `PATCH /orders/:id/transition` and `status=OUT_FOR_DELIVERY`, then confirms
   completion through the same endpoint with `status=DELIVERED`; ownership and
   optimistic locking are enforced by the backend;
-- operator/admin: `CASH_RETURNED → COMPLETED`;
-- accountant/admin: `COMPLETED → RECONCILED`;
+- the assigned courier/admin moves `DELIVERED → CASH_RETURNED`; this is the
+  completed order state, sets `completedAt`, and confirms the cash settlement;
+- accountant/admin: `CASH_RETURNED → RECONCILED`;
 - `SUPER_ADMIN` inherits admin transitions.
 
 Cancellation:
 
-- customer owner: legacy `NEW` orders only; newly submitted orders enter the
-  kitchen immediately, so customer cancellation remains unavailable until a
-  separate cancellation requirement is accepted;
-- `OPERATOR`: `NEW`, `CONFIRMED`, `SENT_TO_KITCHEN` only;
-- `ADMIN`/`SUPER_ADMIN`: any active operational status from `NEW` through
+- customer and operator cancellation is unavailable because every submitted
+  order begins cooking immediately;
+- `ADMIN`/`SUPER_ADMIN`: any active operational status from `COOKING` through
   `DELIVERED`; cancellation is forbidden once cash was returned or from any
   terminal/accounting status.
 
 Administrators may move an active order one canonical stage backward through
-the same transition endpoint: `CONFIRMED → NEW`, `SENT_TO_KITCHEN → CONFIRMED`,
-`COOKING → SENT_TO_KITCHEN`, `READY → COOKING`,
-and `ASSIGNED_TO_COURIER → READY`. Operators never receive backward
+the same transition endpoint: `READY → COOKING` and
+`ASSIGNED_TO_COURIER → READY`. Operators never receive backward
 transitions. As soon as the courier confirms pickup and the order becomes
 `OUT_FOR_DELIVERY`, backward transitions are forbidden for every role; an
 administrator may still use the separately authorized cancellation action
@@ -315,7 +311,7 @@ variants, quantities, official map location, address details, delivery etrap,
 customer note, and the assigned courier. Backend reprices the active catalog,
 existing promo, delivery, total, and nearest branch; client-supplied totals are
 never accepted. Changing items after cooking began returns the order to
-`SENT_TO_KITCHEN` and clears cook, packing and courier assignment. Identity, order
+`COOKING` and clears cook, packing and courier assignment. Identity, order
 number/source/payment, accounting records, timestamps, and audit/history remain
 system-owned. Every edit is optimistic-locked and audited.
 
@@ -488,8 +484,9 @@ heights; visual density must not be reduced to the previous pale compact map.
   the marker triggers a new quote and replaces the visible official-address
   search value and stale tariff selection.
 - Orders keep immutable snapshots of the address plus product/variant name,
-  price, and the effective kitchen receipt-printer IPv4 address resolved as
-  `product override → category default`. Later catalog edits never rewrite
+  price, and the effective kitchen receipt-printer endpoint (IPv4 address,
+  port and transport) resolved as `product override → category default`.
+  Later catalog or printer-registry edits never rewrite
   historical order lines. The only exception is the explicit audited
   administrator edit of an active pre-pickup order; that action intentionally
   replaces its current snapshots and recalculates totals.
@@ -550,52 +547,68 @@ may independently have up to 10. Removed persisted variants are soft-disabled
 so historical order references remain valid. The backend enforces the same
 common-image limit for the single-image compatibility endpoint.
 
-An administrator may assign a default private LAN receipt-printer IPv4 address
-to a category and an optional override to an individual product. A product
-without an override inherits its category route; a product override always wins
-and selects one exclusive effective kitchen route, never both addresses.
+An administrator maintains an audited receipt-printer registry in PostgreSQL.
+Each apparatus has a human-readable name, private LAN IPv4 address, port,
+transport (`RAW_TCP` ESC/POS or `JSPEED_HTTP`) and active state. The IP and port
+pair is unique. Administrators may create, edit, enable, disable and delete an
+unused apparatus; an apparatus referenced by the main setting, a category or a
+product returns `409 Conflict` on deletion. Operators may read the registry but
+cannot mutate it. An inactive apparatus cannot be newly assigned and an
+existing route through it does not produce a print job until it is enabled.
+
+An administrator selects a registered apparatus as a category default and may
+select a different registered apparatus as an individual-product override. A
+product without an override inherits its category route; a product override
+always wins and selects one exclusive effective kitchen route, never both.
 The catalog workspace exposes all category routes in one quick-settings block,
-where each category IP can be validated and saved and the complete category can
+where each category apparatus can be selected and saved and the complete category can
 be hidden, shown, cleared, or permanently deleted without opening the full
 category editor. The main printer and every product override also have explicit
 clear actions; expanded product tables expose inline override editing, where an
-empty product address resumes category inheritance. Hiding a category
+empty product selection resumes category inheritance. Hiding a category
 removes it and all of its products from customer ordering without changing the
 individual product records; the existing category and product editors remain
 available.
-The addresses and effective route are visible only through authenticated
+The registry, endpoints and effective route are visible only through authenticated
 catalog-management responses and are never exposed in the public catalog or
 customer order responses. New order lines snapshot the effective kitchen
-address so a later catalog edit cannot reroute an existing order. A separate
-audited singleton setting selects the main administrator printer; it is resolved
+endpoint so a later catalog or registry edit cannot reroute an existing order.
+A separate audited singleton setting selects the main administrator printer; it is resolved
 when a print or reprint plan is requested so replacing that physical device does
 not require rewriting orders. The intended non-fiscal printer payload
 contains the selected product/variant display name, quantity, backend-
 snapshotted unit price, and an authoritative order summary with subtotal,
 discount when present, delivery fee, configured etrap name when present, and
-final total. Fiscalization, offline policy, cancellation, and returns are not
-part of this accepted printer-routing requirement.
+final total. Fiscalization, offline policy, and returns are not part of this
+accepted printer-routing requirement.
 
 Receipt printing is triggered automatically on the always-open operations
 workstation when its role-scoped active kitchen/ready queue first observes a
 new order ID, and is also available as an explicit reprint for a
-non-new, non-cancelled order. A browser-shared bounded claim list prevents the
-same workstation's tabs from intentionally dispatching the same new order
-twice; a failed automatic attempt remains visible and staff may use the manual
-print action. NestJS builds the authoritative plan with one complete main-printer
-job containing every order line plus kitchen jobs grouped by each line's
-snapshotted effective printer IP. A line without a kitchen route remains visible
-as unassigned but is still included in the complete main copy. The remote VDS
+later or cancelled order. After the API commits an administrator cancellation,
+the same workstation automatically requests a fresh cancellation print plan;
+failure to reach a local printer never rolls back the already committed
+cancellation and remains visible for manual retry. A browser-shared bounded
+claim list prevents the same workstation's tabs from intentionally dispatching
+the same new order twice; a failed automatic attempt remains visible and staff
+may use the manual print action. NestJS builds the authoritative plan with one
+complete main-printer job containing every order line plus kitchen jobs grouped
+by each line's snapshotted effective printer endpoint. A line without a kitchen route
+remains visible as unassigned but is still included in the complete main copy.
+A cancelled order keeps those same items and routes, but the plan is typed as
+`CANCELLATION` and includes its stored reason. The remote VDS
 never connects to a private LAN address.
 Instead, the HTTPS admin sends that plan to the A7-tagam receipt print agent on
 the same workstation at loopback `127.0.0.1:17873`. The agent has one Go source
 and CI-built executables for Windows x64/ARM64 and macOS Intel/Apple Silicon.
 It accepts only allowlisted admin origins, rejects non-private IPv4 targets,
-formats a prominent `ONLINE ORDER #<number>` header on every printer chunk,
+formats a prominent `ONLINE ORDER #<number>` or `CANCELLED ORDER #<number>`
+header on every printer chunk,
 then large item text with separators, delivery price and final total plus blank
 paper space above and below the content before cutting, and sends bounded hexadecimal ESC/POS payloads
-through the tested J-Speed WebConfig HTTP interface on each printer's LAN port
-80. Two jobs may target the same IP when the administrator and kitchen copies
+through the endpoint transport stored in the registry: raw ESC/POS TCP (normally
+port 9100) or the compatible J-Speed WebConfig HTTP interface (normally port
+80). Two jobs may target the same endpoint when the administrator and kitchen copies
 share one physical apparatus; they print sequentially. The agent contains no
 API token and binds to loopback only. A working
 workstation remains necessary while accepting/printing an order; it is not a
@@ -675,9 +688,12 @@ Current status:
   the marker, selecting a result moves it, and a separate resolved-location
   summary replaces the previous overloaded search/display field. Entrance,
   floor and apartment are grouped as courier details with an explicit notice
-  that they do not change geographic coordinates. Enter and the search button
-  bypass the debounce for an immediate request. Its desktop dialog uses the
-  wide, near-full-height workspace while phones keep the full-screen layout.
+  that they do not change geographic coordinates. Editing those details on a
+  prefilled saved address keeps its marker but submits the changed details as
+  the caller's newly active address instead of silently reusing stale values.
+  Enter and the search button bypass the debounce for an immediate request. Its
+  desktop dialog uses the wide, near-full-height workspace while phones keep
+  the full-screen layout.
   TanStack Query owns all remote data,
   React Hook Form/Zod validate the form, and the backend computes the final
   amount and nearest branch;
@@ -996,11 +1012,31 @@ dispatcher is 10.0 KB / 3.4 KB gzip, the restored isolated courier screen is
 The change adds one role-gated route and GPS-coverage guidance; it adds no
 dependency, poller, SSE stream, or Leaflet preload to the initial document.
 
+The 2026-08-25 assisted-address detail correction keeps the static SPA
+bootstrap at 242.2 KB raw / 77.8 KB gzip and CSS at 147.8 KB / 28.6 KB gzip.
+The lazy phone-order chunk is 28.1 KB / 8.1 KB gzip and its map picker remains
+separate at 2.4 KB / 1.2 KB gzip. The pure selection helper adds no dependency,
+request, poller, or eager Leaflet load.
+
 The 2026-08-25 tablet-navigation correction measures the static SPA bootstrap
 at 242.9 KB raw / 77.9 KB gzip and CSS at 149.0 KB / 28.9 KB gzip. It adds only
 responsive navigation rules, the pinned close control and stable accessibility
 hooks: route chunks, dependencies, API requests, polling and cache ownership
 are unchanged.
+
+The 2026-08-25 eight-status, two-active-lane workflow keeps the static SPA
+bootstrap at 242.8 KB raw / 77.9 KB gzip and CSS at 149.0 KB / 28.9 KB gzip.
+It removes obsolete order labels and transitions, keeps the existing single
+visible-tab order poll with a smaller two-status kitchen filter, and adds no
+dependency, request loop, eager route chunk or client-owned business state.
+
+The 2026-08-25 registered-printer and cancellation-receipt build measures the
+static SPA bootstrap at 242.8 KB raw / 77.9 KB gzip and CSS at 151.7 KB /
+29.2 KB gzip. The lazy catalog manager is 48.0 KB / 10.5 KB gzip and the lazy
+order board is 58.2 KB / 16.3 KB gzip. Printer management reuses the existing
+catalog query/cache and cancellation printing adds only its bounded
+post-success plan and loopback dispatch; there is no new dependency, poller or
+eager route load.
 
 ## Decision log
 
@@ -1010,8 +1046,7 @@ are unchanged.
   became the sole production provider.
 - 2026-07-27: multiple saved addresses added; last created/used address becomes
   active.
-- 2026-07-27: `SUPER_ADMIN` added; trusted staff may cancel
-  `SENT_TO_KITCHEN`, but nobody may cancel from `COOKING`.
+- 2026-07-27: `SUPER_ADMIN` added with protected owner-level authority.
 - 2026-07-27: frontend target set to FSD + TanStack Query + TanStack Table,
   based on lessons from the NEM app without copying its older dependency
   versions or mobile-only persistence.
@@ -1327,8 +1362,8 @@ are unchanged.
   workstation, and every printed chunk includes the online order number. A
   persisted, audited administrator packing confirmation—backed by an all-lines
   checklist—is now required before courier assignment.
-- 2026-08-20: the order board was condensed from nine status columns to three
-  operational columns (`kitchen`, `ready`, `courier`) plus one collapsed
+- 2026-08-20: the order board was condensed from status-by-status columns to
+  grouped operational columns plus one collapsed
   archive. Individual cards are expandable and every lane uses TanStack Virtual
   with stable backend order IDs and dynamic measurement, so queues of 50–100
   orders do not mount every detailed card. The board and table default to the
@@ -1432,11 +1467,40 @@ are unchanged.
   move the marker only after selection; the resolved location has a separate
   summary, while entrance, floor, apartment and courier landmarks are clearly
   identified as non-geographic delivery details.
+- 2026-08-25: phone-order courier details gained a functional regression
+  contract. Changing a prefilled saved entrance, floor, apartment or landmark
+  now keeps the selected coordinates and submits a newly active address with
+  those edits; backend HTTP coverage verifies the details in both the saved
+  address and immutable order snapshot.
 - 2026-08-25: admin navigation became height-safe on desktop and tablets. The
   sidebar owns vertical touch scrolling, an open drawer locks background
   scrolling, and large coarse-pointer tablets retain the drawer through
   1366 px landscape width. A pinned internal close control remains reachable at
   every scroll position and restores keyboard focus to the menu trigger.
+- 2026-08-25: the order workflow was reduced to eight statuses. Customer-app
+  and assisted orders now start directly in `COOKING`; the first cook moving an
+  unowned order to `READY` claims it. Cash return is itself the completed state,
+  sets `completedAt`, confirms the order-specific settlement, and moves
+  directly to accountant reconciliation. Customers and operators cannot cancel
+  an order after immediate cooking begins; administrators retain cancellation
+  through `DELIVERED` and the two safe pre-pickup rollback steps.
+- 2026-08-25: the admin order board was reduced to two active lanes. The
+  `kitchen` lane combines `COOKING` and `READY`; the `courier` lane covers
+  assignment through delivery. Cash-returned, reconciled and cancelled orders
+  remain in the collapsed archive below the board.
+- 2026-08-25: every successful administrator cancellation now automatically
+  dispatches a `CANCELLATION` receipt plan to the configured main and kitchen
+  printers. The cancellation receipt retains the order number and items, marks
+  every chunk as `CANCELLED ORDER`, includes the stored reason, and remains
+  manually reprintable if the local print attempt fails.
+- 2026-08-25: receipt-printer endpoints moved from free-text catalog fields to
+  an audited PostgreSQL registry with name, private IPv4 address, port,
+  transport and active state. Main, category and product routes reference
+  registry IDs; a product override remains exclusive and higher priority than
+  its category default. Order items snapshot the full endpoint. The loopback
+  agent now dispatches both raw TCP ESC/POS (including port 9100 printers) and
+  legacy J-Speed HTTP, while old IP-only API payloads remain a temporary
+  backward-compatible port-80 fallback.
 - 2026-08-23: catalog administrators gained audited permanent deletion for
   products and categories that have no order history. A protected product or
   category returns `409 Conflict` and remains available for hiding, preserving

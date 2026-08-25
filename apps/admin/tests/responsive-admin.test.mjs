@@ -22,7 +22,10 @@ const tabletWorkspaces = [
   ["notification-manager/ui/notification-manager.tsx", "notification-manager"],
   ["staff-manager/ui/staff-manager.tsx", "staff-manager"],
   ["contact-manager/ui/contact-manager.tsx", "contact-manager"],
-  ["login-attempt-manager/ui/login-attempt-manager.tsx", "login-attempt-manager"],
+  [
+    "login-attempt-manager/ui/login-attempt-manager.tsx",
+    "login-attempt-manager",
+  ],
 ];
 
 test("shared data tables expose readable labels to responsive rows", async () => {
@@ -75,10 +78,7 @@ test("tablet navigation is a touch-safe drawer", async () => {
     styles,
     /\.integrated-shell \.sidebar\.drawer-open\s*\{[^}]*visibility: visible;[^}]*pointer-events: auto;[^}]*transform: translateX\(0\);/,
   );
-  assert.match(
-    styles,
-    /\.sidebar-close\s*\{[^}]*display: none;/s,
-  );
+  assert.match(styles, /\.sidebar-close\s*\{[^}]*display: none;/s);
   assert.match(
     styles,
     /\.integrated-shell \.sidebar-head\s*\{[^}]*position: sticky;[^}]*top: 0;[\s\S]*?\.integrated-shell \.sidebar-close\s*\{[^}]*display: grid;/,
@@ -147,10 +147,7 @@ test("receipt printer settings keep padded aligned controls at every width", asy
     styles,
     /@media \(max-width: 620px\)[\s\S]*?\.receipt-print-settings-controls\s*\{[^}]*grid-template-columns: 1fr;/,
   );
-  assert.match(
-    styles,
-    /\.category-printer-routes\s*\{[^}]*padding: 18px;/s,
-  );
+  assert.match(styles, /\.category-printer-routes\s*\{[^}]*padding: 18px;/s);
 });
 
 test("tablet drawer controls expose stable automation hooks", async () => {
@@ -177,7 +174,7 @@ test("order kanban wraps at desktop, tablet, and phone breakpoints", async () =>
 
   assert.match(
     styles,
-    /\.order-kanban\s*\{[^}]*grid-template-columns: repeat\(3, minmax\(0, 1fr\)\);/s,
+    /\.order-kanban\s*\{[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/s,
   );
   assert.match(
     styles,
@@ -218,6 +215,7 @@ test("tablet QA documentation maps every admin route to its real API", async () 
     "/catalog/admin/categories",
     "/catalog/admin/products",
     "/catalog/admin/receipt-print-settings",
+    "/catalog/admin/receipt-printers",
     "/marketing/admin/banners",
     "/marketing/promos",
     "/notifications/admin/campaigns?page=1&limit=25",

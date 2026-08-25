@@ -99,7 +99,7 @@
 
 .order-kanban {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   align-items: start;
   gap: 14px;
 }
@@ -128,7 +128,6 @@
 }
 
 .order-kanban-lane--kitchen .order-kanban-lane-head,
-.order-kanban-lane--ready .order-kanban-lane-head,
 .order-kanban-lane--courier .order-kanban-lane-head {
   border-top-color: var(--brand-orange);
 }
@@ -4583,7 +4582,8 @@ button:disabled {
   font-weight: 650;
 }
 
-.receipt-print-settings-card input {
+.receipt-print-settings-card input,
+.receipt-print-settings-card select {
   width: 100%;
   min-height: 44px;
   padding: 0 12px;
@@ -4692,7 +4692,8 @@ button:disabled {
   min-width: 0;
 }
 
-.category-printer-route-row input {
+.category-printer-route-row input,
+.category-printer-route-row select {
   width: 100%;
   min-height: 40px;
   padding: 0 11px;
@@ -4702,13 +4703,15 @@ button:disabled {
   background: var(--field-surface);
 }
 
-.category-printer-route-row input:focus {
+.category-printer-route-row input:focus,
+.category-printer-route-row select:focus {
   border-color: var(--brand-orange);
   outline: 0;
   box-shadow: 0 0 0 3px var(--field-focus-ring);
 }
 
-.category-printer-route-row input[aria-invalid="true"] {
+.category-printer-route-row input[aria-invalid="true"],
+.category-printer-route-row select[aria-invalid="true"] {
   border-color: var(--brand-orange);
 }
 
@@ -4739,7 +4742,8 @@ button:disabled {
   min-width: 0;
 }
 
-.product-printer-route input {
+.product-printer-route input,
+.product-printer-route select {
   width: 100%;
   min-height: 38px;
   padding: 0 10px;
@@ -4749,7 +4753,8 @@ button:disabled {
   background: var(--field-surface);
 }
 
-.product-printer-route input:focus {
+.product-printer-route input:focus,
+.product-printer-route select:focus {
   border-color: var(--brand-orange);
   outline: 0;
   box-shadow: 0 0 0 3px var(--field-focus-ring);
@@ -4784,7 +4789,141 @@ button:disabled {
   font-size: 10px;
 }
 
+.receipt-printer-registry {
+  display: grid;
+  gap: 16px;
+  padding: 18px;
+}
+
+.receipt-printer-registry > header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.receipt-printer-registry h2 {
+  margin: 4px 0 5px;
+  color: var(--brand-navy);
+}
+
+.receipt-printer-registry header p {
+  max-width: 760px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.receipt-printer-editor {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(170px, .8fr) 110px minmax(190px, .85fr);
+  align-items: start;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--brand-cream) 95%, var(--brand-navy));
+}
+
+.receipt-printer-editor label:not(.check-field) {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  color: var(--brand-navy);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.receipt-printer-editor input:not([type="checkbox"]),
+.receipt-printer-editor select {
+  width: 100%;
+  min-height: 42px;
+  padding: 0 11px;
+  border: 1px solid var(--field-border);
+  border-radius: 10px;
+  color: var(--brand-navy);
+  background: var(--field-surface);
+}
+
+.receipt-printer-editor label small,
+.receipt-printer-note {
+  color: var(--muted);
+  font-size: 9px;
+  line-height: 1.45;
+}
+
+.receipt-printer-editor .check-field {
+  align-self: center;
+}
+
+.receipt-printer-editor-actions {
+  grid-column: 2 / -1;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.receipt-printer-list {
+  display: grid;
+  gap: 8px;
+}
+
+.receipt-printer-row {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) auto minmax(280px, auto);
+  align-items: center;
+  gap: 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.receipt-printer-row > div:first-child {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.receipt-printer-row strong {
+  color: var(--brand-navy);
+}
+
+.receipt-printer-row span {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.receipt-printer-row > .enabled,
+.receipt-printer-row > .disabled {
+  font-weight: 750;
+}
+
+.receipt-printer-empty {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
 @media (max-width: 980px) {
+  .receipt-printer-editor {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .receipt-printer-editor-actions {
+    grid-column: 1 / -1;
+  }
+
+  .receipt-printer-row {
+    grid-template-columns: minmax(220px, 1fr) auto;
+  }
+
+  .receipt-printer-row .row-actions {
+    grid-column: 1 / -1;
+  }
+
   .receipt-print-settings-card {
     grid-template-columns: 1fr;
     align-items: stretch;
@@ -4803,6 +4942,30 @@ button:disabled {
 }
 
 @media (max-width: 620px) {
+  .receipt-printer-registry > header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .receipt-printer-registry > header button,
+  .receipt-printer-editor-actions button {
+    width: 100%;
+  }
+
+  .receipt-printer-editor,
+  .receipt-printer-row {
+    grid-template-columns: 1fr;
+  }
+
+  .receipt-printer-editor-actions {
+    grid-column: auto;
+    flex-direction: column-reverse;
+  }
+
+  .receipt-printer-row .row-actions {
+    grid-column: auto;
+  }
+
   .receipt-print-settings-card {
     padding: 16px;
   }

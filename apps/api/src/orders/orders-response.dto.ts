@@ -4,8 +4,10 @@ import {
   OrderSource,
   OrderStatus,
   PaymentMethod,
+  ReceiptPrinterTransport,
   Role,
 } from "../generated/prisma/client";
+import { ReceiptDocumentType } from "./receipt-print-plan";
 
 export class OrderCustomerResponseDto {
   @ApiProperty({ format: "uuid" })
@@ -129,6 +131,12 @@ export class ReceiptPrinterJobResponseDto {
   @ApiProperty({ example: "192.168.123.100" })
   printerIp: string;
 
+  @ApiProperty({ example: 9100 })
+  printerPort: number;
+
+  @ApiProperty({ enum: ReceiptPrinterTransport })
+  transport: ReceiptPrinterTransport;
+
   @ApiProperty({ type: [ReceiptPrintItemResponseDto] })
   items: ReceiptPrintItemResponseDto[];
 }
@@ -156,6 +164,12 @@ export class ReceiptPrintPlanResponseDto {
 
   @ApiProperty()
   orderNumber: number;
+
+  @ApiProperty({ enum: ReceiptDocumentType })
+  documentType: ReceiptDocumentType;
+
+  @ApiProperty({ type: String, nullable: true })
+  cancellationReason: string | null;
 
   @ApiProperty({ type: ReceiptPrintSummaryResponseDto })
   summary: ReceiptPrintSummaryResponseDto;

@@ -18,10 +18,13 @@ test("catalog deletion uses authenticated DELETE endpoints and refreshes catalog
   assert.match(actions, /`\/catalog\/categories\/\$\{id\}`/);
   assert.match(actions, /const deleteProduct = useMutation/);
   assert.match(actions, /`\/catalog\/products\/\$\{id\}`/);
-  assert.equal(actions.match(/method: "DELETE"/g)?.length, 2);
-  assert.equal(actions.match(/onSuccess: refresh/g)?.length, 7);
+  assert.match(actions, /const deleteReceiptPrinter = useMutation/);
+  assert.match(actions, /`\/catalog\/receipt-printers\/\$\{id\}`/);
+  assert.equal(actions.match(/method: "DELETE"/g)?.length, 3);
+  assert.equal(actions.match(/onSuccess: refresh/g)?.length, 10);
   assert.match(actions, /deleteCategory,/);
   assert.match(actions, /deleteProduct,/);
+  assert.match(actions, /deleteReceiptPrinter,/);
 });
 
 test("catalog records require an explicit accessible deletion confirmation", async () => {

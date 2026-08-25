@@ -6,38 +6,44 @@ import {
 } from "../src/widgets/catalog-manager/model/category-receipt-route.ts";
 
 const category = {
-  receiptPrinterIp: "192.168.10.51",
+  receiptPrinterId: "2d807991-e99f-4f17-9b9f-cc2fb7478820",
   sortOrder: 7,
   isActive: true,
 };
 
 test("category printer update preserves visibility and ordering", () => {
   assert.deepEqual(
-    buildCategoryPrinterUpdate(category, "192.168.10.52"),
+    buildCategoryPrinterUpdate(
+      category,
+      "c9949db2-cf7c-4f28-8a0f-81776210d2f1",
+    ),
     {
-      receiptPrinterIp: "192.168.10.52",
+      receiptPrinterId: "c9949db2-cf7c-4f28-8a0f-81776210d2f1",
       sortOrder: 7,
       isActive: true,
     },
   );
   assert.deepEqual(buildCategoryPrinterUpdate(category, ""), {
-    receiptPrinterIp: null,
+    receiptPrinterId: null,
     sortOrder: 7,
     isActive: true,
   });
-  assert.equal(category.receiptPrinterIp, "192.168.10.51");
+  assert.equal(
+    category.receiptPrinterId,
+    "2d807991-e99f-4f17-9b9f-cc2fb7478820",
+  );
 });
 
 test("category visibility update preserves its printer route", () => {
   assert.deepEqual(buildCategoryVisibilityUpdate(category), {
-    receiptPrinterIp: "192.168.10.51",
+    receiptPrinterId: "2d807991-e99f-4f17-9b9f-cc2fb7478820",
     sortOrder: 7,
     isActive: false,
   });
   assert.deepEqual(
     buildCategoryVisibilityUpdate({ ...category, isActive: false }),
     {
-      receiptPrinterIp: "192.168.10.51",
+      receiptPrinterId: "2d807991-e99f-4f17-9b9f-cc2fb7478820",
       sortOrder: 7,
       isActive: true,
     },

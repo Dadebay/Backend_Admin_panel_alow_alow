@@ -28,6 +28,10 @@ const (
 	maxRawChunkBytes     = 330
 	topPaddingLines      = 2
 	bottomPaddingLines   = 5
+	transportRawTCP      = "RAW_TCP"
+	transportJSpeedHTTP  = "JSPEED_HTTP"
+	documentTypeOrder    = "ORDER"
+	documentTypeCancel   = "CANCELLATION"
 )
 
 var version = "dev"
@@ -40,10 +44,14 @@ type printItem struct {
 }
 
 type printerJob struct {
-	PrinterIP   string         `json:"printerIp"`
-	Items       []printItem    `json:"items"`
-	OrderNumber int            `json:"-"`
-	Summary     receiptSummary `json:"-"`
+	PrinterIP          string         `json:"printerIp"`
+	PrinterPort        int            `json:"printerPort"`
+	Transport          string         `json:"transport"`
+	Items              []printItem    `json:"items"`
+	OrderNumber        int            `json:"-"`
+	DocumentType       string         `json:"-"`
+	CancellationReason string         `json:"-"`
+	Summary            receiptSummary `json:"-"`
 }
 
 type receiptSummary struct {
@@ -55,22 +63,28 @@ type receiptSummary struct {
 }
 
 type printRequest struct {
-	DispatchID      string         `json:"dispatchId"`
-	OrderID         string         `json:"orderId"`
-	OrderNumber     int            `json:"orderNumber"`
-	Summary         receiptSummary `json:"summary"`
-	Jobs            []printerJob   `json:"jobs"`
-	UnassignedItems []printItem    `json:"unassignedItems"`
+	DispatchID         string         `json:"dispatchId"`
+	OrderID            string         `json:"orderId"`
+	OrderNumber        int            `json:"orderNumber"`
+	DocumentType       string         `json:"documentType"`
+	CancellationReason string         `json:"cancellationReason"`
+	Summary            receiptSummary `json:"summary"`
+	Jobs               []printerJob   `json:"jobs"`
+	UnassignedItems    []printItem    `json:"unassignedItems"`
 }
 
 type printedPrinter struct {
-	PrinterIP string `json:"printerIp"`
-	Chunks    int    `json:"chunks"`
+	PrinterIP   string `json:"printerIp"`
+	PrinterPort int    `json:"printerPort"`
+	Transport   string `json:"transport"`
+	Chunks      int    `json:"chunks"`
 }
 
 type failedPrinter struct {
-	PrinterIP string `json:"printerIp"`
-	Message   string `json:"message"`
+	PrinterIP   string `json:"printerIp"`
+	PrinterPort int    `json:"printerPort"`
+	Transport   string `json:"transport"`
+	Message     string `json:"message"`
 }
 
 type printResponse struct {
@@ -85,8 +99,7 @@ type jobPrinter interface {
 	Print(context.Context, printerJob) (int, error)
 }
 
-type jspeedPrinter struct {
-	port        string
+type lanPrinter struct {
 	dialTimeout time.Duration
 	ioTimeout   time.Duration
 }
@@ -115,8 +128,7 @@ func main() {
 		log.Fatal("--listen must bind to a loopback address")
 	}
 
-	handler := newAgentServer(strings.Split(*origins, ","), &jspeedPrinter{
-		port:        "80",
+	handler := newAgentServer(strings.Split(*origins, ","), &lanPrinter{
 		dialTimeout: 3 * time.Second,
 		ioTimeout:   8 * time.Second,
 	})
@@ -219,19 +231,26 @@ func (server *agentServer) print(writer http.ResponseWriter, request *http.Reque
 		Failed:      make([]failedPrinter, 0),
 	}
 	for _, job := range payload.Jobs {
+		job = normalizePrinterJob(job)
 		job.OrderNumber = payload.OrderNumber
+		job.DocumentType = normalizeDocumentType(payload.DocumentType)
+		job.CancellationReason = strings.TrimSpace(payload.CancellationReason)
 		job.Summary = payload.Summary
 		chunks, err := server.printer.Print(request.Context(), job)
 		if err != nil {
 			response.Failed = append(response.Failed, failedPrinter{
-				PrinterIP: job.PrinterIP,
-				Message:   err.Error(),
+				PrinterIP:   job.PrinterIP,
+				PrinterPort: job.PrinterPort,
+				Transport:   job.Transport,
+				Message:     err.Error(),
 			})
 			continue
 		}
 		response.Printed = append(response.Printed, printedPrinter{
-			PrinterIP: job.PrinterIP,
-			Chunks:    chunks,
+			PrinterIP:   job.PrinterIP,
+			PrinterPort: job.PrinterPort,
+			Transport:   job.Transport,
+			Chunks:      chunks,
 		})
 	}
 	if len(response.Failed) > 0 {
@@ -249,6 +268,12 @@ func validatePrintRequest(payload printRequest) error {
 	if len(payload.Jobs) == 0 || len(payload.Jobs) > 51 {
 		return errors.New("Print request must contain between 1 and 51 printer jobs")
 	}
+	if documentType := normalizeDocumentType(payload.DocumentType); documentType != documentTypeOrder && documentType != documentTypeCancel {
+		return errors.New("Print request has an unsupported document type")
+	}
+	if len([]rune(payload.CancellationReason)) > 500 {
+		return errors.New("Cancellation reason is too long")
+	}
 	if payload.Summary.Subtotal < 0 || payload.Summary.Subtotal > 1_000_000 ||
 		payload.Summary.Discount < 0 || payload.Summary.Discount > payload.Summary.Subtotal ||
 		payload.Summary.DeliveryFee < 0 || payload.Summary.DeliveryFee > 1_000_000 ||
@@ -257,8 +282,15 @@ func validatePrintRequest(payload printRequest) error {
 		return errors.New("Receipt summary is invalid")
 	}
 	for _, job := range payload.Jobs {
-		if !isPrivateIPv4(job.PrinterIP) {
+		normalized := normalizePrinterJob(job)
+		if !isPrivateIPv4(normalized.PrinterIP) {
 			return fmt.Errorf("Printer %q is not a private IPv4 address", job.PrinterIP)
+		}
+		if normalized.PrinterPort < 1 || normalized.PrinterPort > 65535 {
+			return fmt.Errorf("Printer %q has an invalid port", job.PrinterIP)
+		}
+		if normalized.Transport != transportRawTCP && normalized.Transport != transportJSpeedHTTP {
+			return fmt.Errorf("Printer %q has an unsupported transport", job.PrinterIP)
 		}
 		if len(job.Items) == 0 || len(job.Items) > 50 {
 			return fmt.Errorf("Printer %q must contain between 1 and 50 items", job.PrinterIP)
@@ -275,39 +307,102 @@ func validatePrintRequest(payload printRequest) error {
 	return nil
 }
 
+func normalizePrinterJob(job printerJob) printerJob {
+	if job.Transport == "" {
+		job.Transport = transportJSpeedHTTP
+	}
+	if job.PrinterPort == 0 {
+		if job.Transport == transportRawTCP {
+			job.PrinterPort = 9100
+		} else {
+			job.PrinterPort = 80
+		}
+	}
+	return job
+}
+
+func normalizeDocumentType(value string) string {
+	if value == "" {
+		return documentTypeOrder
+	}
+	return value
+}
+
 func isPrivateIPv4(value string) bool {
 	ip := net.ParseIP(value)
 	return ip != nil && ip.To4() != nil && ip.IsPrivate()
 }
 
-func (printer *jspeedPrinter) Print(ctx context.Context, job printerJob) (int, error) {
-	chunks := formatJobChunks(job.OrderNumber, job.Items, job.Summary)
+func (printer *lanPrinter) Print(ctx context.Context, job printerJob) (int, error) {
+	chunks := formatJobChunks(
+		job.OrderNumber,
+		job.Items,
+		job.Summary,
+		job.DocumentType,
+		job.CancellationReason,
+	)
 	for _, chunk := range chunks {
-		if err := printer.send(ctx, job.PrinterIP, chunk); err != nil {
-			return 0, fmt.Errorf("%s: %w", job.PrinterIP, err)
+		var err error
+		switch job.Transport {
+		case transportRawTCP:
+			err = printer.sendRaw(ctx, job.PrinterIP, job.PrinterPort, chunk)
+		case transportJSpeedHTTP:
+			err = printer.sendJSpeed(ctx, job.PrinterIP, job.PrinterPort, chunk)
+		default:
+			err = errors.New("неподдерживаемый режим подключения")
+		}
+		if err != nil {
+			return 0, fmt.Errorf("%s:%d: %w", job.PrinterIP, job.PrinterPort, err)
 		}
 	}
 	return len(chunks), nil
 }
 
-func (printer *jspeedPrinter) send(ctx context.Context, printerIP string, payload []byte) error {
+func (printer *lanPrinter) dial(ctx context.Context, printerIP string, printerPort int) (net.Conn, error) {
+	dialer := net.Dialer{Timeout: printer.dialTimeout}
+	connection, err := dialer.DialContext(
+		ctx,
+		"tcp4",
+		net.JoinHostPort(printerIP, strconv.Itoa(printerPort)),
+	)
+	if err != nil {
+		return nil, errors.New("нет соединения по LAN")
+	}
+	deadline := time.Now().Add(printer.ioTimeout)
+	if contextDeadline, ok := ctx.Deadline(); ok && contextDeadline.Before(deadline) {
+		deadline = contextDeadline
+	}
+	_ = connection.SetDeadline(deadline)
+	return connection, nil
+}
+
+func (printer *lanPrinter) sendRaw(ctx context.Context, printerIP string, printerPort int, payload []byte) error {
+	connection, err := printer.dial(ctx, printerIP, printerPort)
+	if err != nil {
+		return err
+	}
+	defer connection.Close()
+	if _, err := connection.Write(payload); err != nil {
+		return errors.New("не удалось отправить данные")
+	}
+	if tcpConnection, ok := connection.(*net.TCPConn); ok {
+		_ = tcpConnection.CloseWrite()
+	}
+	return nil
+}
+
+func (printer *lanPrinter) sendJSpeed(ctx context.Context, printerIP string, printerPort int, payload []byte) error {
 	query := url.Values{}
 	query.Set("content", spacedHex(payload))
 	query.Set("hex_mode", "on")
 	query.Set("Send", "Print Test")
 	target := "/prt_test.htm?" + query.Encode()
 
-	dialer := net.Dialer{Timeout: printer.dialTimeout}
-	connection, err := dialer.DialContext(ctx, "tcp4", net.JoinHostPort(printerIP, printer.port))
+	connection, err := printer.dial(ctx, printerIP, printerPort)
 	if err != nil {
-		return errors.New("нет соединения по LAN")
+		return err
 	}
 	defer connection.Close()
-	deadline := time.Now().Add(printer.ioTimeout)
-	if contextDeadline, ok := ctx.Deadline(); ok && contextDeadline.Before(deadline) {
-		deadline = contextDeadline
-	}
-	_ = connection.SetDeadline(deadline)
 	request := fmt.Sprintf("GET %s HTTP/1.0\r\nHost: %s\r\nConnection: close\r\n\r\n", target, printerIP)
 	if _, err := io.WriteString(connection, request); err != nil {
 		return errors.New("не удалось отправить данные")
@@ -337,32 +432,41 @@ func (printer *jspeedPrinter) send(ctx context.Context, printerIP string, payloa
 	return nil
 }
 
-func formatJobChunks(orderNumber int, items []printItem, summary receiptSummary) [][]byte {
+func formatJobChunks(orderNumber int, items []printItem, summary receiptSummary, documentType string, cancellationReason string) [][]byte {
 	chunks := make([][]byte, 0, len(items))
 	current := make([]printItem, 0, len(items))
 	for _, item := range items {
 		candidate := append(append([]printItem(nil), current...), item)
-		if len(formatReceipt(orderNumber, candidate, summary)) > maxRawChunkBytes && len(current) > 0 {
-			chunks = append(chunks, formatReceipt(orderNumber, current, summary))
+		if len(formatReceipt(orderNumber, candidate, summary, documentType, cancellationReason)) > maxRawChunkBytes && len(current) > 0 {
+			chunks = append(chunks, formatReceipt(orderNumber, current, summary, documentType, cancellationReason))
 			current = []printItem{item}
 			continue
 		}
 		current = candidate
 	}
 	if len(current) > 0 {
-		chunks = append(chunks, formatReceipt(orderNumber, current, summary))
+		chunks = append(chunks, formatReceipt(orderNumber, current, summary, documentType, cancellationReason))
 	}
 	return chunks
 }
 
-func formatReceipt(orderNumber int, items []printItem, summary receiptSummary) []byte {
+func formatReceipt(orderNumber int, items []printItem, summary receiptSummary, documentType string, cancellationReason string) []byte {
 	payload := []byte{0x1b, 0x40, 0x1b, 0x61, 0x00}
 	payload = append(payload, bytes.Repeat([]byte{'\n'}, topPaddingLines)...)
 	payload = append(payload, 0x1b, 0x61, 0x01)
-	payload = appendLargeLine(payload, "ONLINE ORDER")
+	header := "ONLINE ORDER"
+	if normalizeDocumentType(documentType) == documentTypeCancel {
+		header = "CANCELLED ORDER"
+	}
+	payload = appendLargeLine(payload, header)
 	payload = appendLargeLine(payload, fmt.Sprintf("#%d", orderNumber))
 	payload = append(payload, []byte("========================\n")...)
 	payload = append(payload, 0x1b, 0x61, 0x00)
+	if normalizeDocumentType(documentType) == documentTypeCancel && strings.TrimSpace(cancellationReason) != "" {
+		reason := truncateRunes(strings.Join(strings.Fields(cancellationReason), " "), 16)
+		payload = appendLargeLine(payload, "REASON: "+reason)
+		payload = append(payload, []byte("========================\n")...)
+	}
 	for _, item := range items {
 		name := truncateRunes(strings.Join(strings.Fields(item.Name), " "), 48)
 		for _, line := range wrapRunes(name, 24) {

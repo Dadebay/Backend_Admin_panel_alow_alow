@@ -71,10 +71,7 @@ test("the alert uses one visible-tab 30-second order poll and browser opt-in", a
   assert.match(querySource, /ORDER_POLL_INTERVAL_MS = 30_000/);
   assert.match(querySource, /document\.visibilityState === "visible"/);
   assert.match(querySource, /refetchIntervalInBackground: false/);
-  assert.match(
-    alertSource,
-    /statuses: \["SENT_TO_KITCHEN", "COOKING", "READY"\]/,
-  );
+  assert.match(alertSource, /statuses: \["COOKING", "READY"\]/);
   assert.match(alertSource, /claimAutomaticReceiptPrint/);
   assert.match(alertSource, /printReceipt\(order\.id\)/);
   assert.match(alertSource, /Notification\.requestPermission\(\)/);

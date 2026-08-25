@@ -27,8 +27,10 @@ import {
   AddProductImageDto,
   CreateCategoryDto,
   CreateProductDto,
+  CreateReceiptPrinterDto,
   UpdateCategoryDto,
   UpdateProductDto,
+  UpdateReceiptPrinterDto,
   UpdateReceiptPrintSettingsDto,
 } from "./catalog.dto";
 import { CatalogService } from "./catalog.service";
@@ -40,6 +42,7 @@ import {
   CatalogProductImageResponseDto,
   CatalogProductResponseDto,
   ReceiptPrintSettingsResponseDto,
+  ReceiptPrinterResponseDto,
 } from "./catalog-response.dto";
 
 @ApiTags("catalog")
@@ -79,6 +82,15 @@ export class CatalogController {
   @ApiOkResponse({ type: ReceiptPrintSettingsResponseDto })
   receiptPrintSettings() {
     return this.catalog.receiptPrintSettings();
+  }
+
+  @Get("admin/receipt-printers")
+  @ApiBearerAuth()
+  @Roles(Role.ADMIN, Role.OPERATOR)
+  @ApiOperation({ summary: "List registered LAN receipt printers" })
+  @ApiOkResponse({ type: [ReceiptPrinterResponseDto] })
+  receiptPrinters() {
+    return this.catalog.receiptPrinters();
   }
 
   @Post("categories")
@@ -132,6 +144,47 @@ export class CatalogController {
     @Body() dto: UpdateReceiptPrintSettingsDto,
   ) {
     return this.catalog.updateReceiptPrintSettings(actor, dto);
+  }
+
+  @Post("receipt-printers")
+  @ApiBearerAuth()
+  @Roles(Role.ADMIN)
+  @ApiOperation({ summary: "Register a LAN receipt printer" })
+  @ApiCreatedResponse({ type: ReceiptPrinterResponseDto })
+  createReceiptPrinter(
+    @CurrentUser() actor: AuthUser,
+    @Body() dto: CreateReceiptPrinterDto,
+  ) {
+    return this.catalog.createReceiptPrinter(actor, dto);
+  }
+
+  @Patch("receipt-printers/:id")
+  @ApiBearerAuth()
+  @Roles(Role.ADMIN)
+  @ApiOperation({ summary: "Update a registered LAN receipt printer" })
+  @ApiOkResponse({ type: ReceiptPrinterResponseDto })
+  updateReceiptPrinter(
+    @CurrentUser() actor: AuthUser,
+    @Param("id", ParseUUIDPipe) id: string,
+    @Body() dto: UpdateReceiptPrinterDto,
+  ) {
+    return this.catalog.updateReceiptPrinter(actor, id, dto);
+  }
+
+  @Delete("receipt-printers/:id")
+  @ApiBearerAuth()
+  @Roles(Role.ADMIN)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: "Delete an unused registered receipt printer" })
+  @ApiNoContentResponse({ description: "Receipt printer deleted" })
+  @ApiConflictResponse({
+    description: "Receipt printer is referenced by catalog settings",
+  })
+  deleteReceiptPrinter(
+    @CurrentUser() actor: AuthUser,
+    @Param("id", ParseUUIDPipe) id: string,
+  ) {
+    return this.catalog.deleteReceiptPrinter(actor, id);
   }
 
   @Get("admin/products")

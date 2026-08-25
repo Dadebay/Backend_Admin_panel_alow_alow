@@ -2,6 +2,7 @@ export {
   catalogQueryKeys,
   useAdminCategories,
   useAdminProducts,
+  useReceiptPrinters,
   useReceiptPrintSettings,
 } from "./api/catalog-queries";
 export {
@@ -21,7 +22,10 @@ export type {
   CreateProduct,
   MediaUpload,
   Product,
+  ReceiptPrinter,
   ReceiptPrintSettings,
+  CreateReceiptPrinter,
+  UpdateReceiptPrinter,
   UpdateCategory,
   UpdateProduct,
   UpdateReceiptPrintSettings,

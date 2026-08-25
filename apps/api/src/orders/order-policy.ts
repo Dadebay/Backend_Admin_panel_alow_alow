@@ -4,33 +4,10 @@ import { OrderStatus, Role } from "../generated/prisma/client";
 const transitions: Partial<
   Record<OrderStatus, Partial<Record<Role, OrderStatus[]>>>
 > = {
-  [OrderStatus.NEW]: {
-    [Role.OPERATOR]: [OrderStatus.CONFIRMED],
-    [Role.ADMIN]: [OrderStatus.CONFIRMED],
-    [Role.SUPER_ADMIN]: [OrderStatus.CONFIRMED],
-  },
-  [OrderStatus.CONFIRMED]: {
-    [Role.OPERATOR]: [OrderStatus.SENT_TO_KITCHEN],
-    [Role.ADMIN]: [OrderStatus.NEW, OrderStatus.SENT_TO_KITCHEN],
-    [Role.SUPER_ADMIN]: [OrderStatus.NEW, OrderStatus.SENT_TO_KITCHEN],
-  },
-  [OrderStatus.SENT_TO_KITCHEN]: {
-    [Role.COOK]: [OrderStatus.COOKING, OrderStatus.READY],
-    [Role.ADMIN]: [
-      OrderStatus.CONFIRMED,
-      OrderStatus.COOKING,
-      OrderStatus.READY,
-    ],
-    [Role.SUPER_ADMIN]: [
-      OrderStatus.CONFIRMED,
-      OrderStatus.COOKING,
-      OrderStatus.READY,
-    ],
-  },
   [OrderStatus.COOKING]: {
     [Role.COOK]: [OrderStatus.READY],
-    [Role.ADMIN]: [OrderStatus.SENT_TO_KITCHEN, OrderStatus.READY],
-    [Role.SUPER_ADMIN]: [OrderStatus.SENT_TO_KITCHEN, OrderStatus.READY],
+    [Role.ADMIN]: [OrderStatus.READY],
+    [Role.SUPER_ADMIN]: [OrderStatus.READY],
   },
   [OrderStatus.READY]: {
     [Role.ADMIN]: [OrderStatus.COOKING],
@@ -52,11 +29,6 @@ const transitions: Partial<
     [Role.SUPER_ADMIN]: [OrderStatus.CASH_RETURNED],
   },
   [OrderStatus.CASH_RETURNED]: {
-    [Role.OPERATOR]: [OrderStatus.COMPLETED],
-    [Role.ADMIN]: [OrderStatus.COMPLETED],
-    [Role.SUPER_ADMIN]: [OrderStatus.COMPLETED],
-  },
-  [OrderStatus.COMPLETED]: {
     [Role.ACCOUNTANT]: [OrderStatus.RECONCILED],
     [Role.ADMIN]: [OrderStatus.RECONCILED],
     [Role.SUPER_ADMIN]: [OrderStatus.RECONCILED],
@@ -87,30 +59,20 @@ export function canCancelOrder(
   role: Role,
   isOwner: boolean,
 ) {
-  if (role === Role.CUSTOMER) {
-    return isOwner && status === OrderStatus.NEW;
-  }
-  const operatorStatuses: OrderStatus[] = [
-    OrderStatus.NEW,
-    OrderStatus.CONFIRMED,
-    OrderStatus.SENT_TO_KITCHEN,
-  ];
-  if (role === Role.OPERATOR) return operatorStatuses.includes(status);
+  void isOwner;
+  if (role === Role.CUSTOMER || role === Role.OPERATOR) return false;
   if (role !== Role.ADMIN && role !== Role.SUPER_ADMIN) return false;
-  return [
-    ...operatorStatuses,
+  const cancellableStatuses: OrderStatus[] = [
     OrderStatus.COOKING,
     OrderStatus.READY,
     OrderStatus.ASSIGNED_TO_COURIER,
     OrderStatus.OUT_FOR_DELIVERY,
     OrderStatus.DELIVERED,
-  ].includes(status);
+  ];
+  return cancellableStatuses.includes(status);
 }
 
 const administratorEditableStatuses: OrderStatus[] = [
-  OrderStatus.NEW,
-  OrderStatus.CONFIRMED,
-  OrderStatus.SENT_TO_KITCHEN,
   OrderStatus.COOKING,
   OrderStatus.READY,
   OrderStatus.ASSIGNED_TO_COURIER,

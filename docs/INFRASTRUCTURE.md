@@ -49,7 +49,7 @@ flowchart LR
   GH["GitHub Actions"] -->|"immutable GHCR digests over SSH"| VDS["A7-tagam VDS"]
   VDS --- N
   U -->|"HTTP loopback :17873"| PA["Windows/macOS receipt print agent"]
-  PA -->|"private LAN HTTP :80"| RP["J-Speed receipt printers"]
+  PA -->|"private LAN RAW TCP :9100 or J-Speed HTTP :80"| RP["Registered receipt printers"]
 ```
 
 TileServer provides only the visual base map. Courier GPS, orders, customer

@@ -5,19 +5,22 @@ import {
   ArrayUnique,
   IsArray,
   IsBoolean,
-  IsDefined,
+  IsEnum,
   IsInt,
   IsIP,
+  IsNotEmpty,
   IsNumber,
   IsOptional,
   IsString,
   IsUUID,
   Matches,
+  Max,
   MaxLength,
   Min,
   ValidateIf,
   ValidateNested,
 } from "class-validator";
+import { ReceiptPrinterTransport } from "../generated/prisma/client";
 
 const MEDIA_IMAGE_PATH =
   /^\/api\/v1\/media\/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.webp$/i;
@@ -58,6 +61,17 @@ export class CreateCategoryDto {
   })
   receiptPrinterIp?: string | null;
 
+  @ApiPropertyOptional({
+    type: String,
+    format: "uuid",
+    nullable: true,
+    description:
+      "Registered default kitchen printer; takes precedence over the legacy receiptPrinterIp field",
+  })
+  @IsOptional()
+  @IsUUID()
+  receiptPrinterId?: string | null;
+
   @ApiPropertyOptional({ default: 0 })
   @IsOptional()
   @IsInt()
@@ -72,21 +86,105 @@ export class CreateCategoryDto {
 export class UpdateCategoryDto extends PartialType(CreateCategoryDto) {}
 
 export class UpdateReceiptPrintSettingsDto {
-  @ApiProperty({
+  @ApiPropertyOptional({
+    type: String,
+    format: "uuid",
+    nullable: true,
+    description: "Registered printer that receives the complete receipt",
+  })
+  @IsOptional()
+  @IsUUID()
+  mainPrinterId?: string | null;
+
+  @ApiPropertyOptional({
     type: String,
     nullable: true,
     example: "192.168.1.50",
     description:
       "Private LAN printer that receives one complete administrator receipt; null disables the complete copy",
   })
-  @IsDefined()
+  @IsOptional()
   @Transform(({ value }) => normalizeOptionalIp(value))
   @ValidateIf((_object, value) => value !== null)
   @IsIP(4)
   @Matches(/^(?:10\.|192\.168\.|172\.(?:1[6-9]|2\d|3[01])\.)/, {
     message: "mainPrinterIp must be a private LAN IPv4 address",
   })
-  mainPrinterIp: string | null;
+  mainPrinterIp?: string | null;
+}
+
+export class CreateReceiptPrinterDto {
+  @ApiProperty({ example: "Пицца — кухня" })
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === "string" ? value.trim() : value,
+  )
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(100)
+  name: string;
+
+  @ApiProperty({ example: "192.168.123.100" })
+  @Transform(({ value }) => normalizeOptionalIp(value))
+  @IsIP(4)
+  @Matches(/^(?:10\.|192\.168\.|172\.(?:1[6-9]|2\d|3[01])\.)/, {
+    message: "ipAddress must be a private LAN IPv4 address",
+  })
+  ipAddress: string;
+
+  @ApiProperty({ example: 9100, default: 9100 })
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(65535)
+  port: number;
+
+  @ApiProperty({ enum: ReceiptPrinterTransport })
+  @IsEnum(ReceiptPrinterTransport)
+  transport: ReceiptPrinterTransport;
+
+  @ApiPropertyOptional({ default: true })
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
+}
+
+export class UpdateReceiptPrinterDto {
+  @ApiPropertyOptional({ example: "Пицца — кухня" })
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === "string" ? value.trim() : value,
+  )
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(100)
+  name?: string;
+
+  @ApiPropertyOptional({ example: "192.168.123.100" })
+  @IsOptional()
+  @Transform(({ value }) => normalizeOptionalIp(value))
+  @IsIP(4)
+  @Matches(/^(?:10\.|192\.168\.|172\.(?:1[6-9]|2\d|3[01])\.)/, {
+    message: "ipAddress must be a private LAN IPv4 address",
+  })
+  ipAddress?: string;
+
+  @ApiPropertyOptional({ example: 9100 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(65535)
+  port?: number;
+
+  @ApiPropertyOptional({ enum: ReceiptPrinterTransport })
+  @IsOptional()
+  @IsEnum(ReceiptPrinterTransport)
+  transport?: ReceiptPrinterTransport;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
 }
 
 export class ProductVariantInputDto {
@@ -188,6 +286,17 @@ export class CreateProductDto {
     message: "receiptPrinterIp must be a private LAN IPv4 address",
   })
   receiptPrinterIp?: string | null;
+
+  @ApiPropertyOptional({
+    type: String,
+    format: "uuid",
+    nullable: true,
+    description:
+      "Registered product-level printer override; null inherits the category route",
+  })
+  @IsOptional()
+  @IsUUID()
+  receiptPrinterId?: string | null;
 
   @ApiPropertyOptional({
     example: "Размер",

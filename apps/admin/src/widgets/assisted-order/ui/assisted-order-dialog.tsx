@@ -41,11 +41,11 @@ import { ApiError, resolveApiUrl } from "@/src/shared/api/api-client";
 import { FormFieldError } from "@/src/shared/forms";
 import {
   assistedOrderFormSchema,
-  buildAssistedDeliveryAddress,
   type AssistedOrderCoordinates,
   type AssistedOrderFormInput,
   type AssistedOrderFormValues,
 } from "../model/assisted-order-form";
+import { buildAssistedOrderDeliverySelection } from "../model/assisted-order-delivery";
 import {
   findExactAssistedCustomer,
   getPreferredAssistedAddress,
@@ -503,6 +503,20 @@ export default function AssistedOrderDialog({
       return;
     }
 
+    const deliverySelection = buildAssistedOrderDeliverySelection({
+      values,
+      coordinates,
+      savedAddress: selectedSavedAddress,
+      officialAddress:
+        deliveryQuote.data?.addressLine ||
+        selectedLocationLabel ||
+        selectedAddressResult?.label,
+    });
+    if (!deliverySelection) {
+      setSelectionError("Поставьте маркер адреса доставки на карте");
+      return;
+    }
+
     const body = {
       customerPhone: values.customerPhone,
       customerFirstName: values.customerFirstName,
@@ -512,25 +526,7 @@ export default function AssistedOrderDialog({
         ...(variant ? { variantId: variant.id } : {}),
         quantity,
       })),
-      deliveryEtrapId: values.deliveryEtrapId,
-      ...(values.addressId
-        ? { addressId: values.addressId }
-        : {
-            addressLabel: values.addressLabel,
-            address: buildAssistedDeliveryAddress({
-              officialAddress:
-                deliveryQuote.data?.addressLine ||
-                selectedLocationLabel ||
-                selectedAddressResult?.label,
-              unofficialAddress: values.address,
-              coordinates: coordinates!,
-            }),
-            latitude: coordinates?.latitude,
-            longitude: coordinates?.longitude,
-            entrance: values.entrance,
-            floor: values.floor,
-            apartment: values.apartment,
-          }),
+      ...deliverySelection,
       customerNote: values.customerNote,
       promoCode: values.promoCode,
     } satisfies CreateAssistedOrderBody;

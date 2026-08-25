@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
-import type { Product } from "@/src/entities/catalog";
+import type { Product, ReceiptPrinter } from "@/src/entities/catalog";
 import { FormFieldError } from "@/src/shared/forms";
 import {
   categoryReceiptRouteFormSchema,
@@ -9,14 +9,16 @@ import {
 
 export function ProductReceiptRoute({
   product,
+  printers,
   canEdit,
   isPending,
   onSave,
 }: {
   product: Product;
+  printers: ReceiptPrinter[];
   canEdit: boolean;
   isPending: boolean;
-  onSave: (product: Product, receiptPrinterIp: string) => Promise<void>;
+  onSave: (product: Product, receiptPrinterId: string) => Promise<void>;
 }) {
   const {
     register,
@@ -25,17 +27,22 @@ export function ProductReceiptRoute({
   } = useForm<CategoryReceiptRouteFormValues>({
     resolver: zodResolver(categoryReceiptRouteFormSchema),
     mode: "onBlur",
-    values: { receiptPrinterIp: product.receiptPrinterIp ?? "" },
+    values: { receiptPrinterId: product.receiptPrinterId ?? "" },
   });
 
   if (!canEdit) {
     return (
       <div className="primary-cell">
-        <strong>{product.effectiveReceiptPrinterIp ?? "Не назначен"}</strong>
+        <strong>
+          {product.effectiveReceiptPrinter?.name ??
+            product.effectiveReceiptPrinterIp ??
+            "Не назначен"}
+        </strong>
         <small>
-          {product.receiptPrinterIp
-            ? "Свой IP · приоритет над категорией"
-            : product.effectiveReceiptPrinterIp
+          {product.receiptPrinterId || product.receiptPrinterIp
+            ? "Свой аппарат · приоритет над категорией"
+            : product.effectiveReceiptPrinterId ||
+                product.effectiveReceiptPrinterIp
               ? "Наследуется от категории"
               : "Маршрут не назначен"}
         </small>
@@ -49,29 +56,43 @@ export function ProductReceiptRoute({
       data-testid={`product-printer-route-${product.id}`}
       noValidate
       onSubmit={handleSubmit((values) =>
-        onSave(product, values.receiptPrinterIp),
+        onSave(product, values.receiptPrinterId),
       )}
     >
       <label>
         <span className="visually-hidden">
-          Свой IP чекового аппарата для блюда {product.name}
+          Свой чековый аппарат для блюда {product.name}
         </span>
-        <input
-          data-testid={`product-printer-ip-${product.id}`}
-          {...register("receiptPrinterIp")}
-          aria-invalid={Boolean(errors.receiptPrinterIp)}
+        <select
+          data-testid={`product-printer-select-${product.id}`}
+          {...register("receiptPrinterId")}
+          aria-invalid={Boolean(errors.receiptPrinterId)}
           disabled={isPending}
-          inputMode="decimal"
-          placeholder={product.effectiveReceiptPrinterIp ?? "192.168.1.52"}
-        />
-        <FormFieldError message={errors.receiptPrinterIp?.message} />
+        >
+          <option value="">Наследовать аппарат категории</option>
+          {printers.map((printer) => (
+            <option
+              key={printer.id}
+              value={printer.id}
+              disabled={
+                !printer.isActive && printer.id !== product.receiptPrinterId
+              }
+            >
+              {printer.name} · {printer.ipAddress}:{printer.port}
+              {printer.isActive ? "" : " · отключён"}
+            </option>
+          ))}
+        </select>
+        <FormFieldError message={errors.receiptPrinterId?.message} />
       </label>
       <small>
-        {product.receiptPrinterIp
-          ? "Свой IP: категория не используется"
-          : product.effectiveReceiptPrinterIp
-            ? `Сейчас от категории: ${product.effectiveReceiptPrinterIp}`
-            : "Сейчас принтер не назначен"}
+        {product.receiptPrinterId || product.receiptPrinterIp
+          ? "Свой аппарат: категория не используется"
+          : product.effectiveReceiptPrinter
+            ? `Сейчас от категории: ${product.effectiveReceiptPrinter.name}`
+            : product.effectiveReceiptPrinterIp
+              ? `Сейчас от категории: ${product.effectiveReceiptPrinterIp}`
+              : "Сейчас принтер не назначен"}
       </small>
       <div className="product-printer-route-actions">
         <button
@@ -79,16 +100,19 @@ export function ProductReceiptRoute({
           data-testid={`product-printer-save-${product.id}`}
           disabled={!isDirty || isPending}
         >
-          Сохранить IP
+          Сохранить аппарат
         </button>
         <button
           className="text-button compact"
           data-testid={`product-printer-clear-${product.id}`}
-          disabled={!product.receiptPrinterIp || isPending}
+          disabled={
+            (!product.receiptPrinterId && !product.receiptPrinterIp) ||
+            isPending
+          }
           type="button"
           onClick={() => void onSave(product, "")}
         >
-          Убрать свой IP
+          Наследовать категорию
         </button>
       </div>
     </form>

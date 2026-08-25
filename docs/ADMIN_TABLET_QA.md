@@ -52,7 +52,7 @@
 | `/couriers/map` | `/tracking/dispatch`, выбранный маршрут `/orders/couriers/:courierId/route` |
 | `/branches` | `/branches` |
 | `/delivery` | `/delivery/admin/config` |
-| `/catalog` | `/catalog/admin/categories`, `/catalog/admin/products`, `/catalog/admin/receipt-print-settings` |
+| `/catalog` | `/catalog/admin/categories`, `/catalog/admin/products`, `/catalog/admin/receipt-printers`, `/catalog/admin/receipt-print-settings` |
 | `/marketing` | `/marketing/admin/banners`, `/marketing/promos` |
 | `/notifications` | `/notifications/admin/campaigns?page=1&limit=25` |
 | `/staff` | `/staff`, `/staff/recent-logins` |
@@ -86,7 +86,9 @@ login attempts: 200
 Проверка выполнялась через API без браузерной автоматизации. Она доказывает
 доступность реальных данных и контрактов всех экранов. Адаптивные гарантии
 проверяются отдельными frontend-тестами по маршрутам, стабильным `data-testid`,
-container/media breakpoints и отсутствию page-level overflow.
+container/media breakpoints и отсутствию page-level overflow. Реестр аппаратов
+проверяется через `/catalog/admin/receipt-printers`; UI хранит имя, LAN IP, порт,
+протокол и активность, а маршруты выбирают сохранённый аппарат по ID.
 
 ## Повторная авторизованная API-проверка
 
@@ -130,12 +132,16 @@ touch-размеры, адаптивный Kanban, карточные табли
 route/API-матрицу.
 `apps/admin/tests/catalog-deletion.test.mjs` и
 `apps/admin/tests/receipt-printing.test.mjs` удерживают DELETE-вызовы,
-подтверждение, стабильные селекторы и явную очистку IP. Mutations каталога:
-`DELETE /catalog/categories/:id`, `DELETE /catalog/products/:id`, а очистка IP
-использует существующие `PATCH` с `null`.
+подтверждение, стабильные селекторы и явную очистку маршрута. Mutations каталога:
+`DELETE /catalog/categories/:id`, `DELETE /catalog/products/:id`,
+`DELETE /catalog/receipt-printers/:id`, а очистка привязки использует
+существующие `PATCH` с `null`.
 `apps/admin/tests/assisted-order.test.mjs` отдельно удерживает пошаговый
 address-flow, доступный listbox в потоке формы, стабильные селекторы, высоту
-карты и разделение координат от деталей для курьера.
+карты и разделение координат от деталей для курьера. Функциональный тест формы
+дополнительно проверяет, что изменение квартиры не меняет координаты, но не
+теряется после выбора сохранённого адреса; backend e2e подтверждает квартиру в
+активном адресе клиента и snapshot заказа.
 
 ## Ручная приёмка без автоматизации браузера
 

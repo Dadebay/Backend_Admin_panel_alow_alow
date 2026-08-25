@@ -4,10 +4,15 @@ export type Category = components["schemas"]["CatalogAdminCategoryResponseDto"];
 export type Product = components["schemas"]["CatalogAdminProductResponseDto"];
 export type ReceiptPrintSettings =
   components["schemas"]["ReceiptPrintSettingsResponseDto"];
+export type ReceiptPrinter = components["schemas"]["ReceiptPrinterResponseDto"];
 export type CreateCategory = components["schemas"]["CreateCategoryDto"];
 export type UpdateCategory = components["schemas"]["UpdateCategoryDto"];
 export type CreateProduct = components["schemas"]["CreateProductDto"];
 export type UpdateProduct = components["schemas"]["UpdateProductDto"];
 export type UpdateReceiptPrintSettings =
   components["schemas"]["UpdateReceiptPrintSettingsDto"];
+export type CreateReceiptPrinter =
+  components["schemas"]["CreateReceiptPrinterDto"];
+export type UpdateReceiptPrinter =
+  components["schemas"]["UpdateReceiptPrinterDto"];
 export type MediaUpload = components["schemas"]["MediaUploadResponseDto"];

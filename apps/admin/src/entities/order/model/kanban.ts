@@ -1,6 +1,6 @@
 import type { OrderStatus, Role } from "./types";
 
-export type OrderKanbanLaneId = "kitchen" | "ready" | "courier" | "archive";
+export type OrderKanbanLaneId = "kitchen" | "courier" | "archive";
 
 export type OrderKanbanLane = {
   id: OrderKanbanLaneId;
@@ -16,32 +16,21 @@ export type OrderCardField =
 export const orderKanbanLanes: OrderKanbanLane[] = [
   {
     id: "kitchen",
-    title: "Очередь кухни",
-    responsibility: "Новые заказы сразу здесь",
-    statuses: ["NEW", "CONFIRMED", "SENT_TO_KITCHEN", "COOKING"],
-  },
-  {
-    id: "ready",
-    title: "Сборка",
-    responsibility: "Администратор проверяет заказ",
-    statuses: ["READY"],
+    title: "Кухня",
+    responsibility: "Готовится → готов к сборке",
+    statuses: ["COOKING", "READY"],
   },
   {
     id: "courier",
     title: "Курьер",
     responsibility: "Курьер → оператор",
-    statuses: [
-      "ASSIGNED_TO_COURIER",
-      "OUT_FOR_DELIVERY",
-      "DELIVERED",
-      "CASH_RETURNED",
-    ],
+    statuses: ["ASSIGNED_TO_COURIER", "OUT_FOR_DELIVERY", "DELIVERED"],
   },
   {
     id: "archive",
-    title: "Закрытые и отменённые",
+    title: "Завершённые и отменённые",
     responsibility: "История за выбранный период",
-    statuses: ["COMPLETED", "RECONCILED", "CANCELLED"],
+    statuses: ["CASH_RETURNED", "RECONCILED", "CANCELLED"],
     collapsed: true,
   },
 ];
@@ -54,18 +43,13 @@ const fullFlowRoles = new Set<Role>([
 ]);
 
 const laneIdsByRole: Partial<Record<Role, Set<OrderKanbanLaneId>>> = {
-  COOK: new Set(["kitchen", "ready"]),
+  COOK: new Set(["kitchen"]),
   COURIER: new Set(["courier"]),
 };
 
 const queueStatusesByRole: Partial<Record<Role, OrderStatus[]>> = {
-  COOK: ["SENT_TO_KITCHEN", "COOKING", "READY"],
-  COURIER: [
-    "ASSIGNED_TO_COURIER",
-    "OUT_FOR_DELIVERY",
-    "DELIVERED",
-    "CASH_RETURNED",
-  ],
+  COOK: ["COOKING", "READY"],
+  COURIER: ["ASSIGNED_TO_COURIER", "OUT_FOR_DELIVERY", "DELIVERED"],
 };
 
 const cardFieldsByRole: Record<Role, Set<OrderCardField>> = {

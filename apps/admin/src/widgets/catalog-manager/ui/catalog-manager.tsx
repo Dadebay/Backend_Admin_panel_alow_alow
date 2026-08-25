@@ -10,6 +10,7 @@ import {
   MAX_PRODUCT_IMAGES,
   useAdminCategories,
   useAdminProducts,
+  useReceiptPrinters,
   useReceiptPrintSettings,
   type Category,
   type Product,
@@ -34,6 +35,7 @@ import {
 } from "../model/category-receipt-route";
 import { CategoryReceiptRoutes } from "./category-receipt-routes";
 import { ProductReceiptRoute } from "./product-receipt-route";
+import { ReceiptPrinterRegistry } from "./receipt-printer-registry";
 
 type CatalogDeleteTarget =
   | {
@@ -52,6 +54,7 @@ export function CatalogManager() {
   const { session } = useSession();
   const categories = useAdminCategories();
   const products = useAdminProducts();
+  const receiptPrinters = useReceiptPrinters();
   const receiptPrintSettings = useReceiptPrintSettings();
   const actions = useCatalogActions();
   const [categoryEdit, setCategoryEdit] = useState<Category | null>(null);
@@ -83,7 +86,7 @@ export function CatalogManager() {
     defaultValues: {
       name: "",
       slug: "",
-      receiptPrinterIp: "",
+      receiptPrinterId: "",
       sortOrder: 0,
       isActive: true,
       image: undefined,
@@ -97,7 +100,7 @@ export function CatalogManager() {
     resolver: zodResolver(receiptPrintSettingsFormSchema),
     mode: "onBlur",
     values: {
-      mainPrinterIp: receiptPrintSettings.data?.mainPrinterIp ?? "",
+      mainPrinterId: receiptPrintSettings.data?.mainPrinterId ?? "",
     },
   });
   const {
@@ -117,7 +120,7 @@ export function CatalogManager() {
       slug: "",
       description: "",
       price: 0,
-      receiptPrinterIp: "",
+      receiptPrinterId: "",
       variantLabel: "",
       variants: [],
       sortOrder: 0,
@@ -208,7 +211,10 @@ export function CatalogManager() {
       },
       {
         header: "Кухонный аппарат",
-        cell: ({ row }) => row.original.receiptPrinterIp ?? "Не назначен",
+        cell: ({ row }) =>
+          row.original.receiptPrinter
+            ? `${row.original.receiptPrinter.name} · ${row.original.receiptPrinter.ipAddress}:${row.original.receiptPrinter.port}`
+            : (row.original.receiptPrinterIp ?? "Не назначен"),
       },
       { header: "Порядок", accessorKey: "sortOrder" },
       {
@@ -233,7 +239,7 @@ export function CatalogManager() {
                   resetCategory({
                     name: row.original.name,
                     slug: row.original.slug,
-                    receiptPrinterIp: row.original.receiptPrinterIp ?? "",
+                    receiptPrinterId: row.original.receiptPrinterId ?? "",
                     sortOrder: row.original.sortOrder,
                     isActive: row.original.isActive,
                     image: undefined,
@@ -342,13 +348,14 @@ export function CatalogManager() {
         cell: ({ row }) => (
           <ProductReceiptRoute
             product={row.original}
+            printers={receiptPrinters.data ?? []}
             canEdit={canEdit}
             isPending={actions.updateProduct.isPending}
-            onSave={async (product, receiptPrinterIp) => {
+            onSave={async (product, receiptPrinterId) => {
               await actions.updateProduct.mutateAsync({
                 id: product.id,
                 body: {
-                  receiptPrinterIp: receiptPrinterIp || null,
+                  receiptPrinterId: receiptPrinterId || null,
                   sortOrder: product.sortOrder,
                   isActive: product.isActive,
                 },
@@ -385,7 +392,7 @@ export function CatalogManager() {
                     slug: row.original.slug,
                     description: row.original.description,
                     price: Number(row.original.price),
-                    receiptPrinterIp: row.original.receiptPrinterIp ?? "",
+                    receiptPrinterId: row.original.receiptPrinterId ?? "",
                     variantLabel: row.original.variantLabel ?? "",
                     variants: row.original.variants.map((variant) => ({
                       id: variant.id,
@@ -445,6 +452,7 @@ export function CatalogManager() {
       actions.deleteProduct,
       actions.updateProduct,
       canEdit,
+      receiptPrinters.data,
       resetProduct,
     ],
   );
@@ -458,7 +466,7 @@ export function CatalogManager() {
     const body = {
       name: values.name,
       slug: values.slug,
-      receiptPrinterIp: values.receiptPrinterIp || null,
+      receiptPrinterId: values.receiptPrinterId || null,
       sortOrder: values.sortOrder,
       isActive: values.isActive,
       ...(imageUrl ? { imageUrl } : {}),
@@ -480,7 +488,7 @@ export function CatalogManager() {
     values: ReceiptPrintSettingsFormValues,
   ) {
     await actions.updateReceiptPrintSettings.mutateAsync({
-      mainPrinterIp: values.mainPrinterIp || null,
+      mainPrinterId: values.mainPrinterId || null,
     });
   }
 
@@ -534,7 +542,7 @@ export function CatalogManager() {
       slug: values.slug,
       description: values.description,
       price: values.price,
-      receiptPrinterIp: values.receiptPrinterIp || null,
+      receiptPrinterId: values.receiptPrinterId || null,
       variantLabel: values.variantLabel || undefined,
       variants,
       sortOrder: values.sortOrder,
@@ -575,6 +583,9 @@ export function CatalogManager() {
         actions.updateCategory.error ||
         actions.deleteCategory.error ||
         actions.updateReceiptPrintSettings.error ||
+        actions.createReceiptPrinter.error ||
+        actions.updateReceiptPrinter.error ||
+        actions.deleteReceiptPrinter.error ||
         actions.createProduct.error ||
         actions.updateProduct.error ||
         actions.deleteProduct.error ||
@@ -604,7 +615,7 @@ export function CatalogManager() {
                 resetCategory({
                   name: "",
                   slug: "",
-                  receiptPrinterIp: "",
+                  receiptPrinterId: "",
                   sortOrder: 0,
                   isActive: true,
                   image: undefined,
@@ -628,7 +639,7 @@ export function CatalogManager() {
                   slug: "",
                   description: "",
                   price: 0,
-                  receiptPrinterIp: "",
+                  receiptPrinterId: "",
                   variantLabel: "",
                   variants: [],
                   sortOrder: 0,
@@ -718,6 +729,29 @@ export function CatalogManager() {
         </div>
       )}
 
+      <ReceiptPrinterRegistry
+        printers={receiptPrinters.data ?? []}
+        canEdit={canEdit}
+        isLoading={receiptPrinters.isPending}
+        isPending={
+          actions.createReceiptPrinter.isPending ||
+          actions.updateReceiptPrinter.isPending ||
+          actions.deleteReceiptPrinter.isPending
+        }
+        error={errorMessage(
+          receiptPrinters.error ||
+            actions.createReceiptPrinter.error ||
+            actions.updateReceiptPrinter.error ||
+            actions.deleteReceiptPrinter.error,
+        )}
+        onRetry={() => void receiptPrinters.refetch()}
+        onCreate={(body) => actions.createReceiptPrinter.mutateAsync(body)}
+        onUpdate={(id, body) =>
+          actions.updateReceiptPrinter.mutateAsync({ id, body })
+        }
+        onDelete={(id) => actions.deleteReceiptPrinter.mutateAsync(id)}
+      />
+
       <form
         className="table-card receipt-print-settings-card"
         data-testid="receipt-print-settings-form"
@@ -734,17 +768,30 @@ export function CatalogManager() {
         </div>
         <div className="receipt-print-settings-controls">
           <label>
-            <span>IP главного аппарата</span>
-            <input
-              data-testid="main-receipt-printer-ip"
-              {...registerReceiptPrintSettings("mainPrinterIp")}
-              aria-invalid={Boolean(receiptPrintSettingsErrors.mainPrinterIp)}
+            <span>Главный аппарат</span>
+            <select
+              data-testid="main-receipt-printer-select"
+              {...registerReceiptPrintSettings("mainPrinterId")}
+              aria-invalid={Boolean(receiptPrintSettingsErrors.mainPrinterId)}
               disabled={!canEdit || receiptPrintSettings.isPending}
-              inputMode="decimal"
-              placeholder="192.168.1.50"
-            />
+            >
+              <option value="">Не печатать главный чек</option>
+              {(receiptPrinters.data ?? []).map((printer) => (
+                <option
+                  key={printer.id}
+                  value={printer.id}
+                  disabled={
+                    !printer.isActive &&
+                    printer.id !== receiptPrintSettings.data?.mainPrinterId
+                  }
+                >
+                  {printer.name} · {printer.ipAddress}:{printer.port}
+                  {printer.isActive ? "" : " · отключён"}
+                </option>
+              ))}
+            </select>
             <FormFieldError
-              message={receiptPrintSettingsErrors.mainPrinterIp?.message}
+              message={receiptPrintSettingsErrors.mainPrinterId?.message}
             />
           </label>
           <div className="receipt-print-settings-actions">
@@ -764,17 +811,18 @@ export function CatalogManager() {
                   className="text-button compact"
                   data-testid="main-receipt-printer-clear"
                   disabled={
-                    !receiptPrintSettings.data?.mainPrinterIp ||
+                    (!receiptPrintSettings.data?.mainPrinterId &&
+                      !receiptPrintSettings.data?.mainPrinterIp) ||
                     actions.updateReceiptPrintSettings.isPending
                   }
                   type="button"
                   onClick={() =>
                     actions.updateReceiptPrintSettings.mutate({
-                      mainPrinterIp: null,
+                      mainPrinterId: null,
                     })
                   }
                 >
-                  Очистить IP
+                  Убрать аппарат
                 </button>
                 <button
                   className="primary-button compact"
@@ -791,6 +839,7 @@ export function CatalogManager() {
 
       <CategoryReceiptRoutes
         categories={categories.data ?? []}
+        printers={receiptPrinters.data ?? []}
         canEdit={canEdit}
         isLoading={categories.isPending}
         isPending={
@@ -800,10 +849,7 @@ export function CatalogManager() {
         onSave={async (category, values) => {
           await actions.updateCategory.mutateAsync({
             id: category.id,
-            body: buildCategoryPrinterUpdate(
-              category,
-              values.receiptPrinterIp,
-            ),
+            body: buildCategoryPrinterUpdate(category, values.receiptPrinterId),
           });
         }}
         onClear={async (category) => {
@@ -945,20 +991,33 @@ export function CatalogManager() {
                 <FormFieldError message={categoryErrors.slug?.message} />
               </label>
               <label>
-                <span>IP кухонного аппарата</span>
-                <input
-                  data-testid="category-receipt-printer-ip"
-                  {...registerCategory("receiptPrinterIp")}
-                  aria-invalid={Boolean(categoryErrors.receiptPrinterIp)}
-                  inputMode="decimal"
-                  placeholder="192.168.1.51"
-                />
+                <span>Кухонный аппарат</span>
+                <select
+                  data-testid="category-receipt-printer-select"
+                  {...registerCategory("receiptPrinterId")}
+                  aria-invalid={Boolean(categoryErrors.receiptPrinterId)}
+                >
+                  <option value="">Без кухонного аппарата</option>
+                  {(receiptPrinters.data ?? []).map((printer) => (
+                    <option
+                      key={printer.id}
+                      value={printer.id}
+                      disabled={
+                        !printer.isActive &&
+                        printer.id !== categoryEdit?.receiptPrinterId
+                      }
+                    >
+                      {printer.name} · {printer.ipAddress}:{printer.port}
+                      {printer.isActive ? "" : " · отключён"}
+                    </option>
+                  ))}
+                </select>
                 <FormFieldError
-                  message={categoryErrors.receiptPrinterIp?.message}
+                  message={categoryErrors.receiptPrinterId?.message}
                 />
                 <small>
                   Все блюда категории наследуют этот аппарат, если у блюда не
-                  указан собственный IP.
+                  указан собственный аппарат.
                 </small>
               </label>
               <label>
@@ -1111,21 +1170,34 @@ export function CatalogManager() {
                 </small>
               </label>
               <label>
-                <span>Свой IP чекового аппарата</span>
-                <input
-                  data-testid="product-receipt-printer-ip"
-                  {...registerProduct("receiptPrinterIp")}
-                  aria-invalid={Boolean(productErrors.receiptPrinterIp)}
-                  inputMode="decimal"
-                  placeholder="192.168.1.50"
-                />
+                <span>Свой чековый аппарат</span>
+                <select
+                  data-testid="product-receipt-printer-select"
+                  {...registerProduct("receiptPrinterId")}
+                  aria-invalid={Boolean(productErrors.receiptPrinterId)}
+                >
+                  <option value="">Наследовать аппарат категории</option>
+                  {(receiptPrinters.data ?? []).map((printer) => (
+                    <option
+                      key={printer.id}
+                      value={printer.id}
+                      disabled={
+                        !printer.isActive &&
+                        printer.id !== productEdit?.receiptPrinterId
+                      }
+                    >
+                      {printer.name} · {printer.ipAddress}:{printer.port}
+                      {printer.isActive ? "" : " · отключён"}
+                    </option>
+                  ))}
+                </select>
                 <FormFieldError
-                  message={productErrors.receiptPrinterIp?.message}
+                  message={productErrors.receiptPrinterId?.message}
                 />
                 <small>
-                  Необязательно. Заполненный IP полностью заменяет аппарат
-                  категории: блюдо печатается только здесь. Пустое поле
-                  наследует IP категории.
+                  Необязательно. Выбранный аппарат полностью заменяет аппарат
+                  категории: блюдо печатается только здесь. Пустой выбор
+                  наследует аппарат категории.
                 </small>
               </label>
               <label>

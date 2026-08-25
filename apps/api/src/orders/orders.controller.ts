@@ -109,7 +109,7 @@ export class OrdersController {
   @Roles(Role.OPERATOR, Role.ADMIN)
   @ApiOperation({
     summary:
-      "Build one complete administrator receipt and kitchen jobs grouped by snapshotted LAN printer IP",
+      "Build an order or cancellation receipt for the main and snapshotted kitchen printers",
   })
   @ApiOkResponse({ type: ReceiptPrintPlanResponseDto })
   receiptPrintPlan(@Param("id", ParseUUIDPipe) id: string) {

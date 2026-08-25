@@ -188,11 +188,14 @@ artifacts built from `apps/print-agent`: Windows x64/ARM64 and macOS
 Intel/Apple Silicon. A workstation runs the matching executable on loopback
 `127.0.0.1:17873`; the production admin origin is allowlisted by default. Its
 wired adapter must have a persistent address in the same subnet as the private
-LAN printers and no gateway. Printer IP assignment remains catalog data managed
-through the admin: one main apparatus, a kitchen default per category and an
-optional product override. It is never an agent config file or frontend
-constant. Roll out the current print-agent artifact with this release because it
-allows the main and kitchen copies to target the same physical IP sequentially.
+LAN printers and no gateway. Printer endpoints remain catalog data managed
+through the admin registry: name, private IPv4 address, port, transport and
+active state, followed by one main selection, a kitchen default per category
+and an optional product override. Endpoints are never an agent config file or
+frontend constant. Roll out the current print-agent artifact with this release
+because it supports registered raw TCP/ESC-POS endpoints as well as legacy
+J-Speed HTTP and allows the main and kitchen copies to target the same physical
+endpoint sequentially.
 
 ### Temporary domestic fallback record
 

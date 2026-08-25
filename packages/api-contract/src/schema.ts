@@ -208,6 +208,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/catalog/admin/receipt-printers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List registered LAN receipt printers */
+        get: operations["CatalogController_receiptPrinters_v1"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/catalog/categories/{id}": {
         parameters: {
             query?: never;
@@ -240,6 +257,41 @@ export interface paths {
         head?: never;
         /** Configure the complete administrator receipt printer */
         patch: operations["CatalogController_updateReceiptPrintSettings_v1"];
+        trace?: never;
+    };
+    "/api/v1/catalog/receipt-printers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Register a LAN receipt printer */
+        post: operations["CatalogController_createReceiptPrinter_v1"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/catalog/receipt-printers/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete an unused registered receipt printer */
+        delete: operations["CatalogController_deleteReceiptPrinter_v1"];
+        options?: never;
+        head?: never;
+        /** Update a registered LAN receipt printer */
+        patch: operations["CatalogController_updateReceiptPrinter_v1"];
         trace?: never;
     };
     "/api/v1/catalog/admin/products": {
@@ -384,7 +436,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Build one complete administrator receipt and kitchen jobs grouped by snapshotted LAN printer IP */
+        /** Build an order or cancellation receipt for the main and snapshotted kitchen printers */
         get: operations["OrdersController_receiptPrintPlan_v1"];
         put?: never;
         post?: never;
@@ -1438,6 +1490,22 @@ export interface components {
             updatedAt: string;
             products: components["schemas"]["CatalogProductResponseDto"][];
         };
+        ReceiptPrinterResponseDto: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            /** @example 192.168.123.100 */
+            ipAddress: string;
+            /** @example 9100 */
+            port: number;
+            /** @enum {string} */
+            transport: "RAW_TCP" | "JSPEED_HTTP";
+            isActive: boolean;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
         CatalogAdminProductResponseDto: {
             /** Format: uuid */
             id: string;
@@ -1460,13 +1528,19 @@ export interface components {
             images: components["schemas"]["CatalogProductImageResponseDto"][];
             variants: components["schemas"]["CatalogProductVariantResponseDto"][];
             category?: components["schemas"]["CatalogCategorySummaryResponseDto"];
+            /** Format: uuid */
+            receiptPrinterId: string | null;
             /**
              * @description Explicit product override; null means inherit the category route
              * @example 192.168.1.50
              */
             receiptPrinterIp: string | null;
+            receiptPrinter: components["schemas"]["ReceiptPrinterResponseDto"] | null;
+            /** Format: uuid */
+            effectiveReceiptPrinterId: string | null;
             /** @example 192.168.1.51 */
             effectiveReceiptPrinterIp: string | null;
+            effectiveReceiptPrinter: components["schemas"]["ReceiptPrinterResponseDto"] | null;
         };
         CatalogAdminCategoryResponseDto: {
             /** Format: uuid */
@@ -1480,13 +1554,19 @@ export interface components {
             createdAt: string;
             /** Format: date-time */
             updatedAt: string;
+            /** Format: uuid */
+            receiptPrinterId: string | null;
             /** @example 192.168.1.51 */
             receiptPrinterIp: string | null;
+            receiptPrinter: components["schemas"]["ReceiptPrinterResponseDto"] | null;
             products: components["schemas"]["CatalogAdminProductResponseDto"][];
         };
         ReceiptPrintSettingsResponseDto: {
+            /** Format: uuid */
+            mainPrinterId: string | null;
             /** @example 192.168.1.50 */
             mainPrinterIp: string | null;
+            mainPrinter: components["schemas"]["ReceiptPrinterResponseDto"] | null;
             /** Format: date-time */
             updatedAt: string | null;
         };
@@ -1499,6 +1579,11 @@ export interface components {
              * @example 192.168.1.51
              */
             receiptPrinterIp?: string | null;
+            /**
+             * Format: uuid
+             * @description Registered default kitchen printer; takes precedence over the legacy receiptPrinterIp field
+             */
+            receiptPrinterId?: string | null;
             /** @default 0 */
             sortOrder: number;
             /** @default true */
@@ -1516,8 +1601,11 @@ export interface components {
             createdAt: string;
             /** Format: date-time */
             updatedAt: string;
+            /** Format: uuid */
+            receiptPrinterId: string | null;
             /** @example 192.168.1.51 */
             receiptPrinterIp: string | null;
+            receiptPrinter: components["schemas"]["ReceiptPrinterResponseDto"] | null;
         };
         UpdateCategoryDto: {
             name?: string;
@@ -1528,6 +1616,11 @@ export interface components {
              * @example 192.168.1.51
              */
             receiptPrinterIp?: string | null;
+            /**
+             * Format: uuid
+             * @description Registered default kitchen printer; takes precedence over the legacy receiptPrinterIp field
+             */
+            receiptPrinterId?: string | null;
             /** @default 0 */
             sortOrder: number;
             /** @default true */
@@ -1535,10 +1628,41 @@ export interface components {
         };
         UpdateReceiptPrintSettingsDto: {
             /**
+             * Format: uuid
+             * @description Registered printer that receives the complete receipt
+             */
+            mainPrinterId?: string | null;
+            /**
              * @description Private LAN printer that receives one complete administrator receipt; null disables the complete copy
              * @example 192.168.1.50
              */
-            mainPrinterIp: string | null;
+            mainPrinterIp?: string | null;
+        };
+        CreateReceiptPrinterDto: {
+            /** @example Пицца — кухня */
+            name: string;
+            /** @example 192.168.123.100 */
+            ipAddress: string;
+            /**
+             * @default 9100
+             * @example 9100
+             */
+            port: number;
+            /** @enum {string} */
+            transport: "RAW_TCP" | "JSPEED_HTTP";
+            /** @default true */
+            isActive: boolean;
+        };
+        UpdateReceiptPrinterDto: {
+            /** @example Пицца — кухня */
+            name?: string;
+            /** @example 192.168.123.100 */
+            ipAddress?: string;
+            /** @example 9100 */
+            port?: number;
+            /** @enum {string} */
+            transport?: "RAW_TCP" | "JSPEED_HTTP";
+            isActive?: boolean;
         };
         ProductVariantInputDto: {
             /**
@@ -1575,6 +1699,11 @@ export interface components {
              */
             receiptPrinterIp?: string | null;
             /**
+             * Format: uuid
+             * @description Registered product-level printer override; null inherits the category route
+             */
+            receiptPrinterId?: string | null;
+            /**
              * @description Customer-facing selector label, for example Size or Cutting method
              * @example Размер
              */
@@ -1608,6 +1737,11 @@ export interface components {
              * @example 192.168.1.50
              */
             receiptPrinterIp?: string | null;
+            /**
+             * Format: uuid
+             * @description Registered product-level printer override; null inherits the category route
+             */
+            receiptPrinterId?: string | null;
             /**
              * @description Customer-facing selector label, for example Size or Cutting method
              * @example Размер
@@ -1774,9 +1908,9 @@ export interface components {
             /** Format: uuid */
             actorId: string;
             /** @enum {string} */
-            fromStatus: "NEW" | "CONFIRMED" | "SENT_TO_KITCHEN" | "COOKING" | "READY" | "ASSIGNED_TO_COURIER" | "OUT_FOR_DELIVERY" | "DELIVERED" | "CASH_RETURNED" | "COMPLETED" | "RECONCILED" | "CANCELLED";
+            fromStatus: "COOKING" | "READY" | "ASSIGNED_TO_COURIER" | "OUT_FOR_DELIVERY" | "DELIVERED" | "CASH_RETURNED" | "RECONCILED" | "CANCELLED";
             /** @enum {string} */
-            toStatus: "NEW" | "CONFIRMED" | "SENT_TO_KITCHEN" | "COOKING" | "READY" | "ASSIGNED_TO_COURIER" | "OUT_FOR_DELIVERY" | "DELIVERED" | "CASH_RETURNED" | "COMPLETED" | "RECONCILED" | "CANCELLED";
+            toStatus: "COOKING" | "READY" | "ASSIGNED_TO_COURIER" | "OUT_FOR_DELIVERY" | "DELIVERED" | "CASH_RETURNED" | "RECONCILED" | "CANCELLED";
             note: string | null;
             /** Format: date-time */
             createdAt: string;
@@ -1800,7 +1934,7 @@ export interface components {
             promoCodeId: string | null;
             deliveryEtrapId: number | null;
             /** @enum {string} */
-            status: "NEW" | "CONFIRMED" | "SENT_TO_KITCHEN" | "COOKING" | "READY" | "ASSIGNED_TO_COURIER" | "OUT_FOR_DELIVERY" | "DELIVERED" | "CASH_RETURNED" | "COMPLETED" | "RECONCILED" | "CANCELLED";
+            status: "COOKING" | "READY" | "ASSIGNED_TO_COURIER" | "OUT_FOR_DELIVERY" | "DELIVERED" | "CASH_RETURNED" | "RECONCILED" | "CANCELLED";
             /** @enum {string} */
             source: "CUSTOMER_APP" | "STAFF_PHONE";
             /** @enum {string} */
@@ -1935,7 +2069,7 @@ export interface components {
             orderId: string;
             orderNumber: number;
             /** @enum {string} */
-            status: "NEW" | "CONFIRMED" | "SENT_TO_KITCHEN" | "COOKING" | "READY" | "ASSIGNED_TO_COURIER" | "OUT_FOR_DELIVERY" | "DELIVERED" | "CASH_RETURNED" | "COMPLETED" | "RECONCILED" | "CANCELLED";
+            status: "COOKING" | "READY" | "ASSIGNED_TO_COURIER" | "OUT_FOR_DELIVERY" | "DELIVERED" | "CASH_RETURNED" | "RECONCILED" | "CANCELLED";
             address: string;
             latitude: number;
             longitude: number;
@@ -2033,12 +2167,19 @@ export interface components {
         ReceiptPrinterJobResponseDto: {
             /** @example 192.168.123.100 */
             printerIp: string;
+            /** @example 9100 */
+            printerPort: number;
+            /** @enum {string} */
+            transport: "RAW_TCP" | "JSPEED_HTTP";
             items: components["schemas"]["ReceiptPrintItemResponseDto"][];
         };
         ReceiptPrintPlanResponseDto: {
             /** Format: uuid */
             orderId: string;
             orderNumber: number;
+            /** @enum {string} */
+            documentType: "ORDER" | "CANCELLATION";
+            cancellationReason: string | null;
             summary: components["schemas"]["ReceiptPrintSummaryResponseDto"];
             mainJob: components["schemas"]["ReceiptPrinterJobResponseDto"] | null;
             jobs: components["schemas"]["ReceiptPrinterJobResponseDto"][];
@@ -2046,7 +2187,7 @@ export interface components {
         };
         TransitionOrderDto: {
             /** @enum {string} */
-            status: "NEW" | "CONFIRMED" | "SENT_TO_KITCHEN" | "COOKING" | "READY" | "ASSIGNED_TO_COURIER" | "OUT_FOR_DELIVERY" | "DELIVERED" | "CASH_RETURNED" | "COMPLETED" | "RECONCILED" | "CANCELLED";
+            status: "COOKING" | "READY" | "ASSIGNED_TO_COURIER" | "OUT_FOR_DELIVERY" | "DELIVERED" | "CASH_RETURNED" | "RECONCILED" | "CANCELLED";
             note?: string;
             /** @description Optimistic-lock version returned by the API */
             version: number;
@@ -2142,7 +2283,7 @@ export interface components {
             id: string;
             number: number;
             /** @enum {string} */
-            status: "NEW" | "CONFIRMED" | "SENT_TO_KITCHEN" | "COOKING" | "READY" | "ASSIGNED_TO_COURIER" | "OUT_FOR_DELIVERY" | "DELIVERED" | "CASH_RETURNED" | "COMPLETED" | "RECONCILED" | "CANCELLED";
+            status: "COOKING" | "READY" | "ASSIGNED_TO_COURIER" | "OUT_FOR_DELIVERY" | "DELIVERED" | "CASH_RETURNED" | "RECONCILED" | "CANCELLED";
         };
         CourierSummaryResponseDto: {
             /** Format: uuid */
@@ -3056,6 +3197,25 @@ export interface operations {
             };
         };
     };
+    CatalogController_receiptPrinters_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReceiptPrinterResponseDto"][];
+                };
+            };
+        };
+    };
     CatalogController_deleteCategory_v1: {
         parameters: {
             query?: never;
@@ -3127,6 +3287,81 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ReceiptPrintSettingsResponseDto"];
+                };
+            };
+        };
+    };
+    CatalogController_createReceiptPrinter_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateReceiptPrinterDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReceiptPrinterResponseDto"];
+                };
+            };
+        };
+    };
+    CatalogController_deleteReceiptPrinter_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Receipt printer deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Receipt printer is referenced by catalog settings */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    CatalogController_updateReceiptPrinter_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateReceiptPrinterDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReceiptPrinterResponseDto"];
                 };
             };
         };
@@ -3232,9 +3467,9 @@ export interface operations {
     OrdersController_list_v1: {
         parameters: {
             query?: {
-                status?: "NEW" | "CONFIRMED" | "SENT_TO_KITCHEN" | "COOKING" | "READY" | "ASSIGNED_TO_COURIER" | "OUT_FOR_DELIVERY" | "DELIVERED" | "CASH_RETURNED" | "COMPLETED" | "RECONCILED" | "CANCELLED";
+                status?: "COOKING" | "READY" | "ASSIGNED_TO_COURIER" | "OUT_FOR_DELIVERY" | "DELIVERED" | "CASH_RETURNED" | "RECONCILED" | "CANCELLED";
                 /** @description Comma-separated workflow statuses for one role-specific order queue; ignored when status is present */
-                statuses?: ("NEW" | "CONFIRMED" | "SENT_TO_KITCHEN" | "COOKING" | "READY" | "ASSIGNED_TO_COURIER" | "OUT_FOR_DELIVERY" | "DELIVERED" | "CASH_RETURNED" | "COMPLETED" | "RECONCILED" | "CANCELLED")[];
+                statuses?: ("COOKING" | "READY" | "ASSIGNED_TO_COURIER" | "OUT_FOR_DELIVERY" | "DELIVERED" | "CASH_RETURNED" | "RECONCILED" | "CANCELLED")[];
                 /** @description Filter operational order queues by assigned branch */
                 branchId?: string;
                 /** @description Order number, customer phone/name, or delivery address */

@@ -38,6 +38,8 @@ async function sendToReceiptPrintAgent(plan: ReceiptPrintPlan) {
         dispatchId: crypto.randomUUID(),
         orderId: plan.orderId,
         orderNumber: plan.orderNumber,
+        documentType: plan.documentType,
+        cancellationReason: plan.cancellationReason,
         summary: plan.summary,
         jobs: [...(plan.mainJob ? [plan.mainJob] : []), ...plan.jobs],
         unassignedItems: plan.unassignedItems,

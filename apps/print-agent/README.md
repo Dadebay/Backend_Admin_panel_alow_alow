@@ -2,16 +2,20 @@
 
 The print agent is the loopback-only bridge between the HTTPS operations admin
 and private LAN receipt printers. The backend sends one complete administrator
-copy plus kitchen copies grouped by immutable snapshotted printer IP; the agent
+copy plus kitchen copies grouped by immutable snapshotted printer endpoint; the agent
 only validates that plan, prints the online order number on every chunk, formats large non-fiscal item slips with
 separators, prints the backend-owned subtotal, discount, delivery price,
 district and final total, preserves safe top/bottom cut margins, and sends the
-result through the tested J-Speed WebConfig HTTP interface.
+result through either raw TCP/ESC-POS or the compatible J-Speed WebConfig HTTP
+interface selected for that registered apparatus.
 
 The executable is the same Go source for Windows and macOS. It binds only to
 `127.0.0.1:17873`, accepts the production admin origin plus local Vite origins,
-and refuses public printer IP addresses. It accepts two sequential jobs for the
-same IP when the main and kitchen copies share one physical printer. It does not
+and refuses public printer IP addresses and invalid ports. Every job supplies
+its own IP, port and transport: standard LAN X-printers normally use `RAW_TCP`
+on port `9100`, while legacy J-Speed WebConfig devices use `JSPEED_HTTP` on
+port `80`. It accepts two sequential jobs for the same endpoint when the main
+and kitchen copies share one physical printer. It does not
 contain an A7-tagam token or call the production API itself.
 
 ## Run locally

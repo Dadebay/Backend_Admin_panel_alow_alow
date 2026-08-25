@@ -55,9 +55,9 @@ instructions.
   - a courier may act only on orders assigned to them;
   - a customer may read/rate/cancel only their own order where allowed.
 - Cancellation policy:
-  - customer owner: `NEW` only;
-  - `OPERATOR`: `NEW`, `CONFIRMED`, and `SENT_TO_KITCHEN` only;
-  - `ADMIN` and `SUPER_ADMIN`: active operational statuses through
+  - customers and `OPERATOR` cannot cancel because orders start cooking
+    immediately;
+  - `ADMIN` and `SUPER_ADMIN`: active operational statuses from `COOKING` through
     `DELIVERED`, but never `CASH_RETURNED` or a later/terminal status.
 - Only `ADMIN` and `SUPER_ADMIN` may move an active order backward before
   courier pickup or edit business-owned order content before courier pickup.
@@ -66,7 +66,7 @@ instructions.
   promo discount, delivery, total, and nearest branch on the backend; never
   accept raw financial totals. Content changes after packing invalidate the
   packing confirmation, and item changes after cooking began return the order
-  to `SENT_TO_KITCHEN` while clearing cook and courier. Preserve
+  to `COOKING` while clearing cook and courier. Preserve
   identity/accounting/audit fields.
 - One courier may have multiple simultaneous active orders. Do not add a unique
   constraint or a one-active-order guard.
@@ -84,8 +84,13 @@ instructions.
 - Use the order `version` field for optimistic concurrency on every status,
   cancellation, assignment, and administrator-edit mutation.
 - Record every successful state change in `OrderTransition`.
+- A successfully committed administrator cancellation must remain committed
+  even if the workstation print agent is unavailable. Its subsequent receipt
+  plan is typed as `CANCELLATION`, retains the snapshotted order lines and
+  kitchen routes, and may be requested again for a manual retry.
 - Cash remains order-specific:
-  `DELIVERED → CASH_RETURNED → COMPLETED → RECONCILED`.
+  `DELIVERED → CASH_RETURNED → RECONCILED`; `CASH_RETURNED` is the completed
+  order state.
 
 ## Data and transactions
 

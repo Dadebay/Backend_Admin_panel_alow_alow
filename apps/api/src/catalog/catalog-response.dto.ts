@@ -1,4 +1,31 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
+import { ReceiptPrinterTransport } from "../generated/prisma/client";
+
+export class ReceiptPrinterResponseDto {
+  @ApiProperty({ format: "uuid" })
+  id: string;
+
+  @ApiProperty()
+  name: string;
+
+  @ApiProperty({ example: "192.168.123.100" })
+  ipAddress: string;
+
+  @ApiProperty({ example: 9100 })
+  port: number;
+
+  @ApiProperty({ enum: ReceiptPrinterTransport })
+  transport: ReceiptPrinterTransport;
+
+  @ApiProperty()
+  isActive: boolean;
+
+  @ApiProperty({ format: "date-time" })
+  createdAt: string;
+
+  @ApiProperty({ format: "date-time" })
+  updatedAt: string;
+}
 
 export class CatalogProductImageResponseDto {
   @ApiProperty({ format: "uuid" })
@@ -152,6 +179,9 @@ export class CatalogProductResponseDto {
 }
 
 export class CatalogAdminProductResponseDto extends CatalogProductResponseDto {
+  @ApiProperty({ type: String, format: "uuid", nullable: true })
+  receiptPrinterId: string | null;
+
   @ApiProperty({
     type: String,
     nullable: true,
@@ -161,8 +191,17 @@ export class CatalogAdminProductResponseDto extends CatalogProductResponseDto {
   })
   receiptPrinterIp: string | null;
 
+  @ApiProperty({ type: ReceiptPrinterResponseDto, nullable: true })
+  receiptPrinter: ReceiptPrinterResponseDto | null;
+
+  @ApiProperty({ type: String, format: "uuid", nullable: true })
+  effectiveReceiptPrinterId: string | null;
+
   @ApiProperty({ type: String, nullable: true, example: "192.168.1.51" })
   effectiveReceiptPrinterIp: string | null;
+
+  @ApiProperty({ type: ReceiptPrinterResponseDto, nullable: true })
+  effectiveReceiptPrinter: ReceiptPrinterResponseDto | null;
 }
 
 export class CatalogCategoryResponseDto extends CatalogCategorySummaryResponseDto {
@@ -171,8 +210,14 @@ export class CatalogCategoryResponseDto extends CatalogCategorySummaryResponseDt
 }
 
 export class CatalogAdminCategorySummaryResponseDto extends CatalogCategorySummaryResponseDto {
+  @ApiProperty({ type: String, format: "uuid", nullable: true })
+  receiptPrinterId: string | null;
+
   @ApiProperty({ type: String, nullable: true, example: "192.168.1.51" })
   receiptPrinterIp: string | null;
+
+  @ApiProperty({ type: ReceiptPrinterResponseDto, nullable: true })
+  receiptPrinter: ReceiptPrinterResponseDto | null;
 }
 
 export class CatalogAdminCategoryResponseDto extends CatalogAdminCategorySummaryResponseDto {
@@ -181,8 +226,14 @@ export class CatalogAdminCategoryResponseDto extends CatalogAdminCategorySummary
 }
 
 export class ReceiptPrintSettingsResponseDto {
+  @ApiProperty({ type: String, format: "uuid", nullable: true })
+  mainPrinterId: string | null;
+
   @ApiProperty({ type: String, nullable: true, example: "192.168.1.50" })
   mainPrinterIp: string | null;
+
+  @ApiProperty({ type: ReceiptPrinterResponseDto, nullable: true })
+  mainPrinter: ReceiptPrinterResponseDto | null;
 
   @ApiProperty({ format: "date-time", type: String, nullable: true })
   updatedAt: string | null;

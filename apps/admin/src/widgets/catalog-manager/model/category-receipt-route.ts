@@ -2,15 +2,15 @@ import type { Category, UpdateCategory } from "@/src/entities/catalog";
 
 type CategoryRouteSource = Pick<
   Category,
-  "isActive" | "receiptPrinterIp" | "sortOrder"
+  "isActive" | "receiptPrinterId" | "sortOrder"
 >;
 
 export function buildCategoryPrinterUpdate(
   category: CategoryRouteSource,
-  receiptPrinterIp: string,
+  receiptPrinterId: string,
 ): UpdateCategory {
   return {
-    receiptPrinterIp: receiptPrinterIp || null,
+    receiptPrinterId: receiptPrinterId || null,
     sortOrder: category.sortOrder,
     isActive: category.isActive,
   };
@@ -20,7 +20,7 @@ export function buildCategoryVisibilityUpdate(
   category: CategoryRouteSource,
 ): UpdateCategory {
   return {
-    receiptPrinterIp: category.receiptPrinterIp,
+    receiptPrinterId: category.receiptPrinterId,
     sortOrder: category.sortOrder,
     isActive: !category.isActive,
   };

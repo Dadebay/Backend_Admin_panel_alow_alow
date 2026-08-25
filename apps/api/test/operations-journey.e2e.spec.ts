@@ -381,7 +381,7 @@ describe("complete catalog, order and multi-courier journey", () => {
         .expect(201);
       const order = created.body as OrderResponse;
       expect(order).toMatchObject({
-        status: OrderStatus.SENT_TO_KITCHEN,
+        status: OrderStatus.COOKING,
         packingConfirmedAt: null,
         courierId: null,
         branchId,
@@ -391,7 +391,7 @@ describe("complete catalog, order and multi-courier journey", () => {
     }
 
     const kitchenQueue = await request(server)
-      .get("/api/v1/orders?statuses=SENT_TO_KITCHEN,COOKING,READY&limit=100")
+      .get("/api/v1/orders?statuses=COOKING,READY&limit=100")
       .set(bearer(tokens.admin))
       .expect(200);
     expect(
@@ -410,12 +410,16 @@ describe("complete catalog, order and multi-courier journey", () => {
       expect.arrayContaining([
         {
           printerIp: "192.168.140.22",
+          printerPort: 80,
+          transport: "JSPEED_HTTP",
           items: [
             expect.objectContaining({ name: "Journey soup", quantity: 1 }),
           ],
         },
         {
           printerIp: "192.168.140.23",
+          printerPort: 80,
+          transport: "JSPEED_HTTP",
           items: [
             expect.objectContaining({ name: "Journey pizza", quantity: 1 }),
           ],
@@ -428,7 +432,6 @@ describe("complete catalog, order and multi-courier journey", () => {
 
     for (const [index, input] of orderInputs.entries()) {
       let order = orders[index];
-      order = await transition(tokens.cook, order, OrderStatus.COOKING);
       order = await transition(tokens.cook, order, OrderStatus.READY);
       const packed = await request(server)
         .patch(`/api/v1/orders/${order.id}/confirm-packing`)
@@ -600,7 +603,6 @@ describe("complete catalog, order and multi-courier journey", () => {
         orders[index],
         OrderStatus.CASH_RETURNED,
       );
-      order = await transition(tokens.operator, order, OrderStatus.COMPLETED);
       order = await transition(
         tokens.accountant,
         order,
@@ -625,13 +627,11 @@ describe("complete catalog, order and multi-courier journey", () => {
           ({ toStatus }) => toStatus,
         ),
       ).toEqual([
-        OrderStatus.COOKING,
         OrderStatus.READY,
         OrderStatus.ASSIGNED_TO_COURIER,
         OrderStatus.OUT_FOR_DELIVERY,
         OrderStatus.DELIVERED,
         OrderStatus.CASH_RETURNED,
-        OrderStatus.COMPLETED,
         OrderStatus.RECONCILED,
       ]);
     }

@@ -10,6 +10,7 @@ import {
   categoryFormSchema,
   categoryReceiptRouteFormSchema,
   productFormSchema,
+  receiptPrinterFormSchema,
   receiptPrintSettingsFormSchema,
 } from "../src/widgets/catalog-manager/model/catalog-forms.ts";
 import {
@@ -24,6 +25,7 @@ import {
   buildAssistedDeliveryAddress,
   normalizeAssistedOrderCoordinates,
 } from "../src/widgets/assisted-order/model/assisted-order-form.ts";
+import { buildAssistedOrderDeliverySelection } from "../src/widgets/assisted-order/model/assisted-order-delivery.ts";
 
 test("OTP schemas validate Turkmen phone and four- or six-digit verification code", () => {
   assert.equal(
@@ -102,7 +104,7 @@ test("catalog schemas reject invalid slug and money precision", () => {
     categoryFormSchema.safeParse({
       name: "Пицца",
       slug: "pizza",
-      receiptPrinterIp: "192.168.10.51",
+      receiptPrinterId: "2d807991-e99f-4f17-9b9f-cc2fb7478820",
       sortOrder: 0,
       isActive: true,
     }).success,
@@ -112,7 +114,7 @@ test("catalog schemas reject invalid slug and money precision", () => {
     categoryFormSchema.safeParse({
       name: "Пицца",
       slug: "Pizza с пробелом",
-      receiptPrinterIp: "",
+      receiptPrinterId: "",
       sortOrder: 0,
       isActive: true,
     }).success,
@@ -125,7 +127,7 @@ test("catalog schemas reject invalid slug and money precision", () => {
       slug: "margarita",
       description: "Пицца",
       price: 49.999,
-      receiptPrinterIp: "192.168.1.50",
+      receiptPrinterId: "2d807991-e99f-4f17-9b9f-cc2fb7478820",
       variantLabel: "",
       variants: [],
       sortOrder: 0,
@@ -140,7 +142,7 @@ test("catalog schemas reject invalid slug and money precision", () => {
       slug: "margarita",
       description: "Пицца",
       price: 50,
-      receiptPrinterIp: "192.168.1.50",
+      receiptPrinterId: "2d807991-e99f-4f17-9b9f-cc2fb7478820",
       variantLabel: "Размер",
       variants: [
         {
@@ -172,7 +174,7 @@ test("catalog schemas reject invalid slug and money precision", () => {
       slug: "cutting",
       description: "Мясо",
       price: 50,
-      receiptPrinterIp: "192.168.1.50",
+      receiptPrinterId: "2d807991-e99f-4f17-9b9f-cc2fb7478820",
       variantLabel: "",
       variants: [
         {
@@ -191,26 +193,26 @@ test("catalog schemas reject invalid slug and money precision", () => {
   );
 });
 
-test("receipt routing forms accept private LAN IPv4 addresses only", () => {
+test("receipt routing forms accept registered printer IDs", () => {
   assert.equal(
     receiptPrintSettingsFormSchema.safeParse({
-      mainPrinterIp: "192.168.10.50",
+      mainPrinterId: "2d807991-e99f-4f17-9b9f-cc2fb7478820",
     }).success,
     true,
   );
   assert.equal(
-    receiptPrintSettingsFormSchema.safeParse({ mainPrinterIp: "8.8.8.8" })
+    receiptPrintSettingsFormSchema.safeParse({ mainPrinterId: "not-a-uuid" })
       .success,
     false,
   );
   assert.equal(
     categoryReceiptRouteFormSchema.safeParse({
-      receiptPrinterIp: "172.16.5.20",
+      receiptPrinterId: "2d807991-e99f-4f17-9b9f-cc2fb7478820",
     }).success,
     true,
   );
   assert.equal(
-    categoryReceiptRouteFormSchema.safeParse({ receiptPrinterIp: "1.1.1.1" })
+    categoryReceiptRouteFormSchema.safeParse({ receiptPrinterId: "1.1.1.1" })
       .success,
     false,
   );
@@ -218,7 +220,7 @@ test("receipt routing forms accept private LAN IPv4 addresses only", () => {
     categoryFormSchema.safeParse({
       name: "Супы",
       slug: "soups",
-      receiptPrinterIp: "",
+      receiptPrinterId: "",
       sortOrder: 0,
       isActive: true,
     }).success,
@@ -234,7 +236,7 @@ test("product variant schema rejects duplicate names and excess images", () => {
       slug: "duplicate-sizes",
       description: "Повторяющиеся размеры",
       price: 50,
-      receiptPrinterIp: "192.168.1.50",
+      receiptPrinterId: "2d807991-e99f-4f17-9b9f-cc2fb7478820",
       variantLabel: "Размер",
       variants: [
         {
@@ -266,7 +268,7 @@ test("product variant schema rejects duplicate names and excess images", () => {
       slug: "too-many-variant-images",
       description: "Слишком много изображений",
       price: 50,
-      receiptPrinterIp: "192.168.1.50",
+      receiptPrinterId: "2d807991-e99f-4f17-9b9f-cc2fb7478820",
       variantLabel: "Размер",
       variants: [
         {
@@ -288,14 +290,14 @@ test("product variant schema rejects duplicate names and excess images", () => {
   );
 });
 
-test("product form accepts a LAN printer IPv4 address and rejects invalid IPs", () => {
+test("printer registry validates LAN endpoint and product uses its ID", () => {
   const product = {
     categoryId: "2d807991-e99f-4f17-9b9f-cc2fb7478820",
     name: "Манты",
     slug: "manty-printer",
     description: "Печатается на кухонном аппарате",
     price: 60,
-    receiptPrinterIp: "192.168.10.51",
+    receiptPrinterId: "2d807991-e99f-4f17-9b9f-cc2fb7478820",
     variantLabel: "",
     variants: [],
     sortOrder: 0,
@@ -306,14 +308,37 @@ test("product form accepts a LAN printer IPv4 address and rejects invalid IPs", 
   assert.equal(
     productFormSchema.safeParse({
       ...product,
-      receiptPrinterIp: "192.168.10.999",
+      receiptPrinterId: "not-a-uuid",
     }).success,
     false,
   );
   assert.equal(
-    productFormSchema.safeParse({
-      ...product,
-      receiptPrinterIp: "8.8.8.8",
+    receiptPrinterFormSchema.safeParse({
+      name: "Пицца — кухня",
+      ipAddress: "192.168.123.100",
+      port: 9100,
+      transport: "RAW_TCP",
+      isActive: true,
+    }).success,
+    true,
+  );
+  assert.equal(
+    receiptPrinterFormSchema.safeParse({
+      name: "Внешний адрес",
+      ipAddress: "8.8.8.8",
+      port: 9100,
+      transport: "RAW_TCP",
+      isActive: true,
+    }).success,
+    false,
+  );
+  assert.equal(
+    receiptPrinterFormSchema.safeParse({
+      name: "Неверный порт",
+      ipAddress: "192.168.123.101",
+      port: 70_000,
+      transport: "RAW_TCP",
+      isActive: true,
     }).success,
     false,
   );
@@ -440,6 +465,71 @@ test("assisted order keeps the optional unofficial address and always builds a d
     longitude: 58.3261,
   });
   assert.equal(normalizeAssistedOrderCoordinates(91, 58.3261), null);
+});
+
+test("assisted address details never move the marker and changed saved details are submitted", () => {
+  const coordinates = { latitude: 37.95, longitude: 58.38 };
+  const savedAddress = {
+    id: "00000000-0000-4000-8000-000000000018",
+    deliveryEtrapId: 25,
+    label: "Дом",
+    address: "Garaşsyzlyk şaýoly 60",
+    latitude: coordinates.latitude,
+    longitude: coordinates.longitude,
+    entrance: "2",
+    floor: "4",
+    apartment: "18",
+    isActive: true,
+  };
+  const values = assistedOrderFormSchema.parse({
+    customerPhone: "+99365123456",
+    customerFirstName: "",
+    customerLastName: "",
+    addressId: savedAddress.id,
+    deliveryEtrapId: "25",
+    addressLabel: "Дом",
+    address: "",
+    entrance: "2",
+    floor: "4",
+    apartment: "18",
+    customerNote: "",
+    promoCode: "",
+    addressSearch: "",
+  });
+
+  assert.deepEqual(
+    buildAssistedOrderDeliverySelection({
+      values,
+      coordinates,
+      savedAddress,
+      officialAddress: savedAddress.address,
+    }),
+    { deliveryEtrapId: 25, addressId: savedAddress.id },
+  );
+
+  const changedApartment = buildAssistedOrderDeliverySelection({
+    values: { ...values, apartment: "42" },
+    coordinates,
+    savedAddress,
+    officialAddress: savedAddress.address,
+  });
+  assert.deepEqual(changedApartment, {
+    deliveryEtrapId: 25,
+    addressLabel: "Дом",
+    address: savedAddress.address,
+    latitude: coordinates.latitude,
+    longitude: coordinates.longitude,
+    entrance: "2",
+    floor: "4",
+    apartment: "42",
+  });
+  assert.deepEqual(
+    {
+      latitude: changedApartment?.latitude,
+      longitude: changedApartment?.longitude,
+    },
+    coordinates,
+  );
 });
 
 test("every admin form uses React Hook Form instead of manual FormData", async () => {

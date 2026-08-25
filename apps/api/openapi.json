@@ -416,6 +416,36 @@
         ]
       }
     },
+    "/api/v1/catalog/admin/receipt-printers": {
+      "get": {
+        "operationId": "CatalogController_receiptPrinters_v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ReceiptPrinterResponseDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "List registered LAN receipt printers",
+        "tags": [
+          "catalog"
+        ]
+      }
+    },
     "/api/v1/catalog/categories/{id}": {
       "patch": {
         "operationId": "CatalogController_updateCategory_v1",
@@ -523,6 +553,119 @@
           }
         ],
         "summary": "Configure the complete administrator receipt printer",
+        "tags": [
+          "catalog"
+        ]
+      }
+    },
+    "/api/v1/catalog/receipt-printers": {
+      "post": {
+        "operationId": "CatalogController_createReceiptPrinter_v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateReceiptPrinterDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReceiptPrinterResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Register a LAN receipt printer",
+        "tags": [
+          "catalog"
+        ]
+      }
+    },
+    "/api/v1/catalog/receipt-printers/{id}": {
+      "patch": {
+        "operationId": "CatalogController_updateReceiptPrinter_v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateReceiptPrinterDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReceiptPrinterResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Update a registered LAN receipt printer",
+        "tags": [
+          "catalog"
+        ]
+      },
+      "delete": {
+        "operationId": "CatalogController_deleteReceiptPrinter_v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Receipt printer deleted"
+          },
+          "409": {
+            "description": "Receipt printer is referenced by catalog settings"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Delete an unused registered receipt printer",
         "tags": [
           "catalog"
         ]
@@ -732,16 +875,12 @@
             "schema": {
               "type": "string",
               "enum": [
-                "NEW",
-                "CONFIRMED",
-                "SENT_TO_KITCHEN",
                 "COOKING",
                 "READY",
                 "ASSIGNED_TO_COURIER",
                 "OUT_FOR_DELIVERY",
                 "DELIVERED",
                 "CASH_RETURNED",
-                "COMPLETED",
                 "RECONCILED",
                 "CANCELLED"
               ]
@@ -757,16 +896,12 @@
               "items": {
                 "type": "string",
                 "enum": [
-                  "NEW",
-                  "CONFIRMED",
-                  "SENT_TO_KITCHEN",
                   "COOKING",
                   "READY",
                   "ASSIGNED_TO_COURIER",
                   "OUT_FOR_DELIVERY",
                   "DELIVERED",
                   "CASH_RETURNED",
-                  "COMPLETED",
                   "RECONCILED",
                   "CANCELLED"
                 ]
@@ -1046,7 +1181,7 @@
             "bearer": []
           }
         ],
-        "summary": "Build one complete administrator receipt and kitchen jobs grouped by snapshotted LAN printer IP",
+        "summary": "Build an order or cancellation receipt for the main and snapshotted kitchen printers",
         "tags": [
           "orders"
         ]
@@ -3928,6 +4063,54 @@
           "products"
         ]
       },
+      "ReceiptPrinterResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "ipAddress": {
+            "type": "string",
+            "example": "192.168.123.100"
+          },
+          "port": {
+            "type": "number",
+            "example": 9100
+          },
+          "transport": {
+            "type": "string",
+            "enum": [
+              "RAW_TCP",
+              "JSPEED_HTTP"
+            ]
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "ipAddress",
+          "port",
+          "transport",
+          "isActive",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
       "CatalogAdminProductResponseDto": {
         "type": "object",
         "properties": {
@@ -3994,16 +4177,44 @@
           "category": {
             "$ref": "#/components/schemas/CatalogCategorySummaryResponseDto"
           },
+          "receiptPrinterId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
           "receiptPrinterIp": {
             "type": "string",
             "nullable": true,
             "example": "192.168.1.50",
             "description": "Explicit product override; null means inherit the category route"
           },
+          "receiptPrinter": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ReceiptPrinterResponseDto"
+              }
+            ]
+          },
+          "effectiveReceiptPrinterId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
           "effectiveReceiptPrinterIp": {
             "type": "string",
             "nullable": true,
             "example": "192.168.1.51"
+          },
+          "effectiveReceiptPrinter": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ReceiptPrinterResponseDto"
+              }
+            ]
           }
         },
         "required": [
@@ -4023,8 +4234,12 @@
           "updatedAt",
           "images",
           "variants",
+          "receiptPrinterId",
           "receiptPrinterIp",
-          "effectiveReceiptPrinterIp"
+          "receiptPrinter",
+          "effectiveReceiptPrinterId",
+          "effectiveReceiptPrinterIp",
+          "effectiveReceiptPrinter"
         ]
       },
       "CatalogAdminCategoryResponseDto": {
@@ -4058,10 +4273,24 @@
             "type": "string",
             "format": "date-time"
           },
+          "receiptPrinterId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
           "receiptPrinterIp": {
             "type": "string",
             "nullable": true,
             "example": "192.168.1.51"
+          },
+          "receiptPrinter": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ReceiptPrinterResponseDto"
+              }
+            ]
           },
           "products": {
             "type": "array",
@@ -4079,17 +4308,33 @@
           "isActive",
           "createdAt",
           "updatedAt",
+          "receiptPrinterId",
           "receiptPrinterIp",
+          "receiptPrinter",
           "products"
         ]
       },
       "ReceiptPrintSettingsResponseDto": {
         "type": "object",
         "properties": {
+          "mainPrinterId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
           "mainPrinterIp": {
             "type": "string",
             "nullable": true,
             "example": "192.168.1.50"
+          },
+          "mainPrinter": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ReceiptPrinterResponseDto"
+              }
+            ]
           },
           "updatedAt": {
             "type": "string",
@@ -4098,7 +4343,9 @@
           }
         },
         "required": [
+          "mainPrinterId",
           "mainPrinterIp",
+          "mainPrinter",
           "updatedAt"
         ]
       },
@@ -4119,6 +4366,12 @@
             "nullable": true,
             "example": "192.168.1.51",
             "description": "Default private LAN receipt-printer IPv4 address for products in this category"
+          },
+          "receiptPrinterId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "Registered default kitchen printer; takes precedence over the legacy receiptPrinterIp field"
           },
           "sortOrder": {
             "type": "number",
@@ -4165,10 +4418,24 @@
             "type": "string",
             "format": "date-time"
           },
+          "receiptPrinterId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
           "receiptPrinterIp": {
             "type": "string",
             "nullable": true,
             "example": "192.168.1.51"
+          },
+          "receiptPrinter": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ReceiptPrinterResponseDto"
+              }
+            ]
           }
         },
         "required": [
@@ -4180,7 +4447,9 @@
           "isActive",
           "createdAt",
           "updatedAt",
-          "receiptPrinterIp"
+          "receiptPrinterId",
+          "receiptPrinterIp",
+          "receiptPrinter"
         ]
       },
       "UpdateCategoryDto": {
@@ -4201,6 +4470,12 @@
             "example": "192.168.1.51",
             "description": "Default private LAN receipt-printer IPv4 address for products in this category"
           },
+          "receiptPrinterId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "Registered default kitchen printer; takes precedence over the legacy receiptPrinterIp field"
+          },
           "sortOrder": {
             "type": "number",
             "default": 0
@@ -4214,16 +4489,81 @@
       "UpdateReceiptPrintSettingsDto": {
         "type": "object",
         "properties": {
+          "mainPrinterId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "Registered printer that receives the complete receipt"
+          },
           "mainPrinterIp": {
             "type": "string",
             "nullable": true,
             "example": "192.168.1.50",
             "description": "Private LAN printer that receives one complete administrator receipt; null disables the complete copy"
           }
+        }
+      },
+      "CreateReceiptPrinterDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "Пицца — кухня"
+          },
+          "ipAddress": {
+            "type": "string",
+            "example": "192.168.123.100"
+          },
+          "port": {
+            "type": "number",
+            "example": 9100,
+            "default": 9100
+          },
+          "transport": {
+            "type": "string",
+            "enum": [
+              "RAW_TCP",
+              "JSPEED_HTTP"
+            ]
+          },
+          "isActive": {
+            "type": "boolean",
+            "default": true
+          }
         },
         "required": [
-          "mainPrinterIp"
+          "name",
+          "ipAddress",
+          "port",
+          "transport"
         ]
+      },
+      "UpdateReceiptPrinterDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "Пицца — кухня"
+          },
+          "ipAddress": {
+            "type": "string",
+            "example": "192.168.123.100"
+          },
+          "port": {
+            "type": "number",
+            "example": 9100
+          },
+          "transport": {
+            "type": "string",
+            "enum": [
+              "RAW_TCP",
+              "JSPEED_HTTP"
+            ]
+          },
+          "isActive": {
+            "type": "boolean"
+          }
+        }
       },
       "ProductVariantInputDto": {
         "type": "object",
@@ -4293,6 +4633,12 @@
             "example": "192.168.1.50",
             "description": "Optional private LAN receipt-printer IPv4 override for this product; null inherits the category route"
           },
+          "receiptPrinterId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "Registered product-level printer override; null inherits the category route"
+          },
           "variantLabel": {
             "type": "string",
             "example": "Размер",
@@ -4359,6 +4705,12 @@
             "nullable": true,
             "example": "192.168.1.50",
             "description": "Optional private LAN receipt-printer IPv4 override for this product; null inherits the category route"
+          },
+          "receiptPrinterId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "Registered product-level printer override; null inherits the category route"
           },
           "variantLabel": {
             "type": "string",
@@ -4839,16 +5191,12 @@
           "fromStatus": {
             "type": "string",
             "enum": [
-              "NEW",
-              "CONFIRMED",
-              "SENT_TO_KITCHEN",
               "COOKING",
               "READY",
               "ASSIGNED_TO_COURIER",
               "OUT_FOR_DELIVERY",
               "DELIVERED",
               "CASH_RETURNED",
-              "COMPLETED",
               "RECONCILED",
               "CANCELLED"
             ]
@@ -4856,16 +5204,12 @@
           "toStatus": {
             "type": "string",
             "enum": [
-              "NEW",
-              "CONFIRMED",
-              "SENT_TO_KITCHEN",
               "COOKING",
               "READY",
               "ASSIGNED_TO_COURIER",
               "OUT_FOR_DELIVERY",
               "DELIVERED",
               "CASH_RETURNED",
-              "COMPLETED",
               "RECONCILED",
               "CANCELLED"
             ]
@@ -4939,16 +5283,12 @@
           "status": {
             "type": "string",
             "enum": [
-              "NEW",
-              "CONFIRMED",
-              "SENT_TO_KITCHEN",
               "COOKING",
               "READY",
               "ASSIGNED_TO_COURIER",
               "OUT_FOR_DELIVERY",
               "DELIVERED",
               "CASH_RETURNED",
-              "COMPLETED",
               "RECONCILED",
               "CANCELLED"
             ]
@@ -5468,16 +5808,12 @@
           "status": {
             "type": "string",
             "enum": [
-              "NEW",
-              "CONFIRMED",
-              "SENT_TO_KITCHEN",
               "COOKING",
               "READY",
               "ASSIGNED_TO_COURIER",
               "OUT_FOR_DELIVERY",
               "DELIVERED",
               "CASH_RETURNED",
-              "COMPLETED",
               "RECONCILED",
               "CANCELLED"
             ]
@@ -5867,6 +6203,17 @@
             "type": "string",
             "example": "192.168.123.100"
           },
+          "printerPort": {
+            "type": "number",
+            "example": 9100
+          },
+          "transport": {
+            "type": "string",
+            "enum": [
+              "RAW_TCP",
+              "JSPEED_HTTP"
+            ]
+          },
           "items": {
             "type": "array",
             "items": {
@@ -5876,6 +6223,8 @@
         },
         "required": [
           "printerIp",
+          "printerPort",
+          "transport",
           "items"
         ]
       },
@@ -5888,6 +6237,17 @@
           },
           "orderNumber": {
             "type": "number"
+          },
+          "documentType": {
+            "type": "string",
+            "enum": [
+              "ORDER",
+              "CANCELLATION"
+            ]
+          },
+          "cancellationReason": {
+            "type": "string",
+            "nullable": true
           },
           "summary": {
             "$ref": "#/components/schemas/ReceiptPrintSummaryResponseDto"
@@ -5917,6 +6277,8 @@
         "required": [
           "orderId",
           "orderNumber",
+          "documentType",
+          "cancellationReason",
           "summary",
           "mainJob",
           "jobs",
@@ -5929,16 +6291,12 @@
           "status": {
             "type": "string",
             "enum": [
-              "NEW",
-              "CONFIRMED",
-              "SENT_TO_KITCHEN",
               "COOKING",
               "READY",
               "ASSIGNED_TO_COURIER",
               "OUT_FOR_DELIVERY",
               "DELIVERED",
               "CASH_RETURNED",
-              "COMPLETED",
               "RECONCILED",
               "CANCELLED"
             ]
@@ -6306,16 +6664,12 @@
           "status": {
             "type": "string",
             "enum": [
-              "NEW",
-              "CONFIRMED",
-              "SENT_TO_KITCHEN",
               "COOKING",
               "READY",
               "ASSIGNED_TO_COURIER",
               "OUT_FOR_DELIVERY",
               "DELIVERED",
               "CASH_RETURNED",
-              "COMPLETED",
               "RECONCILED",
               "CANCELLED"
             ]

@@ -61,11 +61,27 @@ test("tablet navigation is a touch-safe drawer", async () => {
 
   assert.match(
     styles,
+    /\.sidebar\s*\{[^}]*overflow-y: auto;[^}]*overscroll-behavior-y: contain;[^}]*touch-action: pan-y;[^}]*-webkit-overflow-scrolling: touch;/s,
+  );
+  assert.match(
+    styles,
+    /@media \(max-width: 1180px\),\s*\(hover: none\) and \(pointer: coarse\) and \(max-width: 1366px\)/,
+  );
+  assert.match(
+    styles,
     /@media \(max-width: 1180px\)[\s\S]*?\.integrated-shell \.sidebar\s*\{[^}]*visibility: hidden;[^}]*pointer-events: none;[^}]*transform: translateX\(-105%\);/,
   );
   assert.match(
     styles,
     /\.integrated-shell \.sidebar\.drawer-open\s*\{[^}]*visibility: visible;[^}]*pointer-events: auto;[^}]*transform: translateX\(0\);/,
+  );
+  assert.match(
+    styles,
+    /\.sidebar-close\s*\{[^}]*display: none;/s,
+  );
+  assert.match(
+    styles,
+    /\.integrated-shell \.sidebar-head\s*\{[^}]*position: sticky;[^}]*top: 0;[\s\S]*?\.integrated-shell \.sidebar-close\s*\{[^}]*display: grid;/,
   );
   assert.match(
     styles,
@@ -148,6 +164,11 @@ test("tablet drawer controls expose stable automation hooks", async () => {
 
   assert.match(dashboard, /data-testid="admin-navigation-toggle"/);
   assert.match(dashboard, /data-testid="admin-navigation-scrim"/);
+  assert.match(dashboard, /data-testid="admin-navigation-close"/);
+  assert.match(dashboard, /data-testid="admin-navigation"/);
+  assert.match(dashboard, /aria-label="Закрыть боковое меню"/);
+  assert.match(dashboard, /aria-controls="admin-navigation"/);
+  assert.match(dashboard, /onClick=\{\(\) => closeNavigation\(true\)\}/);
   assert.match(dashboard, /type="button"[\s\S]*?admin-navigation-toggle/);
 });
 

@@ -708,8 +708,12 @@ Current status:
   category default;
 - every administrator route supports tablet widths through the shared drawer,
   bounded workspaces, container-responsive tables, coarse-pointer targets and
-  a portrait-tablet courier-map stack. The route/API and regression matrix is
-  maintained in `docs/ADMIN_TABLET_QA.md`;
+  a portrait-tablet courier-map stack. Widths through 1180 px always use the
+  drawer, touch tablets retain it through 1366 px in landscape, and the sidebar
+  owns vertical scrolling at every viewport height. Its explicit close control
+  remains pinned while the drawer scrolls and restores focus to the menu
+  trigger. The route/API and regression matrix is maintained in
+  `docs/ADMIN_TABLET_QA.md`;
 - the catalog editor creates and updates a dish with category, name, slug,
   description, base price, optional private LAN receipt-printer IPv4 address,
   availability, ordering, and up to 10 common S3 images; it also configures a
@@ -991,6 +995,12 @@ dispatcher is 10.0 KB / 3.4 KB gzip, the restored isolated courier screen is
 6.3 KB / 2.7 KB gzip, and Leaflet remains separate at 153.3 KB / 44.9 KB gzip.
 The change adds one role-gated route and GPS-coverage guidance; it adds no
 dependency, poller, SSE stream, or Leaflet preload to the initial document.
+
+The 2026-08-25 tablet-navigation correction measures the static SPA bootstrap
+at 242.9 KB raw / 77.9 KB gzip and CSS at 149.0 KB / 28.9 KB gzip. It adds only
+responsive navigation rules, the pinned close control and stable accessibility
+hooks: route chunks, dependencies, API requests, polling and cache ownership
+are unchanged.
 
 ## Decision log
 
@@ -1422,6 +1432,11 @@ dependency, poller, SSE stream, or Leaflet preload to the initial document.
   move the marker only after selection; the resolved location has a separate
   summary, while entrance, floor, apartment and courier landmarks are clearly
   identified as non-geographic delivery details.
+- 2026-08-25: admin navigation became height-safe on desktop and tablets. The
+  sidebar owns vertical touch scrolling, an open drawer locks background
+  scrolling, and large coarse-pointer tablets retain the drawer through
+  1366 px landscape width. A pinned internal close control remains reachable at
+  every scroll position and restores keyboard focus to the menu trigger.
 - 2026-08-23: catalog administrators gained audited permanent deletion for
   products and categories that have no order history. A protected product or
   category returns `409 Conflict` and remains available for hiding, preserving

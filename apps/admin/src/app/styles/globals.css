@@ -766,9 +766,15 @@ button {
   position: sticky;
   top: 0;
   height: 100vh;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   padding: 26px 18px 18px;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  scrollbar-gutter: stable;
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
   color: var(--brand-cream);
   background:
     radial-gradient(circle at 15% 8%, rgb(236 122 27 / 0.18), transparent 28%),
@@ -776,7 +782,42 @@ button {
   z-index: 10;
 }
 
+.sidebar-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.sidebar-close {
+  width: 44px;
+  height: 44px;
+  display: none;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid rgb(254 247 231 / 0.24);
+  border-radius: 12px;
+  color: var(--brand-cream);
+  background: rgb(254 247 231 / 0.08);
+  cursor: pointer;
+}
+
+.sidebar-close:hover {
+  background: rgb(254 247 231 / 0.14);
+}
+
+.sidebar-close:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--brand-orange) 76%, white);
+  outline-offset: 2px;
+}
+
+.sidebar-close svg {
+  width: 19px;
+  height: 19px;
+}
+
 .brand {
+  min-width: 0;
   display: flex;
   align-items: center;
   gap: 11px;
@@ -7052,11 +7093,17 @@ button:disabled {
 }
 
 /* Must follow legacy mobile-nav rules so one drawer wins on every tablet and
-   phone orientation instead of the obsolete crowded bottom navigation. */
-@media (max-width: 1180px) {
+   phone orientation instead of the obsolete crowded bottom navigation. Large
+   touch tablets keep the drawer in landscape through the 1366 px iPad class. */
+@media (max-width: 1180px),
+  (hover: none) and (pointer: coarse) and (max-width: 1366px) {
+  html:has(.integrated-shell .sidebar.drawer-open),
+  body:has(.integrated-shell .sidebar.drawer-open) { overflow: hidden; }
   .integrated-shell { display: block; padding-bottom: 0; }
-  .integrated-shell .sidebar { position: fixed; inset: 0 auto 0 0; width: min(310px, calc(100vw - 58px)); height: 100dvh; padding: 24px 16px 18px; overflow-y: auto; overscroll-behavior: contain; visibility: hidden; pointer-events: none; transform: translateX(-105%); transition: transform 220ms ease, visibility 0s linear 220ms; box-shadow: 18px 0 42px rgb(6 47 94 / .24); z-index: 70; }
+  .integrated-shell .sidebar { position: fixed; inset: 0 auto 0 0; width: min(310px, calc(100vw - 58px)); height: 100dvh; padding: max(24px, env(safe-area-inset-top)) 16px max(18px, env(safe-area-inset-bottom)); overflow-y: auto; overscroll-behavior-y: contain; scrollbar-gutter: stable; touch-action: pan-y; -webkit-overflow-scrolling: touch; visibility: hidden; pointer-events: none; transform: translateX(-105%); transition: transform 220ms ease, visibility 0s linear 220ms; box-shadow: 18px 0 42px rgb(6 47 94 / .24); z-index: 70; }
   .integrated-shell .sidebar.drawer-open { visibility: visible; pointer-events: auto; transform: translateX(0); transition-delay: 0s; }
+  .integrated-shell .sidebar-head { position: sticky; top: 0; z-index: 2; margin: -8px -4px 0; padding: 8px 4px 10px; background: var(--brand-navy); }
+  .integrated-shell .sidebar-close { display: grid; }
   .integrated-shell .brand, .integrated-shell .nav-caption, .integrated-shell .sidebar-note, .integrated-shell .sidebar-user { display: flex; }
   .integrated-shell .nav-caption { display: block; margin-top: 34px; }
   .integrated-shell .sidebar-note { margin-top: auto; }

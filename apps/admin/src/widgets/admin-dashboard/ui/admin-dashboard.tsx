@@ -2,6 +2,7 @@ import {
   Suspense,
   useCallback,
   useEffect,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -48,7 +49,15 @@ function initials(firstName: string | null, lastName: string | null) {
 export function AdminDashboard() {
   const { session, ready, logout } = useSession();
   const [isNavigationOpen, setIsNavigationOpen] = useState(false);
+  const navigationToggleRef = useRef<HTMLButtonElement>(null);
   const navigate = useNavigate();
+
+  const closeNavigation = useCallback((restoreFocus = false) => {
+    setIsNavigationOpen(false);
+    if (restoreFocus) {
+      window.requestAnimationFrame(() => navigationToggleRef.current?.focus());
+    }
+  }, []);
 
   const openOrders = useCallback(() => {
     void navigate("/orders");
@@ -58,11 +67,11 @@ export function AdminDashboard() {
   useEffect(() => {
     if (!isNavigationOpen) return;
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setIsNavigationOpen(false);
+      if (event.key === "Escape") closeNavigation(true);
     };
     document.addEventListener("keydown", closeOnEscape);
     return () => document.removeEventListener("keydown", closeOnEscape);
-  }, [isNavigationOpen]);
+  }, [closeNavigation, isNavigationOpen]);
 
   if (!ready) {
     return (
@@ -133,22 +142,47 @@ export function AdminDashboard() {
           className="drawer-scrim"
           data-testid="admin-navigation-scrim"
           aria-label="Закрыть меню"
-          onClick={() => setIsNavigationOpen(false)}
+          onClick={() => closeNavigation(true)}
         />
       )}
-      <aside className={`sidebar ${isNavigationOpen ? "drawer-open" : ""}`}>
-        <Link
-          className="brand"
-          data-testid="admin-brand-home"
-          to="/orders"
-          onClick={() => setIsNavigationOpen(false)}
-        >
-          <BrandLogo />
-          <span>
-            <strong>A7-tagam</strong>
-            <small>Operations</small>
-          </span>
-        </Link>
+      <aside
+        id="admin-navigation"
+        className={`sidebar ${isNavigationOpen ? "drawer-open" : ""}`}
+        data-testid="admin-navigation"
+        aria-label="Основная навигация"
+      >
+        <div className="sidebar-head">
+          <Link
+            className="brand"
+            data-testid="admin-brand-home"
+            to="/orders"
+            onClick={() => closeNavigation()}
+          >
+            <BrandLogo />
+            <span>
+              <strong>A7-tagam</strong>
+              <small>Operations</small>
+            </span>
+          </Link>
+          <button
+            type="button"
+            className="sidebar-close"
+            data-testid="admin-navigation-close"
+            aria-label="Закрыть боковое меню"
+            onClick={() => closeNavigation(true)}
+          >
+            <svg
+              aria-hidden="true"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeLinecap="round"
+              strokeWidth="2"
+            >
+              <path d="M6 6l12 12M18 6 6 18" />
+            </svg>
+          </button>
+        </div>
         <p className="nav-caption">Управление</p>
         <nav className="main-nav" aria-label="Разделы админки">
           {visibleNav.map((item) => (
@@ -159,7 +193,7 @@ export function AdminDashboard() {
               data-testid={`admin-nav-${item.id}`}
               end
               to={item.path}
-              onClick={() => setIsNavigationOpen(false)}
+              onClick={() => closeNavigation()}
             >
               <span className="nav-icon"><NavIcon name={item.icon} /></span>
               <span className="nav-label">{item.label}</span>
@@ -193,9 +227,11 @@ export function AdminDashboard() {
       <main className="admin-main">
         <button
           type="button"
+          ref={navigationToggleRef}
           className="mobile-nav-toggle"
           data-testid="admin-navigation-toggle"
           aria-label="Открыть меню"
+          aria-controls="admin-navigation"
           aria-expanded={isNavigationOpen}
           onClick={() => setIsNavigationOpen(true)}
         >

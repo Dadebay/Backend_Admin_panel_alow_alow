@@ -29,8 +29,6 @@ const transitions: Partial<
     [Role.SUPER_ADMIN]: [OrderStatus.CASH_RETURNED],
   },
   [OrderStatus.CASH_RETURNED]: {
-    [Role.ACCOUNTANT]: [OrderStatus.RECONCILED],
-    [Role.ADMIN]: [OrderStatus.RECONCILED],
     [Role.SUPER_ADMIN]: [OrderStatus.RECONCILED],
   },
 };

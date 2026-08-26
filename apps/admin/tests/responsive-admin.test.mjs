@@ -14,6 +14,7 @@ const catalogManagerUrl = new URL(
 
 const tabletWorkspaces = [
   ["order-board/ui/order-board.tsx", "order-board"],
+  ["accounting-dashboard/ui/accounting-dashboard.tsx", "accounting-dashboard"],
   ["dispatch-map/ui/dispatch-map.tsx", "dispatch-map-page"],
   ["branch-manager/ui/branch-manager.tsx", "branch-manager"],
   ["delivery-manager/ui/delivery-manager.tsx", "delivery-manager"],
@@ -197,6 +198,7 @@ test("tablet QA documentation maps every admin route to its real API", async () 
   );
   const routes = [
     "/orders",
+    "/accounting",
     "/couriers/map",
     "/branches",
     "/delivery",
@@ -209,6 +211,9 @@ test("tablet QA documentation maps every admin route to its real API", async () 
   ];
   const apiPaths = [
     "/orders?page=1&limit=1",
+    "/accounting/settings",
+    "/accounting/shifts",
+    "/accounting/report",
     "/tracking/dispatch",
     "/branches",
     "/delivery/admin/config",

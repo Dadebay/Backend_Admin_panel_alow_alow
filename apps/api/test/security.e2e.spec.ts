@@ -2897,7 +2897,12 @@ describe("backend security and critical workflow", () => {
     order = await transition(tokens.courier, order, OrderStatus.CASH_RETURNED);
     expect(order.cashSettlement?.status).toBe("CONFIRMED");
     expect(order.completedAt).toBeTruthy();
-    order = await transition(tokens.accountant, order, OrderStatus.RECONCILED);
+    await request(server)
+      .patch(`/api/v1/orders/${order.id}/transition`)
+      .set(bearer(tokens.accountant))
+      .send({ status: OrderStatus.RECONCILED, version: order.version })
+      .expect(403);
+    order = await transition(tokens.superAdmin, order, OrderStatus.RECONCILED);
     expect(order.cashSettlement?.status).toBe("RECONCILED");
 
     const historyResponse = await request(server)

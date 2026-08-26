@@ -10,6 +10,7 @@ import {
 const expectedPaths = {
   "login-attempts": "/login-attempts",
   orders: "/orders",
+  accounting: "/accounting",
   map: "/couriers/map",
   branches: "/branches",
   delivery: "/delivery",
@@ -46,10 +47,10 @@ test("every admin section owns a unique canonical browser URL", () => {
   }
 });
 
-test("every portal role returns to orders when a section is forbidden", () => {
-  for (const role of ["ACCOUNTANT", "ADMIN", "SUPER_ADMIN"]) {
-    assert.equal(defaultAdminPathForRole(role), "/orders", role);
-  }
+test("each portal role returns to its authorized home", () => {
+  assert.equal(defaultAdminPathForRole("ACCOUNTANT"), "/accounting");
+  assert.equal(defaultAdminPathForRole("ADMIN"), "/orders");
+  assert.equal(defaultAdminPathForRole("SUPER_ADMIN"), "/orders");
 });
 
 test("the SPA uses history routing, role guards and a nested admin layout", async () => {
@@ -73,7 +74,7 @@ test("the SPA uses history routing, role guards and a nested admin layout", asyn
   assert.match(appSource, /path="\/courier"/);
   assert.match(
     appSource,
-    /session\?\.user\.role === "COURIER" \? "\/courier" : "\/orders"/,
+    /defaultAdminPathForRole\(session\.user\.role\)/,
   );
   assert.match(appSource, /<Route path="\*" element=\{<NotFound \/>\}/);
   assert.match(dashboardSource, /<NavLink/);

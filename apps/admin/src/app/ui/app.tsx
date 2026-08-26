@@ -73,6 +73,11 @@ const adminRouteComponents = {
       default: module.LoginAttemptManager,
     })),
   ),
+  accounting: lazy(() =>
+    import("@/src/widgets/accounting-dashboard").then((module) => ({
+      default: module.AccountingDashboard,
+    })),
+  ),
 } satisfies Record<AdminView, LazyExoticComponent<ComponentType>>;
 
 const CourierTrackingScreen = lazy(() =>
@@ -135,7 +140,13 @@ function RootRedirect() {
   return (
     <Navigate
       replace
-      to={session?.user.role === "COURIER" ? "/courier" : "/orders"}
+      to={
+        session?.user.role === "COURIER"
+          ? "/courier"
+          : session
+            ? defaultAdminPathForRole(session.user.role)
+            : "/orders"
+      }
     />
   );
 }

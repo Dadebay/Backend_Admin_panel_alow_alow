@@ -10,7 +10,8 @@ export type AdminView =
   | "notifications"
   | "staff"
   | "contacts"
-  | "login-attempts";
+  | "login-attempts"
+  | "accounting";
 
 export type AdminNavIconName = AdminView;
 
@@ -35,6 +36,13 @@ export const adminNavigation: AdminNavigationItem[] = [
     label: "Заказы",
     icon: "orders",
     path: "/orders",
+    roles: ["ADMIN", "SUPER_ADMIN"],
+  },
+  {
+    id: "accounting",
+    label: "Смены и касса",
+    icon: "accounting",
+    path: "/accounting",
     roles: ["ACCOUNTANT", "ADMIN", "SUPER_ADMIN"],
   },
   {
@@ -102,6 +110,8 @@ export function navigationForRole(role: Role) {
 export function defaultAdminPathForRole(role: Role) {
   const navigation = navigationForRole(role);
   return (
+    navigation.find(({ id }) => id === "accounting" && role === "ACCOUNTANT")
+      ?.path ??
     navigation.find(({ id }) => id === "orders")?.path ??
     navigation[0]?.path ??
     "/"

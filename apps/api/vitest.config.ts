@@ -48,6 +48,7 @@ export default defineConfig({
       reporter: ["text", "json-summary"],
       reportsDirectory: "./coverage",
       include: [
+        "src/accounting/**/*.ts",
         "src/auth/**/*.ts",
         "src/branches/**/*.ts",
         "src/catalog/**/*.ts",

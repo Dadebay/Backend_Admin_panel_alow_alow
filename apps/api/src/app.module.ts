@@ -23,6 +23,7 @@ import { FavoritesModule } from "./favorites/favorites.module";
 import { ContactModule } from "./contact/contact.module";
 import { GeocodingModule } from "./geocoding/geocoding.module";
 import { DeliveryModule } from "./delivery/delivery.module";
+import { AccountingModule } from "./accounting/accounting.module";
 
 @Module({
   imports: [
@@ -72,6 +73,7 @@ import { DeliveryModule } from "./delivery/delivery.module";
     ContactModule,
     GeocodingModule,
     DeliveryModule,
+    AccountingModule,
   ],
   controllers: [HealthController],
   providers: [

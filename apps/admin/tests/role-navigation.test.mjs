@@ -34,14 +34,15 @@ test("couriers may keep a dedicated web session without entering the admin porta
   assert.equal(canAccessAdminPortal("COURIER"), false);
 });
 
-test("accountant navigation contains only the lifecycle order board", () => {
-  assert.deepEqual(views("ACCOUNTANT"), ["orders"]);
+test("accountant navigation contains only shift accounting", () => {
+  assert.deepEqual(views("ACCOUNTANT"), ["accounting"]);
 });
 
 test("administrators retain all management sections represented outside the full-flow board", () => {
   const expected = [
     "login-attempts",
     "orders",
+    "accounting",
     "map",
     "branches",
     "delivery",
@@ -101,7 +102,7 @@ test("the courier screen is isolated from admin navigation and accepts courier s
   assert.match(appSource, /CourierTrackingScreen/);
   assert.match(
     appSource,
-    /session\?\.user\.role === "COURIER" \? "\/courier" : "\/orders"/,
+    /defaultAdminPathForRole\(session\.user\.role\)/,
   );
   assert.match(sessionSource, /!canAccessWebSession\(response\.user\.role\)/);
   assert.match(sessionSource, /Веб-доступ разрешён/);

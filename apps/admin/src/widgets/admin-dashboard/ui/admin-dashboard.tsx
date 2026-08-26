@@ -16,6 +16,7 @@ import { OtpLoginCard } from "@/src/features/otp-login";
 import { canAccessAdminPortal, useSession } from "@/src/shared/auth";
 import { BrandLogo } from "@/src/shared/ui";
 import {
+  defaultAdminPathForRole,
   navigationForRole,
   type AdminNavIconName,
 } from "../model/admin-navigation";
@@ -32,6 +33,7 @@ function NavIcon({ name }: { name: AdminNavIconName }) {
     staff: <><circle cx="9" cy="8" r="3" /><path d="M3 21v-2a6 6 0 0 1 12 0v2M16 5a3 3 0 0 1 0 6M21 21v-2a6 6 0 0 0-4-5.65" /></>,
     contacts: <><path d="M4 14v-2a8 8 0 0 1 16 0v2M4 14h3v5H5a1 1 0 0 1-1-1zM20 14h-3v5h2a1 1 0 0 0 1-1zM17 19c0 2-2 3-5 3h-2" /></>,
     "login-attempts": <><path d="M12 3a9 9 0 1 0 9 9" /><path d="M12 7v5l3 2M15 3h6v6" /></>,
+    accounting: <><rect x="3" y="5" width="18" height="14" rx="2" /><path d="M7 9h10M7 13h4M15 13h2M7 17h10" /></>,
   };
 
   return (
@@ -130,6 +132,7 @@ export function AdminDashboard() {
   }
 
   const visibleNav = navigationForRole(session.user.role);
+  const homePath = defaultAdminPathForRole(session.user.role);
   const userName =
     [session.user.firstName, session.user.lastName].filter(Boolean).join(" ") ||
     session.user.phone;
@@ -155,7 +158,7 @@ export function AdminDashboard() {
           <Link
             className="brand"
             data-testid="admin-brand-home"
-            to="/orders"
+            to={homePath}
             onClick={() => closeNavigation()}
           >
             <BrandLogo />

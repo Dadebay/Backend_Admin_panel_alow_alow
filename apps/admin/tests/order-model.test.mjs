@@ -38,7 +38,9 @@ test("frontend role hints match the backend-owned workflow", () => {
     nextOrderStatus("COURIER", "ASSIGNED_TO_COURIER"),
     "OUT_FOR_DELIVERY",
   );
-  assert.equal(nextOrderStatus("ACCOUNTANT", "CASH_RETURNED"), "RECONCILED");
+  assert.equal(nextOrderStatus("ACCOUNTANT", "CASH_RETURNED"), undefined);
+  assert.equal(nextOrderStatus("ADMIN", "CASH_RETURNED"), undefined);
+  assert.equal(nextOrderStatus("SUPER_ADMIN", "CASH_RETURNED"), "RECONCILED");
   assert.equal(nextOrderStatus("OPERATOR", "COOKING"), undefined);
 });
 

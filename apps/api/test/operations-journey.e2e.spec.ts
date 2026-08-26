@@ -11,6 +11,7 @@ import { PrismaService } from "../src/prisma/prisma.service";
 
 type ActorKey =
   | "admin"
+  | "superAdmin"
   | "operator"
   | "cook"
   | "accountant"
@@ -139,6 +140,7 @@ describe("complete catalog, order and multi-courier journey", () => {
 
     const userData = {
       admin: { phone: "+99365000401", role: Role.ADMIN },
+      superAdmin: { phone: "+99365000409", role: Role.SUPER_ADMIN },
       operator: { phone: "+99365000402", role: Role.OPERATOR },
       cook: { phone: "+99365000403", role: Role.COOK },
       accountant: { phone: "+99365000404", role: Role.ACCOUNTANT },
@@ -604,7 +606,7 @@ describe("complete catalog, order and multi-courier journey", () => {
         OrderStatus.CASH_RETURNED,
       );
       order = await transition(
-        tokens.accountant,
+        tokens.superAdmin,
         order,
         OrderStatus.RECONCILED,
       );

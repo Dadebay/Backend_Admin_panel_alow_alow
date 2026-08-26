@@ -49,9 +49,6 @@ const nextByRole: Partial<
     OUT_FOR_DELIVERY: "DELIVERED",
     DELIVERED: "CASH_RETURNED",
   },
-  ACCOUNTANT: {
-    CASH_RETURNED: "RECONCILED",
-  },
 };
 
 const adminNext: Partial<Record<OrderStatus, OrderStatus>> = {
@@ -59,10 +56,12 @@ const adminNext: Partial<Record<OrderStatus, OrderStatus>> = {
   ASSIGNED_TO_COURIER: "OUT_FOR_DELIVERY",
   OUT_FOR_DELIVERY: "DELIVERED",
   DELIVERED: "CASH_RETURNED",
-  CASH_RETURNED: "RECONCILED",
 };
 
 export function nextOrderStatus(role: Role, status: OrderStatus) {
+  if (role === "SUPER_ADMIN" && status === "CASH_RETURNED") {
+    return "RECONCILED";
+  }
   return role === "ADMIN" || role === "SUPER_ADMIN"
     ? adminNext[status]
     : nextByRole[role]?.[status];

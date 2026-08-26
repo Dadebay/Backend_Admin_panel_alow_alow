@@ -3400,6 +3400,246 @@
           "contacts"
         ]
       }
+    },
+    "/api/v1/accounting/settings": {
+      "get": {
+        "operationId": "AccountingController_settings_v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountingSettingsResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Get the configurable Ashgabat cash shift schedule",
+        "tags": [
+          "accounting"
+        ]
+      },
+      "patch": {
+        "operationId": "AccountingController_updateSettings_v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateAccountingSettingsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountingSettingsResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Update shift names and boundaries for future handoffs",
+        "tags": [
+          "accounting"
+        ]
+      }
+    },
+    "/api/v1/accounting/shifts": {
+      "get": {
+        "operationId": "AccountingController_shifts_v1",
+        "parameters": [
+          {
+            "name": "fromDate",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "example": "2026-08-20",
+              "type": "string"
+            }
+          },
+          {
+            "name": "toDate",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "example": "2026-08-26",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AccountingShiftResponseDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "List shift totals and cash handoff state",
+        "tags": [
+          "accounting"
+        ]
+      }
+    },
+    "/api/v1/accounting/handoffs": {
+      "post": {
+        "operationId": "AccountingController_submit_v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubmitCashHandoffDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashHandoffResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Submit one completed shift cash packet to accounting",
+        "tags": [
+          "accounting"
+        ]
+      }
+    },
+    "/api/v1/accounting/handoffs/{id}/confirm": {
+      "patch": {
+        "operationId": "AccountingController_confirm_v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmCashHandoffDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashHandoffResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Confirm a submitted packet and reconcile every included order",
+        "tags": [
+          "accounting"
+        ]
+      }
+    },
+    "/api/v1/accounting/report": {
+      "get": {
+        "operationId": "AccountingController_report_v1",
+        "parameters": [
+          {
+            "name": "fromDate",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "example": "2026-08-20",
+              "type": "string"
+            }
+          },
+          {
+            "name": "toDate",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "example": "2026-08-26",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountingReportResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Get cash totals, handoffs, daily series and super-admin product analytics",
+        "tags": [
+          "accounting"
+        ]
+      }
     }
   },
   "info": {
@@ -8689,6 +8929,395 @@
         "required": [
           "displayName",
           "phone"
+        ]
+      },
+      "AccountingSettingsResponseDto": {
+        "type": "object",
+        "properties": {
+          "firstShiftName": {
+            "type": "string"
+          },
+          "firstShiftStart": {
+            "type": "string",
+            "example": "09:30"
+          },
+          "secondShiftName": {
+            "type": "string"
+          },
+          "secondShiftStart": {
+            "type": "string",
+            "example": "19:00"
+          },
+          "timeZone": {
+            "type": "string",
+            "example": "Asia/Ashgabat"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "firstShiftName",
+          "firstShiftStart",
+          "secondShiftName",
+          "secondShiftStart",
+          "timeZone",
+          "updatedAt"
+        ]
+      },
+      "UpdateAccountingSettingsDto": {
+        "type": "object",
+        "properties": {
+          "firstShiftName": {
+            "type": "string",
+            "example": "Дневная смена",
+            "maxLength": 80
+          },
+          "firstShiftStart": {
+            "type": "string",
+            "example": "09:30",
+            "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$"
+          },
+          "secondShiftName": {
+            "type": "string",
+            "example": "Ночная смена",
+            "maxLength": 80
+          },
+          "secondShiftStart": {
+            "type": "string",
+            "example": "19:00",
+            "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$"
+          }
+        },
+        "required": [
+          "firstShiftName",
+          "firstShiftStart",
+          "secondShiftName",
+          "secondShiftStart"
+        ]
+      },
+      "CashHandoffActorResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "firstName": {
+            "type": "string",
+            "nullable": true
+          },
+          "lastName": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id"
+        ]
+      },
+      "CashHandoffResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "shiftKey": {
+            "type": "string"
+          },
+          "shiftName": {
+            "type": "string"
+          },
+          "periodStart": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "periodEnd": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expectedAmount": {
+            "type": "number"
+          },
+          "declaredAmount": {
+            "type": "number"
+          },
+          "settlementCount": {
+            "type": "number"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "SUBMITTED",
+              "CONFIRMED"
+            ]
+          },
+          "note": {
+            "type": "string",
+            "nullable": true
+          },
+          "confirmationNote": {
+            "type": "string",
+            "nullable": true
+          },
+          "submittedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "confirmedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "submittedBy": {
+            "$ref": "#/components/schemas/CashHandoffActorResponseDto"
+          },
+          "confirmedBy": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CashHandoffActorResponseDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "shiftKey",
+          "shiftName",
+          "periodStart",
+          "periodEnd",
+          "expectedAmount",
+          "declaredAmount",
+          "settlementCount",
+          "status",
+          "submittedAt",
+          "submittedBy"
+        ]
+      },
+      "AccountingShiftResponseDto": {
+        "type": "object",
+        "properties": {
+          "shiftKey": {
+            "type": "string"
+          },
+          "shiftName": {
+            "type": "string"
+          },
+          "periodStart": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "periodEnd": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "isComplete": {
+            "type": "boolean"
+          },
+          "expectedAmount": {
+            "type": "number"
+          },
+          "availableAmount": {
+            "type": "number"
+          },
+          "settlementCount": {
+            "type": "number"
+          },
+          "canSubmit": {
+            "type": "boolean"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "OPEN",
+              "EMPTY",
+              "READY",
+              "SUBMITTED",
+              "CONFIRMED"
+            ]
+          },
+          "handoff": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CashHandoffResponseDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "shiftKey",
+          "shiftName",
+          "periodStart",
+          "periodEnd",
+          "isComplete",
+          "expectedAmount",
+          "availableAmount",
+          "settlementCount",
+          "canSubmit",
+          "state"
+        ]
+      },
+      "SubmitCashHandoffDto": {
+        "type": "object",
+        "properties": {
+          "shiftKey": {
+            "type": "string",
+            "example": "2026-08-25:first"
+          },
+          "declaredAmount": {
+            "type": "number",
+            "example": 1250.5,
+            "minimum": 0,
+            "maximum": 99999999
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "shiftKey"
+        ]
+      },
+      "ConfirmCashHandoffDto": {
+        "type": "object",
+        "properties": {
+          "note": {
+            "type": "string",
+            "maxLength": 500
+          }
+        }
+      },
+      "AccountingReportSummaryResponseDto": {
+        "type": "object",
+        "properties": {
+          "collectedAmount": {
+            "type": "number"
+          },
+          "completedOrders": {
+            "type": "number"
+          },
+          "averageOrderAmount": {
+            "type": "number"
+          },
+          "submittedAmount": {
+            "type": "number"
+          },
+          "confirmedAmount": {
+            "type": "number"
+          },
+          "outstandingAmount": {
+            "type": "number"
+          },
+          "cancelledOrders": {
+            "type": "number"
+          },
+          "cancellationRate": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "collectedAmount",
+          "completedOrders",
+          "averageOrderAmount",
+          "submittedAmount",
+          "confirmedAmount",
+          "outstandingAmount",
+          "cancelledOrders",
+          "cancellationRate"
+        ]
+      },
+      "AccountingDailyResponseDto": {
+        "type": "object",
+        "properties": {
+          "date": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "number"
+          },
+          "orderCount": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "date",
+          "amount",
+          "orderCount"
+        ]
+      },
+      "AccountingPopularProductResponseDto": {
+        "type": "object",
+        "properties": {
+          "productId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "productName": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": "number"
+          },
+          "revenue": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "productId",
+          "productName",
+          "quantity",
+          "revenue"
+        ]
+      },
+      "AccountingReportResponseDto": {
+        "type": "object",
+        "properties": {
+          "fromDate": {
+            "type": "string"
+          },
+          "toDate": {
+            "type": "string"
+          },
+          "timeZone": {
+            "type": "string"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/AccountingReportSummaryResponseDto"
+          },
+          "daily": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AccountingDailyResponseDto"
+            }
+          },
+          "handoffs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CashHandoffResponseDto"
+            }
+          },
+          "popularProducts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AccountingPopularProductResponseDto"
+            }
+          }
+        },
+        "required": [
+          "fromDate",
+          "toDate",
+          "timeZone",
+          "summary",
+          "daily",
+          "handoffs",
+          "popularProducts"
         ]
       }
     }

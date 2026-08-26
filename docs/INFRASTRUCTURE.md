@@ -109,6 +109,7 @@ Active same-origin production URLs:
 ```text
 https://a7-tagam.com.tm/
 https://a7-tagam.com.tm/orders
+https://a7-tagam.com.tm/accounting
 https://a7-tagam.com.tm/couriers/map
 https://a7-tagam.com.tm/courier
 https://a7-tagam.com.tm/api/v1
@@ -119,7 +120,7 @@ https://a7-tagam.com.tm/tiles/styles/alowalow/style.json
 ```
 
 The operations admin uses canonical client-side routes for every sidebar
-section: `/orders`, `/couriers/map`, `/branches`, `/catalog`, `/marketing`,
+section: `/orders`, `/accounting`, `/couriers/map`, `/branches`, `/catalog`, `/marketing`,
 `/delivery`, `/notifications`, `/staff`, `/contacts`, and `/login-attempts`.
 The isolated `/courier` route is not an admin section: it accepts a `COURIER`
 workflow session for whole-shift GPS and assigned orders without exposing admin

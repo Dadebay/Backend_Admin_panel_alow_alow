@@ -37,8 +37,6 @@ describe("order workflow policy", () => {
     [`${OrderStatus.DELIVERED}:${Role.COURIER}`, OrderStatus.CASH_RETURNED],
     [`${OrderStatus.DELIVERED}:${Role.ADMIN}`, OrderStatus.CASH_RETURNED],
     [`${OrderStatus.DELIVERED}:${Role.SUPER_ADMIN}`, OrderStatus.CASH_RETURNED],
-    [`${OrderStatus.CASH_RETURNED}:${Role.ACCOUNTANT}`, OrderStatus.RECONCILED],
-    [`${OrderStatus.CASH_RETURNED}:${Role.ADMIN}`, OrderStatus.RECONCILED],
     [
       `${OrderStatus.CASH_RETURNED}:${Role.SUPER_ADMIN}`,
       OrderStatus.RECONCILED,

@@ -1299,6 +1299,92 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/accounting/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get the configurable Ashgabat cash shift schedule */
+        get: operations["AccountingController_settings_v1"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update shift names and boundaries for future handoffs */
+        patch: operations["AccountingController_updateSettings_v1"];
+        trace?: never;
+    };
+    "/api/v1/accounting/shifts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List shift totals and cash handoff state */
+        get: operations["AccountingController_shifts_v1"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/accounting/handoffs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Submit one completed shift cash packet to accounting */
+        post: operations["AccountingController_submit_v1"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/accounting/handoffs/{id}/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Confirm a submitted packet and reconcile every included order */
+        patch: operations["AccountingController_confirm_v1"];
+        trace?: never;
+    };
+    "/api/v1/accounting/report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get cash totals, handoffs, daily series and super-admin product analytics */
+        get: operations["AccountingController_report_v1"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -2884,6 +2970,114 @@ export interface components {
             email?: string;
             privacyLink?: string;
             userAgreementLink?: string;
+        };
+        AccountingSettingsResponseDto: {
+            firstShiftName: string;
+            /** @example 09:30 */
+            firstShiftStart: string;
+            secondShiftName: string;
+            /** @example 19:00 */
+            secondShiftStart: string;
+            /** @example Asia/Ashgabat */
+            timeZone: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        UpdateAccountingSettingsDto: {
+            /** @example Дневная смена */
+            firstShiftName: string;
+            /** @example 09:30 */
+            firstShiftStart: string;
+            /** @example Ночная смена */
+            secondShiftName: string;
+            /** @example 19:00 */
+            secondShiftStart: string;
+        };
+        CashHandoffActorResponseDto: {
+            /** Format: uuid */
+            id: string;
+            firstName?: string | null;
+            lastName?: string | null;
+        };
+        CashHandoffResponseDto: {
+            /** Format: uuid */
+            id: string;
+            shiftKey: string;
+            shiftName: string;
+            /** Format: date-time */
+            periodStart: string;
+            /** Format: date-time */
+            periodEnd: string;
+            expectedAmount: number;
+            declaredAmount: number;
+            settlementCount: number;
+            /** @enum {string} */
+            status: "SUBMITTED" | "CONFIRMED";
+            note?: string | null;
+            confirmationNote?: string | null;
+            /** Format: date-time */
+            submittedAt: string;
+            /** Format: date-time */
+            confirmedAt?: string | null;
+            submittedBy: components["schemas"]["CashHandoffActorResponseDto"];
+            confirmedBy?: components["schemas"]["CashHandoffActorResponseDto"] | null;
+        };
+        AccountingShiftResponseDto: {
+            shiftKey: string;
+            shiftName: string;
+            /** Format: date-time */
+            periodStart: string;
+            /** Format: date-time */
+            periodEnd: string;
+            isComplete: boolean;
+            expectedAmount: number;
+            availableAmount: number;
+            settlementCount: number;
+            canSubmit: boolean;
+            /** @enum {string} */
+            state: "OPEN" | "EMPTY" | "READY" | "SUBMITTED" | "CONFIRMED";
+            handoff?: components["schemas"]["CashHandoffResponseDto"] | null;
+        };
+        SubmitCashHandoffDto: {
+            /** @example 2026-08-25:first */
+            shiftKey: string;
+            /** @example 1250.5 */
+            declaredAmount?: number;
+            note?: string;
+        };
+        ConfirmCashHandoffDto: {
+            note?: string;
+        };
+        AccountingReportSummaryResponseDto: {
+            collectedAmount: number;
+            completedOrders: number;
+            averageOrderAmount: number;
+            submittedAmount: number;
+            confirmedAmount: number;
+            outstandingAmount: number;
+            cancelledOrders: number;
+            cancellationRate: number;
+        };
+        AccountingDailyResponseDto: {
+            date: string;
+            amount: number;
+            orderCount: number;
+        };
+        AccountingPopularProductResponseDto: {
+            /** Format: uuid */
+            productId: string;
+            productName: string;
+            quantity: number;
+            revenue: number;
+        };
+        AccountingReportResponseDto: {
+            fromDate: string;
+            toDate: string;
+            timeZone: string;
+            summary: components["schemas"]["AccountingReportSummaryResponseDto"];
+            daily: components["schemas"]["AccountingDailyResponseDto"][];
+            handoffs: components["schemas"]["CashHandoffResponseDto"][];
+            popularProducts: components["schemas"]["AccountingPopularProductResponseDto"][];
         };
     };
     responses: never;
@@ -4962,6 +5156,140 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ContactSettingsResponseDto"];
+                };
+            };
+        };
+    };
+    AccountingController_settings_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountingSettingsResponseDto"];
+                };
+            };
+        };
+    };
+    AccountingController_updateSettings_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateAccountingSettingsDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountingSettingsResponseDto"];
+                };
+            };
+        };
+    };
+    AccountingController_shifts_v1: {
+        parameters: {
+            query?: {
+                fromDate?: string;
+                toDate?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountingShiftResponseDto"][];
+                };
+            };
+        };
+    };
+    AccountingController_submit_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SubmitCashHandoffDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CashHandoffResponseDto"];
+                };
+            };
+        };
+    };
+    AccountingController_confirm_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConfirmCashHandoffDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CashHandoffResponseDto"];
+                };
+            };
+        };
+    };
+    AccountingController_report_v1: {
+        parameters: {
+            query?: {
+                fromDate?: string;
+                toDate?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountingReportResponseDto"];
                 };
             };
         };

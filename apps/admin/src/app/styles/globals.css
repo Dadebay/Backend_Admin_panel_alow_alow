@@ -1,5 +1,260 @@
 @import "tailwindcss";
 
+/* Shift accounting has its own compact, touch-safe workspace. Financial
+   hierarchy remains readable without a desktop table on tablets and phones. */
+.accounting-range {
+  grid-template-columns: minmax(230px, 1fr) repeat(2, minmax(150px, 210px)) auto;
+  align-items: end;
+}
+
+.accounting-range,
+.accounting-range label,
+.accounting-presets {
+  display: grid;
+  gap: 8px;
+}
+
+.accounting-range label {
+  color: var(--brand-navy);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.accounting-range input,
+.accounting-settings input,
+.accounting-handoff-form :is(input, textarea) {
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid var(--field-border);
+  border-radius: 11px;
+  outline: 0;
+  color: var(--brand-navy);
+  background: var(--field-surface);
+}
+
+.accounting-range input:focus,
+.accounting-settings input:focus,
+.accounting-handoff-form :is(input, textarea):focus {
+  border-color: var(--brand-orange);
+  background: var(--brand-cream);
+  box-shadow: 0 0 0 3px var(--field-focus-ring);
+}
+
+.accounting-presets {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.accounting-presets button {
+  min-height: 44px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--brand-navy);
+  background: color-mix(in srgb, var(--brand-cream) 92%, var(--brand-navy));
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.accounting-presets button:hover {
+  border-color: var(--brand-orange);
+  color: var(--brand-orange);
+}
+
+.accounting-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.accounting-metrics article {
+  min-width: 0;
+  display: grid;
+  gap: 7px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 15px;
+  background: var(--brand-cream);
+  box-shadow: var(--shadow);
+}
+
+.accounting-metrics article.needs-action {
+  border-color: color-mix(in srgb, var(--brand-orange) 54%, var(--brand-cream));
+  box-shadow: inset 4px 0 0 var(--brand-orange), var(--shadow);
+}
+
+.accounting-metrics span,
+.accounting-metrics small,
+.accounting-shift-card small,
+.accounting-handoff-detail,
+.accounting-products small {
+  color: var(--muted);
+}
+
+.accounting-metrics span {
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+.accounting-metrics strong {
+  overflow-wrap: anywhere;
+  color: var(--brand-navy);
+  font-size: clamp(18px, 2.2vw, 27px);
+}
+
+.accounting-metrics small { font-size: 10px; }
+
+.accounting-chart,
+.accounting-shifts,
+.accounting-products {
+  min-width: 0;
+}
+
+.accounting-chart .editor-title,
+.accounting-shifts .editor-title,
+.accounting-products .editor-title,
+.accounting-settings .editor-title,
+.accounting-handoff-form .editor-title {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.accounting-chart .editor-title p,
+.accounting-shifts .editor-title p,
+.accounting-products .editor-title p,
+.accounting-settings .editor-title p,
+.accounting-handoff-form .editor-title p {
+  margin: 5px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.accounting-bars { display: grid; gap: 10px; }
+
+.accounting-bar-row {
+  display: grid;
+  grid-template-columns: 44px minmax(80px, 1fr) minmax(92px, auto) 48px;
+  align-items: center;
+  gap: 10px;
+  font-size: 10px;
+}
+
+.accounting-bar-row > div {
+  height: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--brand-navy) 8%, var(--brand-cream));
+}
+
+.accounting-bar-row > div span {
+  height: 100%;
+  display: block;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--brand-orange), color-mix(in srgb, var(--brand-orange) 62%, var(--brand-cream)));
+}
+
+.accounting-bar-row strong { text-align: right; }
+.accounting-bar-row small { color: var(--muted); text-align: right; }
+
+.accounting-shift-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.accounting-shift-card {
+  min-width: 0;
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--brand-cream) 95%, var(--brand-navy));
+}
+
+.accounting-shift-card.state-ready,
+.accounting-shift-card.state-submitted {
+  border-color: color-mix(in srgb, var(--brand-orange) 48%, var(--brand-cream));
+  box-shadow: inset 4px 0 0 var(--brand-orange);
+}
+
+.accounting-shift-card.state-confirmed {
+  box-shadow: inset 4px 0 0 var(--brand-navy);
+}
+
+.accounting-shift-title {
+  min-width: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.accounting-shift-title > div { min-width: 0; display: grid; gap: 4px; }
+.accounting-shift-title strong { font-size: 15px; }
+.accounting-shift-title small { font-size: 10px; }
+.accounting-shift-title > span {
+  flex: 0 0 auto;
+  padding: 6px 8px;
+  border-radius: 999px;
+  color: var(--brand-navy);
+  background: var(--brand-cream);
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.accounting-shift-card dl { display: flex; gap: 24px; margin: 0; }
+.accounting-shift-card dl div { display: grid; gap: 3px; }
+.accounting-shift-card dt { color: var(--muted); font-size: 9px; }
+.accounting-shift-card dd { margin: 0; font-size: 17px; font-weight: 800; }
+.accounting-handoff-detail { display: grid; gap: 4px; font-size: 10px; }
+.accounting-handoff-detail b { color: var(--brand-orange); }
+.accounting-shift-card > .primary-button { width: 100%; margin-top: auto; }
+
+.accounting-handoff-form {
+  border-color: color-mix(in srgb, var(--brand-orange) 42%, var(--brand-cream));
+  box-shadow: inset 4px 0 0 var(--brand-orange), var(--shadow);
+}
+
+.accounting-products ol { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.accounting-products li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(90px, auto);
+  align-items: center;
+  gap: 12px;
+  padding: 11px 12px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--brand-cream) 93%, var(--brand-navy));
+  font-size: 11px;
+}
+.accounting-products li span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.accounting-products li small { text-align: right; }
+
+@media (max-width: 980px) {
+  .accounting-range { grid-template-columns: 1fr 1fr; }
+  .accounting-presets { grid-column: 1 / -1; }
+  .accounting-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 700px) {
+  .accounting-range,
+  .accounting-metrics,
+  .accounting-shift-grid { grid-template-columns: minmax(0, 1fr); }
+  .accounting-presets { grid-column: auto; }
+  .accounting-bar-row { grid-template-columns: 38px minmax(50px, 1fr) minmax(82px, auto); }
+  .accounting-bar-row small { display: none; }
+  .accounting-products li { grid-template-columns: minmax(0, 1fr) auto; }
+  .accounting-products li small { grid-column: 1 / -1; text-align: left; }
+  .accounting-chart .editor-title,
+  .accounting-shifts .editor-title,
+  .accounting-products .editor-title,
+  .accounting-settings .editor-title,
+  .accounting-handoff-form .editor-title { align-items: stretch; flex-direction: column; }
+}
+
 /* Tablet and phone navigation uses a drawer. Desktop keeps the persistent
    sidebar, avoiding the cramped multi-row bottom navigation. */
 @media (max-width: 900px) {

@@ -90,7 +90,11 @@ instructions.
   kitchen routes, and may be requested again for a manual retry.
 - Cash remains order-specific:
   `DELIVERED → CASH_RETURNED → RECONCILED`; `CASH_RETURNED` is the completed
-  order state.
+  order state. Accountants do not list/read order records or reconcile them
+  individually. An administrator submits all confirmed settlements for one
+  completed configured shift as a unique cash handoff; accountant confirmation
+  atomically reconciles its settlements and orders. `SUPER_ADMIN` retains the
+  audited emergency individual transition unless the order belongs to a packet.
 
 ## Data and transactions
 

@@ -134,6 +134,7 @@ alowalow/
 │   │   │   └── seed.ts
 │   │   ├── src/
 │   │   │   ├── auth/      # OTP, JWT, refresh, Android pull SMS gateway
+│   │   │   ├── accounting/ # configurable shifts, cash handoffs, reports
 │   │   │   ├── users/     # staff and customer addresses
 │   │   │   ├── branches/  # branch CRUD and nearest-branch selection
 │   │   │   ├── delivery/  # welayat/etrap tariffs and delivery pricing
@@ -160,9 +161,9 @@ alowalow/
 │       ├── package-lock.json # isolated frontend dependency/security tree
 │       ├── src/            # FSD product layers
 │       │   ├── app/        # SPA bootstrap, routes, providers, global styles
-│       │   ├── widgets/    # boards/maps/managers, incl. delivery tariffs
-│       │   ├── features/   # typed mutations, assisted/delivery management
-│       │   ├── entities/   # typed queries/models, incl. delivery/geocoding
+│       │   ├── widgets/    # boards/maps/managers, incl. shift accounting
+│       │   ├── features/   # typed mutations, incl. cash handoff actions
+│       │   ├── entities/   # typed queries/models, incl. accounting/delivery
 │       │   └── shared/     # HTTP/query clients, auth, Zod form helpers, UI
 │       ├── public/
 │       └── tests/
@@ -204,10 +205,11 @@ Prisma access in React, or duplicate backend policies in client state.
   order for a caller through the assisted-order API/admin form.
 - `COOK`: claims an unowned `COOKING` order by marking it `READY`.
 - `COURIER`: handles only assigned orders and returns collected cash.
-- `ACCOUNTANT`: performs final cash reconciliation.
+- `ACCOUNTANT`: sees the dedicated shift/cash workspace, verifies submitted
+  cash packets and performs final reconciliation for every included order.
 - `ADMIN`: operational administration, audited correction of active orders,
-  backward workflow control before courier pickup, and late cancellation
-  before cash return.
+  backward workflow control before courier pickup, late cancellation before
+  cash return, and submission of completed-shift cash to accounting.
 - `SUPER_ADMIN`: owner-level administrator with all admin access and protected
   authority over the `SUPER_ADMIN` role.
 
@@ -230,25 +232,25 @@ admin route. The dedicated screen is a production fallback when a native
 courier client is not yet publishing location.
 
 Every operations-admin section owns a canonical browser URL and is composed
-through React Router's declarative `BrowserRouter` layout. `/` redirects to
-`/orders`; the courier dispatch map is `/couriers/map`, and the remaining
+through React Router's declarative `BrowserRouter` layout. `/` redirects an
+accountant to `/accounting` and administrators to `/orders`; the courier
+dispatch map is `/couriers/map`, and the remaining
 management sections use their stable top-level paths. Sidebar navigation uses
 history-aware links, direct loads are served through the Nginx SPA fallback,
 and a role-forbidden section redirects to that staff role's default allowed
 section. Backend authorization remains authoritative.
 
 The admin order workspace defaults to a role-aware Kanban backed by the same
-paginated order API and mutation policy as the table. `ACCOUNTANT`, `ADMIN`,
-and `SUPER_ADMIN` see two active lanes: kitchen (`COOKING` and `READY`) and
-courier (assignment through delivery). Cash-returned, reconciled,
-and cancelled orders remain available in one collapsed archive below the
-board. Accountant cards omit customer identity, delivery address, and dish
-composition. There is no separate cash page: cash-return, completion, and
-reconciliation are handled from `/orders`; cash return itself is the completed
-order state. The detailed table is available only to `ADMIN` and `SUPER_ADMIN`.
-Hiding frontend navigation or card fields is usability and data minimization
-only—the NestJS guards, role scope, and order policy remain the authorization
-authority.
+paginated order API and mutation policy as the table. `ADMIN` and `SUPER_ADMIN`
+see two active lanes: kitchen (`COOKING` and `READY`) and courier (assignment
+through delivery). Cash-returned, reconciled, and cancelled orders remain in
+one collapsed archive. The separate `/accounting` workspace is the only admin
+navigation item for `ACCOUNTANT`; it exposes financial summaries and submitted
+shift packets without customer identity, delivery address, or dish composition.
+`ADMIN` sees only shift totals and the amount to submit. `SUPER_ADMIN` sees the
+complete report, popular-product analytics, and shift settings. Frontend
+visibility is usability and data minimization only—the NestJS guards, role
+scope, and accounting/order policies remain authoritative.
 
 ## Order state machine
 
@@ -285,8 +287,37 @@ Role ownership:
   optimistic locking are enforced by the backend;
 - the assigned courier/admin moves `DELIVERED → CASH_RETURNED`; this is the
   completed order state, sets `completedAt`, and confirms the cash settlement;
-- accountant/admin: `CASH_RETURNED → RECONCILED`;
+- `SUPER_ADMIN`: emergency individual `CASH_RETURNED → RECONCILED`, unless the
+  settlement already belongs to a submitted cash packet; `ACCOUNTANT` and
+  `ADMIN` cannot reconcile an individual order;
 - `SUPER_ADMIN` inherits admin transitions.
+
+## Shift cash handoff and reports
+
+Cash settlement remains order-specific, while delivery to accounting is
+grouped by a configurable shift. The singleton schedule uses
+`Asia/Ashgabat`: defaults are `09:30–19:00` and `19:00–09:30` on the following
+day. Only `SUPER_ADMIN` may change the two names and boundaries. A setting
+change never rewrites an already submitted packet because every `CashHandoff`
+snapshots its shift name, start, end, expected amount and order count.
+
+After a shift ends, `ADMIN` or `SUPER_ADMIN` submits all unclaimed confirmed
+cash settlements whose `operatorTakenAt` falls inside the interval. One unique
+`shiftKey` permits only one packet and a serializable transaction claims every
+settlement; the administrator may record a different declared amount and note,
+but cannot change the backend-calculated expected amount. `ACCOUNTANT` or
+`SUPER_ADMIN` confirms the whole packet atomically: all settlements become
+`RECONCILED`, all corresponding `CASH_RETURNED` orders become `RECONCILED`,
+versions increment, transitions are written, and the cash action is audited.
+An individual order attached to a packet cannot bypass packet confirmation.
+
+`/accounting` supports today, seven-day, thirty-day and custom ranges up to one
+year. Accountants and super administrators see collected, submitted,
+confirmed and outstanding cash, order count/average, cancellations, daily
+series and packet history. Only `SUPER_ADMIN` receives top-product quantity
+and revenue analytics. `ADMIN` is denied the financial report endpoint and
+sees only the shift amount they must submit. The UI is lazy-loaded and changes
+from three summary columns/two shift columns to one column on a phone.
 
 Cancellation:
 
@@ -1040,6 +1071,14 @@ eager route load.
 
 ## Decision log
 
+- 2026-08-26: order cash reconciliation gained configurable two-shift packets.
+  Administrators submit one completed-shift handoff, accountants confirm it
+  atomically, and super administrators manage the schedule and see complete
+  financial/product analytics. The accountant admin was reduced to the single
+  `/accounting` view; admin reconciliation of individual orders was removed.
+  The responsive dashboard remains a lazy 14.9 KB / 4.4 KB gzip route, while
+  the shared entry stays 243.4 KB / 78.0 KB gzip; it adds no dependency or
+  application-wide polling owner.
 - 2026-07-27: media moved to private S3-compatible storage.
 - 2026-07-27: OTP moved from PostgreSQL to atomic Redis storage; an initial
   third-party SMS adapter was added and later removed after the Android gateway

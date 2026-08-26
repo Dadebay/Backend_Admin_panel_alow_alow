@@ -615,6 +615,9 @@ export class OrdersService {
   }
 
   async list(user: AuthUser, query: ListOrdersQueryDto) {
+    if (user.role === Role.ACCOUNTANT) {
+      throw new ForbiddenException("Use the accounting workspace");
+    }
     const roleFilter: Prisma.OrderWhereInput =
       user.role === Role.CUSTOMER
         ? { customerId: user.id }
@@ -845,6 +848,11 @@ export class OrdersService {
           },
         });
       } else if (dto.status === OrderStatus.RECONCILED) {
+        if (order.cashSettlement?.cashHandoffId) {
+          throw new ConflictException(
+            "This order belongs to a cash handoff and must be confirmed there",
+          );
+        }
         await tx.cashSettlement.update({
           where: { orderId: order.id },
           data: {
@@ -1560,6 +1568,9 @@ export class OrdersService {
       status: OrderStatus;
     },
   ) {
+    if (user.role === Role.ACCOUNTANT) {
+      throw new ForbiddenException("Use the accounting workspace");
+    }
     if (user.role === Role.CUSTOMER && order.customerId !== user.id) {
       throw new ForbiddenException();
     }

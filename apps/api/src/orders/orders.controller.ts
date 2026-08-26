@@ -124,7 +124,7 @@ export class OrdersController {
   }
 
   @Patch(":id/transition")
-  @Roles(Role.OPERATOR, Role.COOK, Role.COURIER, Role.ACCOUNTANT, Role.ADMIN)
+  @Roles(Role.OPERATOR, Role.COOK, Role.COURIER, Role.ADMIN)
   @ApiOperation({
     summary:
       "Move an order through the role-gated workflow; courier pickup is OUT_FOR_DELIVERY and completion is DELIVERED",

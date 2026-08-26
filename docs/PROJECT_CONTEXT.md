@@ -321,8 +321,10 @@ from three summary columns/two shift columns to one column on a phone.
 
 Cancellation:
 
-- customer and operator cancellation is unavailable because every submitted
-  order begins cooking immediately;
+- a customer may cancel only their own active unsettled order during the first
+  15 minutes after its creation; the window is enforced by the backend even
+  though every submitted order begins cooking immediately;
+- operator cancellation is unavailable;
 - `ADMIN`/`SUPER_ADMIN`: any active operational status from `COOKING` through
   `DELIVERED`; cancellation is forbidden once cash was returned or from any
   terminal/accounting status.
@@ -1538,6 +1540,10 @@ eager route load.
   printers. The cancellation receipt retains the order number and items, marks
   every chunk as `CANCELLED ORDER`, includes the stored reason, and remains
   manually reprintable if the local print attempt fails.
+- 2026-08-26: customers may cancel their own active unsettled order during the
+  first 15 minutes after creation. The backend enforces ownership, the time
+  window, active status and optimistic version; operators remain unable to
+  cancel, while administrator cancellation through `DELIVERED` is unchanged.
 - 2026-08-25: receipt-printer endpoints moved from free-text catalog fields to
   an audited PostgreSQL registry with name, private IPv4 address, port,
   transport and active state. Main, category and product routes reference

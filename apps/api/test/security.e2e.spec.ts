@@ -2959,25 +2959,64 @@ describe("backend security and critical workflow", () => {
     ]);
   });
 
-  it("allows only administrators to cancel active unsettled orders", async () => {
-    for (const role of ["operator", "admin", "superAdmin"] as const) {
-      const order = await createOrder(tokens.customer, {});
+  it("allows own customer cancellation for 15 minutes and later administrator cancellation", async () => {
+    const recentOrder = await createOrder(tokens.customer, {});
+    const customerCancellation = await request(server)
+      .patch(`/api/v1/orders/${recentOrder.id}/cancel`)
+      .set(bearer(tokens.customer))
+      .send({
+        reason: "Customer changed their mind",
+        version: recentOrder.version,
+      })
+      .expect(200);
+    expect(customerCancellation.body).toMatchObject({
+      status: OrderStatus.CANCELLED,
+      cancellationReason: "Customer changed their mind",
+      version: recentOrder.version + 1,
+    });
 
-      await request(server)
-        .patch(`/api/v1/orders/${order.id}/cancel`)
-        .set(bearer(tokens.customer))
-        .send({
-          reason: "Customer cannot stop kitchen handoff",
-          version: order.version,
-        })
-        .expect(403);
+    const otherCustomersOrder = await createOrder(tokens.customer, {});
+    await request(server)
+      .patch(`/api/v1/orders/${otherCustomersOrder.id}/cancel`)
+      .set(bearer(tokens.otherCustomer))
+      .send({
+        reason: "Cannot cancel someone else's order",
+        version: otherCustomersOrder.version,
+      })
+      .expect(403);
 
-      await request(server)
-        .patch(`/api/v1/orders/${order.id}/cancel`)
-        .set(bearer(tokens[role]))
-        .send({ reason: `Cancelled by ${role}`, version: order.version })
-        .expect(role === "operator" ? 403 : 200);
-    }
+    const expiredOrder = await createOrder(tokens.customer, {});
+    await prisma.order.update({
+      where: { id: expiredOrder.id },
+      data: { createdAt: new Date(Date.now() - 16 * 60 * 1000) },
+    });
+    await request(server)
+      .patch(`/api/v1/orders/${expiredOrder.id}/cancel`)
+      .set(bearer(tokens.customer))
+      .send({
+        reason: "Customer cancellation window expired",
+        version: expiredOrder.version,
+      })
+      .expect(403);
+    await request(server)
+      .patch(`/api/v1/orders/${expiredOrder.id}/cancel`)
+      .set(bearer(tokens.admin))
+      .send({
+        reason: "Administrator cancelled after customer window",
+        version: expiredOrder.version,
+      })
+      .expect(200);
+
+    const operatorOrder = await createOrder(tokens.customer, {});
+    await request(server)
+      .patch(`/api/v1/orders/${operatorOrder.id}/cancel`)
+      .set(bearer(tokens.operator))
+      .send({
+        reason: "Operator cannot cancel",
+        version: operatorOrder.version,
+      })
+      .expect(403);
+
     let rollbackOrder = await createOrder(tokens.customer, {});
     rollbackOrder = await transition(
       tokens.cook,

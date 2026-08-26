@@ -47,6 +47,7 @@ import {
   canCancelOrder,
   canEditCourierAssignment,
   canManageCourierAssignment,
+  CUSTOMER_CANCELLATION_WINDOW_MS,
 } from "./order-policy";
 import {
   CourierRouteWaypointKind,
@@ -1262,20 +1263,40 @@ export class OrdersService {
   async cancel(user: AuthUser, id: string, dto: CancelOrderDto) {
     let notifyTarget: { customerId: string; number: number } | null = null;
     const response = await this.prisma.$transaction(async (tx) => {
+      const cancelledAt = new Date();
+      const customerCancellationCutoff = new Date(
+        cancelledAt.getTime() - CUSTOMER_CANCELLATION_WINDOW_MS,
+      );
       const order = await tx.order.findUnique({ where: { id } });
       if (!order) throw new NotFoundException("Order not found");
       if (order.version !== dto.version) {
         throw new ConflictException("Order changed; reload and try again");
       }
       if (
-        !canCancelOrder(order.status, user.role, order.customerId === user.id)
+        !canCancelOrder(
+          order.status,
+          user.role,
+          order.customerId === user.id,
+          order.createdAt,
+          cancelledAt,
+        )
       ) {
         throw new ForbiddenException(
           "This role cannot cancel the order at its current stage",
         );
       }
       const cancelled = await tx.order.updateMany({
-        where: { id, version: dto.version, status: order.status },
+        where: {
+          id,
+          version: dto.version,
+          status: order.status,
+          ...(user.role === Role.CUSTOMER
+            ? {
+                customerId: user.id,
+                createdAt: { gte: customerCancellationCutoff },
+              }
+            : {}),
+        },
         data: {
           status: OrderStatus.CANCELLED,
           cancellationReason: dto.reason,

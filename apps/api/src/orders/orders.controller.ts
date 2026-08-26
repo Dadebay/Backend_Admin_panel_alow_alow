@@ -187,7 +187,7 @@ export class OrdersController {
   @Roles(Role.CUSTOMER, Role.OPERATOR, Role.ADMIN)
   @ApiOperation({
     summary:
-      "Cancel early as operator or cancel an active unsettled order as administrator",
+      "Cancel an own order within 15 minutes as customer or an active unsettled order as administrator",
   })
   @ApiOkResponse({ type: OrderResponseDto })
   cancel(

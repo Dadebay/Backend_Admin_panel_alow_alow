@@ -55,8 +55,8 @@ instructions.
   - a courier may act only on orders assigned to them;
   - a customer may read/rate/cancel only their own order where allowed.
 - Cancellation policy:
-  - customers and `OPERATOR` cannot cancel because orders start cooking
-    immediately;
+  - a customer may cancel only their own active unsettled order within 15
+    minutes of its creation; `OPERATOR` cannot cancel;
   - `ADMIN` and `SUPER_ADMIN`: active operational statuses from `COOKING` through
     `DELIVERED`, but never `CASH_RETURNED` or a later/terminal status.
 - Only `ADMIN` and `SUPER_ADMIN` may move an active order backward before

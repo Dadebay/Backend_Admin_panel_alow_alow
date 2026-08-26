@@ -7,6 +7,7 @@ import {
   canCancelOrder,
   canEditCourierAssignment,
   canManageCourierAssignment,
+  CUSTOMER_CANCELLATION_WINDOW_MS,
 } from "../src/orders/order-policy";
 
 describe("order workflow policy", () => {
@@ -84,23 +85,38 @@ describe("order workflow policy", () => {
     }
   });
 
-  it("allows only administrators to cancel active unsettled orders", () => {
+  it("allows customers to cancel their own active order only within 15 minutes", () => {
+    const now = new Date("2026-08-26T12:00:00.000Z");
+    const creationTimes = [
+      new Date(now.getTime() - CUSTOMER_CANCELLATION_WINDOW_MS),
+      new Date(now.getTime() - CUSTOMER_CANCELLATION_WINDOW_MS - 1),
+    ];
     for (const status of Object.values(OrderStatus)) {
       for (const role of Object.values(Role)) {
         for (const isOwner of [false, true]) {
-          const expectedCancellation =
-            (role === Role.ADMIN || role === Role.SUPER_ADMIN) &&
-            [
+          for (const createdAt of creationTimes) {
+            const isWithinCustomerWindow =
+              createdAt.getTime() >=
+              now.getTime() - CUSTOMER_CANCELLATION_WINDOW_MS;
+            const isActive = [
               OrderStatus.COOKING,
               OrderStatus.READY,
               OrderStatus.ASSIGNED_TO_COURIER,
               OrderStatus.OUT_FOR_DELIVERY,
               OrderStatus.DELIVERED,
             ].includes(status);
-          expect(
-            canCancelOrder(status, role, isOwner),
-            `${role} from ${status}, owner=${String(isOwner)}`,
-          ).toBe(expectedCancellation);
+            const expectedCancellation =
+              isActive &&
+              ((role === Role.CUSTOMER &&
+                isOwner &&
+                isWithinCustomerWindow) ||
+                role === Role.ADMIN ||
+                role === Role.SUPER_ADMIN);
+            expect(
+              canCancelOrder(status, role, isOwner, createdAt, now),
+              `${role} from ${status}, owner=${String(isOwner)}, createdAt=${createdAt.toISOString()}`,
+            ).toBe(expectedCancellation);
+          }
         }
       }
     }

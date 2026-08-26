@@ -52,22 +52,29 @@ export function assertOrderTransition(
   }
 }
 
+export const CUSTOMER_CANCELLATION_WINDOW_MS = 15 * 60 * 1000;
+
+const cancellableStatuses: OrderStatus[] = [
+  OrderStatus.COOKING,
+  OrderStatus.READY,
+  OrderStatus.ASSIGNED_TO_COURIER,
+  OrderStatus.OUT_FOR_DELIVERY,
+  OrderStatus.DELIVERED,
+];
+
 export function canCancelOrder(
   status: OrderStatus,
   role: Role,
   isOwner: boolean,
+  createdAt: Date,
+  now: Date,
 ) {
-  void isOwner;
-  if (role === Role.CUSTOMER || role === Role.OPERATOR) return false;
-  if (role !== Role.ADMIN && role !== Role.SUPER_ADMIN) return false;
-  const cancellableStatuses: OrderStatus[] = [
-    OrderStatus.COOKING,
-    OrderStatus.READY,
-    OrderStatus.ASSIGNED_TO_COURIER,
-    OrderStatus.OUT_FOR_DELIVERY,
-    OrderStatus.DELIVERED,
-  ];
-  return cancellableStatuses.includes(status);
+  if (!cancellableStatuses.includes(status)) return false;
+  if (role === Role.ADMIN || role === Role.SUPER_ADMIN) return true;
+  if (role !== Role.CUSTOMER || !isOwner) return false;
+  return (
+    createdAt.getTime() >= now.getTime() - CUSTOMER_CANCELLATION_WINDOW_MS
+  );
 }
 
 const administratorEditableStatuses: OrderStatus[] = [

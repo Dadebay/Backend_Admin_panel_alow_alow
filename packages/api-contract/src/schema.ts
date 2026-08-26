@@ -544,7 +544,7 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** Cancel early as operator or cancel an active unsettled order as administrator */
+        /** Cancel an own order within 15 minutes as customer or an active unsettled order as administrator */
         patch: operations["OrdersController_cancel_v1"];
         trace?: never;
     };

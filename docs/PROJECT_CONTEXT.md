@@ -586,6 +586,12 @@ unused apparatus; an apparatus referenced by the main setting, a category or a
 product returns `409 Conflict` on deletion. Operators may read the registry but
 cannot mutate it. An inactive apparatus cannot be newly assigned and an
 existing route through it does not produce a print job until it is enabled.
+The initial registry contains six discovered active RAW TCP endpoints on port
+9100: `192.168.123.100`, `192.168.123.101`, `192.168.123.105`,
+`192.168.0.4`, `192.168.0.86`, and `192.168.0.87`. Their temporary names are
+`Аппарат 1` through `Аппарат 6`; administrators replace those names in the
+registry when the kitchen assignments are known. The idempotent data migration
+never overwrites an already managed record with the same IP and port.
 
 An administrator selects a registered apparatus as a category default and may
 select a different registered apparatus as an individual-product override. A
@@ -1540,6 +1546,10 @@ eager route load.
   agent now dispatches both raw TCP ESC/POS (including port 9100 printers) and
   legacy J-Speed HTTP, while old IP-only API payloads remain a temporary
   backward-compatible port-80 fallback.
+- 2026-08-26: the six LAN X-printers discovered at
+  `192.168.123.100`, `.101`, `.105` and `192.168.0.4`, `.86`, `.87` are
+  preloaded as editable active RAW TCP port-9100 registry entries. Existing
+  records at those endpoints are preserved rather than renamed.
 - 2026-08-23: catalog administrators gained audited permanent deletion for
   products and categories that have no order history. A protected product or
   category returns `409 Conflict` and remains available for hiding, preserving

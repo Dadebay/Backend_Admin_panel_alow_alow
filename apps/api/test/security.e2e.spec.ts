@@ -1665,6 +1665,39 @@ describe("backend security and critical workflow", () => {
     await request(server)
       .get("/api/v1/catalog/admin/receipt-printers")
       .expect(401);
+    const predefinedPrinters = (
+      await request(server)
+        .get("/api/v1/catalog/admin/receipt-printers")
+        .set(bearer(tokens.operator))
+        .expect(200)
+    ).body as ReceiptPrinterResponse[];
+    expect(
+      predefinedPrinters.map(
+        ({ name, ipAddress, port, transport, isActive }) => ({
+          name,
+          ipAddress,
+          port,
+          transport,
+          isActive,
+        }),
+      ),
+    ).toEqual(
+      expect.arrayContaining(
+        [
+          { name: "Аппарат 1", ipAddress: "192.168.123.100" },
+          { name: "Аппарат 2", ipAddress: "192.168.123.101" },
+          { name: "Аппарат 3", ipAddress: "192.168.123.105" },
+          { name: "Аппарат 4", ipAddress: "192.168.0.4" },
+          { name: "Аппарат 5", ipAddress: "192.168.0.86" },
+          { name: "Аппарат 6", ipAddress: "192.168.0.87" },
+        ].map((printer) => ({
+          ...printer,
+          port: 9100,
+          transport: "RAW_TCP",
+          isActive: true,
+        })),
+      ),
+    );
     await request(server)
       .post("/api/v1/catalog/receipt-printers")
       .set(bearer(tokens.operator))
@@ -1815,20 +1848,20 @@ describe("backend security and critical workflow", () => {
 
   it("builds an authorized accepted-order print plan grouped by snapshot endpoint", async () => {
     const [categoryPrinter, productPrinter, mainPrinter] = await Promise.all([
-      prisma.receiptPrinter.create({
-        data: {
-          name: "Receipt category kitchen",
-          ipAddress: "192.168.123.100",
-          port: 9100,
-          transport: "RAW_TCP",
+      prisma.receiptPrinter.findUniqueOrThrow({
+        where: {
+          ipAddress_port: {
+            ipAddress: "192.168.123.100",
+            port: 9100,
+          },
         },
       }),
-      prisma.receiptPrinter.create({
-        data: {
-          name: "Receipt product kitchen",
-          ipAddress: "192.168.123.101",
-          port: 9100,
-          transport: "RAW_TCP",
+      prisma.receiptPrinter.findUniqueOrThrow({
+        where: {
+          ipAddress_port: {
+            ipAddress: "192.168.123.101",
+            port: 9100,
+          },
         },
       }),
       prisma.receiptPrinter.create({

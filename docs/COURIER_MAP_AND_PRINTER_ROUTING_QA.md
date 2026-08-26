@@ -56,6 +56,9 @@ records how those decisions are verified.
 - Each order item snapshots its effective route. Later catalog changes do not
   reroute an existing order. The complete main-printer job always contains all
   order lines; missing kitchen routes remain visible as unassigned items.
+- A fresh database preloads the six discovered private-LAN port-9100 printers
+  with editable temporary names. Reapplying migrations does not duplicate an
+  endpoint or overwrite an existing operator-managed record.
 - `ADMIN` and `SUPER_ADMIN` may permanently delete an unused product or an
   unused category and all of its products after confirmation. The API audits
   the deletion and retains media objects. Any order-history reference protects
@@ -74,7 +77,7 @@ records how those decisions are verified.
 | LAN validation and UI wiring | `apps/admin/tests/form-schemas.test.mjs`, `apps/admin/tests/receipt-printing.test.mjs` | Private IPv4 validation, stable selectors, quick-settings integration and printer hierarchy copy |
 | Catalog deletion UI | `apps/admin/tests/catalog-deletion.test.mjs` | Authenticated DELETE mutations, cache refresh, accessible confirmation, pending and failure states |
 | Complete two-courier operations journey | `apps/api/test/operations-journey.e2e.spec.ts` | Successful create/read/update/delete of unused categories and products; parent printer inheritance and child override; two customer orders visible in the administrator kitchen/assignment/delivery/archive queues; packing; distinct courier assignment; separate courier/admin routes; two simultaneous GPS markers; delivery; continued free-courier movement; cash return through reconciliation; historical catalog deletion conflicts; category hiding; explicit end-of-shift cleanup |
-| API authorization and public visibility | `apps/api/test/security.e2e.spec.ts` | Forbidden roles, audited category hiding/deletion, deletion conflicts for order history, public product removal, admin visibility, GPS persistence and a new point after `DELIVERED`, explicit stop sharing |
+| API authorization and public visibility | `apps/api/test/security.e2e.spec.ts` | Forbidden roles, predefined LAN-printer endpoints and editable registry visibility, audited category hiding/deletion, deletion conflicts for order history, public product removal, admin visibility, GPS persistence and a new point after `DELIVERED`, explicit stop sharing |
 | Immutable print plan | `apps/api/test/receipt-print-plan.spec.ts` | Main copy, grouping by snapshotted IP, exclusive product/category result and unassigned items |
 
 Required release checks are the root `AGENTS.md` backend and frontend command
@@ -97,6 +100,8 @@ verification.
 4. In `/catalog`, set a category printer, hide the category, reload, and show
    it again. Verify the printer address and sort order are preserved and the
    customer catalog hides/shows all products with the category.
+   Also verify all six predefined port-9100 endpoints are selectable and that
+   changing a temporary apparatus name keeps its IP and existing assignments.
 5. Clear the main and category printer with their visible actions. Give one
    product its own IP, then use `Убрать свой IP`; verify it immediately resumes
    category inheritance.

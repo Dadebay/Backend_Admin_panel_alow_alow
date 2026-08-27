@@ -130,6 +130,32 @@ export class CreateOrderDto {
   promoCode?: string;
 }
 
+export class QuoteOrderDto {
+  @ApiProperty({ type: [CreateOrderItemDto] })
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(50)
+  @ValidateNested({ each: true })
+  @Type(() => CreateOrderItemDto)
+  items: CreateOrderItemDto[];
+
+  @ApiPropertyOptional({
+    description:
+      "Delivery etrap used to include the authoritative delivery fee in this quote",
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  deliveryEtrapId?: number;
+
+  @ApiPropertyOptional({ example: "WELCOME15" })
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  promoCode?: string;
+}
+
 export class CreateAssistedOrderDto extends CreateOrderDto {
   @ApiProperty({ example: "+99365123456" })
   @IsPhoneNumber()

@@ -343,6 +343,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/orders/quote": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Preview authoritative variant prices, promo discount and delivery totals without creating an order */
+        post: operations["OrdersController_quote_v1"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/orders": {
         parameters: {
             query?: never;
@@ -1862,6 +1879,53 @@ export interface components {
              */
             variantId?: string;
             quantity: number;
+        };
+        QuoteOrderDto: {
+            items: components["schemas"]["CreateOrderItemDto"][];
+            /** @description Delivery etrap used to include the authoritative delivery fee in this quote */
+            deliveryEtrapId?: number;
+            /** @example WELCOME15 */
+            promoCode?: string;
+        };
+        OrderQuoteItemResponseDto: {
+            /** Format: uuid */
+            productId: string;
+            /** Format: uuid */
+            productVariantId: string | null;
+            productName: string;
+            variantName: string | null;
+            productImageUrl: string | null;
+            quantity: number;
+            /** @description Current backend-owned price for one selected item */
+            unitPrice: number;
+            /** @description Line total before the promo discount */
+            originalLineTotal: number;
+            /** @description Proportional share of the order promo discount */
+            discount: number;
+            /** @description Line total after the allocated promo discount */
+            discountedLineTotal: number;
+        };
+        OrderQuotePromoResponseDto: {
+            code: string;
+            /** @enum {string} */
+            type: "PERCENT" | "FIXED";
+            value: number;
+            discount: number;
+        };
+        OrderQuoteResponseDto: {
+            items: components["schemas"]["OrderQuoteItemResponseDto"][];
+            promo: components["schemas"]["OrderQuotePromoResponseDto"] | null;
+            /** @description Items total before the promo discount */
+            subtotal: number;
+            discount: number;
+            /** @description Items total after the promo discount */
+            discountedSubtotal: number;
+            deliveryFee: number;
+            /** @description Discounted items plus delivery */
+            total: number;
+            deliveryEtrapId: number | null;
+            deliveryWelayatName: string | null;
+            deliveryEtrapName: string | null;
         };
         CreateOrderDto: {
             items: components["schemas"]["CreateOrderItemDto"][];
@@ -3654,6 +3718,29 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CatalogProductImageResponseDto"];
+                };
+            };
+        };
+    };
+    OrdersController_quote_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QuoteOrderDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderQuoteResponseDto"];
                 };
             };
         };

@@ -9,6 +9,7 @@ import { configureApp } from "../src/bootstrap";
 import {
   OrderSource,
   OrderStatus,
+  PromoType,
   Role,
   type User,
 } from "../src/generated/prisma/client";
@@ -83,6 +84,33 @@ type OrderResponse = {
   cashSettlement?: { status: string } | null;
   rating?: { score: number; comment: string | null } | null;
   transitions?: Array<{ toStatus: OrderStatus }>;
+};
+
+type OrderQuoteResponse = {
+  items: Array<{
+    productId: string;
+    productVariantId: string | null;
+    productName: string;
+    variantName: string | null;
+    productImageUrl: string | null;
+    quantity: number;
+    unitPrice: number;
+    originalLineTotal: number;
+    discount: number;
+    discountedLineTotal: number;
+  }>;
+  promo: {
+    code: string;
+    type: PromoType;
+    value: number;
+    discount: number;
+  } | null;
+  subtotal: number;
+  discount: number;
+  discountedSubtotal: number;
+  deliveryFee: number;
+  total: number;
+  deliveryEtrapId: number | null;
 };
 
 type CatalogProductResponse = {
@@ -666,6 +694,120 @@ describe("backend security and critical workflow", () => {
       .set(bearer(tokens.admin))
       .send({ fallbackPrice: 15, fallbackFreeDeliveryThreshold: 150 })
       .expect(200);
+  });
+
+  it("previews selected variant and promo prices without creating an order or consuming the promo", async () => {
+    const category = await prisma.category.findUniqueOrThrow({
+      where: { slug: "security-test-category" },
+    });
+    const quotedProduct = await prisma.product.create({
+      data: {
+        categoryId: category.id,
+        name: "Quote variant meal",
+        slug: "quote-variant-meal",
+        description: "Variant used by the side-effect-free order quote",
+        price: 25,
+        variantLabel: "Размер",
+        variants: {
+          create: {
+            name: "Большая",
+            price: 25,
+          },
+        },
+      },
+      include: { variants: true },
+    });
+    const quotedVariant = quotedProduct.variants[0]!;
+    const promo = await prisma.promoCode.create({
+      data: {
+        code: "QUOTE15",
+        type: PromoType.PERCENT,
+        value: 15,
+        minOrderAmount: 80,
+        perUserLimit: 1,
+      },
+    });
+    const body = {
+      items: [
+        { productId, quantity: 1 },
+        {
+          productId: quotedProduct.id,
+          variantId: quotedVariant.id,
+          quantity: 1,
+        },
+      ],
+      deliveryEtrapId: 25,
+      promoCode: "quote15",
+    };
+    const orderCountBefore = await prisma.order.count();
+
+    await request(server).post("/api/v1/orders/quote").send(body).expect(401);
+    await request(server)
+      .post("/api/v1/orders/quote")
+      .set(bearer(tokens.operator))
+      .send(body)
+      .expect(403);
+
+    const response = await request(server)
+      .post("/api/v1/orders/quote")
+      .set(bearer(tokens.customer))
+      .send(body)
+      .expect(200);
+    const quote = response.body as OrderQuoteResponse;
+
+    expect(quote).toMatchObject({
+      promo: {
+        code: "QUOTE15",
+        type: PromoType.PERCENT,
+        value: 15,
+        discount: 15,
+      },
+      subtotal: 100,
+      discount: 15,
+      discountedSubtotal: 85,
+      deliveryFee: 15,
+      total: 100,
+      deliveryEtrapId: 25,
+    });
+    expect(quote.items).toEqual([
+      expect.objectContaining({
+        productId,
+        productVariantId: null,
+        productName: "Security test meal",
+        variantName: null,
+        quantity: 1,
+        unitPrice: 75,
+        originalLineTotal: 75,
+        discount: 11.25,
+        discountedLineTotal: 63.75,
+      }),
+      expect.objectContaining({
+        productId: quotedProduct.id,
+        productVariantId: quotedVariant.id,
+        productName: "Quote variant meal",
+        variantName: "Большая",
+        quantity: 1,
+        unitPrice: 25,
+        originalLineTotal: 25,
+        discount: 3.75,
+        discountedLineTotal: 21.25,
+      }),
+    ]);
+    expect(await prisma.order.count()).toBe(orderCountBefore);
+    expect(
+      await prisma.promoCode.findUniqueOrThrow({ where: { id: promo.id } }),
+    ).toMatchObject({ usedCount: 0 });
+    expect(
+      await prisma.promoRedemption.count({
+        where: { promoCodeId: promo.id, userId: users.customer.id },
+      }),
+    ).toBe(0);
+
+    await request(server)
+      .post("/api/v1/orders/quote")
+      .set(bearer(tokens.customer))
+      .send({ ...body, promoCode: "UNKNOWN" })
+      .expect(400);
   });
 
   it("rejects missing, malformed, wrong-audience and inactive-user tokens", async () => {

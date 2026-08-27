@@ -676,6 +676,17 @@ variants use their base price. The selected variant ID, name, unit price, and
 line total are snapshotted on `OrderItem`, and its first image is preferred in
 order responses.
 
+Before creating an order, an authenticated customer may call
+`POST /orders/quote` with items, selected `variantId` values, an optional promo
+code, and an optional delivery etrap. The endpoint uses the same availability,
+variant price, promo schedule/limit, customer-redemption, minimum-order,
+discount-cap, and delivery rules as order creation, but creates no order and
+does not reserve or consume the promo. It returns each selected dish/variant
+with its original unit and line price, a proportional rounded share of the
+order-level promo discount, and its discounted line total. The line discounts
+sum exactly to the authoritative aggregate discount; the response also returns
+the original subtotal, discounted subtotal, delivery fee, and final total.
+
 ## Customer notifications
 
 - An authenticated `CUSTOMER` registers or refreshes their own FCM registration
@@ -1570,3 +1581,10 @@ eager route load.
   couriers without coordinates, and labels branch markers explicitly. Delivery
   completion leaves the publisher mounted; only the end-shift action deletes
   the point.
+- 2026-08-27: authenticated customers gained a side-effect-free order quote
+  endpoint for cart and promo preview. It resolves current product variants,
+  validates the customer's promo eligibility, proportionally allocates the
+  rounded discount to visible lines, includes delivery pricing, and neither
+  creates an order nor consumes promo usage. Final order creation repeats the
+  same authoritative checks because a quote does not reserve price or promo
+  availability.

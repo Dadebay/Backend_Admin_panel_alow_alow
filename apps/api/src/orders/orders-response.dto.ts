@@ -4,6 +4,7 @@ import {
   OrderSource,
   OrderStatus,
   PaymentMethod,
+  PromoType,
   ReceiptPrinterTransport,
   Role,
 } from "../generated/prisma/client";
@@ -111,6 +112,88 @@ export class OrderItemResponseDto {
 
   @ApiProperty()
   lineTotal: number;
+}
+
+export class OrderQuoteItemResponseDto {
+  @ApiProperty({ format: "uuid" })
+  productId: string;
+
+  @ApiProperty({ type: String, format: "uuid", nullable: true })
+  productVariantId: string | null;
+
+  @ApiProperty()
+  productName: string;
+
+  @ApiProperty({ type: String, nullable: true })
+  variantName: string | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  productImageUrl: string | null;
+
+  @ApiProperty()
+  quantity: number;
+
+  @ApiProperty({
+    description: "Current backend-owned price for one selected item",
+  })
+  unitPrice: number;
+
+  @ApiProperty({ description: "Line total before the promo discount" })
+  originalLineTotal: number;
+
+  @ApiProperty({
+    description: "Proportional share of the order promo discount",
+  })
+  discount: number;
+
+  @ApiProperty({ description: "Line total after the allocated promo discount" })
+  discountedLineTotal: number;
+}
+
+export class OrderQuotePromoResponseDto {
+  @ApiProperty()
+  code: string;
+
+  @ApiProperty({ enum: PromoType })
+  type: PromoType;
+
+  @ApiProperty()
+  value: number;
+
+  @ApiProperty()
+  discount: number;
+}
+
+export class OrderQuoteResponseDto {
+  @ApiProperty({ type: [OrderQuoteItemResponseDto] })
+  items: OrderQuoteItemResponseDto[];
+
+  @ApiProperty({ type: OrderQuotePromoResponseDto, nullable: true })
+  promo: OrderQuotePromoResponseDto | null;
+
+  @ApiProperty({ description: "Items total before the promo discount" })
+  subtotal: number;
+
+  @ApiProperty()
+  discount: number;
+
+  @ApiProperty({ description: "Items total after the promo discount" })
+  discountedSubtotal: number;
+
+  @ApiProperty()
+  deliveryFee: number;
+
+  @ApiProperty({ description: "Discounted items plus delivery" })
+  total: number;
+
+  @ApiProperty({ type: Number, nullable: true })
+  deliveryEtrapId: number | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  deliveryWelayatName: string | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  deliveryEtrapName: string | null;
 }
 
 export class ReceiptPrintItemResponseDto {

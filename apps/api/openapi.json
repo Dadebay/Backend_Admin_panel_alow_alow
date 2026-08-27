@@ -829,6 +829,43 @@
         ]
       }
     },
+    "/api/v1/orders/quote": {
+      "post": {
+        "operationId": "OrdersController_quote_v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QuoteOrderDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderQuoteResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Preview authoritative variant prices, promo discount and delivery totals without creating an order",
+        "tags": [
+          "orders"
+        ]
+      }
+    },
     "/api/v1/orders": {
       "post": {
         "operationId": "OrdersController_create_v1",
@@ -5025,6 +5062,173 @@
         "required": [
           "productId",
           "quantity"
+        ]
+      },
+      "QuoteOrderDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CreateOrderItemDto"
+            }
+          },
+          "deliveryEtrapId": {
+            "type": "number",
+            "description": "Delivery etrap used to include the authoritative delivery fee in this quote"
+          },
+          "promoCode": {
+            "type": "string",
+            "example": "WELCOME15"
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "OrderQuoteItemResponseDto": {
+        "type": "object",
+        "properties": {
+          "productId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "productVariantId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "productName": {
+            "type": "string"
+          },
+          "variantName": {
+            "type": "string",
+            "nullable": true
+          },
+          "productImageUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "quantity": {
+            "type": "number"
+          },
+          "unitPrice": {
+            "type": "number",
+            "description": "Current backend-owned price for one selected item"
+          },
+          "originalLineTotal": {
+            "type": "number",
+            "description": "Line total before the promo discount"
+          },
+          "discount": {
+            "type": "number",
+            "description": "Proportional share of the order promo discount"
+          },
+          "discountedLineTotal": {
+            "type": "number",
+            "description": "Line total after the allocated promo discount"
+          }
+        },
+        "required": [
+          "productId",
+          "productVariantId",
+          "productName",
+          "variantName",
+          "productImageUrl",
+          "quantity",
+          "unitPrice",
+          "originalLineTotal",
+          "discount",
+          "discountedLineTotal"
+        ]
+      },
+      "OrderQuotePromoResponseDto": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "PERCENT",
+              "FIXED"
+            ]
+          },
+          "value": {
+            "type": "number"
+          },
+          "discount": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "code",
+          "type",
+          "value",
+          "discount"
+        ]
+      },
+      "OrderQuoteResponseDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OrderQuoteItemResponseDto"
+            }
+          },
+          "promo": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/OrderQuotePromoResponseDto"
+              }
+            ]
+          },
+          "subtotal": {
+            "type": "number",
+            "description": "Items total before the promo discount"
+          },
+          "discount": {
+            "type": "number"
+          },
+          "discountedSubtotal": {
+            "type": "number",
+            "description": "Items total after the promo discount"
+          },
+          "deliveryFee": {
+            "type": "number"
+          },
+          "total": {
+            "type": "number",
+            "description": "Discounted items plus delivery"
+          },
+          "deliveryEtrapId": {
+            "type": "number",
+            "nullable": true
+          },
+          "deliveryWelayatName": {
+            "type": "string",
+            "nullable": true
+          },
+          "deliveryEtrapName": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "items",
+          "promo",
+          "subtotal",
+          "discount",
+          "discountedSubtotal",
+          "deliveryFee",
+          "total",
+          "deliveryEtrapId",
+          "deliveryWelayatName",
+          "deliveryEtrapName"
         ]
       },
       "CreateOrderDto": {

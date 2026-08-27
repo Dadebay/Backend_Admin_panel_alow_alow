@@ -2,6 +2,8 @@ import {
   Body,
   Controller,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   ParseUUIDPipe,
   Patch,
@@ -26,6 +28,7 @@ import {
   CreateAssistedOrderDto,
   CreateOrderDto,
   ListOrdersQueryDto,
+  QuoteOrderDto,
   RateOrderDto,
   SearchAssistedCustomersQueryDto,
   TransitionOrderDto,
@@ -35,6 +38,7 @@ import {
   AssistedCustomerListResponseDto,
   CourierRouteResponseDto,
   OrderListResponseDto,
+  OrderQuoteResponseDto,
   OrderRatingResponseDto,
   OrderResponseDto,
   ReceiptPrintPlanResponseDto,
@@ -45,6 +49,18 @@ import {
 @Controller("orders")
 export class OrdersController {
   constructor(private readonly orders: OrdersService) {}
+
+  @Post("quote")
+  @HttpCode(HttpStatus.OK)
+  @Roles(Role.CUSTOMER)
+  @ApiOperation({
+    summary:
+      "Preview authoritative variant prices, promo discount and delivery totals without creating an order",
+  })
+  @ApiOkResponse({ type: OrderQuoteResponseDto })
+  quote(@CurrentUser() user: AuthUser, @Body() dto: QuoteOrderDto) {
+    return this.orders.quote(user, dto);
+  }
 
   @Post()
   @Roles(Role.CUSTOMER)

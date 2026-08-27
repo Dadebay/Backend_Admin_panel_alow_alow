@@ -12,7 +12,6 @@ import {
   OrderSource,
   OrderStatus,
   Prisma,
-  PromoType,
   ReceiptPrinterTransport,
   Role,
 } from "../generated/prisma/client";
@@ -37,6 +36,7 @@ import {
   CreateOrderDto,
   CreateOrderItemDto,
   ListOrdersQueryDto,
+  QuoteOrderDto,
   RateOrderDto,
   SearchAssistedCustomersQueryDto,
   TransitionOrderDto,
@@ -49,6 +49,11 @@ import {
   canManageCourierAssignment,
   CUSTOMER_CANCELLATION_WINDOW_MS,
 } from "./order-policy";
+import {
+  allocateDiscountAcrossLines,
+  calculatePromoDiscount,
+  roundMoney,
+} from "./order-pricing";
 import {
   CourierRouteWaypointKind,
   CourierRoutingStatus,
@@ -223,6 +228,74 @@ export class OrdersService {
     private readonly delivery: DeliveryService,
   ) {}
 
+  quote(user: AuthUser, dto: QuoteOrderDto) {
+    return this.prisma.$transaction(async (tx) => {
+      const { resolvedItems, subtotal } = await this.resolveOrderItems(
+        tx,
+        dto.items,
+      );
+      const { promo, discount } = await this.resolvePromoPricing(
+        tx,
+        user.id,
+        dto.promoCode,
+        subtotal,
+      );
+      const deliveryPricing = await this.delivery.resolvePricing(
+        tx,
+        subtotal,
+        dto.deliveryEtrapId ?? null,
+      );
+      const originalLineTotals = resolvedItems.map(
+        ({ product, variant, quantity }) =>
+          roundMoney(Number(variant?.price ?? product.price) * quantity),
+      );
+      const lineDiscounts = allocateDiscountAcrossLines(
+        originalLineTotals,
+        discount,
+      );
+      const items = resolvedItems.map(
+        ({ product, variant, quantity }, index) => {
+          const originalLineTotal = originalLineTotals[index] ?? 0;
+          const lineDiscount = lineDiscounts[index] ?? 0;
+          return {
+            productId: product.id,
+            productVariantId: variant?.id ?? null,
+            productName: product.name,
+            variantName: variant?.name ?? null,
+            productImageUrl:
+              variant?.images[0]?.url ?? product.images[0]?.url ?? null,
+            quantity,
+            unitPrice: Number(variant?.price ?? product.price),
+            originalLineTotal,
+            discount: lineDiscount,
+            discountedLineTotal: roundMoney(originalLineTotal - lineDiscount),
+          };
+        },
+      );
+      const discountedSubtotal = roundMoney(subtotal - discount);
+
+      return toApiResponse({
+        items,
+        promo: promo
+          ? {
+              code: promo.code,
+              type: promo.type,
+              value: promo.value,
+              discount,
+            }
+          : null,
+        subtotal,
+        discount,
+        discountedSubtotal,
+        deliveryFee: deliveryPricing.fee,
+        total: roundMoney(discountedSubtotal + deliveryPricing.fee),
+        deliveryEtrapId: deliveryPricing.etrap?.id ?? null,
+        deliveryWelayatName: deliveryPricing.etrap?.welayat.nameRu ?? null,
+        deliveryEtrapName: deliveryPricing.etrap?.nameRu ?? null,
+      });
+    });
+  }
+
   /** Fire-and-forget: a push failure must never fail the status change
    * that triggered it, so this is called without `await`ing its result
    * into the transaction's own success/failure path. */
@@ -386,7 +459,12 @@ export class OrdersService {
         category: { isActive: true },
       },
       include: {
-        variants: true,
+        images: { orderBy: { sortOrder: "asc" }, take: 1 },
+        variants: {
+          include: {
+            images: { orderBy: { sortOrder: "asc" }, take: 1 },
+          },
+        },
         receiptPrinter: true,
         category: { include: { receiptPrinter: true } },
       },
@@ -441,12 +519,59 @@ export class OrdersService {
       });
     }
     const resolvedItems = [...resolvedBySelection.values()];
-    const subtotal = resolvedItems.reduce(
-      (sum, { product, variant, quantity }) =>
-        sum + Number(variant?.price ?? product.price) * quantity,
-      0,
+    const subtotal = roundMoney(
+      resolvedItems.reduce(
+        (sum, { product, variant, quantity }) =>
+          sum + Number(variant?.price ?? product.price) * quantity,
+        0,
+      ),
     );
     return { resolvedItems, subtotal };
+  }
+
+  private async resolvePromoPricing(
+    tx: Prisma.TransactionClient,
+    customerId: string,
+    promoCode: string | undefined,
+    subtotal: number,
+  ) {
+    if (!promoCode) return { promo: null, discount: 0 };
+
+    const now = new Date();
+    const promo = await tx.promoCode.findUnique({
+      where: { code: promoCode.trim().toUpperCase() },
+    });
+    if (
+      !promo?.isActive ||
+      (promo.startsAt && promo.startsAt > now) ||
+      (promo.endsAt && promo.endsAt < now) ||
+      (promo.totalUsageLimit != null &&
+        promo.usedCount >= promo.totalUsageLimit) ||
+      (promo.minOrderAmount != null && subtotal < Number(promo.minOrderAmount))
+    ) {
+      throw new BadRequestException("Promo code is unavailable");
+    }
+    const usedByCustomer = await tx.promoRedemption.count({
+      where: { promoCodeId: promo.id, userId: customerId },
+    });
+    if (usedByCustomer >= promo.perUserLimit) {
+      throw new BadRequestException("Promo code usage limit reached");
+    }
+
+    return {
+      promo,
+      discount: calculatePromoDiscount(
+        {
+          type: promo.type,
+          value: Number(promo.value),
+          maxDiscountAmount:
+            promo.maxDiscountAmount === null
+              ? null
+              : Number(promo.maxDiscountAmount),
+        },
+        subtotal,
+      ),
+    };
   }
 
   private async createForCustomer(
@@ -463,41 +588,12 @@ export class OrdersService {
       tx,
       dto.items,
     );
-    const now = new Date();
-    const promo = dto.promoCode
-      ? await tx.promoCode.findUnique({
-          where: { code: dto.promoCode.trim().toUpperCase() },
-        })
-      : null;
-
-    let discount = 0;
-    if (dto.promoCode) {
-      if (
-        !promo?.isActive ||
-        (promo.startsAt && promo.startsAt > now) ||
-        (promo.endsAt && promo.endsAt < now) ||
-        (promo.totalUsageLimit != null &&
-          promo.usedCount >= promo.totalUsageLimit) ||
-        (promo.minOrderAmount != null &&
-          subtotal < Number(promo.minOrderAmount))
-      ) {
-        throw new BadRequestException("Promo code is unavailable");
-      }
-      const usedByCustomer = await tx.promoRedemption.count({
-        where: { promoCodeId: promo.id, userId: customerId },
-      });
-      if (usedByCustomer >= promo.perUserLimit) {
-        throw new BadRequestException("Promo code usage limit reached");
-      }
-      discount =
-        promo.type === PromoType.PERCENT
-          ? subtotal * (Number(promo.value) / 100)
-          : Number(promo.value);
-      if (promo.maxDiscountAmount != null) {
-        discount = Math.min(discount, Number(promo.maxDiscountAmount));
-      }
-      discount = Math.min(subtotal, Math.round(discount * 100) / 100);
-    }
+    const { promo, discount } = await this.resolvePromoPricing(
+      tx,
+      customerId,
+      dto.promoCode,
+      subtotal,
+    );
 
     const selectedAddress = await this.addresses.selectForOrder(
       tx,
@@ -511,7 +607,7 @@ export class OrdersService {
       selectedAddress.deliveryEtrapId,
     );
     const deliveryFee = deliveryPricing.fee;
-    const total = Math.max(0, subtotal - discount + deliveryFee);
+    const total = roundMoney(subtotal - discount + deliveryFee);
     const nearest = await this.branches.findNearestActive(tx, {
       latitude: Number(selectedAddress.latitude),
       longitude: Number(selectedAddress.longitude),
@@ -978,17 +1074,20 @@ export class OrdersService {
           promo.minOrderAmount === null ||
           subtotal >= Number(promo.minOrderAmount)
         ) {
-          discount =
-            promo.type === PromoType.PERCENT
-              ? subtotal * (Number(promo.value) / 100)
-              : Number(promo.value);
-          if (promo.maxDiscountAmount !== null) {
-            discount = Math.min(discount, Number(promo.maxDiscountAmount));
-          }
-          discount = Math.min(subtotal, Math.round(discount * 100) / 100);
+          discount = calculatePromoDiscount(
+            {
+              type: promo.type,
+              value: Number(promo.value),
+              maxDiscountAmount:
+                promo.maxDiscountAmount === null
+                  ? null
+                  : Number(promo.maxDiscountAmount),
+            },
+            subtotal,
+          );
         }
       }
-      const total = Math.max(0, subtotal - discount + deliveryPricing.fee);
+      const total = roundMoney(subtotal - discount + deliveryPricing.fee);
 
       const updated = await tx.order.updateMany({
         where: { id, version: dto.version, status: order.status },

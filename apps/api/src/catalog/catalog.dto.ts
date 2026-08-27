@@ -35,10 +35,14 @@ export class CreateCategoryDto {
   @MaxLength(100)
   name: string;
 
-  @ApiProperty()
+  @ApiPropertyOptional({
+    description:
+      "Optional technical identifier; generated from the name on create and preserved on update when omitted",
+  })
+  @IsOptional()
   @IsString()
   @MaxLength(120)
-  slug: string;
+  slug?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -252,10 +256,14 @@ export class CreateProductDto {
   @MaxLength(160)
   name: string;
 
-  @ApiProperty()
+  @ApiPropertyOptional({
+    description:
+      "Optional technical identifier; generated from the name on create and preserved on update when omitted",
+  })
+  @IsOptional()
   @IsString()
   @MaxLength(180)
-  slug: string;
+  slug?: string;
 
   @ApiProperty()
   @IsString()

@@ -4633,7 +4633,8 @@
             "type": "string"
           },
           "slug": {
-            "type": "string"
+            "type": "string",
+            "description": "Optional technical identifier; generated from the name on create and preserved on update when omitted"
           },
           "imageUrl": {
             "type": "string"
@@ -4660,8 +4661,7 @@
           }
         },
         "required": [
-          "name",
-          "slug"
+          "name"
         ]
       },
       "CatalogAdminCategorySummaryResponseDto": {
@@ -4736,7 +4736,8 @@
             "type": "string"
           },
           "slug": {
-            "type": "string"
+            "type": "string",
+            "description": "Optional technical identifier; generated from the name on create and preserved on update when omitted"
           },
           "imageUrl": {
             "type": "string"
@@ -4894,7 +4895,8 @@
             "type": "string"
           },
           "slug": {
-            "type": "string"
+            "type": "string",
+            "description": "Optional technical identifier; generated from the name on create and preserved on update when omitted"
           },
           "description": {
             "type": "string"
@@ -4952,7 +4954,6 @@
         "required": [
           "categoryId",
           "name",
-          "slug",
           "description",
           "price"
         ]
@@ -4967,7 +4968,8 @@
             "type": "string"
           },
           "slug": {
-            "type": "string"
+            "type": "string",
+            "description": "Optional technical identifier; generated from the name on create and preserved on update when omitted"
           },
           "description": {
             "type": "string"

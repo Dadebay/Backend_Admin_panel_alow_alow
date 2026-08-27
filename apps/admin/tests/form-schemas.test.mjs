@@ -99,11 +99,10 @@ test("branch and staff forms trim values and validate required fields", () => {
   );
 });
 
-test("catalog schemas reject invalid slug and money precision", () => {
+test("catalog forms accept display names without a technical slug", () => {
   assert.equal(
     categoryFormSchema.safeParse({
       name: "Пицца",
-      slug: "pizza",
       receiptPrinterId: "2d807991-e99f-4f17-9b9f-cc2fb7478820",
       sortOrder: 0,
       isActive: true,
@@ -112,19 +111,17 @@ test("catalog schemas reject invalid slug and money precision", () => {
   );
   assert.equal(
     categoryFormSchema.safeParse({
-      name: "Пицца",
-      slug: "Pizza с пробелом",
+      name: "Блюда русской кухни",
       receiptPrinterId: "",
       sortOrder: 0,
       isActive: true,
     }).success,
-    false,
+    true,
   );
   assert.equal(
     productFormSchema.safeParse({
       categoryId: "2d807991-e99f-4f17-9b9f-cc2fb7478820",
       name: "Маргарита",
-      slug: "margarita",
       description: "Пицца",
       price: 49.999,
       receiptPrinterId: "2d807991-e99f-4f17-9b9f-cc2fb7478820",
@@ -139,7 +136,6 @@ test("catalog schemas reject invalid slug and money precision", () => {
     productFormSchema.safeParse({
       categoryId: "2d807991-e99f-4f17-9b9f-cc2fb7478820",
       name: "Маргарита",
-      slug: "margarita",
       description: "Пицца",
       price: 50,
       receiptPrinterId: "2d807991-e99f-4f17-9b9f-cc2fb7478820",
@@ -171,7 +167,6 @@ test("catalog schemas reject invalid slug and money precision", () => {
     productFormSchema.safeParse({
       categoryId: "2d807991-e99f-4f17-9b9f-cc2fb7478820",
       name: "Нарезка",
-      slug: "cutting",
       description: "Мясо",
       price: 50,
       receiptPrinterId: "2d807991-e99f-4f17-9b9f-cc2fb7478820",
@@ -219,7 +214,6 @@ test("receipt routing forms accept registered printer IDs", () => {
   assert.equal(
     categoryFormSchema.safeParse({
       name: "Супы",
-      slug: "soups",
       receiptPrinterId: "",
       sortOrder: 0,
       isActive: true,
@@ -233,7 +227,6 @@ test("product variant schema rejects duplicate names and excess images", () => {
     productFormSchema.safeParse({
       categoryId: "2d807991-e99f-4f17-9b9f-cc2fb7478820",
       name: "Пицца",
-      slug: "duplicate-sizes",
       description: "Повторяющиеся размеры",
       price: 50,
       receiptPrinterId: "2d807991-e99f-4f17-9b9f-cc2fb7478820",
@@ -265,7 +258,6 @@ test("product variant schema rejects duplicate names and excess images", () => {
     productFormSchema.safeParse({
       categoryId: "2d807991-e99f-4f17-9b9f-cc2fb7478820",
       name: "Пицца",
-      slug: "too-many-variant-images",
       description: "Слишком много изображений",
       price: 50,
       receiptPrinterId: "2d807991-e99f-4f17-9b9f-cc2fb7478820",
@@ -294,7 +286,6 @@ test("printer registry validates LAN endpoint and product uses its ID", () => {
   const product = {
     categoryId: "2d807991-e99f-4f17-9b9f-cc2fb7478820",
     name: "Манты",
-    slug: "manty-printer",
     description: "Печатается на кухонном аппарате",
     price: 60,
     receiptPrinterId: "2d807991-e99f-4f17-9b9f-cc2fb7478820",

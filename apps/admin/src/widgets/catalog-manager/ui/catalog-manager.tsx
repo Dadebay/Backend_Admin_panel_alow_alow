@@ -24,7 +24,6 @@ import {
   categoryFormSchema,
   productFormSchema,
   receiptPrintSettingsFormSchema,
-  slugify,
   type CategoryFormValues,
   type ProductFormValues,
   type ReceiptPrintSettingsFormValues,
@@ -77,15 +76,12 @@ export function CatalogManager() {
     register: registerCategory,
     handleSubmit: handleCategorySubmit,
     reset: resetCategory,
-    getValues: getCategoryValues,
-    setValue: setCategoryValue,
     formState: { errors: categoryErrors },
   } = useForm<CategoryFormValues>({
     resolver: zodResolver(categoryFormSchema),
     mode: "onBlur",
     defaultValues: {
       name: "",
-      slug: "",
       receiptPrinterId: "",
       sortOrder: 0,
       isActive: true,
@@ -117,7 +113,6 @@ export function CatalogManager() {
     defaultValues: {
       categoryId: "",
       name: "",
-      slug: "",
       description: "",
       price: 0,
       receiptPrinterId: "",
@@ -200,7 +195,6 @@ export function CatalogManager() {
             )}
             <div className="primary-cell">
               <strong>{row.original.name}</strong>
-              <small>/{row.original.slug}</small>
             </div>
           </div>
         ),
@@ -238,7 +232,6 @@ export function CatalogManager() {
                   setCategoryEdit(row.original);
                   resetCategory({
                     name: row.original.name,
-                    slug: row.original.slug,
                     receiptPrinterId: row.original.receiptPrinterId ?? "",
                     sortOrder: row.original.sortOrder,
                     isActive: row.original.isActive,
@@ -389,7 +382,6 @@ export function CatalogManager() {
                   resetProduct({
                     categoryId: row.original.categoryId,
                     name: row.original.name,
-                    slug: row.original.slug,
                     description: row.original.description,
                     price: Number(row.original.price),
                     receiptPrinterId: row.original.receiptPrinterId ?? "",
@@ -465,7 +457,6 @@ export function CatalogManager() {
     }
     const body = {
       name: values.name,
-      slug: values.slug,
       receiptPrinterId: values.receiptPrinterId || null,
       sortOrder: values.sortOrder,
       isActive: values.isActive,
@@ -539,7 +530,6 @@ export function CatalogManager() {
     const body = {
       categoryId: values.categoryId,
       name: values.name,
-      slug: values.slug,
       description: values.description,
       price: values.price,
       receiptPrinterId: values.receiptPrinterId || null,
@@ -614,7 +604,6 @@ export function CatalogManager() {
                 setCategoryEdit(null);
                 resetCategory({
                   name: "",
-                  slug: "",
                   receiptPrinterId: "",
                   sortOrder: 0,
                   isActive: true,
@@ -636,7 +625,6 @@ export function CatalogManager() {
                 resetProduct({
                   categoryId: categories.data?.[0]?.id ?? "",
                   name: "",
-                  slug: "",
                   description: "",
                   price: 0,
                   receiptPrinterId: "",
@@ -889,7 +877,7 @@ export function CatalogManager() {
               setCatalogSearch(event.target.value);
               if (event.target.value.trim()) setExpandedProductGroups("all");
             }}
-            placeholder="Название, slug или описание…"
+            placeholder="Название или описание…"
           />
           {catalogSearch && (
             <button
@@ -966,29 +954,11 @@ export function CatalogManager() {
                 <span>Название</span>
                 <input
                   data-testid="category-name"
-                  {...registerCategory("name", {
-                    onBlur(event) {
-                      if (!getCategoryValues("slug")) {
-                        setCategoryValue("slug", slugify(event.target.value), {
-                          shouldDirty: true,
-                          shouldValidate: true,
-                        });
-                      }
-                    },
-                  })}
+                  {...registerCategory("name")}
                   aria-invalid={Boolean(categoryErrors.name)}
                   maxLength={100}
                 />
                 <FormFieldError message={categoryErrors.name?.message} />
-              </label>
-              <label>
-                <span>Slug</span>
-                <input
-                  data-testid="category-slug"
-                  {...registerCategory("slug")}
-                  aria-invalid={Boolean(categoryErrors.slug)}
-                />
-                <FormFieldError message={categoryErrors.slug?.message} />
               </label>
               <label>
                 <span>Кухонный аппарат</span>
@@ -1130,28 +1100,10 @@ export function CatalogManager() {
                 <span>Название</span>
                 <input
                   data-testid="product-name"
-                  {...registerProduct("name", {
-                    onBlur(event) {
-                      if (!getProductValues("slug")) {
-                        setProductValue("slug", slugify(event.target.value), {
-                          shouldDirty: true,
-                          shouldValidate: true,
-                        });
-                      }
-                    },
-                  })}
+                  {...registerProduct("name")}
                   aria-invalid={Boolean(productErrors.name)}
                 />
                 <FormFieldError message={productErrors.name?.message} />
-              </label>
-              <label>
-                <span>Slug</span>
-                <input
-                  data-testid="product-slug"
-                  {...registerProduct("slug")}
-                  aria-invalid={Boolean(productErrors.slug)}
-                />
-                <FormFieldError message={productErrors.slug?.message} />
               </label>
               <label>
                 <span>Базовая цена TMT</span>

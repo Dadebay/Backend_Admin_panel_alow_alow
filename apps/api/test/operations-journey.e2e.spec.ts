@@ -198,24 +198,24 @@ describe("complete catalog, order and multi-courier journey", () => {
       .set(bearer(tokens.admin))
       .send({
         name: "Journey disposable category",
-        slug: "journey-disposable-category",
         receiptPrinterIp: "192.168.140.10",
       })
       .expect(201);
     const disposableCategory =
       disposableCategoryResponse.body as CategoryResponse;
+    expect(disposableCategory.slug).toBe("journey-disposable-category");
     const disposableProductResponse = await request(server)
       .post("/api/v1/catalog/products")
       .set(bearer(tokens.admin))
       .send({
         categoryId: disposableCategory.id,
         name: "Journey disposable meal",
-        slug: "journey-disposable-meal",
         description: "Created, read, updated and deleted by the journey",
         price: 12,
       })
       .expect(201);
     const disposableProduct = disposableProductResponse.body as ProductResponse;
+    expect(disposableProduct.slug).toBe("journey-disposable-meal");
 
     await request(server)
       .patch(`/api/v1/catalog/categories/${disposableCategory.id}`)

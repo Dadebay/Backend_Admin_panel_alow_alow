@@ -558,6 +558,11 @@ together with all of its products, after a separate confirmation. Catalog
 deletion is audited and retains private media objects. A product referenced by
 an `OrderItem`, or a category containing such a product, returns `409 Conflict`
 and must be hidden instead so historical orders and receipts remain valid.
+The catalog editor never asks administrators to enter or understand a technical
+slug. NestJS generates a stable unique slug from the category or product name
+when a create request omits it; explicit slugs remain optional only for backward
+compatibility with existing API clients and seed/import tooling. Renaming an
+existing record without an explicit slug preserves its stored identifier.
 Branch creation, editing, activation, and
 deactivation are limited to `ADMIN` and `SUPER_ADMIN`; trusted operations roles
 may list branches. The catalog is currently global and shared by every branch.
@@ -780,7 +785,7 @@ Current status:
   remains pinned while the drawer scrolls and restores focus to the menu
   trigger. The route/API and regression matrix is maintained in
   `docs/ADMIN_TABLET_QA.md`;
-- the catalog editor creates and updates a dish with category, name, slug,
+- the catalog editor creates and updates a dish with category, name,
   description, base price, optional private LAN receipt-printer IPv4 address,
   availability, ordering, and up to 10 common S3 images; it also configures a
   generic selector with variant-specific prices, availability, ordering,
@@ -1588,3 +1593,7 @@ eager route load.
   creates an order nor consumes promo usage. Final order creation repeats the
   same authoritative checks because a quote does not reserve price or promo
   availability.
+- 2026-08-27: technical catalog slugs were removed from the administrator UI.
+  Category and product creation now generates a unique transliterated slug on
+  the backend when omitted, while existing slugs and optional explicit API
+  input remain supported for backward compatibility.

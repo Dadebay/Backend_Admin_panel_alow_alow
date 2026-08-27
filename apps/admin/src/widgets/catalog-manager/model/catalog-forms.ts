@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { slugSchema } from "../../../shared/forms/schema.ts";
 
 export const receiptPrinterIpSchema = z
   .string()
@@ -21,7 +20,6 @@ export const categoryFormSchema = z.object({
     .trim()
     .min(1, "Укажите название категории")
     .max(100, "Не больше 100 символов"),
-  slug: slugSchema.max(120, "Не больше 120 символов"),
   receiptPrinterId: z.union([z.literal(""), z.uuid("Выберите аппарат")]),
   sortOrder: z.number({ error: "Укажите порядок" }).int("Введите целое число"),
   isActive: z.boolean(),
@@ -81,7 +79,6 @@ export const productFormSchema = z
       .trim()
       .min(1, "Укажите название блюда")
       .max(160, "Не больше 160 символов"),
-    slug: slugSchema.max(180, "Не больше 180 символов"),
     description: z
       .string()
       .trim()
@@ -128,11 +125,3 @@ export type CategoryReceiptRouteFormValues = z.infer<
   typeof categoryReceiptRouteFormSchema
 >;
 export type ReceiptPrinterFormValues = z.infer<typeof receiptPrinterFormSchema>;
-
-export function slugify(value: string) {
-  return value
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9а-яё]+/gi, "-")
-    .replace(/^-|-$/g, "");
-}

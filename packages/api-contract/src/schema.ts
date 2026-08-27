@@ -1675,7 +1675,8 @@ export interface components {
         };
         CreateCategoryDto: {
             name: string;
-            slug: string;
+            /** @description Optional technical identifier; generated from the name on create and preserved on update when omitted */
+            slug?: string;
             imageUrl?: string;
             /**
              * @description Default private LAN receipt-printer IPv4 address for products in this category
@@ -1712,6 +1713,7 @@ export interface components {
         };
         UpdateCategoryDto: {
             name?: string;
+            /** @description Optional technical identifier; generated from the name on create and preserved on update when omitted */
             slug?: string;
             imageUrl?: string;
             /**
@@ -1789,7 +1791,8 @@ export interface components {
         CreateProductDto: {
             categoryId: string;
             name: string;
-            slug: string;
+            /** @description Optional technical identifier; generated from the name on create and preserved on update when omitted */
+            slug?: string;
             description: string;
             /**
              * @description Base price for products without variants; when active variants exist the backend stores and returns their minimum price
@@ -1828,6 +1831,7 @@ export interface components {
         UpdateProductDto: {
             categoryId?: string;
             name?: string;
+            /** @description Optional technical identifier; generated from the name on create and preserved on update when omitted */
             slug?: string;
             description?: string;
             /**

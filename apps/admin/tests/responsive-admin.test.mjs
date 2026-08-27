@@ -151,6 +151,16 @@ test("receipt printer settings keep padded aligned controls at every width", asy
   assert.match(styles, /\.category-printer-routes\s*\{[^}]*padding: 18px;/s);
 });
 
+test("catalog editors hide the technical slug from administrators", async () => {
+  const catalogManager = await readFile(catalogManagerUrl, "utf8");
+
+  assert.doesNotMatch(catalogManager, /data-testid="category-slug"/);
+  assert.doesNotMatch(catalogManager, /data-testid="product-slug"/);
+  assert.doesNotMatch(catalogManager, /<span>Slug<\/span>/);
+  assert.doesNotMatch(catalogManager, /row\.original\.slug/);
+  assert.match(catalogManager, /placeholder="Название или описание…"/);
+});
+
 test("tablet drawer controls expose stable automation hooks", async () => {
   const dashboard = await readFile(
     new URL(

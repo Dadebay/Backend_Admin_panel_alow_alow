@@ -19,6 +19,7 @@ import {
   UpdateReceiptPrinterDto,
   UpdateReceiptPrintSettingsDto,
 } from "./catalog.dto";
+import { availableCatalogSlug, catalogSlug } from "./catalog-slug";
 
 const MAX_PRODUCT_IMAGES = 10;
 const productRelations = {
@@ -243,6 +244,18 @@ function rethrowPrinterEndpointConflict(error: unknown): never {
   throw error;
 }
 
+function rethrowGeneratedSlugConflict(error: unknown): never {
+  if (
+    error instanceof Prisma.PrismaClientKnownRequestError &&
+    error.code === "P2002"
+  ) {
+    throw new ConflictException(
+      "Похожая запись была сохранена одновременно. Повторите сохранение.",
+    );
+  }
+  throw error;
+}
+
 @Injectable()
 export class CatalogService {
   constructor(private readonly prisma: PrismaService) {}
@@ -285,12 +298,27 @@ export class CatalogService {
   }
 
   createCategory(actor: AuthUser, dto: CreateCategoryDto) {
-    const { receiptPrinterId, receiptPrinterIp, ...categoryData } = dto;
+    const {
+      receiptPrinterId,
+      receiptPrinterIp,
+      slug: requestedSlug,
+      ...categoryData
+    } = dto;
     return this.prisma.$transaction(async (tx) => {
       await assertActivePrinterReference(tx, receiptPrinterId);
+      const slugBase = catalogSlug(requestedSlug || categoryData.name, 120);
+      const matchingSlugs = await tx.category.findMany({
+        where: { slug: { startsWith: slugBase } },
+        select: { slug: true },
+      });
       const category = await tx.category.create({
         data: {
           ...categoryData,
+          slug: availableCatalogSlug(
+            slugBase,
+            matchingSlugs.map(({ slug }) => slug),
+            120,
+          ),
           ...printerReferenceData({ receiptPrinterId, receiptPrinterIp }),
         },
         include: { receiptPrinter: true },
@@ -305,19 +333,41 @@ export class CatalogService {
         },
       });
       return toApiResponse(categoryResponse(category, true));
-    });
+    }).catch(rethrowGeneratedSlugConflict);
   }
 
   updateCategory(actor: AuthUser, id: string, dto: UpdateCategoryDto) {
-    const { receiptPrinterId, receiptPrinterIp, ...categoryData } = dto;
+    const {
+      receiptPrinterId,
+      receiptPrinterIp,
+      slug: requestedSlug,
+      ...categoryData
+    } = dto;
     return this.prisma.$transaction(async (tx) => {
       const category = await tx.category.findUnique({ where: { id } });
       if (!category) throw new NotFoundException("Category not found");
       await assertActivePrinterReference(tx, receiptPrinterId);
+      let slug: string | undefined;
+      if (requestedSlug !== undefined) {
+        const slugBase = catalogSlug(
+          requestedSlug || categoryData.name || category.name,
+          120,
+        );
+        const matchingSlugs = await tx.category.findMany({
+          where: { id: { not: id }, slug: { startsWith: slugBase } },
+          select: { slug: true },
+        });
+        slug = availableCatalogSlug(
+          slugBase,
+          matchingSlugs.map(({ slug: value }) => value),
+          120,
+        );
+      }
       const updated = await tx.category.update({
         where: { id },
         data: {
           ...categoryData,
+          ...(slug === undefined ? {} : { slug }),
           ...printerReferenceData({ receiptPrinterId, receiptPrinterIp }),
         },
         include: { receiptPrinter: true },
@@ -332,7 +382,7 @@ export class CatalogService {
         },
       });
       return toApiResponse(categoryResponse(updated, true));
-    });
+    }).catch(rethrowGeneratedSlugConflict);
   }
 
   async deleteCategory(actor: AuthUser, id: string): Promise<void> {
@@ -535,6 +585,7 @@ export class CatalogService {
       variantLabel: rawVariantLabel,
       receiptPrinterId,
       receiptPrinterIp,
+      slug: requestedSlug,
       ...product
     } = dto;
     const variantLabel = normalizedVariantLabel(rawVariantLabel);
@@ -546,9 +597,19 @@ export class CatalogService {
 
     return this.prisma.$transaction(async (tx) => {
       await assertActivePrinterReference(tx, receiptPrinterId);
+      const slugBase = catalogSlug(requestedSlug || product.name, 180);
+      const matchingSlugs = await tx.product.findMany({
+        where: { slug: { startsWith: slugBase } },
+        select: { slug: true },
+      });
       const created = await tx.product.create({
         data: {
           ...product,
+          slug: availableCatalogSlug(
+            slugBase,
+            matchingSlugs.map(({ slug }) => slug),
+            180,
+          ),
           ...printerReferenceData({ receiptPrinterId, receiptPrinterIp }),
           price: effectivePrice,
           variantLabel: variants.length ? variantLabel : null,
@@ -574,7 +635,7 @@ export class CatalogService {
         },
       });
       return productResponse(created, true);
-    });
+    }).catch(rethrowGeneratedSlugConflict);
   }
 
   async updateProduct(actor: AuthUser, id: string, dto: UpdateProductDto) {
@@ -584,6 +645,7 @@ export class CatalogService {
       variantLabel: rawVariantLabel,
       receiptPrinterId,
       receiptPrinterIp,
+      slug: requestedSlug,
       ...product
     } = dto;
 
@@ -594,6 +656,23 @@ export class CatalogService {
       });
       if (!existing) throw new NotFoundException("Product not found");
       await assertActivePrinterReference(tx, receiptPrinterId);
+
+      let slug: string | undefined;
+      if (requestedSlug !== undefined) {
+        const slugBase = catalogSlug(
+          requestedSlug || product.name || existing.name,
+          180,
+        );
+        const matchingSlugs = await tx.product.findMany({
+          where: { id: { not: id }, slug: { startsWith: slugBase } },
+          select: { slug: true },
+        });
+        slug = availableCatalogSlug(
+          slugBase,
+          matchingSlugs.map(({ slug: value }) => value),
+          180,
+        );
+      }
 
       const variantLabel = normalizedVariantLabel(
         rawVariantLabel === undefined ? existing.variantLabel : rawVariantLabel,
@@ -704,6 +783,7 @@ export class CatalogService {
         where: { id },
         data: {
           ...product,
+          ...(slug === undefined ? {} : { slug }),
           ...printerReferenceData({ receiptPrinterId, receiptPrinterIp }),
           price: effectivePrice,
           ...(rawVariantLabel !== undefined || variants !== undefined
@@ -739,7 +819,7 @@ export class CatalogService {
         },
       });
       return productResponse(updated, true);
-    });
+    }).catch(rethrowGeneratedSlugConflict);
   }
 
   async deleteProduct(actor: AuthUser, id: string): Promise<void> {

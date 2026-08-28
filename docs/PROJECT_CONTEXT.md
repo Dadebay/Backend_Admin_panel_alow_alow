@@ -102,6 +102,7 @@ alowalow/
 │   ├── MOBILE_DELIVERY_AND_COURIER_UPDATE.md
 │   ├── MOBILE_MAP_AND_ROUTING.md
 │   ├── MOBILE_PUSH_NOTIFICATIONS.md
+│   ├── PRODUCT_PRICING_VARIANTS.md
 │   └── PROJECT_CONTEXT.md
 ├── deploy/
 │   ├── nginx/
@@ -570,14 +571,18 @@ Images are validated, converted to WebP, and stored privately in S3-compatible
 storage. Product availability, current price, promo limits, discount, delivery
 fee, final total, and branch assignment are validated by the backend.
 
-A product may optionally define one customer-facing variant selector label,
-such as `Размер` or `Способ нарезки`, and up to 30 generic sellable variants.
-Every variant has its own name, optional description, price, active state,
-ordering, and up to 10 ordered images. This supports pizza sizes, hand/machine
-meat cutting, and future choices without dish-specific database fields. The
-public product `price` and `minPrice` are the cheapest active variant price when
-active variants exist. `displayImageUrl` prefers that variant's first image and
-falls back to the common product image.
+A product has an explicit mutually exclusive pricing mode. `FIXED` sells the
+dish itself and requires its own price; it cannot contain sellable variants.
+`VARIANT` requires a customer-facing selector label, at least one variant and
+at least one active variant. Every variant has its own name, optional
+description, price, active state, ordering, and up to 10 ordered images. This
+supports pizza sizes, fillings and meat-cutting choices without dish-specific
+database fields. For `VARIANT`, the public `price` and `minPrice` are the
+cheapest active variant price and clients render `от minPrice` until the user
+explicitly selects an option. No new client auto-selects the cheapest variant.
+`displayImageUrl` prefers that variant's first image and falls back to the
+common product image. The complete frontend contract and UI examples live in
+`docs/PRODUCT_PRICING_VARIANTS.md`.
 
 Product and variant image references must be private WebP paths returned by the
 media API. A product may have up to 10 common ordered images, and every variant
@@ -674,12 +679,13 @@ banners are not replaced by this option. Production requires a database backup
 before apply; the general development `db:seed` command is not a production
 import mechanism.
 
-New order clients send `variantId` for a configured variant. For backward
-compatibility, omitting it selects the cheapest active variant; an ID belonging
-to another product or an inactive variant is rejected. Products without active
-variants use their base price. The selected variant ID, name, unit price, and
-line total are snapshotted on `OrderItem`, and its first image is preferred in
-order responses.
+New order clients always send `variantId` for a `VARIANT` product and omit it
+for `FIXED`. For backward compatibility only, omitting it for `VARIANT` selects
+the cheapest active variant; an ID belonging to another product, an inactive
+variant, or any variant ID supplied for `FIXED` is rejected. A `VARIANT`
+product without an active option is excluded from the public catalog. The
+selected variant ID, name, unit price, and line total are snapshotted on
+`OrderItem`, and its first image is preferred in order responses.
 
 Before creating an order, an authenticated customer may call
 `POST /orders/quote` with items, selected `variantId` values, an optional promo
@@ -785,10 +791,9 @@ Current status:
   remains pinned while the drawer scrolls and restores focus to the menu
   trigger. The route/API and regression matrix is maintained in
   `docs/ADMIN_TABLET_QA.md`;
-- the catalog editor creates and updates a dish with category, name,
-  description, base price, optional private LAN receipt-printer IPv4 address,
-  availability, ordering, and up to 10 common S3 images; it also configures a
-  generic selector with variant-specific prices, availability, ordering,
+- the catalog editor explicitly selects `FIXED` or `VARIANT`. Fixed dishes
+  require one price and no variants. Variant dishes require a selector label,
+  at least one active option, variant-specific prices, availability, ordering,
   descriptions, and up to 10 S3 images per variant;
 - the catalog workspace renders dishes in accessible category accordions with
   first-group, per-group, expand-all and collapse-all controls; search and a
@@ -1597,3 +1602,7 @@ eager route load.
   Category and product creation now generates a unique transliterated slug on
   the backend when omitted, while existing slugs and optional explicit API
   input remain supported for backward compatibility.
+- 2026-08-28: catalog products gained explicit mutually exclusive `FIXED` and
+  `VARIANT` pricing modes. Variant products have no editable base price, require
+  a selector and an active option, display `от minPrice` before selection, and
+  cannot be added by new clients without an explicit `variantId`.

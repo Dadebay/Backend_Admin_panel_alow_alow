@@ -29,7 +29,8 @@ test("catalog editor configures generic variants with separate images", async ()
   assert.match(source, /useFieldArray/);
   assert.match(source, /data-testid="product-variant-add"/);
   assert.match(source, /variants\.\$\{index\}\.imageFiles/);
-  assert.match(source, /variantLabel: values\.variantLabel/);
+  assert.match(source, /values\.pricingType === "VARIANT"/);
+  assert.match(source, /values\.variantLabel \|\| undefined/);
   assert.match(source, /variant\.imageUrls/);
 });
 

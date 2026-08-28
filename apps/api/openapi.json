@@ -4224,6 +4224,13 @@
           "description": {
             "type": "string"
           },
+          "pricingType": {
+            "type": "string",
+            "enum": [
+              "FIXED",
+              "VARIANT"
+            ]
+          },
           "price": {
             "type": "number"
           },
@@ -4277,6 +4284,7 @@
           "name",
           "slug",
           "description",
+          "pricingType",
           "price",
           "minPrice",
           "hasVariants",
@@ -4408,6 +4416,13 @@
           "description": {
             "type": "string"
           },
+          "pricingType": {
+            "type": "string",
+            "enum": [
+              "FIXED",
+              "VARIANT"
+            ]
+          },
           "price": {
             "type": "number"
           },
@@ -4500,6 +4515,7 @@
           "name",
           "slug",
           "description",
+          "pricingType",
           "price",
           "minPrice",
           "hasVariants",
@@ -4904,7 +4920,15 @@
           "price": {
             "type": "number",
             "example": 49.9,
-            "description": "Base price for products without variants; when active variants exist the backend stores and returns their minimum price"
+            "description": "Required for FIXED pricing and ignored for VARIANT pricing, where the backend derives the minimum price"
+          },
+          "pricingType": {
+            "type": "string",
+            "enum": [
+              "FIXED",
+              "VARIANT"
+            ],
+            "description": "FIXED sells the dish itself; VARIANT requires a concrete active variant"
           },
           "receiptPrinterIp": {
             "type": "string",
@@ -4954,8 +4978,7 @@
         "required": [
           "categoryId",
           "name",
-          "description",
-          "price"
+          "description"
         ]
       },
       "UpdateProductDto": {
@@ -4977,7 +5000,15 @@
           "price": {
             "type": "number",
             "example": 49.9,
-            "description": "Base price for products without variants; when active variants exist the backend stores and returns their minimum price"
+            "description": "Required for FIXED pricing and ignored for VARIANT pricing, where the backend derives the minimum price"
+          },
+          "pricingType": {
+            "type": "string",
+            "enum": [
+              "FIXED",
+              "VARIANT"
+            ],
+            "description": "FIXED sells the dish itself; VARIANT requires a concrete active variant"
           },
           "receiptPrinterIp": {
             "type": "string",
@@ -5053,7 +5084,8 @@
           "variantId": {
             "type": "string",
             "format": "uuid",
-            "description": "Selected product variant. When omitted, the backend uses the cheapest active variant for backward compatibility."
+            "deprecated": true,
+            "description": "Required by current clients for VARIANT products. Omission still selects the cheapest active variant only for legacy-client compatibility."
           },
           "quantity": {
             "type": "number",

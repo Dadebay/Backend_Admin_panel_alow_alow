@@ -36,7 +36,7 @@ function personName(courier: Courier) {
 function productOptions(products: Product[]) {
   return products.flatMap((product) => {
     const variants = product.variants.filter(({ isActive }) => isActive);
-    if (!variants.length) {
+    if (product.pricingType === "FIXED") {
       return [
         {
           key: `${product.id}:base`,
@@ -46,6 +46,7 @@ function productOptions(products: Product[]) {
         },
       ];
     }
+    if (!variants.length) return [];
     return variants.map((variant) => ({
       key: `${product.id}:${variant.id}`,
       productId: product.id,

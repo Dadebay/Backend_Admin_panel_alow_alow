@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { toApiResponse } from "../common/api-response";
+import { ProductPricingType } from "../generated/prisma/client";
 
 @Injectable()
 export class FavoritesService {
@@ -17,7 +18,18 @@ export class FavoritesService {
 
   async add(userId: string, productId: string) {
     const product = await this.prisma.product.findFirst({
-      where: { id: productId, isActive: true, category: { isActive: true } },
+      where: {
+        id: productId,
+        isActive: true,
+        category: { isActive: true },
+        OR: [
+          { pricingType: ProductPricingType.FIXED },
+          {
+            pricingType: ProductPricingType.VARIANT,
+            variants: { some: { isActive: true } },
+          },
+        ],
+      },
       select: { id: true },
     });
     if (!product) throw new NotFoundException("Product not found");

@@ -1,6 +1,11 @@
 import "dotenv/config";
 import { PrismaPg } from "@prisma/adapter-pg";
-import { PrismaClient, PromoType, Role } from "../src/generated/prisma/client";
+import {
+  PrismaClient,
+  ProductPricingType,
+  PromoType,
+  Role,
+} from "../src/generated/prisma/client";
 
 const adapter = new PrismaPg({
   connectionString:
@@ -165,11 +170,13 @@ async function main() {
       name: "Маргарита",
       slug: "margherita",
       description: "Томаты, моцарелла и базилик на тонком тесте.",
+      pricingType: ProductPricingType.VARIANT,
       price: 65,
       variantLabel: "Размер",
     },
     update: {
       categoryId: pizza.id,
+      pricingType: ProductPricingType.VARIANT,
       price: 65,
       variantLabel: "Размер",
       isActive: true,

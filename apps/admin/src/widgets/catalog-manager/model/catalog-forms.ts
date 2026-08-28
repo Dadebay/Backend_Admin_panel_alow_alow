@@ -84,6 +84,7 @@ export const productFormSchema = z
       .trim()
       .min(1, "Добавьте описание")
       .max(4000, "Не больше 4000 символов"),
+    pricingType: z.enum(["FIXED", "VARIANT"]),
     price: z
       .number({ error: "Укажите цену" })
       .min(0, "Цена не может быть отрицательной")
@@ -97,11 +98,35 @@ export const productFormSchema = z
     isActive: z.boolean(),
   })
   .superRefine((values, context) => {
-    if (values.variants.length && !values.variantLabel) {
+    if (values.pricingType === "FIXED" && values.variants.length) {
+      context.addIssue({
+        code: "custom",
+        path: ["variants"],
+        message: "Для блюда с одной ценой удалите варианты",
+      });
+    }
+    if (values.pricingType === "VARIANT" && !values.variants.length) {
+      context.addIssue({
+        code: "custom",
+        path: ["variants"],
+        message: "Добавьте хотя бы один вариант блюда",
+      });
+    }
+    if (values.pricingType === "VARIANT" && !values.variantLabel) {
       context.addIssue({
         code: "custom",
         path: ["variantLabel"],
         message: "Укажите название выбора: например, Размер",
+      });
+    }
+    if (
+      values.pricingType === "VARIANT" &&
+      !values.variants.some(({ isActive }) => isActive)
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["variants"],
+        message: "Оставьте в продаже хотя бы один вариант",
       });
     }
     const names = values.variants.map(({ name }) =>

@@ -180,6 +180,9 @@ test("address search uses an in-flow choose-then-map workflow", async () => {
   assert.match(dialog, /estimatedDeliveryFee\.toFixed\(2\)/);
   assert.match(dialog, /variantId: variant\.id/);
   assert.match(dialog, /assisted-product-variant-/);
+  assert.match(dialog, /Выберите вариант/);
+  assert.match(dialog, /disabled=\{requiresVariant && !selectedVariant\}/);
+  assert.doesNotMatch(dialog, /\?\? variants\[0\]/);
   assert.match(dialog, /activeVariants\(product\)/);
   assert.match(map, /data-testid="assisted-order-map"/);
   assert.match(map, /ResizeObserver/);

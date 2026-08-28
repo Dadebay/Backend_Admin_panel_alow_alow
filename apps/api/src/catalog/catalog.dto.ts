@@ -20,7 +20,10 @@ import {
   ValidateIf,
   ValidateNested,
 } from "class-validator";
-import { ReceiptPrinterTransport } from "../generated/prisma/client";
+import {
+  ProductPricingType,
+  ReceiptPrinterTransport,
+} from "../generated/prisma/client";
 
 const MEDIA_IMAGE_PATH =
   /^\/api\/v1\/media\/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.webp$/i;
@@ -270,15 +273,25 @@ export class CreateProductDto {
   @MaxLength(4000)
   description: string;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     example: 49.9,
     description:
-      "Base price for products without variants; when active variants exist the backend stores and returns their minimum price",
+      "Required for FIXED pricing and ignored for VARIANT pricing, where the backend derives the minimum price",
   })
+  @ValidateIf((_object, value) => value !== undefined)
   @Type(() => Number)
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
-  price: number;
+  price?: number;
+
+  @ApiPropertyOptional({
+    enum: ProductPricingType,
+    description:
+      "FIXED sells the dish itself; VARIANT requires a concrete active variant",
+  })
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsEnum(ProductPricingType)
+  pricingType?: ProductPricingType;
 
   @ApiPropertyOptional({
     type: String,

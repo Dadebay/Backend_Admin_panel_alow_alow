@@ -40,6 +40,7 @@ function product({
     name,
     slug,
     description,
+    pricingType: variants.length > 0 ? "VARIANT" : "FIXED",
     price: 10,
     minPrice: 10,
     hasVariants: variants.length > 0,
@@ -234,6 +235,11 @@ test("phone order excludes hidden products and products from hidden categories",
     category: hiddenCategory,
   });
   const missingMetadata = product({ id: "missing-metadata" });
+  const unavailableVariantProduct = product({
+    id: "unavailable-variant-product",
+    category: hot,
+    variants: [{ id: "hidden-variant", isActive: false }],
+  });
 
   assert.deepEqual(
     filterOrderableProducts([
@@ -241,6 +247,7 @@ test("phone order excludes hidden products and products from hidden categories",
       hiddenProduct,
       hiddenCategoryProduct,
       missingMetadata,
+      unavailableVariantProduct,
     ]),
     [active, missingMetadata],
   );

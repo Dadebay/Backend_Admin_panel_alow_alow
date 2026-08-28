@@ -1,5 +1,8 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
-import { ReceiptPrinterTransport } from "../generated/prisma/client";
+import {
+  ProductPricingType,
+  ReceiptPrinterTransport,
+} from "../generated/prisma/client";
 
 export class ReceiptPrinterResponseDto {
   @ApiProperty({ format: "uuid" })
@@ -140,6 +143,9 @@ export class CatalogProductResponseDto {
 
   @ApiProperty()
   description: string;
+
+  @ApiProperty({ enum: ProductPricingType })
+  pricingType: ProductPricingType;
 
   @ApiProperty()
   price: number;

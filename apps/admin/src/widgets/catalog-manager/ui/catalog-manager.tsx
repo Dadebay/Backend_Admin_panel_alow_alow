@@ -114,6 +114,7 @@ export function CatalogManager() {
       categoryId: "",
       name: "",
       description: "",
+      pricingType: "FIXED",
       price: 0,
       receiptPrinterId: "",
       variantLabel: "",
@@ -126,6 +127,7 @@ export function CatalogManager() {
     fields: productVariantFields,
     append: appendProductVariant,
     remove: removeProductVariant,
+    replace: replaceProductVariants,
   } = useFieldArray({
     control: productControl,
     name: "variants",
@@ -133,6 +135,10 @@ export function CatalogManager() {
   });
   const watchedProductVariants =
     useWatch({ control: productControl, name: "variants" }) ?? [];
+  const watchedPricingType = useWatch({
+    control: productControl,
+    name: "pricingType",
+  });
   const canEdit = Boolean(
     session && ["ADMIN", "SUPER_ADMIN"].includes(session.user.role),
   );
@@ -383,19 +389,23 @@ export function CatalogManager() {
                     categoryId: row.original.categoryId,
                     name: row.original.name,
                     description: row.original.description,
+                    pricingType: row.original.pricingType,
                     price: Number(row.original.price),
                     receiptPrinterId: row.original.receiptPrinterId ?? "",
                     variantLabel: row.original.variantLabel ?? "",
-                    variants: row.original.variants.map((variant) => ({
-                      id: variant.id,
-                      name: variant.name,
-                      description: variant.description ?? "",
-                      price: Number(variant.price),
-                      sortOrder: variant.sortOrder,
-                      isActive: variant.isActive,
-                      imageUrls: variant.images.map(({ url }) => url),
-                      imageFiles: undefined,
-                    })),
+                    variants:
+                      row.original.pricingType === "VARIANT"
+                        ? row.original.variants.map((variant) => ({
+                            id: variant.id,
+                            name: variant.name,
+                            description: variant.description ?? "",
+                            price: Number(variant.price),
+                            sortOrder: variant.sortOrder,
+                            isActive: variant.isActive,
+                            imageUrls: variant.images.map(({ url }) => url),
+                            imageFiles: undefined,
+                          }))
+                        : [],
                     sortOrder: row.original.sortOrder,
                     isActive: row.original.isActive,
                   });
@@ -531,10 +541,14 @@ export function CatalogManager() {
       categoryId: values.categoryId,
       name: values.name,
       description: values.description,
-      price: values.price,
+      pricingType: values.pricingType,
+      ...(values.pricingType === "FIXED" ? { price: values.price } : {}),
       receiptPrinterId: values.receiptPrinterId || null,
-      variantLabel: values.variantLabel || undefined,
-      variants,
+      variantLabel:
+        values.pricingType === "VARIANT"
+          ? values.variantLabel || undefined
+          : undefined,
+      variants: values.pricingType === "VARIANT" ? variants : [],
       sortOrder: values.sortOrder,
       isActive: values.isActive,
       imageUrls,
@@ -1106,21 +1120,42 @@ export function CatalogManager() {
                 <FormFieldError message={productErrors.name?.message} />
               </label>
               <label>
-                <span>Базовая цена TMT</span>
-                <input
-                  data-testid="product-price"
-                  {...registerProduct("price", { valueAsNumber: true })}
-                  aria-invalid={Boolean(productErrors.price)}
-                  type="number"
-                  min="0"
-                  step="0.01"
-                />
-                <FormFieldError message={productErrors.price?.message} />
+                <span>Как продаётся блюдо</span>
+                <select
+                  data-testid="product-pricing-type"
+                  {...registerProduct("pricingType", {
+                    onChange(event) {
+                      if (event.target.value === "FIXED") {
+                        replaceProductVariants([]);
+                        setProductValue("variantLabel", "", {
+                          shouldDirty: true,
+                        });
+                      }
+                    },
+                  })}
+                >
+                  <option value="FIXED">Одна цена</option>
+                  <option value="VARIANT">Несколько вариантов</option>
+                </select>
                 <small>
-                  Используется без вариантов. С вариантами цена блюда считается
-                  по самому дешёвому активному варианту.
+                  Варианты подходят для размера, начинки или способа нарезки.
                 </small>
               </label>
+              {watchedPricingType === "FIXED" && (
+                <label>
+                  <span>Цена TMT</span>
+                  <input
+                    data-testid="product-price"
+                    {...registerProduct("price", { valueAsNumber: true })}
+                    aria-invalid={Boolean(productErrors.price)}
+                    type="number"
+                    min="0"
+                    step="0.01"
+                  />
+                  <FormFieldError message={productErrors.price?.message} />
+                  <small>Полная цена блюда без вариантов.</small>
+                </label>
+              )}
               <label>
                 <span>Свой чековый аппарат</span>
                 <select
@@ -1162,218 +1197,226 @@ export function CatalogManager() {
                 />
                 <FormFieldError message={productErrors.sortOrder?.message} />
               </label>
-              <section
-                className="wide-field product-variants-editor"
-                data-testid="product-variants-editor"
-              >
-                <div className="product-variants-heading">
-                  <div>
-                    <strong>Варианты блюда</strong>
-                    <small>
-                      Размер пиццы, способ нарезки или любой другой выбор с
-                      отдельной ценой и фотографиями.
-                    </small>
+              {watchedPricingType === "VARIANT" && (
+                <section
+                  className="wide-field product-variants-editor"
+                  data-testid="product-variants-editor"
+                >
+                  <div className="product-variants-heading">
+                    <div>
+                      <strong>Варианты блюда</strong>
+                      <small>
+                        Размер пиццы, способ нарезки или любой другой выбор с
+                        отдельной ценой и фотографиями.
+                      </small>
+                    </div>
+                    <button
+                      className="secondary-button compact"
+                      data-testid="product-variant-add"
+                      type="button"
+                      onClick={() =>
+                        appendProductVariant({
+                          name: "",
+                          description: "",
+                          price: getProductValues("price") || 0,
+                          sortOrder: productVariantFields.length,
+                          isActive: true,
+                          imageUrls: [],
+                          imageFiles: undefined,
+                        })
+                      }
+                    >
+                      + Добавить вариант
+                    </button>
                   </div>
-                  <button
-                    className="secondary-button compact"
-                    data-testid="product-variant-add"
-                    type="button"
-                    onClick={() =>
-                      appendProductVariant({
-                        name: "",
-                        description: "",
-                        price: getProductValues("price") || 0,
-                        sortOrder: productVariantFields.length,
-                        isActive: true,
-                        imageUrls: [],
-                        imageFiles: undefined,
-                      })
-                    }
-                  >
-                    + Добавить вариант
-                  </button>
-                </div>
-                {productVariantFields.length > 0 && (
-                  <label className="product-variant-label-field">
-                    <span>Название выбора для клиента</span>
-                    <input
-                      data-testid="product-variant-label"
-                      {...registerProduct("variantLabel")}
-                      aria-invalid={Boolean(productErrors.variantLabel)}
-                      placeholder="Например: Размер или Способ нарезки"
-                      maxLength={80}
-                    />
-                    <FormFieldError
-                      message={productErrors.variantLabel?.message}
-                    />
-                  </label>
-                )}
-                <div className="product-variant-list">
-                  {productVariantFields.map((field, index) => {
-                    const variant = watchedProductVariants[index];
-                    const storedUrls = variant?.imageUrls ?? [];
-                    const selectedFiles = Array.from(
-                      (variant?.imageFiles as FileList | undefined) ?? [],
-                    );
-                    const variantError = productErrors.variants?.[index];
-                    const variantTestId = variant?.id ?? field.formKey;
-                    return (
-                      <article
-                        className="product-variant-card"
-                        data-testid={`product-variant-card-${variantTestId}`}
-                        key={field.formKey}
-                      >
-                        <header>
-                          <strong>Вариант {index + 1}</strong>
-                          <button
-                            className="text-button danger"
-                            data-testid={`product-variant-toggle-${variantTestId}`}
-                            type="button"
-                            onClick={() => {
-                              if (variant?.id) {
-                                setProductValue(
+                  {productVariantFields.length > 0 && (
+                    <label className="product-variant-label-field">
+                      <span>Название выбора для клиента</span>
+                      <input
+                        data-testid="product-variant-label"
+                        {...registerProduct("variantLabel")}
+                        aria-invalid={Boolean(productErrors.variantLabel)}
+                        placeholder="Например: Размер или Способ нарезки"
+                        maxLength={80}
+                      />
+                      <FormFieldError
+                        message={productErrors.variantLabel?.message}
+                      />
+                    </label>
+                  )}
+                  <div className="product-variant-list">
+                    {productVariantFields.map((field, index) => {
+                      const variant = watchedProductVariants[index];
+                      const storedUrls = variant?.imageUrls ?? [];
+                      const selectedFiles = Array.from(
+                        (variant?.imageFiles as FileList | undefined) ?? [],
+                      );
+                      const variantError = productErrors.variants?.[index];
+                      const variantTestId = variant?.id ?? field.formKey;
+                      return (
+                        <article
+                          className="product-variant-card"
+                          data-testid={`product-variant-card-${variantTestId}`}
+                          key={field.formKey}
+                        >
+                          <header>
+                            <strong>Вариант {index + 1}</strong>
+                            <button
+                              className="text-button danger"
+                              data-testid={`product-variant-toggle-${variantTestId}`}
+                              type="button"
+                              onClick={() => {
+                                if (variant?.id) {
+                                  setProductValue(
+                                    `variants.${index}.isActive`,
+                                    !variant.isActive,
+                                    { shouldDirty: true },
+                                  );
+                                } else {
+                                  removeProductVariant(index);
+                                }
+                              }}
+                            >
+                              {variant?.id
+                                ? variant.isActive
+                                  ? "Убрать из продажи"
+                                  : "Вернуть в продажу"
+                                : "Удалить"}
+                            </button>
+                          </header>
+                          <div className="product-variant-fields">
+                            <label>
+                              <span>Название</span>
+                              <input
+                                data-testid={`product-variant-name-${variantTestId}`}
+                                {...registerProduct(`variants.${index}.name`)}
+                                aria-invalid={Boolean(variantError?.name)}
+                                placeholder="Маленькая, 25 см"
+                                maxLength={120}
+                              />
+                              <FormFieldError
+                                message={variantError?.name?.message}
+                              />
+                            </label>
+                            <label>
+                              <span>Цена TMT</span>
+                              <input
+                                data-testid={`product-variant-price-${variantTestId}`}
+                                {...registerProduct(`variants.${index}.price`, {
+                                  valueAsNumber: true,
+                                })}
+                                aria-invalid={Boolean(variantError?.price)}
+                                type="number"
+                                min="0"
+                                step="0.01"
+                              />
+                              <FormFieldError
+                                message={variantError?.price?.message}
+                              />
+                            </label>
+                            <label>
+                              <span>Порядок</span>
+                              <input
+                                data-testid={`product-variant-sort-${variantTestId}`}
+                                {...registerProduct(
+                                  `variants.${index}.sortOrder`,
+                                  { valueAsNumber: true },
+                                )}
+                                aria-invalid={Boolean(variantError?.sortOrder)}
+                                type="number"
+                              />
+                              <FormFieldError
+                                message={variantError?.sortOrder?.message}
+                              />
+                            </label>
+                            <label className="check-field">
+                              <input
+                                data-testid={`product-variant-active-${variantTestId}`}
+                                {...registerProduct(
                                   `variants.${index}.isActive`,
-                                  !variant.isActive,
-                                  { shouldDirty: true },
-                                );
-                              } else {
-                                removeProductVariant(index);
-                              }
-                            }}
-                          >
-                            {variant?.id
-                              ? variant.isActive
-                                ? "Убрать из продажи"
-                                : "Вернуть в продажу"
-                              : "Удалить"}
-                          </button>
-                        </header>
-                        <div className="product-variant-fields">
-                          <label>
-                            <span>Название</span>
-                            <input
-                              data-testid={`product-variant-name-${variantTestId}`}
-                              {...registerProduct(`variants.${index}.name`)}
-                              aria-invalid={Boolean(variantError?.name)}
-                              placeholder="Маленькая, 25 см"
-                              maxLength={120}
-                            />
-                            <FormFieldError
-                              message={variantError?.name?.message}
-                            />
-                          </label>
-                          <label>
-                            <span>Цена TMT</span>
-                            <input
-                              data-testid={`product-variant-price-${variantTestId}`}
-                              {...registerProduct(`variants.${index}.price`, {
-                                valueAsNumber: true,
-                              })}
-                              aria-invalid={Boolean(variantError?.price)}
-                              type="number"
-                              min="0"
-                              step="0.01"
-                            />
-                            <FormFieldError
-                              message={variantError?.price?.message}
-                            />
-                          </label>
-                          <label>
-                            <span>Порядок</span>
-                            <input
-                              data-testid={`product-variant-sort-${variantTestId}`}
-                              {...registerProduct(
-                                `variants.${index}.sortOrder`,
-                                { valueAsNumber: true },
-                              )}
-                              aria-invalid={Boolean(variantError?.sortOrder)}
-                              type="number"
-                            />
-                            <FormFieldError
-                              message={variantError?.sortOrder?.message}
-                            />
-                          </label>
-                          <label className="check-field">
-                            <input
-                              data-testid={`product-variant-active-${variantTestId}`}
-                              {...registerProduct(`variants.${index}.isActive`)}
-                              type="checkbox"
-                            />
-                            В продаже
-                          </label>
-                          <label className="wide-field">
-                            <span>Описание варианта (необязательно)</span>
-                            <input
-                              data-testid={`product-variant-description-${variantTestId}`}
-                              {...registerProduct(
-                                `variants.${index}.description`,
-                              )}
-                              aria-invalid={Boolean(variantError?.description)}
-                              maxLength={300}
-                            />
-                            <FormFieldError
-                              message={variantError?.description?.message}
-                            />
-                          </label>
-                        </div>
-                        {storedUrls.length > 0 && (
-                          <div className="product-variant-images">
-                            {storedUrls.map((url, imageIndex) => (
-                              <div key={`${url}-${imageIndex}`}>
-                                <img
-                                  src={resolveApiUrl(url)}
-                                  alt=""
-                                  loading="lazy"
-                                  width={88}
-                                  height={64}
-                                />
-                                <button
-                                  className="text-button"
-                                  data-testid={`product-variant-image-remove-${variantTestId}-${imageIndex}`}
-                                  type="button"
-                                  aria-label={`Убрать фото варианта ${imageIndex + 1}`}
-                                  onClick={() =>
-                                    setProductValue(
-                                      `variants.${index}.imageUrls`,
-                                      storedUrls.filter(
-                                        (_, candidateIndex) =>
-                                          candidateIndex !== imageIndex,
-                                      ),
-                                      { shouldDirty: true },
-                                    )
-                                  }
-                                >
-                                  ×
-                                </button>
-                              </div>
-                            ))}
+                                )}
+                                type="checkbox"
+                              />
+                              В продаже
+                            </label>
+                            <label className="wide-field">
+                              <span>Описание варианта (необязательно)</span>
+                              <input
+                                data-testid={`product-variant-description-${variantTestId}`}
+                                {...registerProduct(
+                                  `variants.${index}.description`,
+                                )}
+                                aria-invalid={Boolean(
+                                  variantError?.description,
+                                )}
+                                maxLength={300}
+                              />
+                              <FormFieldError
+                                message={variantError?.description?.message}
+                              />
+                            </label>
                           </div>
-                        )}
-                        <label className="product-file-picker">
-                          <span>
-                            Фото варианта:{" "}
-                            {storedUrls.length + selectedFiles.length}/
-                            {MAX_PRODUCT_IMAGES}
-                          </span>
-                          <input
-                            data-testid={`product-variant-images-${variantTestId}`}
-                            {...registerProduct(`variants.${index}.imageFiles`)}
-                            type="file"
-                            accept="image/*"
-                            multiple
-                          />
-                        </label>
-                        {selectedFiles.length > 0 && (
-                          <small className="product-variant-file-names">
-                            Будут добавлены:{" "}
-                            {selectedFiles.map(({ name }) => name).join(", ")}
-                          </small>
-                        )}
-                      </article>
-                    );
-                  })}
-                </div>
-              </section>
+                          {storedUrls.length > 0 && (
+                            <div className="product-variant-images">
+                              {storedUrls.map((url, imageIndex) => (
+                                <div key={`${url}-${imageIndex}`}>
+                                  <img
+                                    src={resolveApiUrl(url)}
+                                    alt=""
+                                    loading="lazy"
+                                    width={88}
+                                    height={64}
+                                  />
+                                  <button
+                                    className="text-button"
+                                    data-testid={`product-variant-image-remove-${variantTestId}-${imageIndex}`}
+                                    type="button"
+                                    aria-label={`Убрать фото варианта ${imageIndex + 1}`}
+                                    onClick={() =>
+                                      setProductValue(
+                                        `variants.${index}.imageUrls`,
+                                        storedUrls.filter(
+                                          (_, candidateIndex) =>
+                                            candidateIndex !== imageIndex,
+                                        ),
+                                        { shouldDirty: true },
+                                      )
+                                    }
+                                  >
+                                    ×
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          <label className="product-file-picker">
+                            <span>
+                              Фото варианта:{" "}
+                              {storedUrls.length + selectedFiles.length}/
+                              {MAX_PRODUCT_IMAGES}
+                            </span>
+                            <input
+                              data-testid={`product-variant-images-${variantTestId}`}
+                              {...registerProduct(
+                                `variants.${index}.imageFiles`,
+                              )}
+                              type="file"
+                              accept="image/*"
+                              multiple
+                            />
+                          </label>
+                          {selectedFiles.length > 0 && (
+                            <small className="product-variant-file-names">
+                              Будут добавлены:{" "}
+                              {selectedFiles.map(({ name }) => name).join(", ")}
+                            </small>
+                          )}
+                        </article>
+                      );
+                    })}
+                  </div>
+                </section>
+              )}
               <div className="wide-field product-image-editor">
                 <div className="product-image-heading">
                   <span>Изображения блюда</span>

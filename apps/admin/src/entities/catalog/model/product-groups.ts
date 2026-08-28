@@ -10,6 +10,8 @@ type GroupableCategory = {
 type GroupableProduct = {
   categoryId: string;
   category?: GroupableCategory;
+  pricingType?: "FIXED" | "VARIANT";
+  variants?: readonly { isActive?: boolean }[];
 };
 
 type ProductFilter = {
@@ -59,6 +61,12 @@ export function filterOrderableProducts(
 
   return products.filter((product) => {
     if (!product.isActive || product.category?.isActive === false) return false;
+    if (
+      product.pricingType === "VARIANT" &&
+      !product.variants?.some(({ isActive }) => isActive)
+    ) {
+      return false;
+    }
     if (categoryId && product.categoryId !== categoryId) return false;
     if (!search) return true;
 

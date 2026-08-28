@@ -219,7 +219,7 @@ export default function AssistedOrderDialog({
     const items: SelectedProductItem[] = [];
     for (const product of products.data ?? []) {
       const variants = activeVariants(product);
-      if (!variants.length) {
+      if (product.pricingType === "FIXED") {
         const quantity = quantityBySelection[selectionKey(product.id)] ?? 0;
         if (quantity > 0) items.push({ product, variant: null, quantity });
         continue;
@@ -826,11 +826,13 @@ export default function AssistedOrderDialog({
                     <div>
                       {group.products.map((product) => {
                         const variants = activeVariants(product);
+                        const requiresVariant =
+                          product.pricingType === "VARIANT";
                         const selectedVariant =
                           variants.find(
                             ({ id }) =>
                               selectedVariantByProduct[product.id] === id,
-                          ) ?? variants[0];
+                          ) ?? null;
                         const currentSelectionKey = selectionKey(
                           product.id,
                           selectedVariant?.id,
@@ -876,14 +878,14 @@ export default function AssistedOrderDialog({
                               <small>
                                 {product.category?.name ?? "Без категории"}
                               </small>
-                              {variants.length > 0 && (
+                              {requiresVariant && (
                                 <label className="assisted-product-variant">
                                   <span>
                                     {product.variantLabel ?? "Вариант"}
                                   </span>
                                   <select
                                     data-testid={`assisted-product-variant-${product.id}`}
-                                    value={selectedVariant?.id}
+                                    value={selectedVariant?.id ?? ""}
                                     onChange={(event) =>
                                       setSelectedVariantByProduct(
                                         (current) => ({
@@ -893,6 +895,9 @@ export default function AssistedOrderDialog({
                                       )
                                     }
                                   >
+                                    <option value="" disabled>
+                                      Выберите вариант
+                                    </option>
                                     {variants.map((variant) => (
                                       <option
                                         key={variant.id}
@@ -906,9 +911,12 @@ export default function AssistedOrderDialog({
                                 </label>
                               )}
                               <b>
-                                {selectedVariant
-                                  ? selectedVariant.price.toFixed(2)
-                                  : product.price.toFixed(2)}{" "}
+                                {requiresVariant && !selectedVariant
+                                  ? "от "
+                                  : ""}
+                                {(
+                                  selectedVariant?.price ?? product.minPrice
+                                ).toFixed(2)}{" "}
                                 TMT
                               </b>
                               {selectedVariantItems.length > 0 && (
@@ -931,6 +939,7 @@ export default function AssistedOrderDialog({
                               <button
                                 data-testid={`assisted-product-minus-${product.id}`}
                                 type="button"
+                                disabled={requiresVariant && !selectedVariant}
                                 onClick={() =>
                                   changeQuantity(
                                     product.id,
@@ -945,6 +954,7 @@ export default function AssistedOrderDialog({
                               <button
                                 data-testid={`assisted-product-plus-${product.id}`}
                                 type="button"
+                                disabled={requiresVariant && !selectedVariant}
                                 onClick={() =>
                                   changeQuantity(
                                     product.id,
@@ -1227,8 +1237,8 @@ export default function AssistedOrderDialog({
                 )}
                 {!coordinates && !selectedAddressId && (
                   <span className="assisted-order-hint">
-                    Найдите адрес или поставьте маркер — район и цена подставятся
-                    автоматически.
+                    Найдите адрес или поставьте маркер — район и цена
+                    подставятся автоматически.
                   </span>
                 )}
               </div>

@@ -2,7 +2,11 @@ import { createHash } from "node:crypto";
 import { lstat, readFile, readdir } from "node:fs/promises";
 import { resolve } from "node:path";
 import sharp from "sharp";
-import { Prisma, type PrismaClient } from "../src/generated/prisma/client";
+import {
+  Prisma,
+  ProductPricingType,
+  type PrismaClient,
+} from "../src/generated/prisma/client";
 
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const MAX_IMAGE_DIMENSION = 1800;
@@ -398,6 +402,9 @@ export function parseCatalogSeed(value: unknown): CatalogSeed {
       if (variants.length === 0 && variantLabel) {
         fail(`${path}.variantLabel`, "requires at least one variant");
       }
+      if (variants.length > 0 && !variants.some(({ isActive }) => isActive)) {
+        fail(`${path}.variants`, "requires at least one active variant");
+      }
       return {
         slug: asSlug(product.slug, `${path}.slug`),
         name: normalizedBrandText(
@@ -687,6 +694,9 @@ export async function applyCatalogSeed(
             slug: product.slug,
             name: product.name,
             description: product.description,
+            pricingType: product.variants.length
+              ? ProductPricingType.VARIANT
+              : ProductPricingType.FIXED,
             price: effectivePrice,
             receiptPrinterIp: product.receiptPrinterIp,
             variantLabel: product.variantLabel,
@@ -700,7 +710,10 @@ export async function applyCatalogSeed(
             price: effectivePrice,
             receiptPrinterIp: product.receiptPrinterIp,
             ...(product.variants.length
-              ? { variantLabel: product.variantLabel }
+              ? {
+                  pricingType: ProductPricingType.VARIANT,
+                  variantLabel: product.variantLabel,
+                }
               : {}),
             sortOrder: product.sortOrder,
             isActive: product.isActive,

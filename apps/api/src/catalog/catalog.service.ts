@@ -6,7 +6,7 @@ import {
 } from "@nestjs/common";
 import { toApiResponse } from "../common/api-response";
 import type { AuthUser } from "../common/auth.types";
-import { Prisma } from "../generated/prisma/client";
+import { Prisma, ProductPricingType } from "../generated/prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import {
   AddProductImageDto,
@@ -22,6 +22,15 @@ import {
 import { availableCatalogSlug, catalogSlug } from "./catalog-slug";
 
 const MAX_PRODUCT_IMAGES = 10;
+const orderablePricingWhere = {
+  OR: [
+    { pricingType: ProductPricingType.FIXED },
+    {
+      pricingType: ProductPricingType.VARIANT,
+      variants: { some: { isActive: true } },
+    },
+  ],
+} satisfies Prisma.ProductWhereInput;
 const productRelations = {
   images: { orderBy: { sortOrder: "asc" as const } },
   variants: {
@@ -90,7 +99,10 @@ function productResponse(
     receiptPrinter ??
     (legacyReceiptPrinterIp ? null : (category.receiptPrinter ?? null));
   const active = activeVariants(product);
-  const minPrice = active[0]?.price ?? product.price;
+  const hasVariants = product.pricingType === ProductPricingType.VARIANT;
+  const minPrice = hasVariants
+    ? (active[0]?.price ?? product.price)
+    : product.price;
   const displayImageUrl =
     active[0]?.images[0]?.url ?? product.images[0]?.url ?? null;
   return toApiResponse({
@@ -111,7 +123,7 @@ function productResponse(
     category: categoryResponse(category, false),
     price: minPrice,
     minPrice,
-    hasVariants: active.length > 0,
+    hasVariants,
     displayImageUrl,
     variants: includeAdminFields
       ? product.variants
@@ -266,7 +278,9 @@ export class CatalogService {
       include: {
         receiptPrinter: true,
         products: {
-          where: includeInactive ? {} : { isActive: true },
+          where: includeInactive
+            ? {}
+            : { isActive: true, ...orderablePricingWhere },
           include: productRelations,
           orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
         },
@@ -289,7 +303,11 @@ export class CatalogService {
         ...(categoryId ? { categoryId } : {}),
         ...(includeInactive
           ? {}
-          : { isActive: true, category: { isActive: true } }),
+          : {
+              isActive: true,
+              category: { isActive: true },
+              ...orderablePricingWhere,
+            }),
       },
       include: productRelations,
       orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
@@ -304,36 +322,38 @@ export class CatalogService {
       slug: requestedSlug,
       ...categoryData
     } = dto;
-    return this.prisma.$transaction(async (tx) => {
-      await assertActivePrinterReference(tx, receiptPrinterId);
-      const slugBase = catalogSlug(requestedSlug || categoryData.name, 120);
-      const matchingSlugs = await tx.category.findMany({
-        where: { slug: { startsWith: slugBase } },
-        select: { slug: true },
-      });
-      const category = await tx.category.create({
-        data: {
-          ...categoryData,
-          slug: availableCatalogSlug(
-            slugBase,
-            matchingSlugs.map(({ slug }) => slug),
-            120,
-          ),
-          ...printerReferenceData({ receiptPrinterId, receiptPrinterIp }),
-        },
-        include: { receiptPrinter: true },
-      });
-      await tx.auditLog.create({
-        data: {
-          actorId: actor.id,
-          action: "catalog.category.created",
-          entityType: "Category",
-          entityId: category.id,
-          metadata: { name: category.name, slug: category.slug },
-        },
-      });
-      return toApiResponse(categoryResponse(category, true));
-    }).catch(rethrowGeneratedSlugConflict);
+    return this.prisma
+      .$transaction(async (tx) => {
+        await assertActivePrinterReference(tx, receiptPrinterId);
+        const slugBase = catalogSlug(requestedSlug || categoryData.name, 120);
+        const matchingSlugs = await tx.category.findMany({
+          where: { slug: { startsWith: slugBase } },
+          select: { slug: true },
+        });
+        const category = await tx.category.create({
+          data: {
+            ...categoryData,
+            slug: availableCatalogSlug(
+              slugBase,
+              matchingSlugs.map(({ slug }) => slug),
+              120,
+            ),
+            ...printerReferenceData({ receiptPrinterId, receiptPrinterIp }),
+          },
+          include: { receiptPrinter: true },
+        });
+        await tx.auditLog.create({
+          data: {
+            actorId: actor.id,
+            action: "catalog.category.created",
+            entityType: "Category",
+            entityId: category.id,
+            metadata: { name: category.name, slug: category.slug },
+          },
+        });
+        return toApiResponse(categoryResponse(category, true));
+      })
+      .catch(rethrowGeneratedSlugConflict);
   }
 
   updateCategory(actor: AuthUser, id: string, dto: UpdateCategoryDto) {
@@ -343,46 +363,48 @@ export class CatalogService {
       slug: requestedSlug,
       ...categoryData
     } = dto;
-    return this.prisma.$transaction(async (tx) => {
-      const category = await tx.category.findUnique({ where: { id } });
-      if (!category) throw new NotFoundException("Category not found");
-      await assertActivePrinterReference(tx, receiptPrinterId);
-      let slug: string | undefined;
-      if (requestedSlug !== undefined) {
-        const slugBase = catalogSlug(
-          requestedSlug || categoryData.name || category.name,
-          120,
-        );
-        const matchingSlugs = await tx.category.findMany({
-          where: { id: { not: id }, slug: { startsWith: slugBase } },
-          select: { slug: true },
+    return this.prisma
+      .$transaction(async (tx) => {
+        const category = await tx.category.findUnique({ where: { id } });
+        if (!category) throw new NotFoundException("Category not found");
+        await assertActivePrinterReference(tx, receiptPrinterId);
+        let slug: string | undefined;
+        if (requestedSlug !== undefined) {
+          const slugBase = catalogSlug(
+            requestedSlug || categoryData.name || category.name,
+            120,
+          );
+          const matchingSlugs = await tx.category.findMany({
+            where: { id: { not: id }, slug: { startsWith: slugBase } },
+            select: { slug: true },
+          });
+          slug = availableCatalogSlug(
+            slugBase,
+            matchingSlugs.map(({ slug: value }) => value),
+            120,
+          );
+        }
+        const updated = await tx.category.update({
+          where: { id },
+          data: {
+            ...categoryData,
+            ...(slug === undefined ? {} : { slug }),
+            ...printerReferenceData({ receiptPrinterId, receiptPrinterIp }),
+          },
+          include: { receiptPrinter: true },
         });
-        slug = availableCatalogSlug(
-          slugBase,
-          matchingSlugs.map(({ slug: value }) => value),
-          120,
-        );
-      }
-      const updated = await tx.category.update({
-        where: { id },
-        data: {
-          ...categoryData,
-          ...(slug === undefined ? {} : { slug }),
-          ...printerReferenceData({ receiptPrinterId, receiptPrinterIp }),
-        },
-        include: { receiptPrinter: true },
-      });
-      await tx.auditLog.create({
-        data: {
-          actorId: actor.id,
-          action: "catalog.category.updated",
-          entityType: "Category",
-          entityId: id,
-          metadata: { changedFields: Object.keys(dto) },
-        },
-      });
-      return toApiResponse(categoryResponse(updated, true));
-    }).catch(rethrowGeneratedSlugConflict);
+        await tx.auditLog.create({
+          data: {
+            actorId: actor.id,
+            action: "catalog.category.updated",
+            entityType: "Category",
+            entityId: id,
+            metadata: { changedFields: Object.keys(dto) },
+          },
+        });
+        return toApiResponse(categoryResponse(updated, true));
+      })
+      .catch(rethrowGeneratedSlugConflict);
   }
 
   async deleteCategory(actor: AuthUser, id: string): Promise<void> {
@@ -583,59 +605,93 @@ export class CatalogService {
       imageUrls = [],
       variants = [],
       variantLabel: rawVariantLabel,
+      pricingType: requestedPricingType,
+      price: requestedPrice,
       receiptPrinterId,
       receiptPrinterIp,
       slug: requestedSlug,
       ...product
     } = dto;
     const variantLabel = normalizedVariantLabel(rawVariantLabel);
+    const pricingType =
+      requestedPricingType ??
+      (variants.length ? ProductPricingType.VARIANT : ProductPricingType.FIXED);
     validateVariantInputs(variants, { allowIds: false, variantLabel });
+    if (pricingType === ProductPricingType.FIXED && variants.length) {
+      throw new BadRequestException(
+        "FIXED products cannot contain sellable variants",
+      );
+    }
+    if (
+      pricingType === ProductPricingType.FIXED &&
+      requestedPrice === undefined
+    ) {
+      throw new BadRequestException("price is required for FIXED products");
+    }
+    if (pricingType === ProductPricingType.VARIANT && !variants.length) {
+      throw new BadRequestException(
+        "VARIANT products require at least one variant",
+      );
+    }
     const active = variants.filter(({ isActive }) => isActive ?? true);
-    const effectivePrice = active.length
-      ? Math.min(...active.map(({ price }) => price))
-      : product.price;
+    if (pricingType === ProductPricingType.VARIANT && !active.length) {
+      throw new BadRequestException(
+        "VARIANT products require at least one active variant",
+      );
+    }
+    const effectivePrice =
+      pricingType === ProductPricingType.VARIANT
+        ? Math.min(...active.map(({ price }) => price))
+        : requestedPrice!;
 
-    return this.prisma.$transaction(async (tx) => {
-      await assertActivePrinterReference(tx, receiptPrinterId);
-      const slugBase = catalogSlug(requestedSlug || product.name, 180);
-      const matchingSlugs = await tx.product.findMany({
-        where: { slug: { startsWith: slugBase } },
-        select: { slug: true },
-      });
-      const created = await tx.product.create({
-        data: {
-          ...product,
-          slug: availableCatalogSlug(
-            slugBase,
-            matchingSlugs.map(({ slug }) => slug),
-            180,
-          ),
-          ...printerReferenceData({ receiptPrinterId, receiptPrinterIp }),
-          price: effectivePrice,
-          variantLabel: variants.length ? variantLabel : null,
-          images: {
-            create: imageUrls.map((url, index) => ({ url, sortOrder: index })),
+    return this.prisma
+      .$transaction(async (tx) => {
+        await assertActivePrinterReference(tx, receiptPrinterId);
+        const slugBase = catalogSlug(requestedSlug || product.name, 180);
+        const matchingSlugs = await tx.product.findMany({
+          where: { slug: { startsWith: slugBase } },
+          select: { slug: true },
+        });
+        const created = await tx.product.create({
+          data: {
+            ...product,
+            slug: availableCatalogSlug(
+              slugBase,
+              matchingSlugs.map(({ slug }) => slug),
+              180,
+            ),
+            ...printerReferenceData({ receiptPrinterId, receiptPrinterIp }),
+            pricingType,
+            price: effectivePrice,
+            variantLabel:
+              pricingType === ProductPricingType.VARIANT ? variantLabel : null,
+            images: {
+              create: imageUrls.map((url, index) => ({
+                url,
+                sortOrder: index,
+              })),
+            },
+            variants: { create: variants.map(variantCreateData) },
           },
-          variants: { create: variants.map(variantCreateData) },
-        },
-        include: productRelations,
-      });
-      await tx.auditLog.create({
-        data: {
-          actorId: actor.id,
-          action: "catalog.product.created",
-          entityType: "Product",
-          entityId: created.id,
-          metadata: {
-            name: created.name,
-            categoryId: created.categoryId,
-            imageCount: created.images.length,
-            variantCount: created.variants.length,
+          include: productRelations,
+        });
+        await tx.auditLog.create({
+          data: {
+            actorId: actor.id,
+            action: "catalog.product.created",
+            entityType: "Product",
+            entityId: created.id,
+            metadata: {
+              name: created.name,
+              categoryId: created.categoryId,
+              imageCount: created.images.length,
+              variantCount: created.variants.length,
+            },
           },
-        },
-      });
-      return productResponse(created, true);
-    }).catch(rethrowGeneratedSlugConflict);
+        });
+        return productResponse(created, true);
+      })
+      .catch(rethrowGeneratedSlugConflict);
   }
 
   async updateProduct(actor: AuthUser, id: string, dto: UpdateProductDto) {
@@ -643,183 +699,221 @@ export class CatalogService {
       imageUrls,
       variants,
       variantLabel: rawVariantLabel,
+      pricingType: requestedPricingType,
+      price: requestedPrice,
       receiptPrinterId,
       receiptPrinterIp,
       slug: requestedSlug,
       ...product
     } = dto;
 
-    return this.prisma.$transaction(async (tx) => {
-      const existing = await tx.product.findUnique({
-        where: { id },
-        include: { variants: true },
-      });
-      if (!existing) throw new NotFoundException("Product not found");
-      await assertActivePrinterReference(tx, receiptPrinterId);
-
-      let slug: string | undefined;
-      if (requestedSlug !== undefined) {
-        const slugBase = catalogSlug(
-          requestedSlug || product.name || existing.name,
-          180,
-        );
-        const matchingSlugs = await tx.product.findMany({
-          where: { id: { not: id }, slug: { startsWith: slugBase } },
-          select: { slug: true },
+    return this.prisma
+      .$transaction(async (tx) => {
+        const existing = await tx.product.findUnique({
+          where: { id },
+          include: { variants: true },
         });
-        slug = availableCatalogSlug(
-          slugBase,
-          matchingSlugs.map(({ slug: value }) => value),
-          180,
-        );
-      }
+        if (!existing) throw new NotFoundException("Product not found");
+        await assertActivePrinterReference(tx, receiptPrinterId);
 
-      const variantLabel = normalizedVariantLabel(
-        rawVariantLabel === undefined ? existing.variantLabel : rawVariantLabel,
-      );
-      if (
-        rawVariantLabel !== undefined &&
-        existing.variants.length > 0 &&
-        !variantLabel &&
-        variants === undefined
-      ) {
-        throw new BadRequestException(
-          "variantLabel is required while product variants are configured",
-        );
-      }
-      if (variants !== undefined) {
-        validateVariantInputs(variants, { allowIds: true, variantLabel });
-        const existingIds = new Set(existing.variants.map(({ id }) => id));
-        if (
-          variants.some(
-            ({ id: variantId }) => variantId && !existingIds.has(variantId),
-          )
-        ) {
-          throw new BadRequestException(
-            "One or more variants do not belong to this product",
+        let slug: string | undefined;
+        if (requestedSlug !== undefined) {
+          const slugBase = catalogSlug(
+            requestedSlug || product.name || existing.name,
+            180,
+          );
+          const matchingSlugs = await tx.product.findMany({
+            where: { id: { not: id }, slug: { startsWith: slugBase } },
+            select: { slug: true },
+          });
+          slug = availableCatalogSlug(
+            slugBase,
+            matchingSlugs.map(({ slug: value }) => value),
+            180,
           );
         }
-        const existingByName = new Map(
-          existing.variants.map((variant) => [
-            variant.name.trim().toLocaleLowerCase(),
-            variant.id,
-          ]),
+
+        const variantLabel = normalizedVariantLabel(
+          rawVariantLabel === undefined
+            ? existing.variantLabel
+            : rawVariantLabel,
         );
-        if (
-          variants.some((variant) => {
-            const ownerId = existingByName.get(
-              variant.name.trim().toLocaleLowerCase(),
+        const pricingType =
+          requestedPricingType ??
+          (variants === undefined
+            ? existing.pricingType
+            : variants.length
+              ? ProductPricingType.VARIANT
+              : ProductPricingType.FIXED);
+        if (pricingType === ProductPricingType.FIXED && variants?.length) {
+          throw new BadRequestException(
+            "FIXED products cannot contain sellable variants",
+          );
+        }
+        if (variants !== undefined) {
+          validateVariantInputs(variants, { allowIds: true, variantLabel });
+          const existingIds = new Set(existing.variants.map(({ id }) => id));
+          if (
+            variants.some(
+              ({ id: variantId }) => variantId && !existingIds.has(variantId),
+            )
+          ) {
+            throw new BadRequestException(
+              "One or more variants do not belong to this product",
             );
-            return ownerId && ownerId !== variant.id;
-          })
-        ) {
-          throw new BadRequestException(
-            "A variant name is already used by this product",
+          }
+          const existingByName = new Map(
+            existing.variants.map((variant) => [
+              variant.name.trim().toLocaleLowerCase(),
+              variant.id,
+            ]),
           );
-        }
-        const submittedIds = variants.flatMap(({ id: variantId }) =>
-          variantId ? [variantId] : [],
-        );
-        await tx.productVariant.updateMany({
-          where: {
-            productId: id,
-            ...(submittedIds.length ? { id: { notIn: submittedIds } } : {}),
-          },
-          data: { isActive: false },
-        });
+          if (
+            variants.some((variant) => {
+              const ownerId = existingByName.get(
+                variant.name.trim().toLocaleLowerCase(),
+              );
+              return ownerId && ownerId !== variant.id;
+            })
+          ) {
+            throw new BadRequestException(
+              "A variant name is already used by this product",
+            );
+          }
+          const submittedIds = variants.flatMap(({ id: variantId }) =>
+            variantId ? [variantId] : [],
+          );
+          await tx.productVariant.updateMany({
+            where: {
+              productId: id,
+              ...(submittedIds.length ? { id: { notIn: submittedIds } } : {}),
+            },
+            data: { isActive: false },
+          });
 
-        for (const variant of variants) {
-          if (variant.id) {
-            if (variant.imageUrls !== undefined) {
-              await tx.productVariantImage.deleteMany({
-                where: { productVariantId: variant.id },
+          for (const variant of variants) {
+            if (variant.id) {
+              if (variant.imageUrls !== undefined) {
+                await tx.productVariantImage.deleteMany({
+                  where: { productVariantId: variant.id },
+                });
+              }
+              await tx.productVariant.update({
+                where: { id: variant.id },
+                data: {
+                  name: variant.name.trim(),
+                  description: variant.description?.trim() || null,
+                  price: variant.price,
+                  isActive: variant.isActive ?? true,
+                  sortOrder: variant.sortOrder ?? 0,
+                  ...(variant.imageUrls !== undefined
+                    ? {
+                        images: {
+                          create: variant.imageUrls.map((url, index) => ({
+                            url,
+                            sortOrder: index,
+                          })),
+                        },
+                      }
+                    : {}),
+                },
+              });
+            } else {
+              await tx.productVariant.create({
+                data: { productId: id, ...variantCreateData(variant) },
               });
             }
-            await tx.productVariant.update({
-              where: { id: variant.id },
-              data: {
-                name: variant.name.trim(),
-                description: variant.description?.trim() || null,
-                price: variant.price,
-                isActive: variant.isActive ?? true,
-                sortOrder: variant.sortOrder ?? 0,
-                ...(variant.imageUrls !== undefined
-                  ? {
-                      images: {
-                        create: variant.imageUrls.map((url, index) => ({
-                          url,
-                          sortOrder: index,
-                        })),
-                      },
-                    }
-                  : {}),
-              },
-            });
-          } else {
-            await tx.productVariant.create({
-              data: { productId: id, ...variantCreateData(variant) },
-            });
           }
         }
-      }
 
-      if (imageUrls !== undefined) {
-        await tx.productImage.deleteMany({ where: { productId: id } });
-      }
+        if (imageUrls !== undefined) {
+          await tx.productImage.deleteMany({ where: { productId: id } });
+        }
 
-      const activeVariantPrices =
-        variants === undefined
-          ? existing.variants
-              .filter(({ isActive }) => isActive)
-              .map(({ price }) => Number(price))
-          : variants
-              .filter(({ isActive }) => isActive ?? true)
-              .map(({ price }) => price);
-      const effectivePrice = activeVariantPrices.length
-        ? Math.min(...activeVariantPrices)
-        : (product.price ?? Number(existing.price));
+        const activeVariantPrices =
+          variants === undefined
+            ? existing.variants
+                .filter(({ isActive }) => isActive)
+                .map(({ price }) => Number(price))
+            : variants
+                .filter(({ isActive }) => isActive ?? true)
+                .map(({ price }) => price);
+        if (pricingType === ProductPricingType.VARIANT && !variantLabel) {
+          throw new BadRequestException(
+            "variantLabel is required while product variants are configured",
+          );
+        }
+        if (
+          pricingType === ProductPricingType.VARIANT &&
+          !activeVariantPrices.length
+        ) {
+          throw new BadRequestException(
+            "VARIANT products require at least one active variant",
+          );
+        }
+        if (
+          pricingType === ProductPricingType.FIXED &&
+          existing.pricingType === ProductPricingType.VARIANT &&
+          requestedPrice === undefined
+        ) {
+          throw new BadRequestException(
+            "price is required when switching a VARIANT product to FIXED",
+          );
+        }
+        const effectivePrice =
+          pricingType === ProductPricingType.VARIANT
+            ? Math.min(...activeVariantPrices)
+            : (requestedPrice ?? Number(existing.price));
 
-      const updated = await tx.product.update({
-        where: { id },
-        data: {
-          ...product,
-          ...(slug === undefined ? {} : { slug }),
-          ...printerReferenceData({ receiptPrinterId, receiptPrinterIp }),
-          price: effectivePrice,
-          ...(rawVariantLabel !== undefined || variants !== undefined
-            ? { variantLabel: variants?.length === 0 ? null : variantLabel }
-            : {}),
-          ...(imageUrls !== undefined
-            ? {
-                images: {
-                  create: imageUrls.map((url, index) => ({
-                    url,
-                    sortOrder: index,
-                  })),
-                },
-              }
-            : {}),
-        },
-        include: productRelations,
-      });
-      await tx.auditLog.create({
-        data: {
-          actorId: actor.id,
-          action: "catalog.product.updated",
-          entityType: "Product",
-          entityId: id,
-          metadata: {
-            changedFields: Object.keys(dto),
-            imageCount: updated.images.length,
-            variantCount: updated.variants.length,
-            activeVariantCount: updated.variants.filter(
-              ({ isActive }) => isActive,
-            ).length,
+        if (pricingType === ProductPricingType.FIXED) {
+          await tx.productVariant.updateMany({
+            where: { productId: id, isActive: true },
+            data: { isActive: false },
+          });
+        }
+
+        const updated = await tx.product.update({
+          where: { id },
+          data: {
+            ...product,
+            ...(slug === undefined ? {} : { slug }),
+            ...printerReferenceData({ receiptPrinterId, receiptPrinterIp }),
+            pricingType,
+            price: effectivePrice,
+            variantLabel:
+              pricingType === ProductPricingType.VARIANT ? variantLabel : null,
+            ...(imageUrls !== undefined
+              ? {
+                  images: {
+                    create: imageUrls.map((url, index) => ({
+                      url,
+                      sortOrder: index,
+                    })),
+                  },
+                }
+              : {}),
           },
-        },
-      });
-      return productResponse(updated, true);
-    }).catch(rethrowGeneratedSlugConflict);
+          include: productRelations,
+        });
+        await tx.auditLog.create({
+          data: {
+            actorId: actor.id,
+            action: "catalog.product.updated",
+            entityType: "Product",
+            entityId: id,
+            metadata: {
+              changedFields: Object.keys(dto),
+              imageCount: updated.images.length,
+              variantCount: updated.variants.length,
+              activeVariantCount: updated.variants.filter(
+                ({ isActive }) => isActive,
+              ).length,
+            },
+          },
+        });
+        return productResponse(updated, true);
+      })
+      .catch(rethrowGeneratedSlugConflict);
   }
 
   async deleteProduct(actor: AuthUser, id: string): Promise<void> {

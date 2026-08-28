@@ -59,19 +59,19 @@ logic back into React components.
 
 ## Behavior matrix
 
-| Scenario | `/catalog` | Phone-assisted order |
-| --- | --- | --- |
-| Active product in active category | Shown | Shown |
-| Hidden product | Shown with hidden status | Excluded |
-| Product in hidden category | Shown under hidden category | Excluded |
-| Empty search | All records allowed by the workflow | All orderable records |
-| Category selected | Only that category | Only that category |
-| Product-name search | Match | Match |
-| Category-name search | Match | Match |
-| Slug, description, or printer-IP search | Match | Deliberately not matched |
-| Search plus category filter | Both conditions apply | Both conditions apply |
-| No matches | Explicit empty state | Explicit empty state |
-| Product with variants | Grouped as one product; variants unchanged | Selector and per-variant quantity unchanged |
+| Scenario                                | `/catalog`                                 | Phone-assisted order                                                                       |
+| --------------------------------------- | ------------------------------------------ | ------------------------------------------------------------------------------------------ |
+| Active product in active category       | Shown                                      | Shown                                                                                      |
+| Hidden product                          | Shown with hidden status                   | Excluded                                                                                   |
+| Product in hidden category              | Shown under hidden category                | Excluded                                                                                   |
+| Empty search                            | All records allowed by the workflow        | All orderable records                                                                      |
+| Category selected                       | Only that category                         | Only that category                                                                         |
+| Product-name search                     | Match                                      | Match                                                                                      |
+| Category-name search                    | Match                                      | Match                                                                                      |
+| Slug, description, or printer-IP search | Match                                      | Deliberately not matched                                                                   |
+| Search plus category filter             | Both conditions apply                      | Both conditions apply                                                                      |
+| No matches                              | Explicit empty state                       | Explicit empty state                                                                       |
+| Product with variants                   | Grouped as one product; variants unchanged | Shows `от minPrice`; quantity controls stay disabled until an explicit variant is selected |
 
 Search is trimmed and case-insensitive. It uses literal substring matching, not
 a regular expression, so punctuation such as `[`, `*`, or `.` cannot break the
@@ -170,8 +170,12 @@ products, missing images, long names, and at least 50 products.
 4. Combine chip and search filters, then add a base product.
 5. Select two different variants of one product and verify their quantities and
    subtotal remain independent.
-6. Verify hidden products/categories never appear.
-7. Check keyboard focus, horizontal category-chip scrolling, sticky group
+6. Before selecting a variant, verify the quantity controls cannot create a
+   base-product line; after selection, verify its full price and `variantId` are
+   used.
+7. Verify hidden products/categories and variant-mode products without an
+   active variant never appear.
+8. Check keyboard focus, horizontal category-chip scrolling, sticky group
    headings, empty state, and no page-level horizontal overflow on desktop and
    390 px mobile.
 

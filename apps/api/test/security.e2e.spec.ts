@@ -9,6 +9,7 @@ import { configureApp } from "../src/bootstrap";
 import {
   OrderSource,
   OrderStatus,
+  ProductPricingType,
   PromoType,
   Role,
   type User,
@@ -119,6 +120,7 @@ type CatalogProductResponse = {
   name: string;
   slug: string;
   description: string;
+  pricingType: ProductPricingType;
   price: number;
   minPrice: number;
   hasVariants: boolean;
@@ -706,6 +708,7 @@ describe("backend security and critical workflow", () => {
         name: "Quote variant meal",
         slug: "quote-variant-meal",
         description: "Variant used by the side-effect-free order quote",
+        pricingType: ProductPricingType.VARIANT,
         price: 25,
         variantLabel: "Размер",
         variants: {
@@ -1279,6 +1282,43 @@ describe("backend security and critical workflow", () => {
       .set(bearer(tokens.admin))
       .send({
         categoryId,
+        name: "Fixed product without price",
+        slug: "fixed-product-without-price",
+        description: "A fixed product must have its own price",
+        pricingType: ProductPricingType.FIXED,
+      })
+      .expect(400);
+    await request(server)
+      .post("/api/v1/catalog/products")
+      .set(bearer(tokens.admin))
+      .send({
+        categoryId,
+        name: "Variant product without variants",
+        slug: "variant-product-without-variants",
+        description: "Variant pricing requires a sellable option",
+        pricingType: ProductPricingType.VARIANT,
+        variantLabel: "Размер",
+        variants: [],
+      })
+      .expect(400);
+    await request(server)
+      .post("/api/v1/catalog/products")
+      .set(bearer(tokens.admin))
+      .send({
+        categoryId,
+        name: "Variant product without active variants",
+        slug: "variant-product-without-active-variants",
+        description: "At least one option must remain orderable",
+        pricingType: ProductPricingType.VARIANT,
+        variantLabel: "Размер",
+        variants: [{ name: "Скрытый", price: 45, isActive: false }],
+      })
+      .expect(400);
+    await request(server)
+      .post("/api/v1/catalog/products")
+      .set(bearer(tokens.admin))
+      .send({
+        categoryId,
         name: "Variant without selector",
         slug: "variant-without-selector",
         description: "A selector label is required",
@@ -1314,7 +1354,7 @@ describe("backend security and critical workflow", () => {
         name: "Pizza with sizes",
         slug: "pizza-with-sizes",
         description: "The cheapest active size is the displayed price",
-        price: 999,
+        pricingType: ProductPricingType.VARIANT,
         receiptPrinterIp: "192.168.10.51",
         variantLabel: "Размер",
         variants: [
@@ -1337,6 +1377,7 @@ describe("backend security and critical workflow", () => {
     const variantProduct =
       variantProductResponse.body as CatalogProductResponse;
     expect(variantProduct).toMatchObject({
+      pricingType: ProductPricingType.VARIANT,
       price: 45,
       minPrice: 45,
       hasVariants: true,
@@ -1504,6 +1545,33 @@ describe("backend security and critical workflow", () => {
       id: largeVariant.id,
       price: 70,
     });
+
+    await request(server)
+      .patch(`/api/v1/catalog/products/${variantProduct.id}`)
+      .set(bearer(tokens.admin))
+      .send({ pricingType: ProductPricingType.FIXED, variants: [] })
+      .expect(400);
+    const fixedProduct = await request(server)
+      .patch(`/api/v1/catalog/products/${variantProduct.id}`)
+      .set(bearer(tokens.admin))
+      .send({
+        pricingType: ProductPricingType.FIXED,
+        price: 52,
+        variants: [],
+      })
+      .expect(200);
+    expect(fixedProduct.body).toMatchObject({
+      pricingType: ProductPricingType.FIXED,
+      price: 52,
+      minPrice: 52,
+      hasVariants: false,
+      variantLabel: null,
+    });
+    expect(
+      await prisma.productVariant.count({
+        where: { productId: variantProduct.id, isActive: true },
+      }),
+    ).toBe(0);
   });
 
   it("hides a category without losing its kitchen printer route", async () => {
@@ -1745,6 +1813,7 @@ describe("backend security and critical workflow", () => {
         name: "Variant order product",
         slug: "variant-order-product",
         description: "Used to verify independent variant order lines",
+        pricingType: ProductPricingType.VARIANT,
         price: 40,
         variantLabel: "Размер",
         variants: {

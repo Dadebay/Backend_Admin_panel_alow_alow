@@ -10,7 +10,10 @@ import {
   loadCatalogSeedBundle,
   parseCatalogSeed,
 } from "../prisma/catalog-seed";
-import { PrismaClient } from "../src/generated/prisma/client";
+import {
+  PrismaClient,
+  ProductPricingType,
+} from "../src/generated/prisma/client";
 
 function rawSeed(
   options: {
@@ -116,6 +119,21 @@ describe("catalog seed", () => {
     expect(() => parseCatalogSeed(raw)).toThrow(/variantLabel.*required/);
   });
 
+  it("requires at least one active imported variant", () => {
+    const raw = rawSeed();
+    raw.products[0]!.variantLabel = "Размер";
+    raw.products[0]!.variants = [
+      {
+        name: "Скрытый",
+        description: null,
+        price: 65,
+        sortOrder: 0,
+        isActive: false,
+      },
+    ];
+    expect(() => parseCatalogSeed(raw)).toThrow(/active variant/);
+  });
+
   it("rejects unknown fields, unsafe image names and missing category relations", () => {
     expect(() => parseCatalogSeed({ ...rawSeed(), unexpected: true })).toThrow(
       /unexpected field/,
@@ -191,7 +209,10 @@ describe("catalog seed", () => {
       });
       await prisma.product.update({
         where: { id: product.id },
-        data: { variantLabel: "Размер" },
+        data: {
+          pricingType: ProductPricingType.VARIANT,
+          variantLabel: "Размер",
+        },
       });
       await prisma.productVariant.create({
         data: {
@@ -216,6 +237,7 @@ describe("catalog seed", () => {
       });
       expect(Number(saved.price)).toBe(65);
       expect(saved.name).toBe("A7-tagam Burger");
+      expect(saved.pricingType).toBe(ProductPricingType.VARIANT);
       expect(saved.receiptPrinterIp).toBe("192.168.123.100");
       expect(saved.images).toHaveLength(1);
       expect(saved.variants).toHaveLength(1);
@@ -273,6 +295,7 @@ describe("catalog seed", () => {
       });
       expect(Number(firstSaved.price)).toBe(48);
       expect(firstSaved).toMatchObject({
+        pricingType: ProductPricingType.VARIANT,
         variantLabel: "Размер",
         variants: [
           { name: "Маленькая", isActive: true },

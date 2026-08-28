@@ -123,6 +123,7 @@ test("catalog forms accept display names without a technical slug", () => {
       categoryId: "2d807991-e99f-4f17-9b9f-cc2fb7478820",
       name: "Маргарита",
       description: "Пицца",
+      pricingType: "FIXED",
       price: 49.999,
       receiptPrinterId: "2d807991-e99f-4f17-9b9f-cc2fb7478820",
       variantLabel: "",
@@ -137,6 +138,7 @@ test("catalog forms accept display names without a technical slug", () => {
       categoryId: "2d807991-e99f-4f17-9b9f-cc2fb7478820",
       name: "Маргарита",
       description: "Пицца",
+      pricingType: "VARIANT",
       price: 50,
       receiptPrinterId: "2d807991-e99f-4f17-9b9f-cc2fb7478820",
       variantLabel: "Размер",
@@ -168,6 +170,7 @@ test("catalog forms accept display names without a technical slug", () => {
       categoryId: "2d807991-e99f-4f17-9b9f-cc2fb7478820",
       name: "Нарезка",
       description: "Мясо",
+      pricingType: "VARIANT",
       price: 50,
       receiptPrinterId: "2d807991-e99f-4f17-9b9f-cc2fb7478820",
       variantLabel: "",
@@ -228,6 +231,7 @@ test("product variant schema rejects duplicate names and excess images", () => {
       categoryId: "2d807991-e99f-4f17-9b9f-cc2fb7478820",
       name: "Пицца",
       description: "Повторяющиеся размеры",
+      pricingType: "VARIANT",
       price: 50,
       receiptPrinterId: "2d807991-e99f-4f17-9b9f-cc2fb7478820",
       variantLabel: "Размер",
@@ -259,6 +263,7 @@ test("product variant schema rejects duplicate names and excess images", () => {
       categoryId: "2d807991-e99f-4f17-9b9f-cc2fb7478820",
       name: "Пицца",
       description: "Слишком много изображений",
+      pricingType: "VARIANT",
       price: 50,
       receiptPrinterId: "2d807991-e99f-4f17-9b9f-cc2fb7478820",
       variantLabel: "Размер",
@@ -287,6 +292,7 @@ test("printer registry validates LAN endpoint and product uses its ID", () => {
     categoryId: "2d807991-e99f-4f17-9b9f-cc2fb7478820",
     name: "Манты",
     description: "Печатается на кухонном аппарате",
+    pricingType: "FIXED",
     price: 60,
     receiptPrinterId: "2d807991-e99f-4f17-9b9f-cc2fb7478820",
     variantLabel: "",
@@ -296,6 +302,24 @@ test("printer registry validates LAN endpoint and product uses its ID", () => {
   };
 
   assert.equal(productFormSchema.safeParse(product).success, true);
+  assert.equal(
+    productFormSchema.safeParse({
+      ...product,
+      pricingType: "VARIANT",
+      variantLabel: "Начинка",
+      variants: [
+        {
+          name: "Фарш",
+          description: "",
+          price: 60,
+          sortOrder: 0,
+          isActive: false,
+          imageUrls: [],
+        },
+      ],
+    }).success,
+    false,
+  );
   assert.equal(
     productFormSchema.safeParse({
       ...product,

@@ -12,6 +12,7 @@ import {
   OrderSource,
   OrderStatus,
   Prisma,
+  ProductPricingType,
   ReceiptPrinterTransport,
   Role,
 } from "../generated/prisma/client";
@@ -496,10 +497,18 @@ export class OrdersService {
             left.sortOrder - right.sortOrder ||
             left.name.localeCompare(right.name),
         );
-      const variant = item.variantId
-        ? activeVariants.find(({ id }) => id === item.variantId)
-        : activeVariants[0];
-      if (item.variantId && !variant) {
+      if (product.pricingType === ProductPricingType.FIXED && item.variantId) {
+        throw new BadRequestException(
+          "A FIXED product does not accept a variant",
+        );
+      }
+      const variant =
+        product.pricingType === ProductPricingType.VARIANT
+          ? item.variantId
+            ? activeVariants.find(({ id }) => id === item.variantId)
+            : activeVariants[0]
+          : null;
+      if (product.pricingType === ProductPricingType.VARIANT && !variant) {
         throw new BadRequestException(
           "One or more product variants are unavailable",
         );

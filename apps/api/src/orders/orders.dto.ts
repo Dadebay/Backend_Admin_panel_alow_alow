@@ -31,8 +31,9 @@ export class CreateOrderItemDto {
 
   @ApiPropertyOptional({
     format: "uuid",
+    deprecated: true,
     description:
-      "Selected product variant. When omitted, the backend uses the cheapest active variant for backward compatibility.",
+      "Required by current clients for VARIANT products. Omission still selects the cheapest active variant only for legacy-client compatibility.",
   })
   @IsOptional()
   @IsUUID()

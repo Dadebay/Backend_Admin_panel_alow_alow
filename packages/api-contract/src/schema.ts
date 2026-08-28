@@ -1564,6 +1564,8 @@ export interface components {
             name: string;
             slug: string;
             description: string;
+            /** @enum {string} */
+            pricingType: "FIXED" | "VARIANT";
             price: number;
             minPrice: number;
             hasVariants: boolean;
@@ -1617,6 +1619,8 @@ export interface components {
             name: string;
             slug: string;
             description: string;
+            /** @enum {string} */
+            pricingType: "FIXED" | "VARIANT";
             price: number;
             minPrice: number;
             hasVariants: boolean;
@@ -1795,10 +1799,15 @@ export interface components {
             slug?: string;
             description: string;
             /**
-             * @description Base price for products without variants; when active variants exist the backend stores and returns their minimum price
+             * @description Required for FIXED pricing and ignored for VARIANT pricing, where the backend derives the minimum price
              * @example 49.9
              */
-            price: number;
+            price?: number;
+            /**
+             * @description FIXED sells the dish itself; VARIANT requires a concrete active variant
+             * @enum {string}
+             */
+            pricingType?: "FIXED" | "VARIANT";
             /**
              * @description Optional private LAN receipt-printer IPv4 override for this product; null inherits the category route
              * @example 192.168.1.50
@@ -1835,10 +1844,15 @@ export interface components {
             slug?: string;
             description?: string;
             /**
-             * @description Base price for products without variants; when active variants exist the backend stores and returns their minimum price
+             * @description Required for FIXED pricing and ignored for VARIANT pricing, where the backend derives the minimum price
              * @example 49.9
              */
             price?: number;
+            /**
+             * @description FIXED sells the dish itself; VARIANT requires a concrete active variant
+             * @enum {string}
+             */
+            pricingType?: "FIXED" | "VARIANT";
             /**
              * @description Optional private LAN receipt-printer IPv4 override for this product; null inherits the category route
              * @example 192.168.1.50
@@ -1879,7 +1893,8 @@ export interface components {
             productId: string;
             /**
              * Format: uuid
-             * @description Selected product variant. When omitted, the backend uses the cheapest active variant for backward compatibility.
+             * @deprecated
+             * @description Required by current clients for VARIANT products. Omission still selects the cheapest active variant only for legacy-client compatibility.
              */
             variantId?: string;
             quantity: number;

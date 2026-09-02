@@ -1875,6 +1875,101 @@ td small {
   color: var(--brand-navy);
 }
 
+.courier-route-overview {
+  display: grid;
+  gap: 10px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--brand-cream);
+  color: var(--brand-navy);
+  background: color-mix(
+    in srgb,
+    var(--brand-cream) 94%,
+    var(--brand-orange)
+  );
+}
+
+.courier-route-overview-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.courier-route-overview-heading strong {
+  font-size: 10px;
+}
+
+.courier-route-overview-heading span {
+  color: var(--muted);
+  font-size: 8px;
+  line-height: 1.4;
+  text-align: right;
+}
+
+.courier-route-legend {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.courier-route-legend button {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--brand-navy);
+  background: rgb(255 255 255 / 0.72);
+  text-align: left;
+  cursor: pointer;
+}
+
+.courier-route-legend button:hover {
+  border-color: color-mix(
+    in srgb,
+    var(--brand-orange) 55%,
+    var(--line)
+  );
+}
+
+.courier-route-legend strong,
+.courier-route-legend small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.courier-route-legend strong {
+  font-size: 9px;
+}
+
+.courier-route-legend small,
+.courier-route-legend em {
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 8px;
+  font-style: normal;
+}
+
+.courier-route-legend em {
+  margin-top: 0;
+  color: var(--brand-navy);
+  font-weight: 750;
+  white-space: nowrap;
+}
+
+.courier-route-swatch {
+  width: 11px;
+  height: 28px;
+  border: 2px solid var(--brand-cream);
+  border-radius: 999px;
+  box-shadow: 0 0 0 1px var(--line);
+}
+
 .map-loading {
   display: grid;
   place-items: center;
@@ -3243,9 +3338,22 @@ textarea[aria-invalid="true"] {
   }
 
   .courier-route-status,
+  .courier-route-overview,
   .live-courier-list,
   .courier-route-details {
     grid-column: 2;
+  }
+
+  .courier-route-overview-heading {
+    display: grid;
+  }
+
+  .courier-route-overview-heading span {
+    text-align: left;
+  }
+
+  .courier-route-legend {
+    grid-template-columns: 1fr;
   }
 
   .courier-route-details {
@@ -3335,6 +3443,10 @@ textarea[aria-invalid="true"] {
 
   .dispatch-card {
     display: block;
+  }
+
+  .courier-route-legend {
+    grid-template-columns: 1fr;
   }
 
   .courier-map-canvas,

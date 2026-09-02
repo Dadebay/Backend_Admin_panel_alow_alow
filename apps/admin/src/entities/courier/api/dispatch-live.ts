@@ -41,6 +41,9 @@ export function useDispatchLiveUpdates(): DispatchLiveState {
       void queryClient.invalidateQueries({
         queryKey: courierQueryKeys.route(userId, event.courierId),
       });
+      void queryClient.invalidateQueries({
+        queryKey: courierQueryKeys.routeOverview(userId),
+      });
       const current = queryClient.getQueryData<DispatchSnapshot>(queryKey);
       if (!current) return;
       const updated = applyDispatchLocationUpdate(current, {

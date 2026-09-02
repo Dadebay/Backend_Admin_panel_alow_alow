@@ -9,6 +9,7 @@ import {
   canEditCourierAssignment,
   kanbanQueueStatusesForRole,
   nextOrderStatus,
+  orderTransitionActionLabel,
   previousOrderStatus,
   orderItemLabel,
   orderStatuses,
@@ -293,7 +294,7 @@ export function OrderBoard({
         cell: ({ row }) => {
           const order = row.original;
           const administratorIsPacking =
-            order.status === "READY" &&
+            ["COOKING", "READY"].includes(order.status) &&
             !order.packingConfirmedAt &&
             ["ADMIN", "SUPER_ADMIN"].includes(role);
           return (
@@ -478,7 +479,7 @@ export function OrderBoard({
                   disabled={pending}
                   onClick={() => transitionOrder(order, next)}
                 >
-                  {statusLabels[next]}
+                  {orderTransitionActionLabel(role, next)}
                 </button>
               )}
               {["OPERATOR", "ADMIN", "SUPER_ADMIN"].includes(role) && (

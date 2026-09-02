@@ -31,6 +31,19 @@ export type CourierMapLocation = {
   longitude: number;
 };
 
+export const courierRouteColors = [
+  "#ec7a1b",
+  "#31577f",
+  "#c45f20",
+  "#607b98",
+  "#9f5429",
+  "#123f6d",
+] as const;
+
+export function courierRouteColor(index: number) {
+  return courierRouteColors[index % courierRouteColors.length];
+}
+
 export function courierName(
   courier: Pick<DispatchCourier, "firstName" | "lastName" | "phone">,
 ) {

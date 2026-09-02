@@ -3,6 +3,7 @@ export {
   canAdministratorEditOrder,
   canEditCourierAssignment,
   nextOrderStatus,
+  orderTransitionActionLabel,
   previousOrderStatus,
   orderItemLabel,
   orderStatuses,

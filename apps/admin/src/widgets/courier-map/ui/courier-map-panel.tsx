@@ -1,6 +1,7 @@
 import { lazy, Suspense, useState } from "react";
 import {
   useCourierRoute,
+  useCourierRoutes,
   useDispatchLiveUpdates,
   useDispatchSnapshot,
 } from "@/src/entities/courier";
@@ -12,9 +13,11 @@ import {
   courierName,
   courierOverviewCounts,
   courierPresenceLabels,
+  courierRouteColor,
   courierWorkLabel,
   courierWorkState,
 } from "../model/courier-status";
+import type { CourierRouteOverlay } from "../model/map-types";
 
 const CourierMapCanvas = lazy(() => import("./courier-map-canvas"));
 
@@ -39,7 +42,40 @@ export function CourierMapPanel() {
   const couriers = dispatch.data?.couriers ?? [];
   const selected =
     couriers.find(({ id }) => id === selectedCourierId) ?? null;
+  const busyCouriers = couriers.filter(({ activeOrders }) => activeOrders.length);
   const courierRoute = useCourierRoute(selected?.id ?? null);
+  const overviewRoutes = useCourierRoutes(
+    selected ? [] : busyCouriers.map(({ id }) => id),
+  );
+  const overviewRouteByCourierId = new Map(
+    (overviewRoutes.data ?? []).map(({ courierId, route }) => [courierId, route]),
+  );
+  const routeOverlays: CourierRouteOverlay[] = selected
+    ? courierRoute.data
+      ? [
+          {
+            color: courierRouteColor(
+              couriers.findIndex(({ id }) => id === selected.id),
+            ),
+            courier: selected,
+            route: courierRoute.data,
+          },
+        ]
+      : []
+    : busyCouriers.flatMap((courier) => {
+        const route = overviewRouteByCourierId.get(courier.id);
+        return route
+          ? [
+              {
+                color: courierRouteColor(
+                  couriers.findIndex(({ id }) => id === courier.id),
+                ),
+                courier,
+                route,
+              },
+            ]
+          : [];
+      });
   const displayedStops =
     courierRoute.data?.stops ?? selected?.activeOrders ?? [];
   const overviewCounts = courierOverviewCounts(couriers);
@@ -162,7 +198,11 @@ export function CourierMapPanel() {
           aria-label="Обновить карту"
           onClick={() => {
             void dispatch.refetch();
-            if (selected) void courierRoute.refetch();
+            if (selected) {
+              void courierRoute.refetch();
+            } else {
+              void overviewRoutes.refetch();
+            }
           }}
         >
           ↻
@@ -200,10 +240,65 @@ export function CourierMapPanel() {
           branches={branches}
           couriers={couriers}
           selectedCourierId={selected?.id ?? null}
-          route={courierRoute.data ?? null}
+          routes={routeOverlays}
           onSelectCourier={setSelectedCourierId}
         />
       </Suspense>
+
+      {!selected && busyCouriers.length > 0 && (
+        <section
+          className="courier-route-overview"
+          data-testid="dispatch-route-overview"
+        >
+          <div className="courier-route-overview-heading">
+            <strong>Маршруты всех занятых курьеров</strong>
+            <span>
+              Каждая линия и точка заказа отмечены цветом курьера. Нажмите
+              курьера, чтобы открыть детали.
+            </span>
+          </div>
+          <div className="courier-route-legend">
+            {busyCouriers.map((courier) => {
+              const route = overviewRouteByCourierId.get(courier.id);
+              const plannedRoute = route?.route;
+              const color = courierRouteColor(
+                couriers.findIndex(({ id }) => id === courier.id),
+              );
+              return (
+                <button
+                  key={courier.id}
+                  data-testid={`dispatch-route-legend-${courier.id}`}
+                  onClick={() => setSelectedCourierId(courier.id)}
+                >
+                  <span
+                    className="courier-route-swatch"
+                    style={{ backgroundColor: color }}
+                    aria-hidden="true"
+                  />
+                  <span>
+                    <strong>{courierName(courier)}</strong>
+                    <small>
+                      Заказы: {courier.activeOrders
+                        .map(({ number }) => `#${number}`)
+                        .join(", ")}
+                    </small>
+                  </span>
+                  <em>
+                    {overviewRoutes.isPending
+                      ? "Строим…"
+                      : plannedRoute
+                        ? `${(plannedRoute.distanceMeters / 1_000).toFixed(1)} км · ~${Math.max(
+                            1,
+                            Math.ceil(plannedRoute.durationSeconds / 60),
+                          )} мин`
+                        : "Маршрут недоступен"}
+                  </em>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+      )}
 
       {selected && (
         <div

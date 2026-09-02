@@ -19,7 +19,7 @@ export const orderStatuses: OrderStatus[] = [
 
 export const statusLabels: Record<OrderStatus, string> = {
   COOKING: "Готовится",
-  READY: "Готов",
+  READY: "Собран",
   ASSIGNED_TO_COURIER: "Назначен курьеру",
   OUT_FOR_DELIVERY: "Доставляется",
   DELIVERED: "Доставлен",
@@ -41,9 +41,6 @@ export const roleLabels: Record<Role, string> = {
 const nextByRole: Partial<
   Record<Role, Partial<Record<OrderStatus, OrderStatus>>>
 > = {
-  COOK: {
-    COOKING: "READY",
-  },
   COURIER: {
     ASSIGNED_TO_COURIER: "OUT_FOR_DELIVERY",
     OUT_FOR_DELIVERY: "DELIVERED",
@@ -52,7 +49,6 @@ const nextByRole: Partial<
 };
 
 const adminNext: Partial<Record<OrderStatus, OrderStatus>> = {
-  COOKING: "READY",
   ASSIGNED_TO_COURIER: "OUT_FOR_DELIVERY",
   OUT_FOR_DELIVERY: "DELIVERED",
   DELIVERED: "CASH_RETURNED",
@@ -65,6 +61,21 @@ export function nextOrderStatus(role: Role, status: OrderStatus) {
   return role === "ADMIN" || role === "SUPER_ADMIN"
     ? adminNext[status]
     : nextByRole[role]?.[status];
+}
+
+const courierTransitionActionLabels: Partial<Record<OrderStatus, string>> = {
+  OUT_FOR_DELIVERY: "Забрал заказ",
+  DELIVERED: "Доставил заказ",
+  CASH_RETURNED: "Сдал наличные",
+};
+
+export function orderTransitionActionLabel(
+  role: Role,
+  nextStatus: OrderStatus,
+) {
+  return role === "COURIER"
+    ? (courierTransitionActionLabels[nextStatus] ?? statusLabels[nextStatus])
+    : statusLabels[nextStatus];
 }
 
 export function canCancel(role: Role, status: OrderStatus) {

@@ -10,8 +10,12 @@ records how those decisions are verified.
 ### Courier map
 
 - The default dispatch view fits every courier that has a current Redis GPS
-  point. Selecting one courier may add their route and delivery stops, but must
-  not remove the other courier markers.
+  point and overlays every busy courier route at once. Each busy courier keeps
+  a distinct brand-derived route color; the legend and permanent delivery-stop
+  labels bind that color to the courier name and active order numbers.
+  Selecting one courier focuses their route and delivery stops, but must not
+  remove the other courier markers. Returning to `Все курьеры` restores every
+  busy route overlay.
 - Every located courier marker permanently displays the courier name and one
   workload label: `Свободен`, `В заказе #<number>`, or
   `В заказах · <count>`.
@@ -69,7 +73,7 @@ records how those decisions are verified.
 
 | Area | Test | Contract covered |
 | --- | --- | --- |
-| Courier markers and coverage | `apps/admin/tests/courier-map.test.mjs` | Empty/mixed courier sets, every courier retained in the list, markers created only from real coordinates, missing names/phone fallbacks, one/multiple orders, stale busy courier, online/free and GPS counts, branch distinction |
+| Courier markers, route colors and coverage | `apps/admin/tests/courier-map.test.mjs` | Empty/mixed courier sets, every courier retained in the list, markers created only from real coordinates, missing names/phone fallbacks, one/multiple orders, stable distinct overview route colors, courier/order route labels, stale busy courier, online/free and GPS counts, branch distinction |
 | Whole-shift browser GPS | `apps/admin/tests/courier-map.test.mjs` | Immediate first point, 15-second polling after delivery, shared high-accuracy options, permission/general errors, valid sensor payload, non-finite optional sensor values, idempotent cleanup, suppression of late GPS callbacks after end shift, and DELETE ordered after any in-flight final PUT |
 | Dispatcher live cache | `apps/admin/tests/courier-map.test.mjs` | A GPS SSE update moves only its courier, preserves every other located/missing courier and an empty post-delivery `activeOrders`, explicit stop produces `OFFLINE`/`null`, unknown couriers require snapshot recovery |
 | Web courier isolation | `apps/admin/tests/role-navigation.test.mjs`, `apps/admin/tests/admin-routing.test.mjs` | `/courier` session is allowed only as a dedicated workflow; `COURIER` remains excluded from every admin navigation item |
@@ -84,15 +88,41 @@ Required release checks are the root `AGENTS.md` backend and frontend command
 sets. API contract changes also require `npm run api:client` before frontend
 verification.
 
+## Local two-courier demo
+
+The development-only runner creates two temporary couriers, three real API
+orders, assigns two orders to the first courier and one to the second, publishes
+their initial GPS points, verifies both OSRM routes and checks that one customer
+cannot read another customer's courier location. It refuses to run when the
+development OTP code is unavailable.
+
+With local PostgreSQL, Redis, MinIO, TileServer GL, OSRM, API and admin running:
+
+```bash
+npm --prefix apps/api run demo:couriers
+node apps/api/scripts/local-courier-flow-demo.mjs move
+node apps/api/scripts/local-courier-flow-demo.mjs summary
+node apps/api/scripts/local-courier-flow-demo.mjs advance 0
+```
+
+`move` advances both courier paths and publishes through the authenticated GPS
+endpoint. `advance <order-index>` performs the next real courier transition:
+`ASSIGNED_TO_COURIER → OUT_FOR_DELIVERY → DELIVERED → CASH_RETURNED`. The runner
+stores rotating development sessions in a mode-600 temporary file outside the
+repository so follow-up commands can refresh expired access tokens without
+printing them.
+
 ## Manual QA matrix
 
 1. Open `/couriers/map` with at least one free online courier, one busy online
    courier, one busy stale courier, and one courier without GPS. Verify marker
    labels, colors, dashed stale state, overview counts, the missing-GPS warning,
    explicit `Филиал` labels, and no horizontal overflow on desktop and phone.
-2. Select a busy courier. Verify their backend road route and stops appear
-   while every other located courier marker remains visible. Return with
-   `Все курьеры`.
+2. In `Все курьеры`, verify every busy courier has a distinct route color and
+   that each route legend/stop label states the courier and order numbers.
+   Select a busy courier from the legend, verify their backend road route and
+   stops appear while every other located courier marker remains visible, then
+   return with `Все курьеры`.
 3. On that courier's phone open `/courier`, sign in and start the shift. Complete
    the courier's last order. Verify the same marker remains, changes
    to `Свободен`, and moves when the mobile client publishes the next point.

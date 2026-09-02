@@ -6,6 +6,7 @@ import {
   canAdministratorEditOrder,
   kanbanLanesForRole,
   nextOrderStatus,
+  orderTransitionActionLabel,
   previousOrderStatus,
   orderItemLabel,
   orderCardFieldsForRole,
@@ -97,7 +98,7 @@ function OrderCard({
     Boolean(order.packingConfirmedAt) &&
     ["OPERATOR", "ADMIN", "SUPER_ADMIN"].includes(role);
   const administratorIsPacking =
-    order.status === "READY" &&
+    ["COOKING", "READY"].includes(order.status) &&
     !order.packingConfirmedAt &&
     ["ADMIN", "SUPER_ADMIN"].includes(role);
   const [isExpanded, setIsExpanded] = useState(false);
@@ -292,7 +293,7 @@ function OrderCard({
               disabled={pending}
               onClick={() => onTransition(order, next)}
             >
-              {statusLabels[next]}
+              {orderTransitionActionLabel(role, next)}
             </button>
           )}
           {["OPERATOR", "ADMIN", "SUPER_ADMIN"].includes(role) && (

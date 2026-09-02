@@ -396,9 +396,13 @@ the fitted map bounds and every located courier has a permanent marker label
 with their name and backend-derived workload: `Свободен`, one order number, or
 the active-order count. Presence remains a separate signal, so a busy courier
 with stale GPS is not incorrectly shown as free. SSE updates move the marker.
-Selecting a courier overlays that courier's road route and delivery stops
-without removing the other live courier markers; the `Все курьеры` control
-returns to the overview and reports busy/free/online/GPS counts.
+The overview overlays every busy courier's backend road route at once using a
+stable, visually distinct brand-derived color per courier. Its legend and
+delivery-stop labels bind each colored line to the courier name and active
+order numbers. Selecting a courier keeps the other live courier markers while
+focusing the map, route summary and stop details on that courier; the `Все
+курьеры` control restores all route overlays and reports busy/free/online/GPS
+counts.
 
 The previous 120-second courier publish interval plus 30-second admin polling
 is only a near-real-time fallback and is no longer the accepted live-tracking

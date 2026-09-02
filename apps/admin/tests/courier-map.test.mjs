@@ -15,6 +15,8 @@ import {
   courierMapLocations,
   courierName,
   courierOverviewCounts,
+  courierRouteColor,
+  courierRouteColors,
   courierWorkLabel,
   courierWorkState,
 } from "../src/widgets/courier-map/model/courier-status.ts";
@@ -71,6 +73,15 @@ test("courier workload distinguishes free couriers from one or several orders", 
   assert.equal(courierWorkState(oneOrder), "BUSY");
   assert.equal(courierWorkLabel(oneOrder), "В заказе #179");
   assert.equal(courierWorkLabel(severalOrders), "В заказах · 2");
+});
+
+test("overview assigns stable distinct route colors before the palette repeats", () => {
+  const assigned = courierRouteColors.map((_, index) =>
+    courierRouteColor(index),
+  );
+
+  assert.equal(new Set(assigned).size, courierRouteColors.length);
+  assert.equal(courierRouteColor(courierRouteColors.length), assigned[0]);
 });
 
 test("courier overview counts workload, presence and GPS independently", () => {
@@ -436,6 +447,7 @@ test("dispatch applies authenticated server-pushed GPS events to TanStack cache"
   assert.match(querySource, /\/orders\/couriers\/\$\{courierId\}\/route/);
   assert.match(panel, /useDispatchLiveUpdates/);
   assert.match(panel, /useCourierRoute/);
+  assert.match(panel, /useCourierRoutes/);
   assert.match(panel, /dispatch-route-summary/);
 });
 
@@ -461,9 +473,15 @@ test("dispatch opens with every located courier in view and keeps an explicit ov
   assert.match(panel, /data-testid="dispatch-show-all-couriers"/);
   assert.match(panel, /data-testid={`dispatch-select-courier-\$\{courier\.id\}`\}/);
   assert.match(panel, /onClick=\{\(\) => setSelectedCourierId\(null\)\}/);
+  assert.match(panel, /data-testid="dispatch-route-overview"/);
+  assert.match(panel, /dispatch-route-legend-/);
+  assert.match(panel, /Маршруты всех занятых курьеров/);
   assert.doesNotMatch(panel, /couriers\[0\]/);
   assert.match(canvas, /courierMapLocations\(couriers\)/);
   assert.match(canvas, /courierLocations\.map/);
+  assert.match(canvas, /routeLines\.map/);
+  assert.match(canvas, /fillColor: color/);
+  assert.match(canvas, /courierName\(courier\).*#\$\{orderNumber\}/s);
   assert.match(
     canvas,
     /className=\{`courier-marker-tooltip \$\{workState\.toLowerCase\(\)\}`\}/,

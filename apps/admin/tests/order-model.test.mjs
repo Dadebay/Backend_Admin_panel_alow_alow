@@ -5,6 +5,7 @@ import {
   canAdministratorEditOrder,
   canEditCourierAssignment,
   nextOrderStatus,
+  orderTransitionActionLabel,
   previousOrderStatus,
   orderStatuses,
   ratingStars,
@@ -20,6 +21,7 @@ import {
 
 test("frontend order labels cover every generated workflow status", () => {
   assert.deepEqual(Object.keys(statusLabels), orderStatuses);
+  assert.equal(statusLabels.READY, "Собран");
   assert.equal(statusLabels.OUT_FOR_DELIVERY, "Доставляется");
   assert.ok(
     orderKanbanLanes.some(
@@ -32,8 +34,8 @@ test("frontend order labels cover every generated workflow status", () => {
 });
 
 test("frontend role hints match the backend-owned workflow", () => {
-  assert.equal(nextOrderStatus("COOK", "COOKING"), "READY");
-  assert.equal(nextOrderStatus("ADMIN", "COOKING"), "READY");
+  assert.equal(nextOrderStatus("COOK", "COOKING"), undefined);
+  assert.equal(nextOrderStatus("ADMIN", "COOKING"), undefined);
   assert.equal(
     nextOrderStatus("COURIER", "ASSIGNED_TO_COURIER"),
     "OUT_FOR_DELIVERY",
@@ -42,6 +44,22 @@ test("frontend role hints match the backend-owned workflow", () => {
   assert.equal(nextOrderStatus("ADMIN", "CASH_RETURNED"), undefined);
   assert.equal(nextOrderStatus("SUPER_ADMIN", "CASH_RETURNED"), "RECONCILED");
   assert.equal(nextOrderStatus("OPERATOR", "COOKING"), undefined);
+  assert.equal(
+    orderTransitionActionLabel("COURIER", "OUT_FOR_DELIVERY"),
+    "Забрал заказ",
+  );
+  assert.equal(
+    orderTransitionActionLabel("COURIER", "DELIVERED"),
+    "Доставил заказ",
+  );
+  assert.equal(
+    orderTransitionActionLabel("COURIER", "CASH_RETURNED"),
+    "Сдал наличные",
+  );
+  assert.equal(
+    orderTransitionActionLabel("ADMIN", "OUT_FOR_DELIVERY"),
+    "Доставляется",
+  );
 });
 
 test("frontend keeps cancellation deny-by-default and gives administrators corrections", () => {

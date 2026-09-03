@@ -1882,6 +1882,14 @@ describe("backend security and critical workflow", () => {
         .set(bearer(tokens.operator))
         .expect(200)
     ).body as ReceiptPrinterResponse[];
+    expect(predefinedPrinters).toHaveLength(6);
+    expect(
+      predefinedPrinters.every(({ id }) =>
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+          id,
+        ),
+      ),
+    ).toBe(true);
     expect(
       predefinedPrinters.map(
         ({ name, ipAddress, port, transport, isActive }) => ({
@@ -1909,6 +1917,38 @@ describe("backend security and critical workflow", () => {
         })),
       ),
     );
+    const selectablePredefinedPrinter = predefinedPrinters.find(
+      ({ ipAddress }) => ipAddress === "192.168.123.100",
+    );
+    expect(selectablePredefinedPrinter).toBeDefined();
+    if (!selectablePredefinedPrinter) {
+      throw new Error("Predefined receipt printer was not returned");
+    }
+    const predefinedCategory = (
+      await request(server)
+        .post("/api/v1/catalog/categories")
+        .set(bearer(tokens.admin))
+        .send({
+          name: "Predefined printer category",
+          slug: "predefined-printer-category",
+          receiptPrinterId: selectablePredefinedPrinter.id,
+        })
+        .expect(201)
+    ).body as { id: string; receiptPrinterId: string | null };
+    expect(predefinedCategory).toMatchObject({
+      receiptPrinterId: selectablePredefinedPrinter.id,
+    });
+    await request(server)
+      .patch(
+        `/api/v1/catalog/receipt-printers/${selectablePredefinedPrinter.id}`,
+      )
+      .set(bearer(tokens.admin))
+      .send({ name: selectablePredefinedPrinter.name })
+      .expect(200);
+    await request(server)
+      .delete(`/api/v1/catalog/categories/${predefinedCategory.id}`)
+      .set(bearer(tokens.admin))
+      .expect(204);
     await request(server)
       .post("/api/v1/catalog/receipt-printers")
       .set(bearer(tokens.operator))

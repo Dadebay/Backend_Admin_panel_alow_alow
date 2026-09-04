@@ -2,7 +2,6 @@ import { Module } from "@nestjs/common";
 import { ConfigModule, ConfigService } from "@nestjs/config";
 import { APP_GUARD } from "@nestjs/core";
 import { JwtModule } from "@nestjs/jwt";
-import { ThrottlerGuard, ThrottlerModule } from "@nestjs/throttler";
 import type { AppEnv } from "./config/env";
 import { validateEnv } from "./config/env";
 import { JwtAuthGuard } from "./common/jwt-auth.guard";
@@ -51,13 +50,6 @@ import { AccountingModule } from "./accounting/accounting.module";
         },
       }),
     }),
-    ThrottlerModule.forRoot([
-      {
-        name: "default",
-        ttl: 60_000,
-        limit: 120,
-      },
-    ]),
     PrismaModule,
     RedisModule,
     AuthModule,
@@ -77,7 +69,6 @@ import { AccountingModule } from "./accounting/accounting.module";
   ],
   controllers: [HealthController],
   providers: [
-    { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
   ],

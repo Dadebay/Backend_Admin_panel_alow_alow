@@ -5,7 +5,6 @@ import {
   ApiOperation,
   ApiTags,
 } from "@nestjs/swagger";
-import { Throttle } from "@nestjs/throttler";
 import { Public, Roles } from "../common/auth.decorators";
 import { Role } from "../generated/prisma/client";
 import {
@@ -23,7 +22,6 @@ export class GeocodingController {
 
   @Get("reverse")
   @Public()
-  @Throttle({ default: { limit: 30, ttl: 60_000 } })
   @ApiOperation({
     summary:
       "Turn a map point into a short address line for the delivery-address form",
@@ -39,7 +37,6 @@ export class GeocodingController {
   @Get("search")
   @ApiBearerAuth()
   @Roles(Role.CUSTOMER, Role.OPERATOR, Role.ADMIN)
-  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @ApiOperation({
     summary: "Search Turkmenistan OSM names after an explicit user submit",
   })

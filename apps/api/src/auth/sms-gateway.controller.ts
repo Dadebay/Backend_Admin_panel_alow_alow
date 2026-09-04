@@ -16,7 +16,6 @@ import {
   ApiOperation,
   ApiTags,
 } from "@nestjs/swagger";
-import { Throttle } from "@nestjs/throttler";
 import type { Response } from "express";
 import { Public } from "../common/auth.decorators";
 import {
@@ -31,7 +30,6 @@ import { SmsGatewayService } from "./sms-gateway.service";
 @ApiTags("sms-gateway")
 @Public()
 @UseGuards(SmsGatewayGuard)
-@Throttle({ default: { limit: 90, ttl: 60_000 } })
 @Controller("internal/sms-gateway")
 export class SmsGatewayController {
   constructor(private readonly gateway: SmsGatewayService) {}

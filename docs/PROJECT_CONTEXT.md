@@ -41,7 +41,7 @@ the supplied hot-food delivery-bag mark and only its cream `#FEF7E7`, navy
 ## Stack and storage
 
 - Node.js 24 LTS with npm 11.6.2, NestJS 11, Prisma 7, PostgreSQL 18.
-- Redis 8 for temporary OTP challenges and rate controls.
+- Redis 8 for temporary OTP challenges, SMS jobs, and courier GPS.
 - A dedicated Android phone with its own SIM is the primary production SMS
   gateway. It pulls encrypted, short-lived OTP jobs from the API over HTTPS and
   acknowledges delivery. It is the only production SMS provider; console is
@@ -485,14 +485,19 @@ heights; visual density must not be reduced to the previous pale compact map.
   JWT nor a device token. The existing bearer-device guard remains behind
   `SMS_GATEWAY_AUTH_REQUIRED`; setting it to `true` restores authentication
   without changing the Android queue protocol.
-- OTP TTL is 5 minutes, resend cooldown 60 seconds, maximum 5 sends/hour and
-  5 verification attempts. Successful verification is atomic and one-time.
+- The API has no global or endpoint request-rate limits, including OTP request
+  and verification, SMS gateway polling, tracking, geocoding, delivery quotes,
+  and notifications. Repeated OTP sends have no cooldown or hourly limit.
+  Each send replaces the previous challenge; only the newest request may
+  cancel it. OTP TTL remains 5 minutes with 5 incorrect verification attempts
+  per challenge, HMAC protection, and atomic one-time consumption. Invalid or
+  unavailable codes still return `401`; request frequency never returns `429`.
 - A temporary production test exception may be enabled only for an env-only
   allowlist of up to ten Turkmen phone numbers, with an explicit production
   acknowledgement and an expiry no more than 32 days away. The current
   customer-testing exception covers two accounts through 2026-09-17; phone
   numbers and the code never enter Git or documentation. Each login still
-  requires a throttled request, creates a fresh one-time five-minute Redis
+  requires an OTP request, creates a fresh one-time five-minute Redis
   challenge and permits at most five verification attempts. After expiry those
   numbers automatically return to random Android-delivered SMS OTP.
 - Outbound SMS jobs are AES-256-GCM encrypted in Redis, expire after the OTP,
@@ -1105,6 +1110,13 @@ post-success plan and loopback dispatch; there is no new dependency, poller or
 eager route load.
 
 ## Decision log
+
+- 2026-09-04: the customer removed all API request-rate limits and OTP resend
+  cooldown/hourly quotas. The former throttler dependency and decorators are
+  removed. Existing Redis rate keys are ignored and expire naturally. OTP
+  expiry, five incorrect attempts per challenge, one-time verification,
+  request-specific delivery rollback, JWT/RBAC, and validation remain enforced.
+  This supersedes rate-limit requirements in earlier decisions below.
 
 - 2026-08-26: order cash reconciliation gained configurable two-shift packets.
   Administrators submit one completed-shift handoff, accountants confirm it

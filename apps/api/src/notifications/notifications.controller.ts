@@ -19,7 +19,6 @@ import {
   ApiOperation,
   ApiTags,
 } from "@nestjs/swagger";
-import { Throttle } from "@nestjs/throttler";
 import { CurrentUser, Roles } from "../common/auth.decorators";
 import type { AuthUser } from "../common/auth.types";
 import { Role } from "../generated/prisma/client";
@@ -48,7 +47,6 @@ export class NotificationsController {
 
   @Put("devices")
   @Roles(Role.CUSTOMER)
-  @Throttle({ default: { limit: 30, ttl: 60_000 } })
   @ApiOperation({
     summary: "Register or refresh the current mobile FCM registration token",
   })
@@ -118,7 +116,6 @@ export class NotificationsController {
 
   @Post("admin/campaigns")
   @Roles(Role.ADMIN)
-  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @ApiOperation({ summary: "Create and queue a customer push campaign" })
   @ApiCreatedResponse({ type: NotificationCampaignResponseDto })
   createCampaign(
@@ -130,7 +127,6 @@ export class NotificationsController {
 
   @Post("admin/campaigns/:id/retry")
   @Roles(Role.ADMIN)
-  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @ApiOkResponse({ type: NotificationCampaignResponseDto })
   retryCampaign(
     @CurrentUser() actor: AuthUser,

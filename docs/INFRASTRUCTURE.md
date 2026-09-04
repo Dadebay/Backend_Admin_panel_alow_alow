@@ -169,7 +169,7 @@ and must not be enabled while the TLS site is active. SSH listens only on 22.
 | `admin` | static React/Vite files on unprivileged Nginx | stateless container |
 | `migrate` | `prisma migrate deploy` before API replacement | one-shot |
 | `postgres` | users, orders, catalog, audit/history | named volume |
-| `redis` | OTP, rate limits, GPS latest point, SMS queue | intentionally ephemeral |
+| `redis` | OTP, GPS latest point, SMS queue | intentionally ephemeral |
 | `minio` | private product/banner images | named volume |
 | `minio-init` | idempotent bucket creation | one-shot |
 | `tileserver` | web/mobile OSM style, PBF and PNG tiles | host map runtime, read-only |

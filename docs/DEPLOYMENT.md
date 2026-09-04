@@ -118,7 +118,7 @@ phone numbers in `LONG_LIVED_TEST_OTP_PHONES` and enable the exception with
 `LONG_LIVED_TEST_OTP_PRODUCTION_ACKNOWLEDGED=true`. The current window covers
 two accounts and ends on 2026-09-17. Phone numbers and the code are never stored
 in Git or documentation. The reusable value only replaces SMS delivery: every
-login still needs a rate-limited request, a one-time five-minute Redis challenge
+login still needs an OTP request, a one-time five-minute Redis challenge
 and succeeds once. Expired allowlisted entries automatically fall back to the
 Android gateway. Disable and clear all exception fields when testing ends.
 

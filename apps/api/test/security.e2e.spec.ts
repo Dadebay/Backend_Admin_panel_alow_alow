@@ -2,6 +2,7 @@ import "reflect-metadata";
 import type { INestApplication } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 import { Test } from "@nestjs/testing";
+import { createHmac } from "node:crypto";
 import request from "supertest";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { AppModule } from "../src/app.module";
@@ -3883,17 +3884,37 @@ describe("backend security and critical workflow", () => {
     await expect(otp.verify(phone, challenge.code)).resolves.toBe("valid");
   });
 
-  it("rate-limits OTP delivery and never exposes codes outside development", async () => {
+  it.each(["/health", "/users/me"])(
+    "accepts bursts above the former global limit on %s",
+    async (path) => {
+      for (let index = 0; index < 125; index += 1) {
+        const response = await request(server)
+          .get(`/api/v1${path}`)
+          .set(bearer(tokens.customer))
+          .expect(200);
+        expect(response.headers).not.toHaveProperty("x-ratelimit-limit");
+        expect(response.headers).not.toHaveProperty("retry-after");
+      }
+      await request(server).get("/api/v1/users/me").expect(401);
+      await request(server)
+        .get("/api/v1/delivery/admin/config")
+        .set(bearer(tokens.customer))
+        .expect(403);
+    },
+  );
+
+  it("allows repeated OTP requests without exposing codes outside development", async () => {
     const responses = [];
-    for (let index = 0; index < 4; index += 1) {
+    for (let index = 0; index < 16; index += 1) {
       responses.push(
         await request(server)
           .post("/api/v1/auth/otp/request")
-          .send({ phone: `+9936500030${index + 1}` }),
+          .send({ phone: "+99365000301" })
+          .expect(200),
       );
     }
-    expect(responses.map(({ status }) => status)).toEqual([200, 200, 200, 429]);
-    for (const response of responses.slice(0, 3)) {
+    for (const response of responses) {
+      expect(response.body).toEqual({ expiresInSeconds: 300 });
       expect(response.body).not.toHaveProperty("devCode");
     }
 
@@ -3910,6 +3931,10 @@ describe("backend security and critical workflow", () => {
       .send({ phone: "+99365000301", code: "1111" })
       .expect(401);
 
+    await request(server)
+      .post("/api/v1/auth/otp/request")
+      .send({ phone: "+99365000302" })
+      .expect(200);
     const secondStaticCodeSession = await request(server)
       .post("/api/v1/auth/otp/verify")
       .send({ phone: "+99365000302", code: "1111" })
@@ -3919,9 +3944,78 @@ describe("backend security and critical workflow", () => {
     expect(typeof secondStaticCodeSessionBody.accessToken).toBe("string");
   });
 
-  it("enforces a per-phone resend cooldown in Redis", async () => {
-    const phone = "+99365000310";
-    await otp.issue(phone);
-    await expect(otp.issue(phone)).rejects.toMatchObject({ status: 429 });
+  it("allows repeated sign-ins above the former verification limit", async () => {
+    const phone = "+99365000301";
+    for (let index = 0; index < 10; index += 1) {
+      await request(server)
+        .post("/api/v1/auth/otp/request")
+        .send({ phone })
+        .expect(200);
+      await request(server)
+        .post("/api/v1/auth/otp/verify")
+        .send({ phone, code: "1111" })
+        .expect(200);
+      await request(server)
+        .post("/api/v1/auth/otp/verify")
+        .send({ phone, code: "1111" })
+        .expect(401);
+    }
+  });
+
+  it("ignores legacy resend limits and preserves the newest concurrent OTP", async () => {
+    const phone = "+99365000330";
+    const phoneHash = createHmac("sha256", process.env.OTP_PEPPER!)
+      .update(phone)
+      .digest("hex");
+    const challengeKey = `alowalow:otp:challenge:${phoneHash}`;
+    const cooldownKey = `alowalow:otp:cooldown:${phoneHash}`;
+    const hourlyKey = `alowalow:otp:hourly:${phoneHash}`;
+    await redis.evalNumber(
+      'redis.call("SET", KEYS[1], "old-request", "EX", 60); redis.call("SET", KEYS[2], "5", "EX", 3600); return 1',
+      [cooldownKey, hourlyKey],
+      [],
+    );
+
+    const challenges = await Promise.all(
+      Array.from({ length: 8 }, () => otp.issue(phone)),
+    );
+    expect(new Set(challenges.map(({ requestId }) => requestId)).size).toBe(8);
+    const requestId = await redis.hGet(challengeKey, "requestId");
+    const newest = challenges.find(
+      (challenge) => challenge.requestId === requestId,
+    )!;
+    expect(newest).toBeDefined();
+    for (const challenge of challenges) {
+      if (challenge.requestId !== requestId) {
+        await otp.cancel(phone, challenge.requestId);
+      }
+    }
+    expect(await redis.hGet(challengeKey, "requestId")).toBe(requestId);
+    expect(await redis.hGet(challengeKey, "codeHash")).toBe(
+      createHmac("sha256", process.env.OTP_PEPPER!)
+        .update(`${phone}:${newest.code}`)
+        .digest("hex"),
+    );
+    const ttl = await redis.evalNumber(
+      'return redis.call("TTL", KEYS[1])',
+      [challengeKey],
+      [],
+    );
+    expect(ttl).toBeGreaterThan(0);
+    expect(ttl).toBeLessThanOrEqual(300);
+    await expect(otp.verify(phone, newest.code)).resolves.toBe("valid");
+    await expect(otp.verify(phone, newest.code)).resolves.toBe("unavailable");
+
+    await redis.delete(cooldownKey);
+    await redis.delete(hourlyKey);
+    const replacement = await otp.issue(phone);
+    expect(await redis.getMany([cooldownKey, hourlyKey])).toEqual([
+      null,
+      null,
+    ]);
+    await otp.cancel(phone, replacement.requestId);
+    await expect(otp.verify(phone, replacement.code)).resolves.toBe(
+      "unavailable",
+    );
   });
 });

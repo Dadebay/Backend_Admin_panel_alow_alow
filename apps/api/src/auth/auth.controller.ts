@@ -1,6 +1,5 @@
 import { Body, Controller, HttpCode, Post } from "@nestjs/common";
 import { ApiOkResponse, ApiOperation, ApiTags } from "@nestjs/swagger";
-import { Throttle } from "@nestjs/throttler";
 import { Public } from "../common/auth.decorators";
 import { AuthService } from "./auth.service";
 import {
@@ -20,7 +19,6 @@ export class AuthController {
   @Post("otp/request")
   @Public()
   @HttpCode(200)
-  @Throttle({ default: { limit: 3, ttl: 60_000 } })
   @ApiOperation({
     summary: "Send a one-time login code to the phone by SMS",
   })
@@ -32,7 +30,6 @@ export class AuthController {
   @Post("otp/verify")
   @Public()
   @HttpCode(200)
-  @Throttle({ default: { limit: 8, ttl: 60_000 } })
   @ApiOperation({ summary: "Verify code and create or sign in a user" })
   @ApiOkResponse({ type: AuthSessionResponseDto })
   verify(@Body() dto: VerifyOtpDto) {

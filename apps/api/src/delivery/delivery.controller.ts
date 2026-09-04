@@ -15,7 +15,6 @@ import {
   ApiOperation,
   ApiTags,
 } from "@nestjs/swagger";
-import { Throttle } from "@nestjs/throttler";
 import { CurrentUser, Public, Roles } from "../common/auth.decorators";
 import type { AuthUser } from "../common/auth.types";
 import { Role } from "../generated/prisma/client";
@@ -55,7 +54,6 @@ export class DeliveryController {
   @Post("quote")
   @HttpCode(200)
   @Public()
-  @Throttle({ default: { limit: 60, ttl: 60_000 } })
   @ApiOperation({
     summary:
       "Resolve the official address and authoritative delivery quote for map coordinates",

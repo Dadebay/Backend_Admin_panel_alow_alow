@@ -16,7 +16,6 @@ import {
   ApiProduces,
   ApiTags,
 } from "@nestjs/swagger";
-import { Throttle } from "@nestjs/throttler";
 import { CurrentUser, Roles } from "../common/auth.decorators";
 import type { AuthUser } from "../common/auth.types";
 import { Role } from "../generated/prisma/client";
@@ -37,7 +36,6 @@ export class TrackingController {
 
   @Put("me/location")
   @Roles(Role.COURIER)
-  @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @ApiOperation({
     summary:
       "Publish courier GPS about every 15 seconds for the complete courier shift",

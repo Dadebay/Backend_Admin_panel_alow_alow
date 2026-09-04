@@ -503,7 +503,13 @@ heights; visual density must not be reduced to the previous pale compact map.
 - Outbound SMS jobs are AES-256-GCM encrypted in Redis, expire after the OTP,
   are claimed atomically, and are retried at most three times after missing
   acknowledgements. A final failure cancels only the matching OTP request.
-- A user may store up to 20 addresses.
+- A user may store up to 100 addresses. Inline checkout reuses an owned address
+  with the same address text, coordinates at persisted seven-decimal precision,
+  entrance, floor and apartment before checking capacity. Surrounding whitespace
+  and empty/null optional details do not create duplicates; the saved label is
+  preserved. Changed delivery details remain a separate address. Reuse applies
+  to customer-app and phone-assisted orders and keeps the current inline
+  delivery quote (including fallback when no etrap is supplied).
 - A newly created or selected address becomes active.
 - The address used by the latest order becomes the active/default address.
 - Delivery tariffs are PostgreSQL configuration keyed by the supplied

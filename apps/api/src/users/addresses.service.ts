@@ -7,7 +7,7 @@ import { Prisma, type UserAddress } from "../generated/prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { CreateAddressDto, UpdateAddressDto } from "./addresses.dto";
 
-const MAX_ADDRESSES_PER_USER = 20;
+const MAX_ADDRESSES_PER_USER = 100;
 
 export type OrderAddressInput = {
   addressId?: string;
@@ -70,6 +70,7 @@ export class AddressesService {
     }
 
     return this.prisma.$transaction(async (tx) => {
+      await this.lockUser(tx, userId);
       await this.findOwned(tx, userId, id);
       await this.assertDeliveryEtrap(tx, dto.deliveryEtrapId);
       const address = await tx.userAddress.update({
@@ -139,7 +140,7 @@ export class AddressesService {
       input.floor,
       input.apartment,
     ];
-    const hasInlineAddress = inlineFields.some((value) => value !== undefined);
+    const hasInlineAddress = inlineFields.some((value) => value != null);
 
     if (input.addressId && hasInlineAddress) {
       throw new BadRequestException(
@@ -149,8 +150,8 @@ export class AddressesService {
     if (
       hasInlineAddress &&
       (!input.address ||
-        input.latitude === undefined ||
-        input.longitude === undefined)
+        input.latitude == null ||
+        input.longitude == null)
     ) {
       throw new BadRequestException(
         "A new address requires address, latitude and longitude",
@@ -196,6 +197,46 @@ export class AddressesService {
           ...(input.deliveryEtrapId !== undefined
             ? { deliveryEtrapId: input.deliveryEtrapId }
             : {}),
+        },
+      });
+      await this.audit(tx, actorId, "address.used_for_order", selected.id);
+      return selected;
+    }
+
+    // Mobile clients can submit the same inline address on every checkout.
+    // Compare at PostgreSQL's coordinate precision before consuming a slot.
+    const candidates = await tx.userAddress.findMany({
+      where: {
+        userId,
+        latitude: new Prisma.Decimal(input.latitude!).toDecimalPlaces(7),
+        longitude: new Prisma.Decimal(input.longitude!).toDecimalPlaces(7),
+      },
+      orderBy: [
+        { isActive: "desc" },
+        { lastUsedAt: { sort: "desc", nulls: "last" } },
+        { createdAt: "desc" },
+        { id: "asc" },
+      ],
+    });
+    const normalize = (value: string | null | undefined) => value?.trim() || null;
+    const existing = candidates.find((candidate) =>
+      (["address", "entrance", "floor", "apartment"] as const).every(
+        (field) => normalize(candidate[field]) === normalize(input[field]),
+      ),
+    );
+    if (existing) {
+      await tx.userAddress.updateMany({
+        where: { userId, isActive: true, id: { not: existing.id } },
+        data: { isActive: false },
+      });
+      const selected = await tx.userAddress.update({
+        where: { id: existing.id },
+        data: {
+          isActive: true,
+          lastUsedAt: new Date(),
+          // Inline checkout owns the current quote; an omitted match means
+          // fallback pricing, even if this saved address had an older etrap.
+          deliveryEtrapId: input.deliveryEtrapId ?? null,
         },
       });
       await this.audit(tx, actorId, "address.used_for_order", selected.id);

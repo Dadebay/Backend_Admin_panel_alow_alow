@@ -1536,6 +1536,244 @@
         ]
       }
     },
+    "/api/v1/receipt-print-tasks": {
+      "get": {
+        "operationId": "ReceiptQueueController_list_v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReceiptQueueResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Get durable receipt backlog and failures without customer details",
+        "tags": [
+          "receipt-queue"
+        ]
+      }
+    },
+    "/api/v1/receipt-print-tasks/claim": {
+      "post": {
+        "operationId": "ReceiptQueueController_claim_v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClaimReceiptDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReceiptClaimResultDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Atomically lease one receipt; recovery stays on the original agent",
+        "tags": [
+          "receipt-queue"
+        ]
+      }
+    },
+    "/api/v1/receipt-print-tasks/{id}/heartbeat": {
+      "post": {
+        "operationId": "ReceiptQueueController_heartbeat_v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReceiptLeaseDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReceiptActionResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Extend an owned receipt lease",
+        "tags": [
+          "receipt-queue"
+        ]
+      }
+    },
+    "/api/v1/receipt-print-tasks/{id}/outcome": {
+      "post": {
+        "operationId": "ReceiptQueueController_outcome_v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReceiptOutcomeDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReceiptTaskResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Record agent byte-delivery result, never physical paper confirmation",
+        "tags": [
+          "receipt-queue"
+        ]
+      }
+    },
+    "/api/v1/receipt-print-tasks/{id}/retry": {
+      "post": {
+        "operationId": "ReceiptQueueController_retry_v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReceiptActionResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Retry safe pending/failed dispatch with the same identity",
+        "tags": [
+          "receipt-queue"
+        ]
+      }
+    },
+    "/api/v1/receipt-print-tasks/orders/{orderId}/reprint": {
+      "post": {
+        "operationId": "ReceiptQueueController_reprint_v1",
+        "parameters": [
+          {
+            "name": "orderId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReprintReceiptDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReceiptTaskResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Request an intentional new receipt with a separate idempotency key",
+        "tags": [
+          "receipt-queue"
+        ]
+      }
+    },
     "/api/v1/staff/login-attempts": {
       "get": {
         "operationId": "UsersController_loginAttempts_v1",
@@ -5268,6 +5506,11 @@
       "CreateOrderDto": {
         "type": "object",
         "properties": {
+          "idempotencyKey": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Reuse for retries of the same creation request; a different body with the same key is rejected"
+          },
           "items": {
             "type": "array",
             "items": {
@@ -6101,6 +6344,11 @@
       "CreateAssistedOrderDto": {
         "type": "object",
         "properties": {
+          "idempotencyKey": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Reuse for retries of the same creation request; a different body with the same key is rejected"
+          },
           "items": {
             "type": "array",
             "items": {
@@ -6622,6 +6870,51 @@
           "route"
         ]
       },
+      "ReceiptPrintMetadataResponseDto": {
+        "type": "object",
+        "properties": {
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "businessPhone": {
+            "type": "string",
+            "nullable": true
+          },
+          "branchName": {
+            "type": "string",
+            "nullable": true
+          },
+          "customerName": {
+            "type": "string",
+            "nullable": true
+          },
+          "customerPhone": {
+            "type": "string"
+          },
+          "address": {
+            "type": "string"
+          },
+          "addressDetails": {
+            "type": "string",
+            "nullable": true
+          },
+          "customerNote": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "createdAt",
+          "businessPhone",
+          "branchName",
+          "customerName",
+          "customerPhone",
+          "address",
+          "addressDetails",
+          "customerNote"
+        ]
+      },
       "ReceiptPrintSummaryResponseDto": {
         "type": "object",
         "properties": {
@@ -6716,6 +7009,15 @@
           "orderNumber": {
             "type": "number"
           },
+          "metadata": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ReceiptPrintMetadataResponseDto"
+              }
+            ]
+          },
           "documentType": {
             "type": "string",
             "enum": [
@@ -6755,6 +7057,7 @@
         "required": [
           "orderId",
           "orderNumber",
+          "metadata",
           "documentType",
           "cancellationReason",
           "summary",
@@ -6914,6 +7217,276 @@
         },
         "required": [
           "score"
+        ]
+      },
+      "ReceiptTaskResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "orderId": {
+            "type": "string"
+          },
+          "orderNumber": {
+            "type": "number"
+          },
+          "documentType": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "PROCESSING",
+              "DELIVERED",
+              "FAILED",
+              "UNCERTAIN"
+            ]
+          },
+          "attempts": {
+            "type": "number"
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "nextAttemptAt": {
+            "type": "string"
+          },
+          "stationId": {
+            "type": "string",
+            "nullable": true
+          },
+          "lastError": {
+            "type": "string",
+            "nullable": true
+          },
+          "deliveredAt": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "orderId",
+          "orderNumber",
+          "documentType",
+          "status",
+          "attempts",
+          "createdAt",
+          "nextAttemptAt",
+          "stationId",
+          "lastError",
+          "deliveredAt"
+        ]
+      },
+      "ReceiptQueueResponseDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReceiptTaskResponseDto"
+            }
+          },
+          "pending": {
+            "type": "number"
+          },
+          "needsAttention": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "items",
+          "pending",
+          "needsAttention"
+        ]
+      },
+      "ClaimReceiptDto": {
+        "type": "object",
+        "properties": {
+          "stationId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Persistent agent ID returned by dispatch-journal-v1 health"
+          }
+        },
+        "required": [
+          "stationId"
+        ]
+      },
+      "ReceiptClaimResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "orderId": {
+            "type": "string"
+          },
+          "orderNumber": {
+            "type": "number"
+          },
+          "documentType": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "PROCESSING",
+              "DELIVERED",
+              "FAILED",
+              "UNCERTAIN"
+            ]
+          },
+          "attempts": {
+            "type": "number"
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "nextAttemptAt": {
+            "type": "string"
+          },
+          "stationId": {
+            "type": "string",
+            "nullable": true
+          },
+          "lastError": {
+            "type": "string",
+            "nullable": true
+          },
+          "deliveredAt": {
+            "type": "string",
+            "nullable": true
+          },
+          "dispatchId": {
+            "type": "string"
+          },
+          "claimToken": {
+            "type": "string"
+          },
+          "leaseExpiresAt": {
+            "type": "string"
+          },
+          "plan": {
+            "$ref": "#/components/schemas/ReceiptPrintPlanResponseDto"
+          }
+        },
+        "required": [
+          "id",
+          "orderId",
+          "orderNumber",
+          "documentType",
+          "status",
+          "attempts",
+          "createdAt",
+          "nextAttemptAt",
+          "stationId",
+          "lastError",
+          "deliveredAt",
+          "dispatchId",
+          "claimToken",
+          "leaseExpiresAt",
+          "plan"
+        ]
+      },
+      "ReceiptClaimResultDto": {
+        "type": "object",
+        "properties": {
+          "task": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ReceiptClaimResponseDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "task"
+        ]
+      },
+      "ReceiptLeaseDto": {
+        "type": "object",
+        "properties": {
+          "stationId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Persistent agent ID returned by dispatch-journal-v1 health"
+          },
+          "claimToken": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "stationId",
+          "claimToken"
+        ]
+      },
+      "ReceiptActionResponseDto": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ok"
+        ]
+      },
+      "ReceiptOutcomeDto": {
+        "type": "object",
+        "properties": {
+          "stationId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Persistent agent ID returned by dispatch-journal-v1 health"
+          },
+          "claimToken": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "DELIVERED",
+              "RETRY",
+              "UNCERTAIN",
+              "FAILED"
+            ]
+          },
+          "errorCode": {
+            "type": "string",
+            "enum": [
+              "AGENT_UNAVAILABLE",
+              "PRINTER_UNAVAILABLE",
+              "DELIVERY_UNCERTAIN",
+              "NO_PRINTERS",
+              "JOURNAL_UNAVAILABLE"
+            ]
+          }
+        },
+        "required": [
+          "stationId",
+          "claimToken",
+          "outcome"
+        ]
+      },
+      "ReprintReceiptDto": {
+        "type": "object",
+        "properties": {
+          "idempotencyKey": {
+            "type": "string",
+            "format": "uuid",
+            "description": "A new key means an intentional new paper copy; reuse on HTTP retry"
+          }
+        },
+        "required": [
+          "idempotencyKey"
         ]
       },
       "LoginAttemptUserResponseDto": {

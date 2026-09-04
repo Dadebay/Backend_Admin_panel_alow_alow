@@ -47,6 +47,15 @@ export class CreateOrderItemDto {
 }
 
 export class CreateOrderDto {
+  @ApiPropertyOptional({
+    format: "uuid",
+    description:
+      "Reuse for retries of the same creation request; a different body with the same key is rejected",
+  })
+  @IsOptional()
+  @IsUUID()
+  idempotencyKey?: string;
+
   @ApiProperty({ type: [CreateOrderItemDto] })
   @IsArray()
   @ArrayMinSize(1)

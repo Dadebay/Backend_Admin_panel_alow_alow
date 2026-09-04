@@ -48,6 +48,57 @@ export type ReceiptPrinterJob = {
 
 export type ReceiptPrinterEndpoint = Omit<ReceiptPrinterJob, "items">;
 
+export type ReceiptPrintMetadata = {
+  createdAt: string;
+  businessPhone: string | null;
+  branchName: string | null;
+  customerName: string | null;
+  customerPhone: string;
+  address: string;
+  addressDetails: string | null;
+  customerNote: string | null;
+};
+
+export function buildReceiptPrintMetadata(
+  order: {
+    createdAt: Date;
+    branchName: string | null;
+    customer: {
+      phone: string;
+      firstName: string | null;
+      lastName: string | null;
+    };
+    address: string;
+    entrance: string | null;
+    floor: string | null;
+    apartment: string | null;
+    customerNote: string | null;
+  },
+  businessPhone: string | null,
+): ReceiptPrintMetadata {
+  return {
+    createdAt: order.createdAt.toISOString(),
+    businessPhone,
+    branchName: order.branchName,
+    customerName:
+      [order.customer.firstName, order.customer.lastName]
+        .filter(Boolean)
+        .join(" ")
+        .trim() || null,
+    customerPhone: order.customer.phone,
+    address: order.address,
+    addressDetails:
+      [
+        order.entrance ? `Подъезд: ${order.entrance}` : null,
+        order.floor ? `Этаж: ${order.floor}` : null,
+        order.apartment ? `Кв.: ${order.apartment}` : null,
+      ]
+        .filter(Boolean)
+        .join(" · ") || null,
+    customerNote: order.customerNote,
+  };
+}
+
 function toPrintItem(item: ReceiptPrintSourceItem): ReceiptPrintItem {
   return {
     id: item.id,
@@ -62,6 +113,7 @@ function toPrintItem(item: ReceiptPrintSourceItem): ReceiptPrintItem {
 export function buildReceiptPrintPlan(
   order: ReceiptPrintSourceOrder,
   mainPrinter: ReceiptPrinterEndpoint | null,
+  metadata: ReceiptPrintMetadata | null = null,
 ) {
   const jobsByEndpoint = new Map<
     string,
@@ -93,6 +145,7 @@ export function buildReceiptPrintPlan(
   return {
     orderId: order.id,
     orderNumber: order.number,
+    metadata,
     documentType:
       order.status === OrderStatus.CANCELLED
         ? ReceiptDocumentType.CANCELLATION

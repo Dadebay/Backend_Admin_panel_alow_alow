@@ -59,7 +59,10 @@ import {
   CourierRouteWaypointKind,
   CourierRoutingStatus,
 } from "./orders-response.dto";
-import { buildReceiptPrintPlan } from "./receipt-print-plan";
+import {
+  buildReceiptPrintMetadata,
+  buildReceiptPrintPlan,
+} from "./receipt-print-plan";
 
 type ReceiptPrinterRouteSource = {
   receiptPrinterId: string | null;
@@ -311,7 +314,7 @@ export class OrdersService {
   }
 
   create(user: AuthUser, dto: CreateOrderDto) {
-    return this.prisma.$transaction((tx) =>
+    return this.createOnce(user.id, dto, (tx) =>
       this.createForCustomer(tx, {
         actorId: user.id,
         customerId: user.id,
@@ -319,6 +322,80 @@ export class OrdersService {
         source: OrderSource.CUSTOMER_APP,
       }),
     );
+  }
+
+  private async createOnce<T extends CreateOrderDto>(
+    actorId: string,
+    dto: T,
+    create: (
+      tx: Prisma.TransactionClient,
+    ) => ReturnType<OrdersService["createForCustomer"]>,
+  ) {
+    const key = dto.idempotencyKey;
+    const hash = createHash("sha256")
+      .update(
+        JSON.stringify(dto, (_key, value: unknown) => {
+          if (value && typeof value === "object" && !Array.isArray(value)) {
+            return Object.fromEntries(
+              Object.entries(value).sort(([a], [b]) => a.localeCompare(b)),
+            );
+          }
+          return value;
+        }),
+      )
+      .digest("hex");
+    const prior = async () => {
+      if (!key) return null;
+      const record = await this.prisma.orderCreationRequest.findUnique({
+        where: { actorId_key: { actorId, key } },
+      });
+      if (!record) return null;
+      if (record.requestHash !== hash)
+        throw new ConflictException(
+          "Idempotency key already used for different order content",
+        );
+      const order = await this.prisma.order.findUniqueOrThrow({
+        where: { id: record.orderId },
+        include: detailInclude,
+      });
+      return toApiResponse(withItemImages(order));
+    };
+    const existing = await prior();
+    if (existing) return existing;
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const order = await create(tx);
+        if (key)
+          await tx.orderCreationRequest.create({
+            data: { actorId, key, requestHash: hash, orderId: order.id },
+          });
+        return order;
+      });
+    } catch (error) {
+      // A concurrent identical request may have committed while this attempt
+      // failed a now-changed product/promo precondition, not only a unique key.
+      if (key) {
+        const existing = await prior();
+        if (existing) return existing;
+      }
+      throw error;
+    }
+  }
+
+  async enqueueReceipt(
+    tx: Prisma.TransactionClient,
+    orderId: string,
+    eventKey: string,
+  ) {
+    const plan = await this.receiptPrintPlan(orderId, tx);
+    return tx.receiptPrintTask.create({
+      data: {
+        orderId,
+        eventKey,
+        documentType: plan.documentType,
+        plan,
+      },
+    });
   }
 
   async searchAssistedCustomers(query: SearchAssistedCustomersQueryDto) {
@@ -364,7 +441,7 @@ export class OrdersService {
   createAssisted(actor: AuthUser, dto: CreateAssistedOrderDto) {
     const { customerPhone, customerFirstName, customerLastName, ...orderDto } =
       dto;
-    return this.prisma.$transaction(async (tx) => {
+    return this.createOnce(actor.id, dto, async (tx) => {
       const customer = await this.resolveAssistedCustomer(tx, actor, {
         phone: customerPhone,
         firstName: customerFirstName,
@@ -717,6 +794,7 @@ export class OrdersService {
         },
       },
     });
+    await this.enqueueReceipt(tx, order.id, `ORDER_CREATED:${order.id}`);
     return toApiResponse(withItemImages(order));
   }
 
@@ -831,9 +909,12 @@ export class OrdersService {
     return toApiResponse(withItemImages(order));
   }
 
-  async receiptPrintPlan(id: string) {
-    const [order, settings] = await Promise.all([
-      this.prisma.order.findUnique({
+  async receiptPrintPlan(
+    id: string,
+    db: Prisma.TransactionClient = this.prisma,
+  ) {
+    const [order, settings, contact] = await Promise.all([
+      db.order.findUnique({
         where: { id },
         select: {
           id: true,
@@ -845,6 +926,16 @@ export class OrdersService {
           deliveryFee: true,
           total: true,
           deliveryEtrapName: true,
+          createdAt: true,
+          branchName: true,
+          address: true,
+          entrance: true,
+          floor: true,
+          apartment: true,
+          customerNote: true,
+          customer: {
+            select: { phone: true, firstName: true, lastName: true },
+          },
           items: {
             select: {
               id: true,
@@ -860,9 +951,13 @@ export class OrdersService {
           },
         },
       }),
-      this.prisma.receiptPrintSettings.findUnique({
+      db.receiptPrintSettings.findUnique({
         where: { id: "default" },
         include: { mainPrinter: true },
+      }),
+      db.contactSettings.findUnique({
+        where: { id: "default" },
+        select: { phone: true },
       }),
     ]);
     if (!order) throw new NotFoundException("Order not found");
@@ -881,7 +976,13 @@ export class OrdersService {
             transport: ReceiptPrinterTransport.JSPEED_HTTP,
           }
         : null;
-    return toApiResponse(buildReceiptPrintPlan(order, mainPrinter));
+    return toApiResponse(
+      buildReceiptPrintPlan(
+        order,
+        mainPrinter,
+        buildReceiptPrintMetadata(order, contact?.phone ?? null),
+      ),
+    );
   }
 
   async transition(user: AuthUser, id: string, dto: TransitionOrderDto) {
@@ -1436,6 +1537,7 @@ export class OrdersService {
         where: { id },
         include: detailInclude,
       });
+      await this.enqueueReceipt(tx, id, `ORDER_CANCELLED:${id}`);
       notifyTarget = { customerId: result.customerId, number: result.number };
       return toApiResponse(withItemImages(result));
     });

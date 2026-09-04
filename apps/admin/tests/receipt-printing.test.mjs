@@ -35,47 +35,16 @@ const printerRegistryUrl = new URL(
   import.meta.url,
 );
 
-test("receipt printing uses the backend plan and loopback-only agent", async () => {
-  const source = await readFile(printingFeatureUrl, "utf8");
-
-  assert.match(source, /http:\/\/127\.0\.0\.1:17873/);
-  assert.match(source, /\/orders\/\$\{orderId\}\/receipt-print-plan/);
-  assert.match(source, /\/v1\/print/);
-  assert.match(source, /crypto\.randomUUID\(\)/);
-  assert.match(source, /documentType: plan\.documentType/);
-  assert.match(source, /cancellationReason: plan\.cancellationReason/);
-  assert.match(source, /plan\.mainJob \? \[plan\.mainJob\] : \[\]/);
-  assert.match(source, /\.\.\.plan\.jobs/);
-  assert.match(source, /retry: false/);
-});
-
-test("cooking orders automatically print and later statuses can reprint", async () => {
-  const [board, kanban, alert] = await Promise.all([
-    readFile(boardUrl, "utf8"),
-    readFile(kanbanUrl, "utf8"),
-    readFile(alertUrl, "utf8"),
-  ]);
-
-  assert.match(alert, /statuses: \["COOKING", "READY"\]/);
-  assert.match(alert, /printReceipt\(order\.id\)/);
+test("printing enters the durable queue and notification observation never prints", async () => {
+  const [feature,board,kanban,alert] = await Promise.all([printingFeatureUrl,boardUrl,kanbanUrl,alertUrl].map(url=>readFile(url,"utf8")));
+  assert.match(feature, /receipt-print-tasks\/orders/);
+  assert.match(feature, /idempotencyKey:\s*key/);
+  assert.doesNotMatch(feature, /receipt-print-plan/);
+  assert.doesNotMatch(alert, /claimAutomaticReceiptPrint|printReceipt|useReceiptPrinting/);
+  assert.doesNotMatch(board, /receiptPrinting\.mutate\(cancelledOrder\.id\)/);
+  assert.match(board, /Чек добавлен в очередь/);
   assert.match(board, /data-testid=\{`order-table-print-\$\{order\.id\}`\}/);
-  assert.match(board, /Печать не выполнена:/);
   assert.match(kanban, /data-testid=\{`order-kanban-print-\$\{order\.id\}`\}/);
-  assert.match(kanban, /onPrintReceipt\(order\)/);
-});
-
-test("a successful cancellation prints its cancellation receipt and allows retry", async () => {
-  const [board, kanban] = await Promise.all([
-    readFile(boardUrl, "utf8"),
-    readFile(kanbanUrl, "utf8"),
-  ]);
-
-  assert.match(
-    board,
-    /actions\.cancel\.mutate\([\s\S]*?onSuccess: \(cancelledOrder\) => \{[\s\S]*?receiptPrinting\.mutate\(cancelledOrder\.id\)/,
-  );
-  assert.doesNotMatch(board, /order\.status !== "CANCELLED"/);
-  assert.doesNotMatch(kanban, /order\.status !== "CANCELLED"/);
 });
 
 test("catalog manages printer endpoints and assigns them by ID", async () => {

@@ -103,6 +103,8 @@ alowalow/
 │   ├── MOBILE_MAP_AND_ROUTING.md
 │   ├── MOBILE_PUSH_NOTIFICATIONS.md
 │   ├── PRODUCT_PRICING_VARIANTS.md
+│   ├── RECEIPT_PRINTING_WINDOWS_HANDOFF.md
+│   ├── RECEIPT_QUEUE.md
 │   └── PROJECT_CONTEXT.md
 ├── deploy/
 │   ├── nginx/
@@ -632,40 +634,32 @@ not require rewriting orders. The intended non-fiscal printer payload
 contains the selected product/variant display name, quantity, backend-
 snapshotted unit price, and an authoritative order summary with subtotal,
 discount when present, delivery fee, configured etrap name when present, and
-final total. Fiscalization, offline policy, and returns are not part of this
-accepted printer-routing requirement.
+final total. Fiscalization and returns are outside this requirement; receipt delivery during
+connection loss follows the durable queue contract below.
 
-Receipt printing is triggered automatically on the always-open operations
-workstation when its role-scoped active kitchen/ready queue first observes a
-new order ID, and is also available as an explicit reprint for a
-later or cancelled order. After the API commits an administrator cancellation,
-the same workstation automatically requests a fresh cancellation print plan;
-failure to reach a local printer never rolls back the already committed
-cancellation and remains visible for manual retry. A browser-shared bounded
-claim list prevents the same workstation's tabs from intentionally dispatching
-the same new order twice; a failed automatic attempt remains visible and staff
-may use the manual print action. NestJS builds the authoritative plan with one
-complete main-printer job containing every order line plus kitchen jobs grouped
-by each line's snapshotted effective printer endpoint. A line without a kitchen route
-remains visible as unassigned but is still included in the complete main copy.
-A cancelled order keeps those same items and routes, but the plan is typed as
-`CANCELLATION` and includes its stored reason. The remote VDS
-never connects to a private LAN address.
-Instead, the HTTPS admin sends that plan to the A7-tagam receipt print agent on
-the same workstation at loopback `127.0.0.1:17873`. The agent has one Go source
-and CI-built executables for Windows x64/ARM64 and macOS Intel/Apple Silicon.
-It accepts only allowlisted admin origins, rejects non-private IPv4 targets,
-formats a prominent `ONLINE ORDER #<number>` or `CANCELLED ORDER #<number>`
-header on every printer chunk,
-then large item text with separators, delivery price and final total plus blank
-paper space above and below the content before cutting, and sends bounded hexadecimal ESC/POS payloads
-through the endpoint transport stored in the registry: raw ESC/POS TCP (normally
-port 9100) or the compatible J-Speed WebConfig HTTP interface (normally port
-80). Two jobs may target the same endpoint when the administrator and kitchen copies
-share one physical apparatus; they print sequentially. The agent contains no
-API token and binds to loopback only. A working
-workstation remains necessary while accepting/printing an order; it is not a
-separate gateway computer.
+Receipt delivery is persisted in PostgreSQL in the same transaction as customer
+or phone-order creation and cancellation. Every task stores a frozen backend
+plan and stable dispatch UUID. The operations browser consumes the queue through
+leased, authenticated claims instead of observing newly seen order IDs.
+Disconnected browsers, agents and printers retain tasks; the next visible tab
+resumes definitely unsent work on the original installation.
+
+The plan contains one complete main copy plus kitchen jobs grouped by each
+line's snapshotted endpoint. Missing kitchen routes remain visible as unassigned.
+Cancellation uses the same snapshotted items and a CANCELLATION document with
+its stored reason. The VDS never connects to private printer IPs; the admin
+sends claimed plans to loopback 127.0.0.1:17873 on the printing workstation.
+
+The Go agent persists installation identity and per-copy dispatch results,
+returns completed copies without sending again, and stops ambiguous outcomes
+for paper inspection. Manual reprint explicitly creates a separate audited
+identity. Its table-formatted receipt includes logo, customer/address metadata,
+quantities, unit prices and totals without a fixed HALTURIN label. Windows
+x86/x64/ARM64 and Mac Intel/Apple Silicon builds share the same source. RAW TCP
+and J-Speed HTTP use the registered transport. Main and kitchen copies may
+share one endpoint; a 1.5-second RAW cooldown separates copies across orders.
+The site and local agent must remain open to consume tasks. Detailed failure,
+upgrade and rollback semantics are documented in RECEIPT_QUEUE.md.
 
 External catalog seed packages are never executed as supplied. The repository
 CLI first performs a non-mutating strict JSON/file-set/WebP validation and only
@@ -1610,3 +1604,22 @@ eager route load.
   `VARIANT` pricing modes. Variant products have no editable base price, require
   a selector and an active option, display `от minPrice` before selection, and
   cannot be added by new clients without an explicit `variantId`.
+
+## Durable receipt delivery — 2026-09-04
+
+Order creation (including phone orders) and cancellation atomically insert a
+PostgreSQL receipt task with a frozen backend plan and stable dispatch UUID.
+The admin receipt feature claims tasks using a leased, serialized server queue;
+notification observation and cancellation callbacks no longer trigger printing.
+The Go agent persists its installation identity and fsynced per-copy dispatch
+journal, resumes only definitely unsent copies and rejects duplicate payload
+conflicts. Unknown delivery stops automatic retry and requires paper inspection.
+The same RAW printer has a 1.5-second cooldown between copies, including across
+orders. Manual reprints create a new audited identity after explicit confirmation.
+Receipt metadata supplies customer/delivery details and the configured contact
+phone for the table-formatted receipt; no fixed HALTURIN label is printed.
+
+The frontend slice remains `features/receipt-printing`; backend queue DTOs,
+controller and service belong to `orders`. See `RECEIPT_QUEUE.md` for protocol,
+tests, Windows/Mac releases, upgrade coordination and rollback. Production
+push/deployment was explicitly authorized by the user on 2026-09-04.

@@ -1,3 +1,4 @@
+import { ReceiptQueue } from "@/src/features/receipt-printing";
 import {
   Suspense,
   useCallback,
@@ -247,6 +248,7 @@ export function AdminDashboard() {
             <NewOrderAlert onOpenOrders={openOrders} />
           </div>
         )}
+        {canReceiveNewOrderAlerts(session.user.role) && <ReceiptQueue />}
         <Suspense
           fallback={<div className="async-state">Загружаем раздел…</div>}
         >

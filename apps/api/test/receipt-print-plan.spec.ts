@@ -1,8 +1,61 @@
 import { describe, expect, it } from "vitest";
 import { OrderStatus } from "../src/generated/prisma/client";
-import { buildReceiptPrintPlan } from "../src/orders/receipt-print-plan";
+import {
+  buildReceiptPrintMetadata,
+  buildReceiptPrintPlan,
+} from "../src/orders/receipt-print-plan";
 
 describe("receipt print plan", () => {
+  it("uses the stored order date, address details and customer instead of print-time placeholders", () => {
+    const metadata = buildReceiptPrintMetadata(
+      {
+        createdAt: new Date("2026-09-03T10:18:00.000Z"),
+        branchName: "Merkez",
+        customer: {
+          phone: "+99365000101",
+          firstName: "Mähri",
+          lastName: "Çaryýewa",
+        },
+        address: "Halturin 12",
+        entrance: "2",
+        floor: "3",
+        apartment: "14",
+        customerNote: "Без лука",
+      },
+      "+99365000999",
+    );
+    expect(metadata).toEqual({
+      createdAt: "2026-09-03T10:18:00.000Z",
+      businessPhone: "+99365000999",
+      branchName: "Merkez",
+      customerName: "Mähri Çaryýewa",
+      customerPhone: "+99365000101",
+      address: "Halturin 12",
+      addressDetails: "Подъезд: 2 · Этаж: 3 · Кв.: 14",
+      customerNote: "Без лука",
+    });
+    expect(
+      buildReceiptPrintMetadata(
+        {
+          createdAt: new Date(metadata.createdAt),
+          branchName: null,
+          customer: { phone: "+99365000101", firstName: null, lastName: null },
+          address: "Halturin 12",
+          entrance: null,
+          floor: null,
+          apartment: null,
+          customerNote: null,
+        },
+        null,
+      ),
+    ).toMatchObject({
+      businessPhone: null,
+      customerName: null,
+      addressDetails: null,
+      customerNote: null,
+    });
+  });
+
   it("groups immutable order lines by printer IP and keeps missing routes visible", () => {
     const plan = buildReceiptPrintPlan(
       {
@@ -68,6 +121,7 @@ describe("receipt print plan", () => {
     expect(plan).toEqual({
       orderId: "00000000-0000-4000-8000-000000000001",
       orderNumber: 42,
+      metadata: null,
       documentType: "ORDER",
       cancellationReason: null,
       summary: {

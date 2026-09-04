@@ -214,14 +214,9 @@ export function OrderBoard({
           reason: reason.trim(),
           version: order.version,
         },
-        {
-          onSuccess: (cancelledOrder) => {
-            receiptPrinting.mutate(cancelledOrder.id);
-          },
-        },
       );
     },
-    [actions.cancel, receiptPrinting],
+    [actions.cancel],
   );
 
   const columns = useMemo<ColumnDef<Order, unknown>[]>(
@@ -488,7 +483,7 @@ export function OrderBoard({
                   className="secondary-button compact"
                   data-testid={`order-table-print-${order.id}`}
                   disabled={receiptPrinting.isPending}
-                  onClick={() => receiptPrinting.mutate(order.id)}
+                  onClick={() => { if (window.confirm("Создать дополнительный чек? Сохранённые задания выполнятся автоматически.")) receiptPrinting.mutate(order.id); }}
                 >
                   Печать
                 </button>
@@ -594,19 +589,17 @@ export function OrderBoard({
 
       {receiptPrinting.isPending && (
         <div className="order-print-status is-pending" role="status">
-          Передаём заказ программе печати…
+          Добавляем чек в очередь…
         </div>
       )}
       {receiptPrinting.isSuccess && (
         <div className="order-print-status is-success" role="status">
-          Отправлено на аппаратов: {receiptPrinting.data.result.printed.length}.
-          {receiptPrinting.data.plan.unassignedItems.length > 0 &&
-            ` Без IP: ${receiptPrinting.data.plan.unassignedItems.length}.`}
+          Чек добавлен в очередь. Состояние отправки — в разделе «Печать» выше.
         </div>
       )}
       {receiptPrinting.isError && (
         <div className="order-print-status is-error" role="alert">
-          Печать не выполнена: {receiptPrinting.error.message}
+          Не удалось добавить чек: {receiptPrinting.error.message}
         </div>
       )}
 
@@ -794,7 +787,7 @@ export function OrderBoard({
                 })
               }
               onTransition={transitionOrder}
-              onPrintReceipt={(order) => receiptPrinting.mutate(order.id)}
+              onPrintReceipt={(order) => { if (window.confirm("Создать дополнительный чек? Сохранённые задания выполнятся автоматически.")) receiptPrinting.mutate(order.id); }}
               onCancel={cancelOrder}
               onEditOrder={setEditingOrder}
               onOpenDetails={setSelectedOrderId}

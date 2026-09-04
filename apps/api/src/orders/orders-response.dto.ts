@@ -241,12 +241,41 @@ export class ReceiptPrintSummaryResponseDto {
   deliveryAreaName: string | null;
 }
 
+export class ReceiptPrintMetadataResponseDto {
+  @ApiProperty({ format: "date-time" })
+  createdAt: string;
+
+  @ApiProperty({ type: String, nullable: true })
+  businessPhone: string | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  branchName: string | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  customerName: string | null;
+
+  @ApiProperty()
+  customerPhone: string;
+
+  @ApiProperty()
+  address: string;
+
+  @ApiProperty({ type: String, nullable: true })
+  addressDetails: string | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  customerNote: string | null;
+}
+
 export class ReceiptPrintPlanResponseDto {
   @ApiProperty({ format: "uuid" })
   orderId: string;
 
   @ApiProperty()
   orderNumber: number;
+
+  @ApiProperty({ type: ReceiptPrintMetadataResponseDto, nullable: true })
+  metadata: ReceiptPrintMetadataResponseDto | null;
 
   @ApiProperty({ enum: ReceiptDocumentType })
   documentType: ReceiptDocumentType;

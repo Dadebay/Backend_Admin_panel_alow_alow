@@ -369,3 +369,11 @@ secrets, Android gateway identity and monitoring. It must never reuse
 production data or convert `/opt/alowalow/production` back to development.
 Branch policy will be selected when that infrastructure is approved. Until
 then, `main → production` is the only deployment path.
+
+## Receipt queue release coordination
+
+The 2026-09-04 receipt queue migration/API/admin and updated workstation agent
+form one coordinated release authorized by the user. Close old frontend tabs,
+preserve agent journals and use the new Windows/Mac build. No historical orders
+are backfilled. See [RECEIPT_QUEUE.md](RECEIPT_QUEUE.md) for failure semantics and
+rollout/rollback.

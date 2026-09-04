@@ -52,67 +52,6 @@ func validPrintRequest() printRequest {
 	}
 }
 
-func TestFormatJobUsesLargeTextSeparatorsAndBoundedHexChunks(t *testing.T) {
-	chunks := formatJobChunks(42, []printItem{
-		{ID: "1", Name: "FIRST DISH", Quantity: 2, UnitPrice: 25},
-		{ID: "2", Name: "SECOND DISH", Quantity: 1, UnitPrice: 40},
-	}, receiptSummary{Subtotal: 90, DeliveryFee: 15, Total: 105, DeliveryAreaName: "MIR 1"}, documentTypeOrder, "")
-	if len(chunks) == 0 {
-		t.Fatal("expected at least one print chunk")
-	}
-	for _, chunk := range chunks {
-		if len(chunk) > maxRawChunkBytes {
-			t.Fatalf("chunk is too large: %d", len(chunk))
-		}
-		if !bytes.Contains(chunk, []byte{0x1d, 0x21, 0x11}) {
-			t.Fatal("large text command is missing")
-		}
-		if !bytes.Contains(chunk, []byte("------------------------")) {
-			t.Fatal("item separator is missing")
-		}
-		if !bytes.Contains(chunk, []byte("QTY: 2")) && !bytes.Contains(chunk, []byte("QTY: 1")) {
-			t.Fatal("quantity is missing")
-		}
-		if !bytes.Contains(chunk, []byte("ONLINE ORDER")) || !bytes.Contains(chunk, []byte("#42")) {
-			t.Fatal("online order number is missing")
-		}
-		if !bytes.Contains(chunk, []byte("DELIVERY: 15.00")) || !bytes.Contains(chunk, []byte("TOTAL: 105.00")) {
-			t.Fatal("delivery price or order total is missing")
-		}
-		if len(spacedHex(chunk)) > 1024 {
-			t.Fatal("J-Speed hexadecimal form payload is too large")
-		}
-		if !bytes.HasPrefix(chunk, []byte{0x1b, 0x40, 0x1b, 0x61, 0x00, '\n', '\n'}) {
-			t.Fatal("top paper padding is missing")
-		}
-		if !bytes.HasSuffix(chunk, []byte{'\n', '\n', '\n', '\n', '\n', 0x1d, 0x56, 0x00}) {
-			t.Fatal("bottom paper padding before the cut is missing")
-		}
-	}
-}
-
-func TestCancellationReceiptKeepsOrderNumberItemsAndReason(t *testing.T) {
-	chunks := formatJobChunks(
-		42,
-		[]printItem{{ID: "1", Name: "FIRST DISH", Quantity: 2, UnitPrice: 25}},
-		receiptSummary{Subtotal: 50, DeliveryFee: 15, Total: 65},
-		documentTypeCancel,
-		"Customer cancelled",
-	)
-	if len(chunks) != 1 {
-		t.Fatalf("unexpected cancellation chunks: %d", len(chunks))
-	}
-	chunk := chunks[0]
-	for _, expected := range []string{"CANCELLED ORDER", "#42", "FIRST DISH", "QTY: 2", "REASON: Customer"} {
-		if !bytes.Contains(chunk, []byte(expected)) {
-			t.Fatalf("cancellation receipt is missing %q: %q", expected, chunk)
-		}
-	}
-	if len(chunk) > maxRawChunkBytes {
-		t.Fatalf("cancellation chunk is too large: %d", len(chunk))
-	}
-}
-
 func TestPrintRequestRejectsPublicAddressesAndAllowsTwoCopiesOnOnePrinter(t *testing.T) {
 	payload := validPrintRequest()
 	payload.Jobs[0].PrinterIP = "8.8.8.8"
@@ -137,7 +76,10 @@ func TestLegacyJobDefaultsToJSpeedPort80(t *testing.T) {
 func TestAgentAllowsOnlyConfiguredBrowserOrigin(t *testing.T) {
 	printer := &fakePrinter{}
 	handler := newAgentServer([]string{"https://a7-tagam.com.tm"}, printer)
-	payload, _ := json.Marshal(validPrintRequest())
+	request := validPrintRequest()
+	request.Metadata = &receiptMetadata{CreatedAt: "2026-09-03T10:18:00Z", Address: "Halturin", CustomerPhone: "+99365000101"}
+	request.Jobs[0].CopyType = "MAIN"
+	payload, _ := json.Marshal(request)
 
 	denied := httptest.NewRequest(http.MethodPost, "/v1/print", bytes.NewReader(payload))
 	denied.Header.Set("Origin", "https://evil.example")
@@ -158,6 +100,13 @@ func TestAgentAllowsOnlyConfiguredBrowserOrigin(t *testing.T) {
 	if preflightResponse.Header().Get("Access-Control-Allow-Private-Network") != "true" {
 		t.Fatal("private network preflight header is missing")
 	}
+	healthPreflight := httptest.NewRequest(http.MethodOptions, "/health", nil)
+	healthPreflight.Header.Set("Origin", "https://a7-tagam.com.tm")
+	healthResponse := httptest.NewRecorder()
+	handler.ServeHTTP(healthResponse, healthPreflight)
+	if !strings.Contains(healthResponse.Header().Get("Access-Control-Allow-Methods"), "GET") || !strings.Contains(healthResponse.Body.String(), "receipt-layout-v2") {
+		t.Fatal("browser cannot discover the supported receipt layout")
+	}
 
 	allowed := httptest.NewRequest(http.MethodPost, "/v1/print", bytes.NewReader(payload))
 	allowed.Header.Set("Origin", "https://a7-tagam.com.tm")
@@ -175,6 +124,9 @@ func TestAgentAllowsOnlyConfiguredBrowserOrigin(t *testing.T) {
 	}
 	if printer.jobs[0].DocumentType != documentTypeOrder {
 		t.Fatalf("document type was not forwarded: %#v", printer.jobs[0])
+	}
+	if printer.jobs[0].Metadata == nil || *printer.jobs[0].Metadata != *request.Metadata || printer.jobs[0].CopyType != "MAIN" {
+		t.Fatal("receipt details or copy type were lost in HTTP dispatch")
 	}
 }
 
@@ -238,11 +190,17 @@ func TestRawTCPClientWritesEscPosPayload(t *testing.T) {
 	_, portText, _ := net.SplitHostPort(listener.Addr().String())
 	printerPort, _ := strconv.Atoi(portText)
 	client := &lanPrinter{dialTimeout: time.Second, ioTimeout: time.Second}
-	payload := []byte{0x1b, 0x40, 'T', 'E', 'S', 'T'}
-	if err := client.sendRaw(context.Background(), "127.0.0.1", printerPort, payload); err != nil {
+	job := previewJob(t)
+	job.PrinterIP, job.PrinterPort, job.Transport = "127.0.0.1", printerPort, transportRawTCP
+	bitmap, err := renderReceipt(job)
+	if err != nil {
+		t.Fatal(err)
+	}
+	payload := bytes.Join(receiptRasterPackets(bitmap, 8+72*128), nil)
+	if copies, err := client.Print(context.Background(), job); err != nil || copies != 1 {
 		t.Fatal(err)
 	}
 	if got := <-received; !bytes.Equal(got, payload) {
-		t.Fatalf("unexpected raw payload: %x", got)
+		t.Fatal("the complete receipt must reach one raw TCP connection unchanged")
 	}
 }

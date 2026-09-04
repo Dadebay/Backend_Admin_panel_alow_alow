@@ -582,6 +582,108 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/receipt-print-tasks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get durable receipt backlog and failures without customer details */
+        get: operations["ReceiptQueueController_list_v1"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/receipt-print-tasks/claim": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Atomically lease one receipt; recovery stays on the original agent */
+        post: operations["ReceiptQueueController_claim_v1"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/receipt-print-tasks/{id}/heartbeat": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Extend an owned receipt lease */
+        post: operations["ReceiptQueueController_heartbeat_v1"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/receipt-print-tasks/{id}/outcome": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Record agent byte-delivery result, never physical paper confirmation */
+        post: operations["ReceiptQueueController_outcome_v1"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/receipt-print-tasks/{id}/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Retry safe pending/failed dispatch with the same identity */
+        post: operations["ReceiptQueueController_retry_v1"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/receipt-print-tasks/orders/{orderId}/reprint": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Request an intentional new receipt with a separate idempotency key */
+        post: operations["ReceiptQueueController_reprint_v1"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/staff/login-attempts": {
         parameters: {
             query?: never;
@@ -1947,6 +2049,11 @@ export interface components {
             deliveryEtrapName: string | null;
         };
         CreateOrderDto: {
+            /**
+             * Format: uuid
+             * @description Reuse for retries of the same creation request; a different body with the same key is rejected
+             */
+            idempotencyKey?: string;
             items: components["schemas"]["CreateOrderItemDto"][];
             /** @description Delivery etrap selected from GET /delivery/config; also updates the selected saved address */
             deliveryEtrapId?: number;
@@ -2175,6 +2282,11 @@ export interface components {
             items: components["schemas"]["AssistedCustomerResponseDto"][];
         };
         CreateAssistedOrderDto: {
+            /**
+             * Format: uuid
+             * @description Reuse for retries of the same creation request; a different body with the same key is rejected
+             */
+            idempotencyKey?: string;
             items: components["schemas"]["CreateOrderItemDto"][];
             /** @description Delivery etrap selected from GET /delivery/config; also updates the selected saved address */
             deliveryEtrapId?: number;
@@ -2319,6 +2431,17 @@ export interface components {
             recalculateAfterSeconds: number;
             route: components["schemas"]["CourierRoadRouteResponseDto"] | null;
         };
+        ReceiptPrintMetadataResponseDto: {
+            /** Format: date-time */
+            createdAt: string;
+            businessPhone: string | null;
+            branchName: string | null;
+            customerName: string | null;
+            customerPhone: string;
+            address: string;
+            addressDetails: string | null;
+            customerNote: string | null;
+        };
         ReceiptPrintSummaryResponseDto: {
             subtotal: number;
             discount: number;
@@ -2346,6 +2469,7 @@ export interface components {
             /** Format: uuid */
             orderId: string;
             orderNumber: number;
+            metadata: components["schemas"]["ReceiptPrintMetadataResponseDto"] | null;
             /** @enum {string} */
             documentType: "ORDER" | "CANCELLATION";
             cancellationReason: string | null;
@@ -2393,6 +2517,85 @@ export interface components {
         RateOrderDto: {
             score: number;
             comment?: string;
+        };
+        ReceiptTaskResponseDto: {
+            id: string;
+            orderId: string;
+            orderNumber: number;
+            documentType: string;
+            /** @enum {string} */
+            status: "PENDING" | "PROCESSING" | "DELIVERED" | "FAILED" | "UNCERTAIN";
+            attempts: number;
+            createdAt: string;
+            nextAttemptAt: string;
+            stationId: string | null;
+            lastError: string | null;
+            deliveredAt: string | null;
+        };
+        ReceiptQueueResponseDto: {
+            items: components["schemas"]["ReceiptTaskResponseDto"][];
+            pending: number;
+            needsAttention: number;
+        };
+        ClaimReceiptDto: {
+            /**
+             * Format: uuid
+             * @description Persistent agent ID returned by dispatch-journal-v1 health
+             */
+            stationId: string;
+        };
+        ReceiptClaimResponseDto: {
+            id: string;
+            orderId: string;
+            orderNumber: number;
+            documentType: string;
+            /** @enum {string} */
+            status: "PENDING" | "PROCESSING" | "DELIVERED" | "FAILED" | "UNCERTAIN";
+            attempts: number;
+            createdAt: string;
+            nextAttemptAt: string;
+            stationId: string | null;
+            lastError: string | null;
+            deliveredAt: string | null;
+            dispatchId: string;
+            claimToken: string;
+            leaseExpiresAt: string;
+            plan: components["schemas"]["ReceiptPrintPlanResponseDto"];
+        };
+        ReceiptClaimResultDto: {
+            task: components["schemas"]["ReceiptClaimResponseDto"] | null;
+        };
+        ReceiptLeaseDto: {
+            /**
+             * Format: uuid
+             * @description Persistent agent ID returned by dispatch-journal-v1 health
+             */
+            stationId: string;
+            /** Format: uuid */
+            claimToken: string;
+        };
+        ReceiptActionResponseDto: {
+            ok: boolean;
+        };
+        ReceiptOutcomeDto: {
+            /**
+             * Format: uuid
+             * @description Persistent agent ID returned by dispatch-journal-v1 health
+             */
+            stationId: string;
+            /** Format: uuid */
+            claimToken: string;
+            /** @enum {string} */
+            outcome: "DELIVERED" | "RETRY" | "UNCERTAIN" | "FAILED";
+            /** @enum {string} */
+            errorCode?: "AGENT_UNAVAILABLE" | "PRINTER_UNAVAILABLE" | "DELIVERY_UNCERTAIN" | "NO_PRINTERS" | "JOURNAL_UNAVAILABLE";
+        };
+        ReprintReceiptDto: {
+            /**
+             * Format: uuid
+             * @description A new key means an intentional new paper copy; reuse on HTTP retry
+             */
+            idempotencyKey: string;
         };
         LoginAttemptUserResponseDto: {
             /** Format: uuid */
@@ -4094,6 +4297,144 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OrderRatingResponseDto"];
+                };
+            };
+        };
+    };
+    ReceiptQueueController_list_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReceiptQueueResponseDto"];
+                };
+            };
+        };
+    };
+    ReceiptQueueController_claim_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClaimReceiptDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReceiptClaimResultDto"];
+                };
+            };
+        };
+    };
+    ReceiptQueueController_heartbeat_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReceiptLeaseDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReceiptActionResponseDto"];
+                };
+            };
+        };
+    };
+    ReceiptQueueController_outcome_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReceiptOutcomeDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReceiptTaskResponseDto"];
+                };
+            };
+        };
+    };
+    ReceiptQueueController_retry_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReceiptActionResponseDto"];
+                };
+            };
+        };
+    };
+    ReceiptQueueController_reprint_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orderId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReprintReceiptDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReceiptTaskResponseDto"];
                 };
             };
         };

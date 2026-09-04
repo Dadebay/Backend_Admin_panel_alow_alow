@@ -188,7 +188,7 @@ export class OrdersController {
   @Roles(Role.ADMIN)
   @ApiOperation({
     summary:
-      "Confirm that an administrator checked every order line before courier handoff",
+      "Check every order line and atomically finish cooking when needed before courier handoff",
   })
   @ApiOkResponse({ type: OrderResponseDto })
   confirmPacking(

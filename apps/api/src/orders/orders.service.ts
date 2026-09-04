@@ -1310,7 +1310,8 @@ export class OrdersService {
       );
     }
 
-    return this.prisma.$transaction(async (tx) => {
+    let notifyTarget: { customerId: string; number: number } | null = null;
+    const response = await this.prisma.$transaction(async (tx) => {
       const order = await tx.order.findUnique({
         where: { id },
         include: { items: { select: { id: true } } },
@@ -1319,9 +1320,12 @@ export class OrdersService {
       if (order.version !== dto.version) {
         throw new ConflictException("Order changed; reload and try again");
       }
-      if (order.status !== OrderStatus.READY) {
+      if (
+        order.status !== OrderStatus.COOKING &&
+        order.status !== OrderStatus.READY
+      ) {
         throw new ConflictException(
-          "Only a ready order can be confirmed as packed",
+          "Only a cooking or ready order can be confirmed as packed",
         );
       }
       if (order.packingConfirmedAt) {
@@ -1343,16 +1347,29 @@ export class OrdersService {
         where: {
           id,
           version: dto.version,
-          status: OrderStatus.READY,
+          status: order.status,
           packingConfirmedAt: null,
         },
         data: {
+          status: OrderStatus.READY,
           packingConfirmedAt: confirmedAt,
           version: { increment: 1 },
         },
       });
       if (updated.count !== 1) {
         throw new ConflictException("Order changed; reload and try again");
+      }
+
+      if (order.status === OrderStatus.COOKING) {
+        await tx.orderTransition.create({
+          data: {
+            orderId: order.id,
+            actorId: user.id,
+            fromStatus: OrderStatus.COOKING,
+            toStatus: OrderStatus.READY,
+            note: "All order items checked during packing",
+          },
+        });
       }
 
       await tx.auditLog.create({
@@ -1364,6 +1381,7 @@ export class OrdersService {
           metadata: {
             checkedItemIds: dto.checkedItemIds,
             confirmedAt: confirmedAt.toISOString(),
+            previousStatus: order.status,
           },
         },
       });
@@ -1372,8 +1390,22 @@ export class OrdersService {
         where: { id },
         include: detailInclude,
       });
+      if (order.status === OrderStatus.COOKING) {
+        notifyTarget = {
+          customerId: result.customerId,
+          number: result.number,
+        };
+      }
       return toApiResponse(withItemImages(result));
     });
+    const target = notifyTarget as {
+      customerId: string;
+      number: number;
+    } | null;
+    if (target) {
+      this.notifyCustomer(target.customerId, target.number, OrderStatus.READY);
+    }
+    return response;
   }
 
   async assignCourier(user: AuthUser, id: string, dto: AssignCourierDto) {

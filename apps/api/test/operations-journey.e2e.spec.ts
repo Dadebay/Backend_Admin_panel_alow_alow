@@ -434,7 +434,6 @@ describe("complete catalog, order and multi-courier journey", () => {
 
     for (const [index, input] of orderInputs.entries()) {
       let order = orders[index];
-      order = await transition(tokens.cook, order, OrderStatus.READY);
       const packed = await request(server)
         .patch(`/api/v1/orders/${order.id}/confirm-packing`)
         .set(bearer(tokens.admin))
@@ -444,6 +443,7 @@ describe("complete catalog, order and multi-courier journey", () => {
         })
         .expect(200);
       order = packed.body as OrderResponse;
+      expect(order.status).toBe(OrderStatus.READY);
       expect(order.packingConfirmedAt).toBeTruthy();
       const assigned = await request(server)
         .patch(`/api/v1/orders/${order.id}/assign-courier`)

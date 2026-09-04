@@ -552,6 +552,33 @@
   padding-top: 12px;
 }
 
+.order-kanban-card .order-kanban-workflow-hint {
+  grid-column: 1 / -1;
+  padding: 8px 10px;
+  border-radius: 8px;
+  color: var(--brand-cream);
+  background: var(--brand-navy);
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.order-kanban-handoff {
+  display: grid;
+  gap: 10px;
+}
+
+.order-packing-instructions,
+.order-packing-progress {
+  margin: 0;
+  color: var(--brand-navy);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.order-packing-progress {
+  font-weight: 700;
+}
+
 .order-kanban-card-head {
   display: flex;
   align-items: flex-start;

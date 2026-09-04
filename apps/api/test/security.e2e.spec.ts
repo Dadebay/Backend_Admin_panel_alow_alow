@@ -2955,9 +2955,12 @@ describe("backend security and critical workflow", () => {
     const order = await createOrder(tokens.customer, {});
     const outcomes = await Promise.all([
       request(server)
-        .patch(`/api/v1/orders/${order.id}/transition`)
+        .patch(`/api/v1/orders/${order.id}/confirm-packing`)
         .set(bearer(tokens.admin))
-        .send({ status: OrderStatus.READY, version: order.version }),
+        .send({
+          checkedItemIds: order.items?.map(({ id }) => id),
+          version: order.version,
+        }),
       request(server)
         .patch(`/api/v1/orders/${order.id}/cancel`)
         .set(bearer(tokens.admin))
@@ -2975,9 +2978,84 @@ describe("backend security and critical workflow", () => {
     expect(stored.version).toBe(2);
   });
 
+  it("requires the administrator checklist before a cooking order becomes ready", async () => {
+    let order = await createOrder(tokens.customer, {});
+
+    await request(server)
+      .patch(`/api/v1/orders/${order.id}/transition`)
+      .set(bearer(tokens.admin))
+      .send({ status: OrderStatus.READY, version: order.version })
+      .expect(403);
+
+    await request(server)
+      .patch(`/api/v1/orders/${order.id}/confirm-packing`)
+      .set(bearer(tokens.admin))
+      .send({ checkedItemIds: [], version: order.version })
+      .expect(400);
+
+    order = await confirmPacking(tokens.admin, order);
+    expect(order).toMatchObject({
+      status: OrderStatus.READY,
+      version: 2,
+    });
+    expect(order.packingConfirmedAt).toBeTruthy();
+    expect(
+      await prisma.orderTransition.count({
+        where: {
+          orderId: order.id,
+          actorId: users.admin.id,
+          fromStatus: OrderStatus.COOKING,
+          toStatus: OrderStatus.READY,
+        },
+      }),
+    ).toBe(1);
+  });
+
+  it("restricts packing to administrators and recovers legacy ready orders", async () => {
+    const order = await createOrder(tokens.customer, {});
+    const body = {
+      checkedItemIds: order.items?.map(({ id }) => id),
+      version: order.version,
+    };
+    for (const role of [
+      "customer",
+      "operator",
+      "cook",
+      "courier",
+      "accountant",
+    ] as const) {
+      await request(server)
+        .patch(`/api/v1/orders/${order.id}/confirm-packing`)
+        .set(bearer(tokens[role]))
+        .send(body)
+        .expect(403);
+    }
+    await prisma.order.update({
+      where: { id: order.id },
+      data: { status: OrderStatus.READY },
+    });
+    await request(server)
+      .patch(`/api/v1/orders/${order.id}/assign-courier`)
+      .set(bearer(tokens.admin))
+      .send({ courierId: users.courier.id, version: order.version })
+      .expect(409);
+    await request(server)
+      .patch(`/api/v1/orders/${order.id}/confirm-packing`)
+      .set(bearer(tokens.admin))
+      .send({ ...body, version: order.version + 1 })
+      .expect(409);
+    const packed = await confirmPacking(tokens.superAdmin, order);
+    expect(packed.status).toBe(OrderStatus.READY);
+    expect(packed.packingConfirmedAt).toBeTruthy();
+    await request(server)
+      .patch(`/api/v1/orders/${order.id}/confirm-packing`)
+      .set(bearer(tokens.superAdmin))
+      .send({ ...body, version: packed.version })
+      .expect(409);
+  });
+
   it("reassigns a courier only before delivery starts with audit and locking", async () => {
     let order = await createOrder(tokens.customer, {});
-    order = await transition(tokens.cook, order, OrderStatus.READY);
     order = await confirmPacking(tokens.admin, order);
 
     const assigned = await request(server)
@@ -3036,7 +3114,6 @@ describe("backend security and critical workflow", () => {
 
   it("lets only administrators edit order contents before pickup and recalculates totals", async () => {
     let order = await createOrder(tokens.customer, { deliveryEtrapId: 25 });
-    order = await transition(tokens.cook, order, OrderStatus.READY);
     order = await confirmPacking(tokens.admin, order);
     const assigned = await request(server)
       .patch(`/api/v1/orders/${order.id}/assign-courier`)
@@ -3109,15 +3186,11 @@ describe("backend security and critical workflow", () => {
       .send({ status: OrderStatus.READY, version: order.version })
       .expect(403);
 
-    order = await transition(tokens.cook, order, OrderStatus.READY);
-    order = await transition(tokens.admin, order, OrderStatus.COOKING);
-
     await request(server)
       .patch(`/api/v1/orders/${order.id}/transition`)
-      .set(bearer(tokens.otherCook))
+      .set(bearer(tokens.cook))
       .send({ status: OrderStatus.READY, version: order.version })
       .expect(403);
-    order = await transition(tokens.cook, order, OrderStatus.READY);
 
     await request(server)
       .patch(`/api/v1/orders/${order.id}/assign-courier`)
@@ -3200,8 +3273,6 @@ describe("backend security and critical workflow", () => {
     });
     expect(history.transitions?.map(({ toStatus }) => toStatus)).toEqual([
       OrderStatus.READY,
-      OrderStatus.COOKING,
-      OrderStatus.READY,
       OrderStatus.ASSIGNED_TO_COURIER,
       OrderStatus.OUT_FOR_DELIVERY,
       OrderStatus.DELIVERED,
@@ -3269,11 +3340,7 @@ describe("backend security and critical workflow", () => {
       .expect(403);
 
     let rollbackOrder = await createOrder(tokens.customer, {});
-    rollbackOrder = await transition(
-      tokens.cook,
-      rollbackOrder,
-      OrderStatus.READY,
-    );
+    rollbackOrder = await confirmPacking(tokens.admin, rollbackOrder);
     await request(server)
       .patch(`/api/v1/orders/${rollbackOrder.id}/cancel`)
       .set(bearer(tokens.operator))
@@ -3303,7 +3370,7 @@ describe("backend security and critical workflow", () => {
       .expect(200);
     expect(rolledBack.body).toMatchObject({
       status: OrderStatus.COOKING,
-      cookId: users.cook.id,
+      cookId: null,
       version: rollbackOrder.version + 1,
     });
 
@@ -3385,7 +3452,6 @@ describe("backend security and critical workflow", () => {
     const assignedOrders: OrderResponse[] = [];
     for (let index = 0; index < 2; index += 1) {
       let order = await createOrder(tokens.customer, {});
-      order = await transition(tokens.cook, order, OrderStatus.READY);
       order = await confirmPacking(tokens.admin, order);
       const assigned = await request(server)
         .patch(`/api/v1/orders/${order.id}/assign-courier`)

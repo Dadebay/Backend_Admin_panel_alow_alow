@@ -301,6 +301,7 @@ export function OrderBoard({
                   </span>
                 ))}
               <OrderPackingChecklist
+                key={`${order.id}-${order.version}`}
                 order={order}
                 role={role}
                 pending={pending}

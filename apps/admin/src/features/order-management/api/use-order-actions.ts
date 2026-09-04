@@ -7,6 +7,7 @@ import {
   type OrderStatus,
 } from "@/src/entities/order";
 import { useSession } from "@/src/shared/auth";
+import { ApiError } from "@/src/shared/api/api-client";
 
 type TransitionBody = components["schemas"]["TransitionOrderDto"];
 type AssignBody = components["schemas"]["AssignCourierDto"];
@@ -22,6 +23,9 @@ export function useOrderActions() {
       queryClient.invalidateQueries({ queryKey: orderQueryKeys.all }),
       queryClient.invalidateQueries({ queryKey: courierQueryKeys.all }),
     ]);
+  };
+  const refreshConflict = async (error: Error) => {
+    if (error instanceof ApiError && error.status === 409) await refresh();
   };
 
   const transition = useMutation({
@@ -62,6 +66,7 @@ export function useOrderActions() {
         body: JSON.stringify({ courierId, version } satisfies AssignBody),
       }),
     onSuccess: refresh,
+    onError: refreshConflict,
   });
 
   const confirmPacking = useMutation({
@@ -82,6 +87,7 @@ export function useOrderActions() {
         } satisfies ConfirmPackingBody),
       }),
     onSuccess: refresh,
+    onError: refreshConflict,
   });
 
   const adminEdit = useMutation({

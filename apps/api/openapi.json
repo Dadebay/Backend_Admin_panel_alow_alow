@@ -1438,7 +1438,7 @@
             "bearer": []
           }
         ],
-        "summary": "Confirm that an administrator checked every order line before courier handoff",
+        "summary": "Check every order line and atomically finish cooking when needed before courier handoff",
         "tags": [
           "orders"
         ]

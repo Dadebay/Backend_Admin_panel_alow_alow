@@ -25,7 +25,7 @@ export function OrderPackingChecklist({
     () => new Set(),
   );
 
-  if (order.status !== "READY") return null;
+  if (order.status !== "COOKING" && order.status !== "READY") return null;
 
   if (order.packingConfirmedAt) {
     return (
@@ -48,14 +48,23 @@ export function OrderPackingChecklist({
     );
   }
 
-  const allChecked = checkedItemIds.size === order.items.length;
+  const checkedCount = order.items.filter((item) =>
+    checkedItemIds.has(item.id),
+  ).length;
+  const allChecked =
+    order.items.length > 0 && checkedCount === order.items.length;
 
   return (
     <fieldset
       className="order-packing-checklist"
       data-testid={`order-packing-checklist-${order.id}`}
+      disabled={pending}
     >
-      <legend>Проверка сборки</legend>
+      <legend>Соберите заказ</legend>
+      <p className="order-packing-instructions">
+        Когда еда готова, проверьте количество и отметьте каждую позицию. После
+        подтверждения выберите курьера.
+      </p>
       {order.items.map((item) => (
         <label key={item.id}>
           <input
@@ -76,6 +85,13 @@ export function OrderPackingChecklist({
           </span>
         </label>
       ))}
+      <p
+        className="order-packing-progress"
+        role="status"
+        data-testid={`order-packing-progress-${order.id}`}
+      >
+        Проверено {checkedCount} из {order.items.length}
+      </p>
       <button
         type="button"
         className="primary-button compact"
@@ -83,7 +99,7 @@ export function OrderPackingChecklist({
         disabled={!allChecked || pending}
         onClick={() => onConfirm(order, [...checkedItemIds])}
       >
-        ✓ Заказ собран
+        {pending ? "Сохраняем…" : "✓ Заказ готов — к передаче курьеру"}
       </button>
     </fieldset>
   );

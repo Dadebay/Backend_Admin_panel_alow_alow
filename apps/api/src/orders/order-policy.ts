@@ -4,11 +4,6 @@ import { OrderStatus, Role } from "../generated/prisma/client";
 const transitions: Partial<
   Record<OrderStatus, Partial<Record<Role, OrderStatus[]>>>
 > = {
-  [OrderStatus.COOKING]: {
-    [Role.COOK]: [OrderStatus.READY],
-    [Role.ADMIN]: [OrderStatus.READY],
-    [Role.SUPER_ADMIN]: [OrderStatus.READY],
-  },
   [OrderStatus.READY]: {
     [Role.ADMIN]: [OrderStatus.COOKING],
     [Role.SUPER_ADMIN]: [OrderStatus.COOKING],

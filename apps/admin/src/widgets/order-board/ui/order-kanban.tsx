@@ -131,9 +131,72 @@ function OrderCard({
               : (order.branchName ?? "Филиал не назначен")}
           </small>
         </span>
+        {(administratorIsPacking || canAssign) && (
+          <span
+            className="order-kanban-workflow-hint"
+            data-testid={`order-kanban-workflow-${order.id}`}
+          >
+            {administratorIsPacking
+              ? "1. Проверить готовность и собрать"
+              : "2. Назначить курьера"}
+          </span>
+        )}
       </summary>
 
       <div className="order-kanban-card-body">
+        {fields.has("items") && (
+          <OrderPackingChecklist
+            key={`${order.id}-${order.version}`}
+            order={order}
+            role={role}
+            pending={pending}
+            onConfirm={onConfirmPacking}
+          />
+        )}
+
+        {order.customerNote && (role === "COOK" || fields.has("delivery")) && (
+          <p className="order-kanban-note">
+            <strong>Комментарий:</strong> {order.customerNote}
+          </p>
+        )}
+
+        {canAssign && (
+          <div
+            className="order-kanban-handoff"
+            data-testid={`order-kanban-handoff-${order.id}`}
+          >
+            <label className="order-kanban-courier">
+              <span>Назначить курьера</span>
+              <select
+                data-testid={`order-kanban-courier-${order.id}`}
+                aria-label={`Курьер для заказа ${order.number}`}
+                value={selectedCourier}
+                disabled={pending}
+                onChange={(event) =>
+                  onCourierChange(order.id, event.target.value)
+                }
+              >
+                <option value="">Выберите курьера</option>
+                {couriers.map((courier) => (
+                  <option key={courier.id} value={courier.id}>
+                    {personName(courier)} · {courier.courierOrders.length} в
+                    работе
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button
+              type="button"
+              className="primary-button compact"
+              data-testid={`order-kanban-assign-${order.id}`}
+              disabled={!selectedCourier || pending}
+              onClick={() => onAssignCourier(order, selectedCourier)}
+            >
+              Отдать курьеру
+            </button>
+          </div>
+        )}
+
         {order.source === "STAFF_PHONE" && (
           <span className="order-source-label">Заказ по телефону</span>
         )}
@@ -175,21 +238,6 @@ function OrderCard({
           </ul>
         )}
 
-        {fields.has("items") && (
-          <OrderPackingChecklist
-            order={order}
-            role={role}
-            pending={pending}
-            onConfirm={onConfirmPacking}
-          />
-        )}
-
-        {order.customerNote && (role === "COOK" || fields.has("delivery")) && (
-          <p className="order-kanban-note">
-            <strong>Комментарий:</strong> {order.customerNote}
-          </p>
-        )}
-
         {order.cancellationReason && canOpenDetails && (
           <p className="order-kanban-note">
             <strong>Причина отмены:</strong> {order.cancellationReason}
@@ -210,28 +258,6 @@ function OrderCard({
             </div>
           )}
         </div>
-
-        {canAssign && (
-          <label className="order-kanban-courier">
-            <span>Назначить курьера</span>
-            <select
-              data-testid={`order-kanban-courier-${order.id}`}
-              aria-label={`Курьер для заказа ${order.number}`}
-              value={selectedCourier}
-              onChange={(event) =>
-                onCourierChange(order.id, event.target.value)
-              }
-            >
-              <option value="">Выберите курьера</option>
-              {couriers.map((courier) => (
-                <option key={courier.id} value={courier.id}>
-                  {personName(courier)} · {courier.courierOrders.length} в
-                  работе
-                </option>
-              ))}
-            </select>
-          </label>
-        )}
 
         <div className="order-kanban-actions">
           {canOpenDetails && (
@@ -272,17 +298,6 @@ function OrderCard({
               }}
             >
               Вернуть: {statusLabels[previous]}
-            </button>
-          )}
-          {canAssign && (
-            <button
-              type="button"
-              className="primary-button compact"
-              data-testid={`order-kanban-assign-${order.id}`}
-              disabled={!selectedCourier || pending}
-              onClick={() => onAssignCourier(order, selectedCourier)}
-            >
-              Отдать курьеру
             </button>
           )}
           {next && (

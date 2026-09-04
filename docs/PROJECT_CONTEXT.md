@@ -255,6 +255,12 @@ complete report, popular-product analytics, and shift settings. Frontend
 visibility is usability and data minimization only—the NestJS guards, role
 scope, and accounting/order policies remain authoritative.
 
+The compact order summary exposes the next kitchen action: «Проверить готовность
+и собрать» or «Назначить курьера». Expanding a card puts the packing checklist
+and courier handoff first. Every current item must be checked; changing the
+order version resets unsaved checkmarks in both board and table. Only the
+authoritative packing response changes the status and unlocks assignment.
+
 ## Order state machine
 
 ```text
@@ -273,12 +279,14 @@ COOKING
 Role ownership:
 
 - customer-app and assisted orders are created directly as `COOKING`;
-- a new `COOKING` order is visible to cooks without an owner; the first cook
-  who atomically moves it to `READY` becomes its cook, while an administrator
-  may also perform the transition;
-- at `READY`, an `ADMIN` or `SUPER_ADMIN` must check every immutable order
-  line in the assembly UI and persist one packing confirmation; courier
-  assignment is rejected until that confirmation exists;
+- a new `COOKING` order is visible to kitchen staff and prints through its
+  snapshotted kitchen routes, but printing or viewing it never changes status;
+- an `ADMIN` or `SUPER_ADMIN` checks every immutable order line in the assembly
+  UI while it is `COOKING`. One optimistic-locked `confirm-packing` mutation
+  atomically records the confirmation and moves it to `READY`; generic
+  `COOKING → READY` transitions are denied to every role. The endpoint still
+  accepts an unconfirmed legacy `READY` order so it can be recovered safely;
+- courier assignment is rejected until the packing confirmation exists;
 - operator/admin then assigns the packed `READY` order to an active courier and may correct
   that courier while the order remains `ASSIGNED_TO_COURIER`; correction is
   forbidden after `OUT_FOR_DELIVERY` begins;

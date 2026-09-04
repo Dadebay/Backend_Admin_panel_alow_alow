@@ -12,9 +12,6 @@ import {
 
 describe("order workflow policy", () => {
   const expected = new Map<string, OrderStatus | OrderStatus[]>([
-    [`${OrderStatus.COOKING}:${Role.COOK}`, OrderStatus.READY],
-    [`${OrderStatus.COOKING}:${Role.ADMIN}`, OrderStatus.READY],
-    [`${OrderStatus.COOKING}:${Role.SUPER_ADMIN}`, OrderStatus.READY],
     [`${OrderStatus.READY}:${Role.ADMIN}`, OrderStatus.COOKING],
     [`${OrderStatus.READY}:${Role.SUPER_ADMIN}`, OrderStatus.COOKING],
     [

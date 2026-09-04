@@ -544,7 +544,7 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** Confirm that an administrator checked every order line before courier handoff */
+        /** Check every order line and atomically finish cooking when needed before courier handoff */
         patch: operations["OrdersController_confirmPacking_v1"];
         trace?: never;
     };

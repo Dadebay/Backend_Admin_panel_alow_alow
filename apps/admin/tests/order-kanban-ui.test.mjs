@@ -32,7 +32,7 @@ test("kanban exposes stable automation hooks for lanes, cards, and actions", asy
   assert.match(source, /canOpenDetails &&/);
 });
 
-test("ready orders expose stable packing checklist controls before courier handoff", async () => {
+test("cooking and ready orders expose packing controls before courier handoff", async () => {
   const [board, checklist] = await Promise.all([
     readFile(boardUrl, "utf8"),
     readFile(
@@ -57,6 +57,14 @@ test("ready orders expose stable packing checklist controls before courier hando
     checklist,
     /data-testid=\{`order-confirm-packing-\$\{order\.id\}`\}/,
   );
+  assert.match(
+    checklist,
+    /order\.status !== "COOKING" && order\.status !== "READY"/,
+  );
+  assert.match(checklist, /Соберите заказ/);
+  assert.match(checklist, /order.items.length > 0/);
+  assert.match(checklist, /Заказ готов — к передаче курьеру/);
+  assert.match(checklist, /checkedCount/);
   assert.match(checklist, /disabled=\{!allChecked \|\| pending\}/);
 });
 

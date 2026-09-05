@@ -141,8 +141,8 @@ function OrderDetails({ order }: { order: Order }) {
           ))}
         </ul>
         {order.customerNote && (
-          <aside className="order-note">
-            <strong>Примечание клиента</strong>
+          <aside className="order-note" data-testid="order-detail-note">
+            <strong>Комментарий к заказу</strong>
             <p>{order.customerNote}</p>
           </aside>
         )}

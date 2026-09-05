@@ -1323,12 +1323,18 @@ export default function AssistedOrderDialog({
                   <FormFieldError message={errors.promoCode?.message} />
                 </label>
                 <label>
-                  <span>Комментарий для доставки</span>
+                  <span>Комментарий к заказу</span>
                   <textarea
                     data-testid="assisted-order-note"
                     {...register("customerNote")}
                     maxLength={500}
+                    rows={3}
+                    placeholder="Например: без лука, соус отдельно"
+                    aria-describedby="assisted-order-note-hint"
                   />
+                  <small id="assisted-order-note-hint">
+                    До 500 символов. Отображается в заказе и печатается в чеке.
+                  </small>
                   <FormFieldError message={errors.customerNote?.message} />
                 </label>
               </div>

@@ -263,8 +263,11 @@ export function OrderBoard({
               </span>
             )}
             {row.original.customerNote && (
-              <span className="customer-note" title={row.original.customerNote}>
-                Примечание: {row.original.customerNote}
+              <span
+                className="customer-note order-customer-comment"
+                data-testid={`order-table-note-${row.original.id}`}
+              >
+                Комментарий к заказу: {row.original.customerNote}
               </span>
             )}
           </div>

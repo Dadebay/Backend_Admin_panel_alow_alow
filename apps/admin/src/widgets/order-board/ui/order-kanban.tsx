@@ -144,6 +144,14 @@ function OrderCard({
       </summary>
 
       <div className="order-kanban-card-body">
+        {order.customerNote && (role === "COOK" || fields.has("delivery")) && (
+          <p
+            className="order-kanban-note order-customer-comment"
+            data-testid={`order-kanban-note-${order.id}`}
+          >
+            <strong>Комментарий к заказу:</strong> {order.customerNote}
+          </p>
+        )}
         {fields.has("items") && (
           <OrderPackingChecklist
             key={`${order.id}-${order.version}`}
@@ -152,12 +160,6 @@ function OrderCard({
             pending={pending}
             onConfirm={onConfirmPacking}
           />
-        )}
-
-        {order.customerNote && (role === "COOK" || fields.has("delivery")) && (
-          <p className="order-kanban-note">
-            <strong>Комментарий:</strong> {order.customerNote}
-          </p>
         )}
 
         {canAssign && (

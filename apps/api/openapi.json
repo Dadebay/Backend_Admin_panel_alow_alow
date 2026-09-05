@@ -5553,7 +5553,10 @@
             "type": "string"
           },
           "customerNote": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 500,
+            "example": "Без лука. Соус отдельно.\nПозвонить перед доставкой.",
+            "description": "Optional order comment shown in the admin and printed on main and kitchen receipts. Separate from the post-delivery rating comment."
           },
           "promoCode": {
             "type": "string",
@@ -6391,7 +6394,10 @@
             "type": "string"
           },
           "customerNote": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 500,
+            "example": "Без лука. Соус отдельно.\nПозвонить перед доставкой.",
+            "description": "Optional order comment shown in the admin and printed on main and kitchen receipts. Separate from the post-delivery rating comment."
           },
           "promoCode": {
             "type": "string",
@@ -7147,7 +7153,8 @@
           },
           "customerNote": {
             "type": "string",
-            "maxLength": 500
+            "maxLength": 500,
+            "description": "Order comment shown in the admin and on newly requested receipts. An empty or omitted value clears it; previously queued receipts keep their original snapshot."
           },
           "courierId": {
             "type": "string",

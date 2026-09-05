@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"image"
 	"image/draw"
+	_ "image/jpeg"
 	"image/png"
 	"io"
 	"math"
@@ -26,9 +27,11 @@ import (
 
 const receiptWidth = 576 // 72 mm printable area on standard 80 mm / 203 dpi paper.
 const receiptMargin = 18
+const receiptBottomMargin = 120                                // 15 mm of blank paper below the last line, before the final feed/cut.
+const receiptCafePhones = "530011\n+99362530011\n+99364530011" // Cafe contacts supplied for the printed receipt, separate from the site's business phone.
 const maxReceiptHeight = 32768
 
-//go:embed assets/a7-tagam-logo.png
+//go:embed assets/receipt-logo.jpg
 var receiptLogo []byte
 
 type receiptMetadata struct {
@@ -224,18 +227,21 @@ func renderReceipt(job printerJob) (*image.Gray, error) {
 			_ = face.Close()
 		}
 	}()
-	logo, err := png.Decode(bytes.NewReader(receiptLogo))
+	logo, _, err := image.Decode(bytes.NewReader(receiptLogo))
 	if err != nil {
 		return nil, err
 	}
+	const logoSize, topMargin, logoGap = 180, 8, 8
+	logoLeft := (receiptWidth - logoSize) / 2
 	canvas.draws = append(canvas.draws, func(dst *image.Gray) {
-		xdraw.CatmullRom.Scale(dst, image.Rect(178, 28, 398, 248), logo, logo.Bounds(), draw.Src, nil)
+		xdraw.CatmullRom.Scale(dst, image.Rect(logoLeft, topMargin, logoLeft+logoSize, topMargin+logoSize), logo, logo.Bounds(), draw.Src, nil)
 	})
-	canvas.y = 256
-	metadata := job.Metadata
-	if metadata != nil {
-		canvas.paragraph(metadata.BusinessPhone, 23, false, "center")
+	canvas.y = topMargin + logoSize + logoGap
+	canvas.paragraph("Телефон кафе", 20, false, "center")
+	for _, phone := range strings.Split(receiptCafePhones, "\n") {
+		canvas.paragraph(phone, 24, true, "center")
 	}
+	metadata := job.Metadata
 	canvas.y += 16
 	stamp := ""
 	if metadata != nil && metadata.CreatedAt != "" {
@@ -268,17 +274,22 @@ func renderReceipt(job printerJob) (*image.Gray, error) {
 		}
 		if !kitchen {
 			if metadata.CustomerName != "" {
-				canvas.paragraph("Клиент: "+metadata.CustomerName, 22, false, "left")
+				canvas.paragraph("Имя: "+metadata.CustomerName, 22, false, "left")
 			}
-			canvas.paragraph(metadata.CustomerPhone, 25, true, "left")
-			canvas.paragraph(metadata.Address, 24, true, "left")
-			canvas.paragraph(metadata.AddressDetails, 21, false, "left")
 		}
-		if metadata.CustomerNote != "" {
-			canvas.paragraph("Комментарий: "+metadata.CustomerNote, 22, false, "left")
+		if phone := strings.TrimSpace(metadata.CustomerPhone); phone != "" {
+			canvas.paragraph("Клиент: "+phone, 25, true, "left")
+		}
+		canvas.paragraph(metadata.Address, 24, true, "left")
+		canvas.paragraph(metadata.AddressDetails, 21, false, "left")
+		if strings.TrimSpace(metadata.CustomerNote) != "" {
+			canvas.paragraph("Комментарий к заказу:", 22, true, "left")
+			for _, line := range strings.Split(strings.ReplaceAll(metadata.CustomerNote, "\r\n", "\n"), "\n") {
+				canvas.paragraph(line, 22, false, "left")
+			}
 		}
 	}
-	if !kitchen && job.Summary.DeliveryAreaName != "" {
+	if job.Summary.DeliveryAreaName != "" {
 		canvas.paragraph("Район: "+job.Summary.DeliveryAreaName, 21, false, "left")
 	}
 	canvas.y += 20
@@ -312,7 +323,7 @@ func renderReceipt(job printerJob) (*image.Gray, error) {
 		canvas.paragraph("Söwdaňyz üçin sag boluň!", 24, true, "center")
 		canvas.paragraph("Işdäňiz açyk bolsun!", 24, true, "center")
 	}
-	canvas.y += 40
+	canvas.y += receiptBottomMargin
 	if canvas.y > maxReceiptHeight {
 		return nil, errors.New("Чек превышает допустимую длину")
 	}

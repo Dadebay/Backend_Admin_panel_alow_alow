@@ -2076,6 +2076,11 @@ export interface components {
             entrance?: string;
             floor?: string;
             apartment?: string;
+            /**
+             * @description Optional order comment shown in the admin and printed on main and kitchen receipts. Separate from the post-delivery rating comment.
+             * @example Без лука. Соус отдельно.
+             *     Позвонить перед доставкой.
+             */
             customerNote?: string;
             /** @example WELCOME15 */
             promoCode?: string;
@@ -2309,6 +2314,11 @@ export interface components {
             entrance?: string;
             floor?: string;
             apartment?: string;
+            /**
+             * @description Optional order comment shown in the admin and printed on main and kitchen receipts. Separate from the post-delivery rating comment.
+             * @example Без лука. Соус отдельно.
+             *     Позвонить перед доставкой.
+             */
             customerNote?: string;
             /** @example WELCOME15 */
             promoCode?: string;
@@ -2498,6 +2508,7 @@ export interface components {
             entrance?: string;
             floor?: string;
             apartment?: string;
+            /** @description Order comment shown in the admin and on newly requested receipts. An empty or omitted value clears it; previously queued receipts keep their original snapshot. */
             customerNote?: string;
             /** Format: uuid */
             courierId?: string;

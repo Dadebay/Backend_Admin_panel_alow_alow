@@ -189,7 +189,109 @@ func TestReceiptMetadataIsOptionalAndBounded(t *testing.T) {
 	}
 }
 
-func TestKitchenCopyOmitsCustomerIdentityAndAddress(t *testing.T) {
+func TestReceiptDoesNotDuplicateSiteContactPhone(t *testing.T) {
+	for _, copyType := range []string{"MAIN", "KITCHEN"} {
+		t.Run(copyType, func(t *testing.T) {
+			job := previewJob(t)
+			job.CopyType = copyType
+			job.Metadata.BusinessPhone = ""
+			before, err := renderReceipt(job)
+			if err != nil {
+				t.Fatal(err)
+			}
+			// Contact settings may contain the same phone as the customer.
+			// That must not add another copy of it to the receipt header.
+			job.Metadata.BusinessPhone = job.Metadata.CustomerPhone
+			after, err := renderReceipt(job)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !bytes.Equal(before.Pix, after.Pix) {
+				t.Fatal("site contact phone changed the receipt")
+			}
+		})
+	}
+}
+
+func TestReceiptCustomerPhoneAddressAndCommentAppearOnEveryCopy(t *testing.T) {
+	for _, copyType := range []string{"MAIN", "KITCHEN", ""} {
+		for _, documentType := range []string{documentTypeOrder, documentTypeCancel} {
+			t.Run(copyType+"/"+documentType, func(t *testing.T) {
+				job := previewJob(t)
+				job.CopyType, job.DocumentType = copyType, documentType
+				before, err := renderReceipt(job)
+				if err != nil {
+					t.Fatal(err)
+				}
+				for _, field := range []struct {
+					name, value string
+					target      *string
+				}{
+					{"customer phone", "+99365000999", &job.Metadata.CustomerPhone},
+					{"address", "Ашхабад, улица Примерная, дом 12", &job.Metadata.Address},
+					{"details", "Подъезд: 2 · Этаж: 3 · Кв.: 15", &job.Metadata.AddressDetails},
+					{"comment", "Позвоните у подъезда, домофон не работает.", &job.Metadata.CustomerNote},
+					{"area", "Центр", &job.Summary.DeliveryAreaName},
+				} {
+					*field.target = field.value
+					after, err := renderReceipt(job)
+					if err != nil {
+						t.Fatal(err)
+					}
+					if bytes.Equal(before.Pix, after.Pix) {
+						t.Fatalf("receipt omitted delivery %s", field.name)
+					}
+					before = after
+				}
+			})
+		}
+	}
+}
+
+func TestReceiptCommentKeepsExplicitLinesOnEveryCopy(t *testing.T) {
+	for _, copyType := range []string{"MAIN", "KITCHEN"} {
+		t.Run(copyType, func(t *testing.T) {
+			job := previewJob(t)
+			job.CopyType = copyType
+			job.Metadata.CustomerNote = "Без лука Без перца"
+			oneLine, err := renderReceipt(job)
+			if err != nil {
+				t.Fatal(err)
+			}
+			job.Metadata.CustomerNote = "Без лука\nБез перца"
+			multiLine, err := renderReceipt(job)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if multiLine.Bounds().Dy() != oneLine.Bounds().Dy()+29 {
+				t.Fatal("comment newline did not add a printed line")
+			}
+			job.Metadata.CustomerNote = "Без лука\r\nБез перца"
+			windowsLines, err := renderReceipt(job)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !bytes.Equal(multiLine.Pix, windowsLines.Pix) {
+				t.Fatal("Windows newlines changed comment layout")
+			}
+			job.Metadata.CustomerNote = ""
+			empty, err := renderReceipt(job)
+			if err != nil {
+				t.Fatal(err)
+			}
+			job.Metadata.CustomerNote = " \n "
+			blank, err := renderReceipt(job)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !bytes.Equal(empty.Pix, blank.Pix) {
+				t.Fatal("empty comment printed a heading")
+			}
+		})
+	}
+}
+
+func TestKitchenCopyOmitsCustomerName(t *testing.T) {
 	job := previewJob(t)
 	job.CopyType = "KITCHEN"
 	before, err := renderReceipt(job)
@@ -197,15 +299,12 @@ func TestKitchenCopyOmitsCustomerIdentityAndAddress(t *testing.T) {
 		t.Fatal(err)
 	}
 	job.Metadata.CustomerName = "Другой клиент"
-	job.Metadata.CustomerPhone = "+99365000999"
-	job.Metadata.Address = "Другой адрес"
-	job.Metadata.AddressDetails = "Кв.: 99"
 	after, err := renderReceipt(job)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !bytes.Equal(before.Pix, after.Pix) {
-		t.Fatal("customer identity leaked into the kitchen copy")
+		t.Fatal("customer name leaked into the kitchen copy")
 	}
 	job.CopyType = "MAIN"
 	main, err := renderReceipt(job)

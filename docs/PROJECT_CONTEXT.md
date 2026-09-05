@@ -567,6 +567,17 @@ heights; visual density must not be reduced to the previous pale compact map.
 - If there is no active branch, order creation fails with `409 Conflict`; an
   order is never created without an operational destination.
 - Payment method is currently `CASH` only.
+- The optional order comment is `customerNote` (up to 500 characters) on
+  customer-app and phone-assisted creation. Surrounding whitespace is removed;
+  an omitted, null or blank comment is stored as null. This is separate from
+  the post-delivery `rating.comment`. Admin creation/editing labels it
+  «Комментарий к заказу»; order cards show it before the packing checklist,
+  and the table and details display the complete text with line breaks.
+  Main and kitchen receipts include the comment and preserve explicit lines.
+  Existing administrator pre-pickup editing can replace or clear it. A newly
+  requested reprint uses the saved comment; previously queued receipts retain
+  their original immutable snapshot, so an edit does not silently change or
+  redispatch an old print task.
 - Courier returns cash to operator; operator confirms receipt; accountant
   reconciles.
 - Customer may submit one rating/comment after delivery.
@@ -679,6 +690,18 @@ and J-Speed HTTP use the registered transport. Main and kitchen copies may
 share one endpoint; a 1.5-second RAW cooldown separates copies across orders.
 The site and local agent must remain open to consume tasks. Detailed failure,
 upgrade and rollback semantics are documented in RECEIPT_QUEUE.md.
+
+The printed receipt uses the agreed A7-TAGAM panda logo and only cafe phones
+`530011`, `+99362530011`, and `+99364530011` in its header. The site contact
+setting is not repeated there. Both main and kitchen copies show the customer
+phone once as `Клиент:`, delivery address/details, order comment and delivery
+area; the main copy also shows the customer name as `Имя:`. All comment lines
+are preserved. The compact header has an 8-dot top margin and a centred
+180-dot logo. The 576-dot renderer retains a 120-dot (15 mm) blank bottom
+margin before its final feed/cut. This release includes the previously local
+receipt branding/contact fixes so the published agent matches the reviewed
+paper preview. Physical Windows printing requires installing the new agent;
+a VDS deployment cannot replace a workstation executable.
 
 External catalog seed packages are never executed as supplied. The repository
 CLI first performs a non-mutating strict JSON/file-set/WebP validation and only

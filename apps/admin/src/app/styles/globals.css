@@ -4261,6 +4261,12 @@ textarea[aria-invalid="true"] {
   white-space: nowrap;
 }
 
+.data-table--orders .order-customer-comment,
+.order-customer-comment {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 .amount-cell,
 .status-context {
   display: grid;
@@ -4440,6 +4446,7 @@ textarea[aria-invalid="true"] {
   font-size: 12px;
   line-height: 1.5;
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .review-card {

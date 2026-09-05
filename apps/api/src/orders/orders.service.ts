@@ -741,7 +741,7 @@ export class OrdersService {
         branchLatitude: nearest.branch.latitude,
         branchLongitude: nearest.branch.longitude,
         branchDistanceMeters: nearest.distanceMeters,
-        customerNote: dto.customerNote,
+        customerNote: dto.customerNote?.trim() || null,
         items: {
           create: resolvedItems.map(({ product, variant, quantity }) => {
             const unitPrice = variant?.price ?? product.price;

@@ -127,7 +127,12 @@ export class CreateOrderDto {
   @MaxLength(20)
   apartment?: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({
+    maxLength: 500,
+    example: "Без лука. Соус отдельно.\nПозвонить перед доставкой.",
+    description:
+      "Optional order comment shown in the admin and printed on main and kitchen receipts. Separate from the post-delivery rating comment.",
+  })
   @IsOptional()
   @IsString()
   @MaxLength(500)
@@ -279,7 +284,11 @@ export class AdminEditOrderDto {
   @MaxLength(20)
   apartment?: string;
 
-  @ApiPropertyOptional({ maxLength: 500 })
+  @ApiPropertyOptional({
+    maxLength: 500,
+    description:
+      "Order comment shown in the admin and on newly requested receipts. An empty or omitted value clears it; previously queued receipts keep their original snapshot.",
+  })
   @IsOptional()
   @IsString()
   @MaxLength(500)

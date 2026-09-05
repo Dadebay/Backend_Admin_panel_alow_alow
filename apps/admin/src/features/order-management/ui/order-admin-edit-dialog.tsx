@@ -388,8 +388,19 @@ export function OrderAdminEditDialog({
                 </label>
               </div>
               <label>
-                <span>Комментарий клиента</span>
-                <textarea {...register("customerNote")} />
+                <span>Комментарий к заказу</span>
+                <textarea
+                  data-testid="order-admin-edit-note"
+                  {...register("customerNote")}
+                  maxLength={500}
+                  rows={3}
+                  placeholder="Например: без лука, соус отдельно"
+                  aria-describedby="order-admin-edit-note-hint"
+                />
+                <small id="order-admin-edit-note-hint">
+                  До 500 символов. После сохранения распечатайте обновлённый чек.
+                </small>
+                <FormFieldError message={errors.customerNote?.message} />
               </label>
             </section>
           </div>

@@ -950,7 +950,7 @@
 .login-attempt-summary .stat-card strong { display: block; margin-top: 7px; font-size: 1.65rem; }
 .login-attempt-status { font-weight: 650; }
 .login-attempt-status.verified { color: var(--brand-orange); }.login-attempt-status.failed { color: var(--brand-orange); }.login-attempt-status.expired { color: var(--brand-orange); }
-.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }.table-pagination { display:flex; justify-content:space-between; align-items:center; margin-top:14px; }.table-pagination > div { display:flex; align-items:center; gap:10px; }
+.mono { font-family: var(--font-mono); }.table-pagination { display:flex; justify-content:space-between; align-items:center; margin-top:14px; }.table-pagination > div { display:flex; align-items:center; gap:10px; }
 @media (max-width: 760px) { .login-attempt-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }.table-pagination { align-items:flex-start; flex-direction:column; gap:10px; } }
 
 :root {
@@ -962,19 +962,24 @@
   --line: color-mix(in srgb, var(--brand-cream) 82%, var(--brand-navy));
   --paper: var(--brand-cream);
   --canvas: color-mix(in srgb, var(--brand-cream) 94%, var(--brand-orange));
+  --table-row-line: color-mix(
+    in srgb,
+    var(--brand-cream) 90%,
+    var(--brand-navy)
+  );
   --field-surface: color-mix(
     in srgb,
-    var(--brand-cream) 88%,
+    var(--brand-cream) 95%,
     var(--brand-navy)
   );
   --field-surface-hover: color-mix(
     in srgb,
-    var(--brand-cream) 84%,
+    var(--brand-cream) 92%,
     var(--brand-navy)
   );
   --field-surface-disabled: color-mix(
     in srgb,
-    var(--brand-cream) 82%,
+    var(--brand-cream) 90%,
     var(--brand-navy)
   );
   --field-border: color-mix(
@@ -1002,6 +1007,43 @@
   --cream: var(--brand-cream);
   --green: var(--brand-navy);
   --shadow: 0 14px 40px rgb(6 47 94 / 0.065);
+  --font-sans:
+    "Gilroy", "Inter", ui-sans-serif, system-ui, -apple-system,
+    BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  --font-mono:
+    ui-monospace, SFMono-Regular, "SF Mono", Menlo, Monaco, Consolas, monospace;
+}
+
+@font-face {
+  font-family: "Gilroy";
+  src: url("/fonts/Gilroy-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Gilroy";
+  src: url("/fonts/Gilroy-Medium.ttf") format("truetype");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Gilroy";
+  src: url("/fonts/Gilroy-SemiBold.ttf") format("truetype");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Gilroy";
+  src: url("/fonts/Gilroy-Bold.ttf") format("truetype");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
 }
 
 * {
@@ -1017,10 +1059,14 @@ body {
 }
 
 body {
-  font-family:
-    ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
-    sans-serif;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.5;
+  font-feature-settings: "kern" 1, "liga" 1, "calt" 1, "tnum" 1;
+  text-rendering: optimizeLegibility;
+  font-synthesis-weight: none;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 button,
@@ -2008,7 +2054,7 @@ td small {
 .courier-map-canvas .leaflet-tooltip,
 .courier-map-canvas .leaflet-popup-content {
   font-family:
-    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    "Gilroy", Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
     sans-serif;
   font-size: 9px;
 }
@@ -2904,6 +2950,18 @@ td small {
   padding: 20px;
   background: rgb(6 47 94 / 0.58);
   backdrop-filter: blur(5px);
+  animation: modal-backdrop-in 160ms ease-out;
+}
+
+.modal-backdrop > .modal {
+  animation: modal-card-in 200ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .modal-backdrop,
+  .modal-backdrop > .modal {
+    animation: none;
+  }
 }
 
 .modal {
@@ -2943,25 +3001,80 @@ td small {
   cursor: pointer;
 }
 
+/* Kapat butonu: ham "×" karakteri yerine hizalanmis ikon + gorunur
+   hover/active durumlari. */
+.modal-close {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  align-self: start;
+  color: var(--muted);
+  transition:
+    color 140ms ease,
+    background-color 140ms ease,
+    border-color 140ms ease;
+}
+
+.modal-close svg {
+  width: 17px;
+  height: 17px;
+}
+
+.modal-close:hover {
+  border-color: var(--field-border-hover);
+  color: var(--brand-navy);
+  background: var(--field-surface-hover);
+}
+
+.modal-close:active {
+  transform: translateY(1px);
+}
+
+.modal-close:focus-visible {
+  border-color: var(--brand-orange);
+  outline: 0;
+  box-shadow: 0 0 0 3px var(--field-focus-ring);
+}
+
+@keyframes modal-backdrop-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes modal-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
 .modal > label,
 .modal-grid label {
   display: block;
   margin-top: 14px;
 }
 
+/* Dialoglarin ortak tipografisi. Etiket 9 pikseldeydi: hem okunmuyordu hem de
+   alan degerinden (10px) neredeyse ayirt edilemiyordu, uc widget da bunu
+   kendi icinde tek tek yamamisti. Olcek tek yerde: etiket 13, deger 15 —
+   /contacts ile ayni. */
 .modal label > span {
   display: block;
   margin-bottom: 7px;
   color: var(--brand-navy);
-  font-size: 9px;
-  font-weight: 680;
+  font-size: 13px;
+  font-weight: 600;
 }
 
 .modal input:not([type="checkbox"]):not([type="radio"]),
 .modal select,
 .modal textarea {
   width: 100%;
-  min-height: 42px;
+  min-height: 44px;
   padding: 0 12px;
   border: 1px solid var(--field-border);
   border-radius: 9px;
@@ -2969,7 +3082,7 @@ td small {
   color: var(--brand-navy);
   background: var(--field-surface);
   box-shadow: inset 0 1px 2px rgb(6 47 94 / 0.07);
-  font-size: 10px;
+  font-size: 15px;
 }
 
 .modal input:not([type="checkbox"]):not([type="radio"])::placeholder,
@@ -3046,26 +3159,6 @@ td small {
   border-top: 1px solid var(--brand-cream);
 }
 
-.banner-delete-modal {
-  width: min(460px, 100%);
-}
-
-.banner-delete-modal p,
-.banner-delete-modal small {
-  display: block;
-  margin: 0;
-  color: var(--brand-navy);
-  line-height: 1.55;
-}
-
-.banner-delete-modal p {
-  font-size: 12px;
-}
-
-.banner-delete-modal small {
-  margin-top: 8px;
-  font-size: 9px;
-}
 
 .text-button {
   width: fit-content;
@@ -3657,6 +3750,10 @@ textarea[aria-invalid="true"] {
   color: var(--brand-navy);
   background: var(--field-surface);
   box-shadow: inset 0 1px 2px rgb(6 47 94 / 0.07);
+  /* Inputs sit inside a <label> that sets a heavier weight for the label
+     text itself; without this reset that weight would inherit into
+     whatever the person actually types. */
+  font-weight: 400;
 }
 
 .toolbar input::placeholder,
@@ -3789,11 +3886,82 @@ textarea[aria-invalid="true"] {
 }
 
 .data-table td {
-  padding: 16px 18px;
-  border-top: 1px solid var(--brand-cream);
+  padding: 14px 18px;
+  border-top: 1px solid var(--table-row-line);
   font-size: 13px;
   line-height: 1.45;
   vertical-align: middle;
+}
+
+/* Eski tablo tasarimindan kalan `td strong { font-size: 9px }` kurali (bkz.
+   dosyanin ust kismi) hucredeki her <strong>'u 9 piksele dusuruyor. Satirin
+   asil basligi boylece altindaki aciklamadan (`.primary-cell small`, 12px)
+   kucuk kaliyor, hiyerarsi ters donuyordu. Olcuyu paylasilan tablo
+   bileseninde toparliyoruz; marketing ve branch panelleri kendi
+   olculerini asagida yine ezebiliyor. */
+.data-table .primary-cell strong {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+/* Sayisal sutunlar: basligina yaslanir, rakamlar sabit genislikte olur,
+   boylece degerler alt alta karsilastirilabilir. */
+.data-table th[data-align="end"],
+.data-table td[data-align="end"] {
+  width: 1%;
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Durum 10px yesil/lacivert duz metindi; yuzlerce satirda kapali olanlari
+   ayirt etmek icin goz taramasi gerekiyordu. Rozet + nokta bunu bir
+   bakista veriyor. */
+.state-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px 4px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.state-pill::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+/* Palette'te yesil yok (--green zaten --brand-navy'ye esit), o yuzden
+   "acik/kapali" renkle degil agirlikla ayriliyor: listenin cogu acik
+   oldugundan sessiz kalan acik, dikkat ceken kapali olan. */
+.state-pill.is-on {
+  color: color-mix(in srgb, var(--brand-navy) 72%, var(--brand-cream));
+  background: color-mix(in srgb, var(--brand-navy) 8%, var(--brand-cream));
+}
+
+.state-pill.is-off {
+  color: color-mix(in srgb, var(--brand-orange) 82%, var(--brand-navy));
+  background: color-mix(in srgb, var(--brand-orange) 16%, var(--brand-cream));
+}
+
+.count-pill {
+  display: inline-block;
+  min-width: 30px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  color: var(--brand-navy);
+  background: color-mix(in srgb, var(--brand-navy) 9%, var(--brand-cream));
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  justify-self: start;
+  text-align: center;
 }
 
 .data-table th:last-child {
@@ -4103,6 +4271,14 @@ textarea[aria-invalid="true"] {
     border-bottom: 1px solid var(--brand-cream);
   }
 
+  /* Kart duzeninde baslik hucrenin solunda ::before ile ciziliyor; saga
+     hizalama burada etiketi de itecegi icin geri aliniyor. */
+  .data-table th[data-align="end"],
+  .data-table td[data-align="end"] {
+    width: 50%;
+    text-align: left;
+  }
+
   .data-table td::before {
     color: var(--brand-navy);
     content: attr(data-label);
@@ -4294,7 +4470,7 @@ textarea[aria-invalid="true"] {
 
 .coordinate-value {
   color: var(--brand-navy);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 12px;
   white-space: nowrap;
 }
@@ -4607,6 +4783,40 @@ button:disabled {
   transform: none !important;
 }
 
+/* Row actions (staff, marketing, etc.): icon-only square buttons instead of
+   text labels, so a row of actions reads at a glance without wrapping. */
+.row-actions .row-icon-button {
+  width: 30px;
+  height: 30px;
+  min-height: 0;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+}
+
+.row-actions .text-button.row-icon-button {
+  border: 1px solid color-mix(in srgb, var(--brand-navy) 16%, var(--brand-cream));
+  border-radius: 8px;
+  color: var(--brand-navy);
+  background: color-mix(in srgb, var(--brand-cream) 96%, var(--brand-navy));
+}
+
+.row-actions .text-button.row-icon-button:hover {
+  border-color: var(--field-border-hover);
+  background: var(--field-surface-hover);
+}
+
+/* Two-step delete (receipt printers): the first click arms the button, a
+   solid fill instead of the usual outline signals "click again to confirm"
+   before the second click actually deletes. */
+.row-actions .danger-button.row-icon-button.is-armed {
+  border-color: var(--brand-orange);
+  color: var(--brand-cream);
+  background: var(--brand-orange);
+}
+
 .status-pill {
   display: inline-flex;
   align-items: center;
@@ -4823,7 +5033,11 @@ button:disabled {
   border-bottom: 1px solid var(--line);
 }
 
-.catalog-editor-title h2 { margin-top: 3px; font-size: 20px; }
+.catalog-editor-title h2 {
+  margin-top: 3px;
+  font-size: 19px;
+  font-weight: 700;
+}
 
 .catalog-editor-close {
   display: grid;
@@ -5044,7 +5258,7 @@ button:disabled {
 
 .category-printer-route-row {
   display: grid;
-  grid-template-columns: minmax(120px, 1fr) minmax(150px, 210px) minmax(210px, 240px);
+  grid-template-columns: minmax(120px, 1fr) minmax(150px, 240px) auto;
   align-items: center;
   gap: 10px;
   padding: 12px;
@@ -5121,16 +5335,62 @@ button:disabled {
 }
 
 .category-printer-route-actions {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  min-width: 210px;
-  gap: 5px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  min-width: 0;
+  gap: 6px;
 }
 
-.category-printer-route-actions .text-button {
-  min-height: 28px;
+/* Ikon butonlari: eylem adi title/aria-label'da, satirda tek sira kaliyor. */
+.icon-action-button {
+  width: 34px;
+  height: 34px;
+  min-height: 0;
+  padding: 0;
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
   justify-content: center;
-  white-space: normal;
+  gap: 0;
+  border: 1px solid color-mix(in srgb, var(--brand-navy) 16%, var(--brand-cream));
+  border-radius: 9px;
+  color: var(--brand-navy);
+  background: color-mix(in srgb, var(--brand-cream) 96%, var(--brand-navy));
+  white-space: nowrap;
+}
+
+.icon-action-button:hover:not(:disabled) {
+  border-color: var(--field-border-hover);
+  background: var(--field-surface-hover);
+}
+
+.icon-action-button.danger:hover:not(:disabled) {
+  border-color: var(--brand-orange);
+  color: var(--brand-orange);
+}
+
+.icon-action-button:disabled {
+  opacity: 0.4;
+}
+
+/* Ana kaydet turuncu kalir: satirdaki birincil eylem oydu. */
+.primary-button.icon-action-button {
+  border-color: var(--brand-orange);
+  color: var(--brand-cream);
+  background: var(--brand-orange);
+}
+
+.primary-button.icon-action-button:hover:not(:disabled) {
+  border-color: var(--brand-orange);
+  background: var(--brand-orange);
+  filter: brightness(1.06);
+}
+
+.receipt-print-settings-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .product-printer-route {
@@ -5407,6 +5667,11 @@ button:disabled {
     text-align: center;
   }
 
+  /* Tek kolona dusen satirda ikonlar sola yaslanir, sagda bosluk kalmaz. */
+  .category-printer-route-actions {
+    justify-content: flex-start;
+  }
+
   .product-printer-route {
     width: 100%;
     min-width: 0;
@@ -5461,6 +5726,23 @@ button:disabled {
 
 .form-grid .wide-field {
   grid-column: 1 / -1;
+}
+
+/* `<small>` tarayici varsayilaniyla 0.8em'dir; etiket kutusu 11px oldugu icin
+   alan altindaki aciklamalar 8.8 piksele dusuyordu. Olcuyu acikca veriyoruz. */
+.modal .form-grid label > small {
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.45;
+}
+
+/* Onay kutusu ve dosya secici metni de birer alan etiketi: ayni 13 piksel. */
+.form-grid .check-field,
+.product-file-picker > span {
+  font-size: 13px;
+  font-weight: 600;
 }
 
 .form-grid .check-field {
@@ -5629,7 +5911,7 @@ button:disabled {
 .branch-location-map .leaflet-control-attribution,
 .branch-location-map .leaflet-tooltip {
   font-family:
-    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    "Gilroy", Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
     sans-serif;
   font-size: 9px;
 }
@@ -5689,13 +5971,19 @@ button:disabled {
 
 .assisted-order-head h2 {
   margin-top: 4px;
-  font-size: 22px;
+  font-size: 19px;
+  font-weight: 700;
 }
 
 .assisted-order-head p {
   margin-top: 5px;
   color: var(--muted);
-  font-size: 10px;
+  font-size: 13px;
+}
+
+.assisted-order-head .eyebrow {
+  font-size: 11px;
+  font-weight: 700;
 }
 
 .assisted-order-layout {
@@ -5753,13 +6041,6 @@ button:disabled {
   margin-top: 12px;
 }
 
-.assisted-order-card label > span {
-  display: block;
-  margin-bottom: 7px;
-  color: var(--brand-navy);
-  font-size: 9px;
-  font-weight: 700;
-}
 
 .assisted-order-section-title {
   display: flex;
@@ -5776,27 +6057,36 @@ button:disabled {
 }
 
 .assisted-order-section-title > div > span {
-  width: 25px;
-  height: 25px;
+  width: 26px;
+  height: 26px;
   display: grid;
   place-items: center;
   border-radius: 8px;
   color: var(--brand-cream);
   background: var(--orange);
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 800;
 }
 
 .assisted-order-section-title strong {
   color: var(--ink);
-  font-size: 13px;
+  font-size: 15px;
+  font-weight: 700;
 }
 
+/* Yardim metinleri tek olcude: alan etiketinin (13) bir kademe altinda. */
 .assisted-order-section-title small,
-.assisted-order-hint,
+.assisted-order-hint {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+/* Harita kunyesi icerik degil, yasal atif: okunur kalsin ama yardim
+   metinleriyle ayni agirlikta one cikmasin. */
 .map-attribution {
   color: var(--muted);
-  font-size: 9px;
+  font-size: 11px;
   line-height: 1.5;
 }
 
@@ -6108,7 +6398,8 @@ button:disabled {
 .assisted-address-map-heading strong,
 .assisted-courier-address-details > header strong {
   color: var(--brand-navy);
-  font-size: 11px;
+  font-size: 14px;
+  font-weight: 700;
 }
 
 .assisted-address-stage-heading small,
@@ -6116,14 +6407,15 @@ button:disabled {
 .assisted-courier-address-details > header small {
   margin-top: 3px;
   color: var(--muted);
-  font-size: 9px;
+  font-size: 12px;
   line-height: 1.45;
 }
 
 .assisted-address-results-title {
   padding: 4px 5px 2px;
-  color: var(--brand-navy);
-  font-size: 9px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
 }
 
 .assisted-address-results > button b {
@@ -6248,7 +6540,7 @@ button:disabled {
 .assisted-order-map .leaflet-control-attribution,
 .assisted-order-map .leaflet-tooltip {
   font-family:
-    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    "Gilroy", Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
     sans-serif;
   font-size: 9px;
 }
@@ -6751,13 +7043,14 @@ button:disabled {
   justify-content: space-between;
   gap: 12px;
   color: var(--brand-navy);
-  font-size: 11px;
-  font-weight: 650;
+  font-size: 13px;
+  font-weight: 600;
 }
 
 .product-image-heading small {
   color: var(--muted);
-  font-weight: 500;
+  font-size: 12px;
+  font-weight: 400;
 }
 
 .product-image-grid {
@@ -6803,9 +7096,21 @@ button:disabled {
   border-radius: 11px;
   color: var(--brand-orange);
   background: var(--brand-cream);
+  cursor: pointer;
+  transition: 120ms ease;
 }
 
-.product-file-picker input { max-width: 100%; }
+.product-file-picker:hover {
+  background: color-mix(in srgb, var(--brand-cream) 92%, var(--brand-orange));
+}
+
+.product-file-picker.is-dragging {
+  border-style: solid;
+  background: color-mix(in srgb, var(--brand-cream) 82%, var(--brand-orange));
+  box-shadow: 0 0 0 3px var(--field-focus-ring);
+}
+
+.product-file-picker input { max-width: 100%; cursor: pointer; }
 
 .selected-product-files {
   display: flex;
@@ -7041,6 +7346,714 @@ button:disabled {
   border-top-color: var(--line);
 }
 
+/* Customer messaging is a focused workflow: compose, verify the audience,
+   then send. Keep the send action close to the final review instead of
+   competing with unrelated operational controls. */
+.notification-section {
+  gap: 22px;
+}
+
+.notification-section > .section-head {
+  padding-bottom: 20px;
+}
+
+.notification-section > .section-head h1 {
+  margin-top: 0;
+}
+
+.notification-section > .section-head p {
+  max-width: 570px;
+}
+
+.notification-editor {
+  gap: 20px;
+  padding: clamp(18px, 2.2vw, 28px);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 100% 0, rgb(236 122 27 / 0.1), transparent 30%),
+    var(--brand-cream);
+}
+
+.notification-compose-modal {
+  width: min(930px, 100%);
+  max-height: min(760px, calc(100dvh - 40px));
+  overflow-y: auto;
+  font-size: 15px;
+}
+
+.notification-compose-modal form {
+  display: grid;
+  gap: 20px;
+}
+
+.notification-compose-modal .notification-composer-header {
+  margin-bottom: 0;
+}
+
+.notification-composer-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 19px;
+  border-bottom: 1px solid var(--line);
+}
+
+.notification-composer-title {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-width: 0;
+}
+
+.notification-composer-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 44px;
+  height: 44px;
+  border-radius: 11px;
+  color: var(--brand-orange);
+  background: color-mix(in srgb, var(--brand-orange) 13%, var(--brand-cream));
+  font-size: 21px;
+}
+
+.notification-composer-title h2 {
+  margin: 1px 0 0;
+  color: var(--brand-navy);
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.notification-composer-title p {
+  margin: 5px 0 0;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.notification-composer-audience {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 11px 13px;
+  border: 1px solid color-mix(in srgb, var(--brand-orange) 25%, var(--line));
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--brand-cream) 94%, var(--brand-orange));
+}
+
+.notification-composer-audience span {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.notification-composer-audience strong {
+  color: var(--brand-navy);
+  font-size: 14px;
+}
+
+.notification-form-grid {
+  grid-template-columns: minmax(0, 1.35fr) minmax(220px, 0.85fr);
+  gap: 16px 18px;
+}
+
+.notification-form-grid label {
+  gap: 8px;
+  font-size: 13px;
+}
+
+.notification-form-grid input,
+.notification-form-grid textarea {
+  min-height: 52px;
+  padding: 12px 14px;
+  border-radius: 11px;
+}
+
+.notification-form-grid textarea {
+  min-height: 152px;
+}
+
+.notification-compose-modal .form-field-error {
+  font-size: 12px;
+}
+
+.notification-send-row {
+  padding-top: 18px;
+}
+
+.notification-send-note strong {
+  font-size: 14px;
+}
+
+.notification-send-note span {
+  font-size: 13px;
+}
+
+.notification-compose-modal .notification-send-row .primary-button {
+  min-width: 178px;
+  min-height: 48px;
+  height: 48px;
+  padding-inline: 22px;
+  font-size: 14px;
+}
+
+.notification-compose-modal .modal-close {
+  width: 42px;
+  height: 42px;
+}
+
+.notification-compose-modal .modal-close svg {
+  width: 20px;
+  height: 20px;
+}
+
+.notification-history {
+  border-radius: 18px;
+}
+
+.notification-history .card-title {
+  align-items: center;
+  min-height: 76px;
+}
+
+.notification-history .card-title > span {
+  display: grid;
+  place-items: center;
+  min-width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  color: var(--brand-navy);
+  background: color-mix(in srgb, var(--brand-navy) 8%, var(--brand-cream));
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.notification-history-list {
+  display: grid;
+  gap: 9px;
+  padding: 10px;
+}
+
+.notification-history-card {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: color-mix(in srgb, var(--brand-cream) 97%, var(--brand-navy));
+  box-shadow: 0 7px 18px rgb(6 47 94 / 0.045);
+}
+
+.notification-history-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.notification-history-card .status-pill {
+  min-height: 28px;
+  padding: 0 9px;
+  font-size: 11px;
+}
+
+.notification-history-message {
+  display: flex;
+  gap: 10px;
+  min-width: 0;
+}
+
+.notification-history-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  color: var(--brand-orange);
+  background: color-mix(in srgb, var(--brand-orange) 13%, var(--brand-cream));
+  font-size: 15px;
+}
+
+.notification-history-message h3 {
+  margin: 1px 0 0;
+  color: var(--brand-navy);
+  font-size: 14px;
+  letter-spacing: -0.01em;
+}
+
+.notification-history-message p {
+  display: -webkit-box;
+  max-width: 68ch;
+  margin: 3px 0 0;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.notification-history-message code {
+  display: inline-block;
+  max-width: 100%;
+  margin-top: 5px;
+  padding: 2px 6px;
+  overflow: hidden;
+  border-radius: 6px;
+  color: var(--brand-navy);
+  background: color-mix(in srgb, var(--brand-navy) 7%, var(--brand-cream));
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.notification-history-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  margin: 0;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--line);
+}
+
+.notification-history-metrics > div {
+  min-width: 0;
+  padding: 9px 11px;
+  background: var(--brand-cream);
+}
+
+.notification-history-metrics dt {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.notification-history-metrics dd {
+  margin: 4px 0 0;
+  overflow: hidden;
+  color: var(--brand-navy);
+  font-size: 13px;
+  font-weight: 750;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.notification-history-metrics small {
+  display: block;
+  margin-top: 2px;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.notification-history-metrics small.is-alert {
+  color: var(--brand-orange);
+  font-weight: 700;
+}
+
+.notification-history-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.notification-history-card-footer .secondary-button.compact {
+  min-height: 32px;
+  height: 32px;
+  padding-inline: 11px;
+  font-size: 11px;
+}
+
+.notification-history-empty {
+  padding: 38px 20px;
+  color: var(--muted);
+  font-size: 14px;
+  text-align: center;
+}
+
+/* Marketing keeps the same data ownership as the admin tables, but presents
+   campaign controls as two clear work areas instead of a dense settings page. */
+.marketing-section {
+  gap: 20px;
+}
+
+.marketing-section > .section-head {
+  align-items: center;
+  padding: clamp(20px, 2.6vw, 30px);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 93% 13%, rgb(236 122 27 / 0.13), transparent 24%),
+    linear-gradient(
+      110deg,
+      color-mix(in srgb, var(--brand-cream) 95%, var(--brand-navy)),
+      var(--brand-cream) 62%
+    );
+  box-shadow: var(--shadow);
+}
+
+.marketing-section > .section-head h1 {
+  margin-top: 0;
+  font-size: clamp(24px, 3vw, 31px);
+}
+
+.marketing-section > .section-head p {
+  max-width: 620px;
+  margin-top: 7px;
+  font-size: 14px;
+}
+
+.marketing-section .section-header-actions {
+  flex-shrink: 0;
+}
+
+.marketing-section .section-header-actions .primary-button,
+.marketing-section .section-header-actions .secondary-button {
+  min-height: 44px;
+  height: 44px;
+  padding-inline: 18px;
+  font-size: 13px;
+}
+
+.marketing-editor {
+  display: grid;
+  gap: 22px;
+  background: var(--brand-cream);
+}
+
+.marketing-editor-backdrop {
+  padding: clamp(14px, 3vw, 28px);
+}
+
+.marketing-editor-modal {
+  width: min(760px, 100%);
+  max-height: calc(100dvh - 28px);
+  padding: 0;
+  border-radius: 20px;
+  overflow-y: auto;
+}
+
+.marketing-editor-modal > .marketing-editor {
+  --marketing-editor-padding: clamp(24px, 4vw, 32px);
+  min-height: 100%;
+  padding: var(--marketing-editor-padding);
+  border: 0;
+  border-radius: inherit;
+  box-shadow: none;
+}
+
+.marketing-editor .editor-title {
+  align-items: flex-start;
+  margin: 0;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--line);
+}
+
+.marketing-editor .marketing-editor-title {
+  margin-bottom: 0;
+}
+
+.marketing-editor-title .modal-close {
+  width: 38px;
+  height: 38px;
+}
+
+.marketing-editor .editor-title h2 {
+  margin: 0;
+  font-size: 19px;
+  font-weight: 700;
+  line-height: 1.15;
+}
+
+.marketing-editor .editor-title p {
+  max-width: 520px;
+  margin: 7px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.45;
+}
+
+.marketing-editor .marketing-form-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 17px 18px;
+}
+
+.marketing-editor .form-grid label {
+  gap: 8px;
+}
+
+.marketing-editor .form-grid input:not([type="checkbox"]):not([type="radio"]),
+.marketing-editor .form-grid select {
+  min-height: 48px;
+  padding-inline: 13px;
+  border-radius: 11px;
+}
+
+.marketing-editor .check-field {
+  min-height: 48px;
+  align-self: end;
+  padding: 0 13px;
+  border: 1px solid var(--field-border);
+  border-radius: 11px;
+  background: var(--field-surface);
+}
+
+.marketing-form-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 2px calc(var(--marketing-editor-padding) * -1)
+    calc(var(--marketing-editor-padding) * -1);
+  padding: 17px var(--marketing-editor-padding);
+  border-top: 1px solid var(--line);
+  background: color-mix(in srgb, var(--brand-cream) 96%, var(--brand-navy));
+}
+
+.marketing-form-actions p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.marketing-form-actions > div {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 10px;
+}
+
+.marketing-form-actions .secondary-button,
+.marketing-form-actions .primary-button {
+  min-height: 44px;
+  padding-inline: 17px;
+  font-size: 13px;
+}
+
+.marketing-delete-modal {
+  width: min(480px, 100%);
+  padding: 28px;
+  border-radius: 20px;
+  gap: 16px;
+}
+
+.marketing-delete-modal .confirm-delete-icon {
+  width: 42px;
+  height: 42px;
+}
+
+.marketing-delete-modal .confirm-delete-head h2 {
+  font-size: 20px;
+}
+
+.marketing-delete-modal .modal-actions {
+  margin: 4px -28px -28px;
+  padding: 17px 28px;
+  background: color-mix(in srgb, var(--brand-cream) 96%, var(--brand-navy));
+}
+
+.marketing-workspace {
+  gap: 18px;
+}
+
+.marketing-panel {
+  border-radius: 18px;
+}
+
+.marketing-panel .card-title {
+  min-height: 94px;
+  align-items: center;
+  padding: 18px 20px;
+  background:
+    linear-gradient(
+      110deg,
+      color-mix(in srgb, var(--brand-cream) 95%, var(--brand-navy)),
+      var(--brand-cream) 58%
+    );
+}
+
+.marketing-panel .card-title h2 {
+  font-size: 18px;
+}
+
+.marketing-panel .card-title small {
+  display: block;
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.marketing-panel-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.marketing-panel-actions .compact {
+  min-height: 38px;
+  padding-inline: 13px;
+  font-size: 12px;
+}
+
+.marketing-panel .marketing-panel-count {
+  display: grid;
+  place-items: center;
+  min-width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  color: var(--brand-navy);
+  background: color-mix(in srgb, var(--brand-navy) 8%, var(--brand-cream));
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.marketing-panel .data-table th {
+  padding: 14px 16px;
+  font-size: 11px;
+}
+
+.marketing-panel .data-table td {
+  padding: 16px;
+  font-size: 13px;
+}
+
+.marketing-panel .data-table tbody tr {
+  transition: background-color 160ms ease;
+}
+
+.marketing-panel .data-table tbody tr:hover {
+  background: color-mix(in srgb, var(--brand-cream) 96%, var(--brand-orange));
+}
+
+.marketing-panel .media-cell img[width="72"] {
+  width: 76px;
+  height: 52px;
+  border-radius: 10px;
+}
+
+.marketing-panel .primary-cell strong,
+.marketing-panel .code-value {
+  font-size: 14px;
+}
+
+.marketing-panel .primary-cell small {
+  margin-top: 4px;
+  font-size: 12px;
+}
+
+@media (max-width: 760px) {
+  .marketing-editor-backdrop {
+    align-items: end;
+    padding: 0;
+  }
+
+  .marketing-editor-modal {
+    max-height: min(92dvh, 760px);
+    border-radius: 20px 20px 0 0;
+  }
+
+  .marketing-editor-modal > .marketing-editor {
+    --marketing-editor-padding: 20px;
+    padding: 22px var(--marketing-editor-padding);
+  }
+
+  .marketing-editor .marketing-form-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .marketing-form-actions {
+    align-items: stretch;
+    flex-direction: column;
+    margin: 2px calc(var(--marketing-editor-padding) * -1)
+      calc(var(--marketing-editor-padding) * -1);
+    padding: 15px var(--marketing-editor-padding);
+  }
+
+  .marketing-form-actions > div {
+    width: 100%;
+  }
+
+  .marketing-form-actions > div > button {
+    flex: 1 1 0;
+  }
+
+  .marketing-delete-modal {
+    width: 100%;
+    padding: 24px 20px;
+    border-radius: 20px 20px 0 0;
+  }
+
+  .marketing-delete-modal .modal-actions {
+    margin: 4px -20px -24px;
+    padding: 15px 20px;
+  }
+
+  .marketing-section > .section-head {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .marketing-section .section-header-actions {
+    width: 100%;
+  }
+
+  .marketing-section .section-header-actions > button {
+    flex: 1 1 0;
+  }
+}
+
+@media (max-width: 680px) {
+  .notification-composer-header,
+  .notification-send-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .notification-composer-audience {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .notification-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .notification-send-row .primary-button {
+    width: 100%;
+  }
+
+  .notification-history-card-head,
+  .notification-history-card-footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .notification-history-card-head .status-pill {
+    align-self: flex-start;
+  }
+
+  .notification-history-metrics {
+    grid-template-columns: 1fr;
+  }
+
+  .notification-history-card-footer .secondary-button {
+    width: 100%;
+  }
+}
+
 /* Security journal: summaries, filters and table now read as one workspace. */
 .login-attempt-summary {
   display: grid;
@@ -7098,6 +8111,14 @@ button:disabled {
 
 .toolbar.login-attempt-filters {
   display: grid;
+  /* Taban `.toolbar` kurali flex icin yazilmis ve `justify-content:
+     space-between` tasiyor. Bu sinif display'i grid'e cevirdigi icin ayni
+     deger grid'de de gecerli oluyor: `stretch` disinda bir hizalamada auto
+     sutun serbest alani yutmaz, max-content'te kalir. Filtre satiri bu
+     yuzden kartin sagina kadar uzanmiyordu. Sutunu acikca tanimlamak bagi
+     kesiyor. */
+  grid-template-columns: minmax(0, 1fr);
+  justify-content: stretch;
   gap: 14px;
   padding: 16px;
   background: linear-gradient(
@@ -7209,7 +8230,6 @@ button:disabled {
 .dispatch-location-coverage {
   display: grid;
   grid-column: 1 / -1;
-  grid-template-columns: minmax(0, 1fr) minmax(240px, 0.7fr);
   gap: 12px 20px;
   align-items: center;
   padding: 14px 18px;
@@ -7236,7 +8256,7 @@ button:disabled {
 .dispatch-location-coverage p,
 .dispatch-location-coverage small {
   margin-top: 5px;
-  font-size: 10px;
+  font-size: 11.5px;
   line-height: 1.5;
 }
 
@@ -7893,13 +8913,17 @@ button:disabled {
 
 .delivery-directory-grid {
   grid-template-columns: repeat(3, minmax(180px, 1fr));
-  align-items: end;
+  align-items: start;
+  gap: 16px 14px;
 }
 
-.delivery-directory-save {
-  justify-self: start;
-  min-width: 180px;
+/* Sira numarasi bir isim alani degil; tam sutun genisligi kadar yer
+   kaplamasin ve kendi satirinda dursun. */
+.delivery-directory-modal .delivery-sort-field {
+  grid-column: 1;
+  max-width: 200px;
 }
+
 
 .delivery-settings-save {
   align-self: end;
@@ -7947,9 +8971,96 @@ button:disabled {
   box-shadow: 0 0 0 3px var(--field-focus-ring);
 }
 
+/* Fiyat da bir <strong>, yani ayni 9 piksel kuralina takiliyordu: yanindaki
+   "Бесплатно от" degerinden kucuk goruniyordu. Ikisi ayni olcude olacak,
+   fiyat yalnizca agirligiyla one cikacak. */
+.delivery-price-value {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+/* Kurulumluk bolum: velayat sozlugu ve yedek tarif. Gunluk isin parcasi
+   olmadigi icin varsayilan olarak kapali, siparis arsivi ile ayni dil. */
+.delivery-setup {
+  margin-top: 14px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--brand-cream) 94%, var(--brand-navy));
+}
+
+.delivery-setup > summary {
+  min-height: 58px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 16px;
+  color: var(--brand-navy);
+  background: var(--brand-cream);
+  cursor: pointer;
+}
+
+.delivery-setup > summary span {
+  display: grid;
+  gap: 3px;
+}
+
+.delivery-setup > summary small {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.delivery-setup > summary b {
+  min-width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  color: var(--brand-cream);
+  background: var(--brand-navy);
+  font-size: 11px;
+}
+
+.delivery-setup-body {
+  display: grid;
+  gap: 14px;
+  padding: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.delivery-setup-body .delivery-settings-card,
+.delivery-setup-body .table-card {
+  margin-bottom: 0;
+}
+
+/* Nadiren dokunulan alanlar (ingilizce ad, sira numarasi) modalda kapali
+   duruyor; hata olustugunda bilesen `open` verip aciyor. */
+.delivery-advanced-fields {
+  margin: 4px 0 0;
+  border-top: 1px solid var(--line);
+}
+
+.delivery-advanced-fields > summary {
+  padding: 12px 0;
+  color: var(--muted);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.delivery-advanced-fields > summary:hover {
+  color: var(--ink);
+}
+
+.delivery-advanced-fields > .form-grid {
+  padding: 0 0 6px;
+}
+
+/* Not artik rayon modalinin icinde: kart yerine dialogun kendi ic bosluguna
+   yaslaniyor. */
 .delivery-directory-note {
-  margin: 0;
-  padding: 0 22px 14px;
+  margin: 14px 0 0;
+  padding: 0;
   color: var(--muted);
   font-size: 10px;
   line-height: 1.5;
@@ -7958,6 +9069,18 @@ button:disabled {
 @media (max-width: 1040px) {
   .delivery-directory-grid {
     grid-template-columns: repeat(2, minmax(180px, 1fr));
+  }
+}
+
+.delivery-directory-modal {
+  width: min(680px, 100%);
+  max-height: calc(100dvh - 40px);
+  overflow-y: auto;
+}
+
+@media (max-width: 720px) {
+  .delivery-directory-modal .delivery-directory-grid {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -7974,8 +9097,7 @@ button:disabled {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .delivery-settings-save,
-  .delivery-directory-save {
+  .delivery-settings-save {
     width: 100%;
     min-width: 0;
   }
@@ -7993,5 +9115,1126 @@ button:disabled {
   .delivery-filters button {
     width: 100%;
     min-width: 0;
+  }
+}
+
+/* Contacts settings (widgets/contact-manager): grouped fields with inline icons. */
+.contact-editor {
+  gap: 20px;
+}
+
+.contact-group {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.contact-group + .contact-group {
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+
+.contact-group-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.contact-group-badge {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--field-surface);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.form-grid.contact-fields {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px 20px;
+}
+
+.contact-fields label {
+  gap: 9px;
+}
+
+/* Sayfanin tipografisi alti ayri boyuta dagilmisti (10/11/12/15/16/25.6) ve
+   alan etiketi (11px) grup basligindan (12px) kucuk kaldigi icin hiyerarsi
+   ters okunuyordu. Tek olcek: grup basligi bir "eyebrow" (11px, buyuk harf,
+   seyreltilmis), alan etiketi 13px, degerin kendisi 15px. Goz once gruba,
+   sonra etikete, en son veriye iniyor.
+
+   Etiket artik `<span class="field-label">`: onceden ciplak metin dugumuydu,
+   yani `.form-grid label`in 11px/650 degerini aliyordu ve hicbir kural onu
+   ayrica hedefleyemiyordu. */
+.contact-fields .field-label {
+  color: var(--brand-navy);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.contact-editor .editor-title h2 {
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.contact-editor .editor-title p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/* Ikon inputun icinde duruyor; sol bosluk daha once her alanda tek tek
+   inline style ile veriliyordu (alti tekrar). `.form-grid input:not(...)`
+   seciciyi agirlastirdigi icin kural ayni kapsamdan yaziliyor. Telefon alani
+   disarida: onun kendi prefix duzeni var (`.phone-input`). */
+.contact-editor .form-grid.contact-fields .field-icon-input input {
+  padding-left: 42px;
+}
+
+.contact-editor .form-grid.contact-fields input {
+  width: 100%;
+  min-height: 52px;
+  padding-top: 12px;
+  padding-bottom: 12px;
+  border-radius: 12px;
+  font-size: 15px;
+}
+
+.field-icon-input {
+  position: relative;
+  display: block;
+  width: 100%;
+}
+
+.field-icon-input svg {
+  position: absolute;
+  top: 50%;
+  left: 14px;
+  width: 18px;
+  height: 18px;
+  transform: translateY(-50%);
+  color: var(--muted);
+  pointer-events: none;
+}
+
+.field-icon-input:focus-within svg {
+  color: var(--brand-orange);
+}
+
+.contact-editor-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.contact-editor-hint {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+@media (max-width: 620px) {
+  .form-grid.contact-fields {
+    grid-template-columns: 1fr;
+  }
+
+  .contact-editor-footer {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .contact-editor-footer .contact-editor-hint {
+    text-align: center;
+  }
+}
+
+/* OTP login (features/otp-login): roomier type and a fixed +993 country prefix
+   so the customer/staff member only ever types their local 8-digit number. */
+.otp-card {
+  gap: 16px;
+}
+
+.otp-card > div > strong {
+  font-size: 16px;
+}
+
+.otp-card > div > p {
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.otp-card label > span {
+  font-size: 11px;
+}
+
+.otp-card input {
+  font-size: 13px;
+}
+
+/* Shared fixed-country-code phone input (used by OTP login and Contacts):
+   the +993 badge is not part of the <input> so it can never be typed over. */
+.phone-input {
+  display: flex;
+  align-items: stretch;
+  width: 100%;
+  border: 1px solid var(--field-border);
+  border-radius: 9px;
+  background: var(--field-surface);
+  box-shadow: inset 0 1px 2px rgb(6 47 94 / 0.07);
+  overflow: hidden;
+}
+
+.phone-input-prefix {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 10px;
+  border-right: 1px solid var(--field-border);
+  color: var(--brand-navy);
+  background: color-mix(in srgb, var(--brand-cream) 95%, var(--brand-navy));
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.otp-card .phone-input-prefix {
+  font-size: 13px;
+}
+
+.phone-input:hover {
+  border-color: var(--field-border-hover);
+}
+
+.phone-input:focus-within {
+  border-color: var(--brand-orange);
+  box-shadow: 0 0 0 3px var(--field-focus-ring);
+}
+
+.otp-card .phone-input input,
+.contact-editor .form-grid.contact-fields .phone-input input {
+  flex: 1;
+  width: auto;
+  min-width: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.otp-card .phone-input input:hover,
+.otp-card .phone-input input:focus,
+.contact-editor .form-grid.contact-fields .phone-input input:hover,
+.contact-editor .form-grid.contact-fields .phone-input input:focus {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+}
+
+.otp-card .phone-input input:read-only,
+.contact-editor .form-grid.contact-fields .phone-input input:read-only {
+  color: var(--muted);
+  background: transparent;
+}
+
+/* Staff manager (widgets/staff-manager): role filter tabs, role badges and a
+   modal for the add/edit form instead of an inline card. */
+.role-tabbar {
+  margin: 16px 20px 14px;
+}
+
+.role-tab-count {
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgb(6 47 94 / 0.08);
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.view-tabs button.active .role-tab-count {
+  background: rgb(254 247 231 / 0.22);
+}
+
+.role-badge {
+  display: inline-flex;
+  padding: 3px 9px;
+  border-radius: 999px;
+  color: var(--brand-navy);
+  background: color-mix(in srgb, var(--brand-navy) 10%, var(--brand-cream));
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.role-badge-admin,
+.role-badge-super_admin {
+  color: var(--brand-cream);
+  background: var(--brand-navy);
+}
+
+.role-badge-courier,
+.role-badge-cook {
+  color: var(--brand-navy);
+  background: color-mix(in srgb, var(--brand-orange) 22%, var(--brand-cream));
+}
+
+.role-badge-customer {
+  color: var(--muted);
+  background: color-mix(in srgb, var(--brand-navy) 6%, var(--brand-cream));
+}
+
+.staff-form-modal {
+  width: min(560px, 100%);
+}
+
+/* Ortak dialog olcegi — bu gruba yeni bir modal eklemek tek satir. */
+.staff-form-modal .modal-head,
+.branch-form-modal .modal-head,
+.delivery-directory-modal .modal-head {
+  align-items: flex-start;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.staff-form-modal .modal-head h2,
+.branch-form-modal .modal-head h2,
+.delivery-directory-modal .modal-head h2 {
+  margin-top: 0;
+  font-size: 19px;
+  letter-spacing: -0.01em;
+}
+
+.staff-form-modal .modal-head p,
+.branch-form-modal .modal-head p,
+.delivery-directory-modal .modal-head p {
+  margin: 5px 0 0;
+  max-width: 42ch;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+/* Uc sutunda rol etiketleri ("Главный администратор") sigmiyor ve secim
+   kutusu kirpiliyordu; iki sutun + tam genislikte rol satiri hepsini
+   kirpmadan gosteriyor. */
+@media (min-width: 621px) {
+  .staff-form-modal .form-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.staff-form-modal .form-grid {
+  gap: 16px 14px;
+}
+
+/* Govde metni 10px'ti — yazilan degeri okumak icin fazla kucuk. */
+
+
+.staff-form-modal .phone-input {
+  min-height: 44px;
+}
+
+.staff-form-modal .phone-input input,
+.staff-form-modal .phone-input-prefix {
+  font-size: 15px;
+}
+
+/* PhoneNumberInput renders its own bordered `.phone-input` wrapper; without
+   this reset the `<input>` inside it also picks up the generic
+   `.form-grid input` border/background and shows up as a separate box next
+   to the +993 prefix instead of one seamless field. */
+.modal.staff-form-modal .form-grid .phone-input input {
+  min-height: 42px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.modal.staff-form-modal .form-grid .phone-input input:hover,
+.modal.staff-form-modal .form-grid .phone-input input:focus {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+}
+
+
+/* Shared destructive-action dialog (shared/ui/confirm-delete-dialog) used by
+   every "delete this" flow across the admin (catalog, banners, etc.) so they
+   all look and behave the same instead of each page rolling its own modal. */
+/* Alert-style layout: icon, badge, title, description and note all centered
+   on one axis (instead of reading left-aligned like a form), buttons split
+   evenly full-width below — matches the iOS/macOS confirm-alert convention
+   readers expect from a destructive "are you sure?" dialog. */
+.confirm-delete-modal {
+  width: min(440px, 100%);
+  display: grid;
+  gap: 14px;
+  text-align: center;
+}
+
+.confirm-delete-icon {
+  justify-self: center;
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 13px;
+  color: var(--brand-orange);
+  background: color-mix(in srgb, var(--brand-orange) 14%, var(--brand-cream));
+}
+
+.confirm-delete-modal .modal-head {
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.confirm-delete-badge {
+  display: inline-block;
+  margin-bottom: 6px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  color: var(--brand-orange);
+  background: color-mix(in srgb, var(--brand-orange) 12%, var(--brand-cream));
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.confirm-delete-modal h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.confirm-delete-description {
+  margin: 0;
+  color: var(--brand-navy);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.confirm-delete-note {
+  display: block;
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--brand-cream) 92%, var(--brand-navy));
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.confirm-delete-modal .modal-actions {
+  margin-top: 4px;
+  padding-top: 16px;
+}
+
+.confirm-delete-modal .modal-actions button {
+  flex: 1;
+}
+
+
+/* Филиалы: спокойный, менее нагруженный экран — один заголовок,
+   компактная карточка формы и таблица без лишних колонок. */
+[data-testid="branch-manager"] {
+  gap: 14px;
+}
+
+[data-testid="branch-manager"] > .section-head {
+  padding-bottom: 14px;
+}
+
+[data-testid="branch-manager"] > .section-head h1 {
+  font-size: clamp(22px, 1.7vw, 26px);
+  letter-spacing: -0.02em;
+}
+
+[data-testid="branch-manager"] > .section-head p {
+  max-width: 52ch;
+  margin-top: 6px;
+  color: color-mix(in srgb, var(--brand-navy) 66%, transparent);
+  font-size: 13.5px;
+}
+
+[data-testid="branch-manager"] .primary-cell strong {
+  font-size: 14px;
+  letter-spacing: -0.01em;
+}
+
+[data-testid="branch-manager"] .primary-cell small.coordinate-value {
+  color: color-mix(in srgb, var(--brand-navy) 55%, transparent);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+/* Форма филиала живёт в диалоге: карта короче, тело прокручивается,
+   кнопки остаются видимыми на нижней кромке. */
+.branch-form-modal {
+  width: min(620px, 100%);
+  max-height: min(88dvh, 760px);
+  display: flex;
+  padding: 0;
+  overflow: hidden;
+}
+
+.branch-form-modal > form {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  width: 100%;
+}
+
+.branch-form-modal .modal-head {
+  margin: 0;
+  padding: 22px 24px 16px;
+}
+
+.branch-form-modal .inline-alert {
+  margin: 16px 24px 0;
+}
+
+.branch-form-modal .form-grid {
+  gap: 16px 14px;
+  padding: 20px 24px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+@media (min-width: 621px) {
+  .branch-form-modal .form-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.branch-form-modal .branch-location-map {
+  height: clamp(240px, 34vh, 360px);
+}
+
+.branch-form-modal .map-loading {
+  display: grid;
+  place-items: center;
+  height: 240px;
+  border-radius: 14px;
+  color: var(--muted);
+  background: color-mix(in srgb, var(--brand-navy) 5%, var(--brand-cream));
+}
+
+.branch-form-modal .modal-actions {
+  margin: 0;
+  padding: 16px 24px 20px;
+  border-top: 1px solid var(--line);
+  background: var(--brand-cream);
+}
+
+
+/* Карта доставки: заголовок страницы уже назван, панели остаётся только
+   строка состояния — она должна читаться, а не быть подписью в 8px. */
+[data-testid="dispatch-map-panel"] > .section-head.compact p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+[data-testid="dispatch-map-page"] > .section-head p {
+  max-width: 52ch;
+  margin-top: 6px;
+  color: color-mix(in srgb, var(--brand-navy) 66%, transparent);
+  font-size: 13.5px;
+}
+
+
+/* Журнал входов: одна шкала размеров — цифры крупные, подписи мелкие,
+   всё остальное 12-13px, без градиентов и лишних рамок. */
+.login-attempt-manager > .section-head p {
+  max-width: 52ch;
+  margin-top: 6px;
+  color: color-mix(in srgb, var(--brand-navy) 66%, transparent);
+  font-size: 13.5px;
+}
+
+.login-attempt-manager .login-attempt-summary .stat-card span {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.login-attempt-manager .login-attempt-summary .stat-card strong {
+  font-size: 28px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+.login-attempt-manager .toolbar.login-attempt-filters {
+  background: var(--brand-cream);
+}
+
+.login-attempt-manager .toolbar-heading strong {
+  margin-top: 0;
+  font-size: 13px;
+}
+
+.login-attempt-manager .toolbar.login-attempt-filters label > span {
+  color: var(--muted);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.login-attempt-manager .primary-cell strong {
+  font-size: 13px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+.login-attempt-manager .primary-cell small,
+.login-attempt-manager .primary-cell a {
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.login-attempt-manager .primary-cell .mono {
+  font-size: 11.5px;
+}
+
+.login-attempt-manager .login-attempt-status {
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.login-attempt-manager .table-pagination {
+  font-size: 12px;
+}
+
+
+/* Каталог: одна типографская шкала на весь экран — заголовки 16px,
+   значения 13px, подписи 11.5px. Мельче ничего не остаётся. */
+[data-testid="catalog-manager"] > .section-head p {
+  max-width: 52ch;
+  margin-top: 6px;
+  color: color-mix(in srgb, var(--brand-navy) 66%, transparent);
+  font-size: 13.5px;
+}
+
+/* Панель поиска потеряла заголовок: поле само себя объясняет. */
+[data-testid="catalog-manager"] .catalog-search-panel {
+  grid-template-columns: minmax(260px, 2fr) minmax(180px, 0.8fr);
+  align-items: end;
+  background: var(--brand-cream);
+}
+
+@media (max-width: 760px) {
+  [data-testid="catalog-manager"] .catalog-search-panel {
+    grid-template-columns: 1fr;
+  }
+}
+
+[data-testid="catalog-manager"] .catalog-search-input input,
+[data-testid="catalog-manager"] .catalog-category-filter select {
+  font-size: 13px;
+}
+
+[data-testid="catalog-manager"] .catalog-category-filter {
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+[data-testid="catalog-manager"] .receipt-print-settings-copy h2 {
+  font-size: 16px;
+  letter-spacing: -0.01em;
+}
+
+[data-testid="catalog-manager"] .receipt-print-settings-copy p {
+  max-width: 46ch;
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+[data-testid="catalog-manager"] .card-title small {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 11.5px;
+}
+
+[data-testid="catalog-manager"] .primary-cell strong {
+  font-size: 13px;
+  font-weight: 650;
+}
+
+[data-testid="catalog-manager"] .primary-cell small {
+  font-size: 11.5px;
+  line-height: 1.45;
+}
+
+/* Описание блюда бывает в несколько предложений — две строки и многоточие. */
+[data-testid="catalog-manager"] .media-cell .primary-cell small {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+[data-testid="catalog-manager"] .data-table td {
+  font-size: 13px;
+}
+
+[data-testid="catalog-manager"] .data-table th {
+  font-size: 11px;
+  letter-spacing: 0.03em;
+}
+
+[data-testid="catalog-manager"] .primary-cell strong,
+[data-testid="catalog-manager"] .catalog-product-group-meta > span:first-child {
+  font-variant-numeric: tabular-nums;
+}
+
+[data-testid="catalog-manager"] .catalog-product-group-title strong {
+  font-size: 13.5px;
+}
+
+[data-testid="catalog-manager"] .catalog-product-group-title small {
+  font-size: 11px;
+}
+
+
+/* Категории и X-принтеры: имя и подпись были 12/10px — мельче остальной
+   таблицы без причины. */
+.category-printer-route-name strong {
+  font-size: 13px;
+}
+
+.category-printer-route-name small,
+.category-printer-route-readonly {
+  font-size: 11.5px;
+}
+
+
+/* Каталог разбит на вкладки: категории, блюда, аппараты. */
+[data-testid="catalog-manager"] .catalog-tabs {
+  margin: 0;
+}
+
+[data-testid="catalog-manager"] .catalog-tabs button {
+  font-size: 12.5px;
+}
+
+[data-testid="catalog-manager"] .catalog-tabs .role-tab-count {
+  font-size: 10px;
+}
+
+/* Фильтр по категории работает только для блюд — на вкладке категорий
+   поле поиска занимает всю панель. */
+[data-testid="catalog-manager"] .catalog-search-panel--single {
+  grid-template-columns: minmax(260px, 1fr);
+}
+
+
+/* Аппараты и редакторы каталога открываются диалогом по центру, а не
+   выезжающей панелью: форма короткая и не требует всей высоты экрана. */
+.receipt-printer-modal {
+  width: min(560px, 100%);
+  max-height: min(88dvh, 720px);
+  display: flex;
+  padding: 0;
+  overflow: hidden;
+}
+
+.receipt-printer-modal > form {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.receipt-printer-modal .modal-head {
+  margin: 0;
+  align-items: flex-start;
+  padding: 22px 24px 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.receipt-printer-modal .modal-head h2 {
+  margin-top: 0;
+  font-size: 19px;
+  letter-spacing: -0.01em;
+}
+
+.receipt-printer-modal .modal-head p {
+  margin: 5px 0 0;
+  max-width: 42ch;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.receipt-printer-editor-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 16px 14px;
+  padding: 20px 24px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.receipt-printer-editor-fields > label:first-child,
+.receipt-printer-editor-fields > .check-field {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 620px) {
+  .receipt-printer-editor-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.receipt-printer-modal .receipt-printer-editor-actions {
+  grid-column: auto;
+  margin: 0;
+  padding: 16px 24px 20px;
+  border-top: 1px solid var(--line);
+  background: var(--brand-cream);
+}
+
+.receipt-printer-editor label small {
+  font-size: 11px;
+}
+
+/* Каталог: редакторы категории и блюда тоже по центру. */
+.catalog-editor-backdrop {
+  align-items: center;
+  justify-items: center;
+  padding: 20px;
+}
+
+.catalog-editor-modal {
+  width: min(920px, 100%);
+  max-height: min(88dvh, 880px);
+  border-radius: 20px;
+  box-shadow: 0 30px 80px rgb(6 47 94 / 0.3);
+  animation: modal-card-in 200ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.catalog-category-modal {
+  width: min(560px, 100%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .catalog-editor-modal {
+    animation: none;
+  }
+}
+
+@media (max-width: 620px) {
+  .catalog-editor-backdrop {
+    align-items: end;
+    justify-items: stretch;
+    padding: 0;
+  }
+
+  .catalog-editor-modal {
+    width: 100%;
+    max-height: 92dvh;
+    border-radius: 20px 20px 0 0;
+  }
+}
+
+
+/* Поиск переехал вправо от вкладок: одна строка вместо двух блоков. */
+.catalog-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+[data-testid="catalog-manager"] .catalog-toolbar .catalog-tabs {
+  flex: 0 0 auto;
+  margin: 0;
+}
+
+[data-testid="catalog-manager"] .catalog-toolbar .catalog-search-panel {
+  flex: 1 1 320px;
+  max-width: 520px;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  grid-template-columns: minmax(190px, 1fr) minmax(150px, 0.6fr);
+}
+
+[data-testid="catalog-manager"]
+  .catalog-toolbar
+  .catalog-search-panel--single {
+  grid-template-columns: minmax(220px, 1fr);
+}
+
+/* Подпись поля-фильтра поднимала строку — роль берёт на себя aria-label. */
+.catalog-toolbar .catalog-category-filter > span {
+  display: none;
+}
+
+.catalog-toolbar .catalog-search-input,
+.catalog-toolbar .catalog-category-filter select {
+  min-height: 40px;
+}
+
+@media (max-width: 760px) {
+  [data-testid="catalog-manager"] .catalog-toolbar .catalog-search-panel {
+    max-width: none;
+  }
+}
+
+
+/* Смены и касса: описание в одну шкалу с остальными разделами. */
+[data-testid="accounting-dashboard"] > .section-head p {
+  max-width: 52ch;
+  margin-top: 6px;
+  color: color-mix(in srgb, var(--brand-navy) 66%, transparent);
+  font-size: 13.5px;
+}
+
+
+/* Заказы: описание в одну шкалу с остальными разделами. */
+[data-testid="order-board"] > .section-head p {
+  max-width: 52ch;
+  margin-top: 6px;
+  color: color-mix(in srgb, var(--brand-navy) 66%, transparent);
+  font-size: 13.5px;
+}
+
+
+/* Заказы: одна шкала — числа и суммы 13-14px с табличными цифрами,
+   подписи 11-11.5px. Ничего мельче 10px не остаётся. */
+[data-testid="order-board"] > .section-head p {
+  max-width: 52ch;
+  margin-top: 6px;
+  color: color-mix(in srgb, var(--brand-navy) 66%, transparent);
+  font-size: 13.5px;
+}
+
+[data-testid="order-board"] .data-table td {
+  font-size: 13px;
+}
+
+[data-testid="order-board"] .data-table th {
+  font-size: 11px;
+  letter-spacing: 0.03em;
+}
+
+[data-testid="order-board"] .status-pill {
+  min-height: 24px;
+  font-size: 10.5px;
+}
+
+[data-testid="order-board"] .primary-cell strong {
+  font-size: 13px;
+  font-weight: 650;
+}
+
+[data-testid="order-board"] .order-identity strong,
+[data-testid="order-board"] .amount-cell strong {
+  font-variant-numeric: tabular-nums;
+}
+
+[data-testid="order-board"] .primary-cell small,
+[data-testid="order-board"] .primary-cell a {
+  font-size: 11.5px;
+}
+
+[data-testid="order-board"] .address-copy {
+  font-size: 11.5px !important;
+}
+
+[data-testid="order-board"] .order-item-count,
+[data-testid="order-board"] .delivery-details,
+[data-testid="order-board"] .order-cancellation-reason,
+[data-testid="order-board"] .order-source-label,
+[data-testid="order-board"] .amount-cell small {
+  font-size: 11px;
+}
+
+[data-testid="order-board"] .amount-cell strong {
+  font-size: 15px;
+}
+
+[data-testid="order-board"] .order-items-cell {
+  font-size: 12px;
+}
+
+[data-testid="order-board"] .toolbar label > span {
+  font-size: 11.5px;
+}
+
+/* Заголовок колонки канбана был 9px в верхнем регистре — нечитаемо. */
+[data-testid="order-board"] .order-kanban-lane-head span {
+  font-size: 10.5px;
+  letter-spacing: 0.05em;
+}
+
+
+/* Заказ: филиал, состав и отзыв теперь подписи одной карточки заказа. */
+[data-testid="order-board"] .order-rating-badge {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  color: var(--brand-orange);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+/* Фильтры: одна плотная строка вместо разнокалиберных блоков. */
+[data-testid="order-board"] > .toolbar {
+  align-items: end;
+  gap: 10px;
+}
+
+[data-testid="order-board"] > .toolbar :is(select, input) {
+  min-height: 38px;
+  font-size: 13px;
+}
+
+
+/* Сворачиваемое меню: на широком экране остаются только иконки, выбор
+   сохраняется между сессиями. Ниже 1180px работает выдвижной drawer. */
+.sidebar-collapse {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid rgb(254 247 231 / 0.24);
+  border-radius: 11px;
+  color: var(--brand-cream);
+  background: rgb(254 247 231 / 0.08);
+  cursor: pointer;
+}
+
+.sidebar-collapse:hover {
+  border-color: rgb(254 247 231 / 0.45);
+  background: rgb(254 247 231 / 0.16);
+}
+
+.sidebar-collapse:focus-visible {
+  outline: 2px solid var(--brand-orange);
+  outline-offset: 2px;
+}
+
+.app-shell.sidebar-collapsed {
+  grid-template-columns: 84px minmax(0, 1fr);
+}
+
+.sidebar-collapsed .sidebar {
+  padding-inline: 12px;
+}
+
+.sidebar-collapsed .sidebar-head {
+  flex-direction: column;
+  gap: 12px;
+}
+
+.sidebar-collapsed .brand {
+  justify-content: center;
+  padding: 0;
+}
+
+.sidebar-collapsed .brand > span:last-child,
+.sidebar-collapsed .nav-caption,
+.sidebar-collapsed .main-nav a > span:nth-child(2),
+.sidebar-collapsed .main-nav em,
+.sidebar-collapsed .sidebar-user > div,
+.sidebar-collapsed .sidebar-user > button {
+  display: none;
+}
+
+.sidebar-collapsed .main-nav a {
+  display: grid;
+  grid-template-columns: 1fr;
+  place-items: center;
+  padding: 0;
+}
+
+.sidebar-collapsed .main-nav a.active::before {
+  left: -12px;
+}
+
+/* Свернутое меню: у карточки остаётся только аватар — сетка из трёх
+   колонок держала его у левого края. */
+.sidebar-collapsed .sidebar-user {
+  grid-template-columns: 1fr;
+  justify-items: center;
+  padding-inline: 0;
+}
+
+/* На планшете и телефоне меню и так выдвижное — кнопка там лишняя. */
+@media (max-width: 1180px),
+  (hover: none) and (pointer: coarse) and (max-width: 1366px) {
+  .sidebar-collapse {
+    display: none;
+  }
+}
+
+
+/* Убранный блок "Backend подключён" держал нижний отступ: нижний блок
+   меню прижимается к низу сам. */
+.sidebar-user,
+.sidebar-foot + .sidebar-user {
+  margin-top: auto;
+}
+
+/* Кнопка сворачивания живёт внизу меню: рядом с логотипом она ломала
+   название на две строки. */
+.sidebar-foot {
+  display: flex;
+  justify-content: flex-start;
+  margin-top: auto;
+  padding: 0 5px 10px;
+}
+
+.sidebar-foot + .sidebar-user {
+  margin-top: 0;
+}
+
+.sidebar-collapsed .sidebar-foot {
+  justify-content: flex-start;
+  padding-inline: 0;
+}
+
+@media (max-width: 1180px),
+  (hover: none) and (pointer: coarse) and (max-width: 1366px) {
+  .sidebar-foot {
+    display: none;
   }
 }

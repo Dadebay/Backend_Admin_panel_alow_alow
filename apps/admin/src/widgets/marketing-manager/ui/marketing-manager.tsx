@@ -14,7 +14,14 @@ import { useMarketingActions } from "@/src/features/marketing-management";
 import { resolveApiUrl } from "@/src/shared/api/api-client";
 import { useSession } from "@/src/shared/auth";
 import { FormFieldError, toIsoDateTime } from "@/src/shared/forms";
-import { AsyncPanel, DataTable } from "@/src/shared/ui";
+import {
+  AsyncPanel,
+  ConfirmDeleteDialog,
+  DataTable,
+  EditIcon,
+  PowerIcon,
+  TrashIcon,
+} from "@/src/shared/ui";
 import {
   bannerFormSchema,
   promoFormSchema,
@@ -29,6 +36,12 @@ function parseBannerTarget(link: string | null) {
   return match
     ? { type: match[1] as "product" | "category", id: match[2] }
     : { type: "external" as const, id: "" };
+}
+
+function imageFileFromDrop(event: { dataTransfer: DataTransfer }) {
+  return Array.from(event.dataTransfer.files ?? []).find((file) =>
+    file.type.startsWith("image/"),
+  );
 }
 
 export function MarketingManager() {
@@ -46,6 +59,8 @@ export function MarketingManager() {
   const [showPromo, setShowPromo] = useState(false);
   const [bannerTargetType, setBannerTargetType] = useState<"external" | "product" | "category">("external");
   const [bannerTargetId, setBannerTargetId] = useState("");
+  const [selectedBannerFile, setSelectedBannerFile] = useState<File | null>(null);
+  const [bannerDragOver, setBannerDragOver] = useState(false);
   const {
     register: registerBanner,
     handleSubmit: handleBannerSubmit,
@@ -63,7 +78,6 @@ export function MarketingManager() {
       startsAt: "",
       endsAt: "",
       isActive: true,
-      image: undefined,
     },
   });
   const {
@@ -141,12 +155,15 @@ export function MarketingManager() {
           canEdit && (
             <div className="row-actions">
               <button
-                className="secondary-button compact"
+                aria-label="Изменить"
+                title="Изменить"
+                className="secondary-button compact row-icon-button"
                 onClick={() => {
                   setBannerEdit(row.original);
                   const target = parseBannerTarget(row.original.link);
                   setBannerTargetType(target.type);
                   setBannerTargetId(target.id);
+                  setSelectedBannerFile(null);
                   resetBanner({
                     title: row.original.title,
                     subtitle: row.original.subtitle ?? "",
@@ -155,15 +172,16 @@ export function MarketingManager() {
                     startsAt: row.original.startsAt?.slice(0, 16) ?? "",
                     endsAt: row.original.endsAt?.slice(0, 16) ?? "",
                     isActive: row.original.isActive,
-                    image: undefined,
                   });
                   setShowBanner(true);
                 }}
               >
-                Изменить
+                <EditIcon />
               </button>
               <button
-                className="text-button"
+                aria-label={row.original.isActive ? "Выключить" : "Включить"}
+                title={row.original.isActive ? "Выключить" : "Включить"}
+                className="text-button row-icon-button"
                 data-testid={`banner-toggle-${row.original.id}`}
                 disabled={marketing.updateBanner.isPending}
                 type="button"
@@ -174,10 +192,12 @@ export function MarketingManager() {
                   })
                 }
               >
-                {row.original.isActive ? "Выключить" : "Включить"}
+                <PowerIcon />
               </button>
               <button
-                className="danger-button compact"
+                aria-label="Удалить"
+                title="Удалить"
+                className="danger-button compact row-icon-button"
                 data-testid={`banner-delete-open-${row.original.id}`}
                 disabled={marketing.deleteBanner.isPending}
                 type="button"
@@ -186,7 +206,7 @@ export function MarketingManager() {
                   setBannerDelete(row.original);
                 }}
               >
-                Удалить
+                <TrashIcon />
               </button>
             </div>
           ),
@@ -245,7 +265,9 @@ export function MarketingManager() {
           canEdit && (
             <div className="row-actions">
               <button
-                className="secondary-button compact"
+                aria-label="Изменить"
+                title="Изменить"
+                className="secondary-button compact row-icon-button"
                 onClick={() => {
                   setPromoEdit(row.original);
                   resetPromo({
@@ -269,10 +291,12 @@ export function MarketingManager() {
                   setShowPromo(true);
                 }}
               >
-                Изменить
+                <EditIcon />
               </button>
               <button
-                className="text-button"
+                aria-label={row.original.isActive ? "Выключить" : "Включить"}
+                title={row.original.isActive ? "Выключить" : "Включить"}
+                className="text-button row-icon-button"
                 onClick={() =>
                   marketing.updatePromo.mutate({
                     id: row.original.id,
@@ -283,7 +307,7 @@ export function MarketingManager() {
                   })
                 }
               >
-                {row.original.isActive ? "Выключить" : "Включить"}
+                <PowerIcon />
               </button>
             </div>
           ),
@@ -293,10 +317,9 @@ export function MarketingManager() {
   );
 
   async function submitBanner(values: BannerFormValues) {
-    const file = (values.image as FileList | undefined)?.item(0);
     let imageUrl = bannerEdit?.imageUrl;
-    if (file?.size) {
-      imageUrl = (await media.uploadImage.mutateAsync(file)).url;
+    if (selectedBannerFile) {
+      imageUrl = (await media.uploadImage.mutateAsync(selectedBannerFile)).url;
     }
     if (!imageUrl) {
       setBannerError("image", { message: "Выберите изображение баннера" });
@@ -324,9 +347,7 @@ export function MarketingManager() {
     } else {
       await marketing.createBanner.mutateAsync(body);
     }
-    setBannerEdit(null);
-    setShowBanner(false);
-    resetBanner();
+    closeBannerEditor();
   }
 
   async function submitPromo(values: PromoFormValues) {
@@ -343,8 +364,20 @@ export function MarketingManager() {
     } else {
       await marketing.createPromo.mutateAsync(body);
     }
-    setPromoEdit(null);
+    closePromoEditor();
+  }
+
+  function closeBannerEditor() {
+    setShowBanner(false);
+    setBannerEdit(null);
+    setSelectedBannerFile(null);
+    setBannerDragOver(false);
+    resetBanner();
+  }
+
+  function closePromoEditor() {
     setShowPromo(false);
+    setPromoEdit(null);
     resetPromo();
   }
 
@@ -372,46 +405,10 @@ export function MarketingManager() {
     media.uploadImage.error;
 
   return (
-    <section className="admin-section" data-testid="marketing-manager">
-      <header className="section-head" data-testid="marketing-header">
-        <div>
-          <span className="eyebrow">МАРКЕТИНГ</span>
-          <h1>Баннеры и промокоды</h1>
-          <p>Все изменения сохраняются в backend и сразу доступны клиентам.</p>
-        </div>
-        {canEdit && (
-          <div
-            className="header-actions section-header-actions"
-            data-testid="marketing-header-actions"
-          >
-            <button
-              className="secondary-button"
-              data-testid="banner-form-open"
-              onClick={() => {
-                setBannerEdit(null);
-                setBannerTargetType("external");
-                setBannerTargetId("");
-                resetBanner();
-                setShowBanner((value) => !value);
-              }}
-            >
-              + Баннер
-            </button>
-            <button
-              className="primary-button"
-              data-testid="promo-form-open"
-              onClick={() => {
-                setPromoEdit(null);
-                resetPromo();
-                setShowPromo((value) => !value);
-              }}
-            >
-              + Промокод
-            </button>
-          </div>
-        )}
-      </header>
-
+    <section
+      className="admin-section marketing-section"
+      data-testid="marketing-manager"
+    >
       {mutationError && (
         <div className="inline-alert">
           {mutationError instanceof Error ? mutationError.message : ""}
@@ -419,90 +416,92 @@ export function MarketingManager() {
       )}
 
       {bannerDelete && (
-        <div
-          className="modal-backdrop"
-          data-testid="banner-delete-dialog"
-        >
-          <section
-            aria-labelledby="banner-delete-title"
-            aria-modal="true"
-            className="modal banner-delete-modal"
-            role="alertdialog"
-          >
-            <header className="modal-head">
-              <div>
-                <span className="eyebrow">БЕЗ ВОССТАНОВЛЕНИЯ</span>
-                <h2 id="banner-delete-title">Удалить баннер?</h2>
-              </div>
-            </header>
-            <p>
-              Баннер «{bannerDelete.title}» исчезнет из админки и клиентских
-              приложений.
-            </p>
-            <small>
-              Запись удаляется навсегда. Файл изображения останется в приватном
-              хранилище и не удалит другие материалы.
-            </small>
-            {marketing.deleteBanner.error && (
-              <p className="form-error" role="alert">
-                {marketing.deleteBanner.error instanceof Error
-                  ? marketing.deleteBanner.error.message
-                  : "Не удалось удалить баннер"}
-              </p>
-            )}
-            <div className="modal-actions">
-              <button
-                className="secondary-button"
-                data-testid="banner-delete-cancel"
-                disabled={marketing.deleteBanner.isPending}
-                type="button"
-                autoFocus
-                onClick={() => {
-                  marketing.deleteBanner.reset();
-                  setBannerDelete(null);
-                }}
-              >
-                Отмена
-              </button>
-              <button
-                className="danger-button"
-                data-testid="banner-delete-confirm"
-                disabled={marketing.deleteBanner.isPending}
-                type="button"
-                onClick={() => void deleteSelectedBanner()}
-              >
-                {marketing.deleteBanner.isPending
-                  ? "Удаляем…"
-                  : "Удалить навсегда"}
-              </button>
-            </div>
-          </section>
-        </div>
+        <ConfirmDeleteDialog
+          className="marketing-delete-modal"
+          dialogTestId="banner-delete-dialog"
+          titleId="banner-delete-title"
+          title="Удалить баннер?"
+          description={`Баннер «${bannerDelete.title}» исчезнет из админки и клиентских приложений.`}
+          note="Запись удаляется навсегда. Файл изображения останется в приватном хранилище и не удалит другие материалы."
+          error={
+            marketing.deleteBanner.error
+              ? marketing.deleteBanner.error instanceof Error
+                ? marketing.deleteBanner.error.message
+                : "Не удалось удалить баннер"
+              : undefined
+          }
+          isPending={marketing.deleteBanner.isPending}
+          cancelTestId="banner-delete-cancel"
+          confirmTestId="banner-delete-confirm"
+          onCancel={() => {
+            marketing.deleteBanner.reset();
+            setBannerDelete(null);
+          }}
+          onConfirm={() => void deleteSelectedBanner()}
+        />
       )}
 
       {showBanner && (
-        <form
-          className="editor-card"
-          data-testid="banner-form"
-          noValidate
-          onSubmit={handleBannerSubmit(submitBanner)}
+        <div
+          className="modal-backdrop marketing-editor-backdrop"
+          data-testid="banner-form-backdrop"
+          onMouseDown={(event) => {
+            if (
+              !media.uploadImage.isPending &&
+              !marketing.createBanner.isPending &&
+              !marketing.updateBanner.isPending &&
+              event.target === event.currentTarget
+            ) {
+              closeBannerEditor();
+            }
+          }}
         >
-          <div className="editor-title">
-            <h2>{bannerEdit ? "Изменить баннер" : "Новый баннер"}</h2>
-            <button
-              className="text-button"
-              data-testid="banner-form-close"
-              type="button"
-              onClick={() => {
-                setShowBanner(false);
-                setBannerEdit(null);
-                resetBanner();
-              }}
+          <section
+            aria-labelledby="banner-form-title"
+            aria-modal="true"
+            className="modal marketing-editor-modal"
+            role="dialog"
+          >
+            <form
+              className="marketing-editor"
+              data-testid="banner-form"
+              noValidate
+              onSubmit={handleBannerSubmit(submitBanner)}
             >
-              Закрыть
-            </button>
-          </div>
-          <div className="form-grid">
+              <header className="modal-head editor-title marketing-editor-title">
+                <div>
+                  <h2 id="banner-form-title">
+                    {bannerEdit ? "Изменить баннер" : "Новый баннер"}
+                  </h2>
+                  <p>
+                    Укажите текст, изображение и переход, который увидит
+                    клиент в приложении.
+                  </p>
+                </div>
+                <button
+                  aria-label="Закрыть"
+                  className="modal-close"
+                  data-testid="banner-form-close"
+                  disabled={
+                    media.uploadImage.isPending ||
+                    marketing.createBanner.isPending ||
+                    marketing.updateBanner.isPending
+                  }
+                  type="button"
+                  onClick={closeBannerEditor}
+                >
+                  <svg viewBox="0 0 20 20" aria-hidden="true">
+                    <path
+                      d="M6 6l8 8M14 6l-8 8"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeLinecap="round"
+                      strokeWidth="1.9"
+                    />
+                  </svg>
+                </button>
+              </header>
+              <div className="form-grid marketing-form-grid">
             <label>
               <span>Заголовок</span>
               <input
@@ -580,15 +579,45 @@ export function MarketingManager() {
               />
               <FormFieldError message={bannerErrors.endsAt?.message} />
             </label>
-            <label>
+            <label className="wide-field">
               <span>Изображение до 5 МБ</span>
-              <input
-                data-testid="banner-image"
-                {...registerBanner("image")}
-                aria-invalid={Boolean(bannerErrors.image)}
-                type="file"
-                accept="image/*"
-              />
+              <div
+                className={
+                  bannerDragOver
+                    ? "product-file-picker is-dragging"
+                    : "product-file-picker"
+                }
+                onDragOver={(event) => {
+                  event.preventDefault();
+                  setBannerDragOver(true);
+                }}
+                onDragLeave={(event) => {
+                  event.preventDefault();
+                  setBannerDragOver(false);
+                }}
+                onDrop={(event) => {
+                  event.preventDefault();
+                  setBannerDragOver(false);
+                  const file = imageFileFromDrop(event);
+                  if (!file) return;
+                  setSelectedBannerFile(file);
+                }}
+              >
+                <span>
+                  {selectedBannerFile
+                    ? selectedBannerFile.name
+                    : "Выберите файл или перетащите сюда"}
+                </span>
+                <input
+                  data-testid="banner-image"
+                  aria-invalid={Boolean(bannerErrors.image)}
+                  type="file"
+                  accept="image/*"
+                  onChange={(event) =>
+                    setSelectedBannerFile(event.currentTarget.files?.item(0) ?? null)
+                  }
+                />
+              </div>
               <FormFieldError message={bannerErrors.image?.message} />
             </label>
             <label className="check-field">
@@ -599,44 +628,98 @@ export function MarketingManager() {
               />
               Показывать
             </label>
-          </div>
-          <button
-            className="primary-button"
-            data-testid="banner-save"
-            disabled={
-              media.uploadImage.isPending ||
-              marketing.createBanner.isPending ||
-              marketing.updateBanner.isPending
-            }
-          >
-            Сохранить баннер
-          </button>
-        </form>
+              </div>
+              <footer className="marketing-form-actions">
+                <p>Изменения сразу появятся у клиентов.</p>
+                <div>
+                  <button
+                    className="secondary-button"
+                    disabled={
+                      media.uploadImage.isPending ||
+                      marketing.createBanner.isPending ||
+                      marketing.updateBanner.isPending
+                    }
+                    type="button"
+                    onClick={closeBannerEditor}
+                  >
+                    Отмена
+                  </button>
+                  <button
+                    className="primary-button"
+                    data-testid="banner-save"
+                    disabled={
+                      media.uploadImage.isPending ||
+                      marketing.createBanner.isPending ||
+                      marketing.updateBanner.isPending
+                    }
+                  >
+                    Сохранить баннер
+                  </button>
+                </div>
+              </footer>
+            </form>
+          </section>
+        </div>
       )}
 
       {showPromo && (
-        <form
-          className="editor-card"
-          data-testid="promo-form"
-          noValidate
-          onSubmit={handlePromoSubmit(submitPromo)}
+        <div
+          className="modal-backdrop marketing-editor-backdrop"
+          data-testid="promo-form-backdrop"
+          onMouseDown={(event) => {
+            if (
+              !marketing.createPromo.isPending &&
+              !marketing.updatePromo.isPending &&
+              event.target === event.currentTarget
+            ) {
+              closePromoEditor();
+            }
+          }}
         >
-          <div className="editor-title">
-            <h2>{promoEdit ? "Изменить промокод" : "Новый промокод"}</h2>
-            <button
-              className="text-button"
-              data-testid="promo-form-close"
-              type="button"
-              onClick={() => {
-                setShowPromo(false);
-                setPromoEdit(null);
-                resetPromo();
-              }}
+          <section
+            aria-labelledby="promo-form-title"
+            aria-modal="true"
+            className="modal marketing-editor-modal"
+            role="dialog"
+          >
+            <form
+              className="marketing-editor"
+              data-testid="promo-form"
+              noValidate
+              onSubmit={handlePromoSubmit(submitPromo)}
             >
-              Закрыть
-            </button>
-          </div>
-          <div className="form-grid">
+              <header className="modal-head editor-title marketing-editor-title">
+                <div>
+                  <h2 id="promo-form-title">
+                    {promoEdit ? "Изменить промокод" : "Новый промокод"}
+                  </h2>
+                  <p>
+                    Настройте скидку, лимиты и период действия промокода.
+                  </p>
+                </div>
+                <button
+                  aria-label="Закрыть"
+                  className="modal-close"
+                  data-testid="promo-form-close"
+                  disabled={
+                    marketing.createPromo.isPending ||
+                    marketing.updatePromo.isPending
+                  }
+                  type="button"
+                  onClick={closePromoEditor}
+                >
+                  <svg viewBox="0 0 20 20" aria-hidden="true">
+                    <path
+                      d="M6 6l8 8M14 6l-8 8"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeLinecap="round"
+                      strokeWidth="1.9"
+                    />
+                  </svg>
+                </button>
+              </header>
+              <div className="form-grid marketing-form-grid">
             <label>
               <span>Код</span>
               <input
@@ -752,24 +835,67 @@ export function MarketingManager() {
               />
               Активен
             </label>
-          </div>
-          <button
-            className="primary-button"
-            data-testid="promo-save"
-            disabled={
-              marketing.createPromo.isPending || marketing.updatePromo.isPending
-            }
-          >
-            Сохранить промокод
-          </button>
-        </form>
+              </div>
+              <footer className="marketing-form-actions">
+                <p>Промокод можно отключить в любой момент.</p>
+                <div>
+                  <button
+                    className="secondary-button"
+                    disabled={
+                      marketing.createPromo.isPending ||
+                      marketing.updatePromo.isPending
+                    }
+                    type="button"
+                    onClick={closePromoEditor}
+                  >
+                    Отмена
+                  </button>
+                  <button
+                    className="primary-button"
+                    data-testid="promo-save"
+                    disabled={
+                      marketing.createPromo.isPending ||
+                      marketing.updatePromo.isPending
+                    }
+                  >
+                    Сохранить промокод
+                  </button>
+                </div>
+              </footer>
+            </form>
+          </section>
+        </div>
       )}
 
-      <div className="split-tables">
-        <article className="table-card">
+      <div className="split-tables marketing-workspace">
+        <article className="table-card marketing-panel">
           <div className="card-title">
-            <h2>Баннеры</h2>
-            <span>{banners.data?.length ?? 0}</span>
+            <div>
+              <h2>Баннеры</h2>
+              <small>Главные предложения и переходы в приложении.</small>
+            </div>
+            <div className="marketing-panel-actions">
+              <span className="marketing-panel-count">
+                {banners.data?.length ?? 0}
+              </span>
+              {canEdit && (
+                <button
+                  className="secondary-button compact"
+                  data-testid="banner-form-open"
+                  type="button"
+                  onClick={() => {
+                    setBannerEdit(null);
+                    setBannerTargetType("external");
+                    setBannerTargetId("");
+                    setSelectedBannerFile(null);
+                    resetBanner();
+                    setShowBanner(true);
+                  }}
+                >
+                  + Баннер
+                </button>
+              )}
+            </div>
           </div>
           <AsyncPanel
             pending={banners.isPending}
@@ -785,10 +911,31 @@ export function MarketingManager() {
             />
           </AsyncPanel>
         </article>
-        <article className="table-card">
+        <article className="table-card marketing-panel">
           <div className="card-title">
-            <h2>Промокоды</h2>
-            <span>{promos.data?.length ?? 0}</span>
+            <div>
+              <h2>Промокоды</h2>
+              <small>Скидки и лимиты использования для заказов.</small>
+            </div>
+            <div className="marketing-panel-actions">
+              <span className="marketing-panel-count">
+                {promos.data?.length ?? 0}
+              </span>
+              {canEdit && (
+                <button
+                  className="primary-button compact"
+                  data-testid="promo-form-open"
+                  type="button"
+                  onClick={() => {
+                    setPromoEdit(null);
+                    resetPromo();
+                    setShowPromo(true);
+                  }}
+                >
+                  + Промокод
+                </button>
+              )}
+            </div>
           </div>
           <AsyncPanel
             pending={promos.isPending}

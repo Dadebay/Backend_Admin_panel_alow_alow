@@ -106,6 +106,47 @@ test("every administrator workspace exposes a stable tablet QA root", async () =
   );
 });
 
+test("notification composer opens as an accessible modal", async () => {
+  const [source, styles] = await Promise.all([
+    readFile(
+      new URL(
+        "../src/widgets/notification-manager/ui/notification-manager.tsx",
+        import.meta.url,
+      ),
+      "utf8",
+    ),
+    readFile(stylesUrl, "utf8"),
+  ]);
+
+  assert.match(source, /data-testid="notification-form-open"/);
+  assert.match(source, /data-testid="notification-form-backdrop"/);
+  assert.match(source, /aria-modal="true"/);
+  assert.match(source, /role="dialog"/);
+  assert.match(source, /data-testid="notification-form-close"/);
+  assert.match(source, /event\.key === "Escape"/);
+  assert.match(styles, /\.notification-compose-modal\s*\{[^}]*width: min\(930px, 100%\);/s);
+});
+
+test("notification history groups each campaign into a readable card", async () => {
+  const [source, styles] = await Promise.all([
+    readFile(
+      new URL(
+        "../src/widgets/notification-manager/ui/notification-manager.tsx",
+        import.meta.url,
+      ),
+      "utf8",
+    ),
+    readFile(stylesUrl, "utf8"),
+  ]);
+
+  assert.match(source, /className="notification-history-list"/);
+  assert.match(source, /className="notification-history-card"/);
+  assert.match(source, /className="notification-history-metrics"/);
+  assert.match(source, /data-testid=\{`notification-history-card-/);
+  assert.match(styles, /\.notification-history-metrics\s*\{[^}]*grid-template-columns: repeat\(3, minmax\(0, 1fr\)\);/s);
+  assert.match(styles, /\.notification-history-card-footer\s*\{[^}]*justify-content: space-between;/s);
+});
+
 test("tablet workspaces cannot widen the page and portrait maps stack", async () => {
   const styles = await readFile(stylesUrl, "utf8");
 

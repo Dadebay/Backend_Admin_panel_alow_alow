@@ -1,23 +1,38 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { useContactSettings } from "@/src/entities/contact";
 import { useContactSettingsActions } from "@/src/features/contact-settings";
-import { FormFieldError } from "@/src/shared/forms";
+import {
+  digitsFromPhone,
+  FormFieldError,
+  PHONE_PREFIX,
+  PhoneNumberInput,
+} from "@/src/shared/forms";
 import { AsyncPanel } from "@/src/shared/ui";
 import {
   contactFormSchema,
   type ContactFormInput,
   type ContactFormValues,
 } from "../model/contact-form";
+import {
+  LinkIcon,
+  MailIcon,
+  PhoneIcon,
+  StorefrontIcon,
+  TelegramIcon,
+} from "./contact-field-icons";
 
 export function ContactManager() {
   const contactSettings = useContactSettings();
   const actions = useContactSettingsActions();
+  const [localNumber, setLocalNumber] = useState("");
   const {
     register,
     handleSubmit,
     reset,
+    setValue,
+    trigger,
     formState: { errors, isDirty },
   } = useForm<ContactFormInput, unknown, ContactFormValues>({
     resolver: zodResolver(contactFormSchema),
@@ -35,6 +50,7 @@ export function ContactManager() {
   useEffect(() => {
     const value = contactSettings.data;
     if (!value || isDirty) return;
+    setLocalNumber(digitsFromPhone(value.phone));
     reset({
       displayName: value.displayName,
       phone: value.phone,
@@ -45,6 +61,13 @@ export function ContactManager() {
     });
   }, [contactSettings.data, isDirty, reset]);
 
+  function handleLocalNumberChange(digits: string) {
+    setLocalNumber(digits);
+    setValue("phone", digits ? `${PHONE_PREFIX}${digits}` : "", {
+      shouldDirty: true,
+    });
+  }
+
   async function submit(values: ContactFormValues) {
     await actions.updateContactSettings.mutateAsync(values);
     reset(values);
@@ -54,7 +77,6 @@ export function ContactManager() {
     <section className="admin-section" data-testid="contact-manager">
       <header className="section-head" data-testid="contact-header">
         <div>
-          <span className="eyebrow">CONTACT US</span>
           <h1>Контакты</h1>
           <p>
             Укажите контакты, которые увидят клиенты в приложении и на странице
@@ -81,66 +103,96 @@ export function ContactManager() {
                 <p>Телефон и название обязательны. Остальные поля можно оставить пустыми.</p>
               </div>
             </div>
-            <div className="form-grid">
-              <label>
-                Название поддержки
-                <input
-                  data-testid="contact-display-name"
-                  {...register("displayName")}
-                  autoComplete="organization"
-                />
-                <FormFieldError message={errors.displayName?.message} />
-              </label>
-              <label>
-                Телефон
-                <input
-                  data-testid="contact-phone"
-                  {...register("phone")}
-                  autoComplete="tel"
-                  inputMode="tel"
-                />
-                <FormFieldError message={errors.phone?.message} />
-              </label>
-              <label>
-                Telegram
-                <input
-                  data-testid="contact-telegram"
-                  {...register("telegram")}
-                  placeholder="@alowalow"
-                />
-                <FormFieldError message={errors.telegram?.message} />
-              </label>
-              <label>
-                Email
-                <input
-                  data-testid="contact-email"
-                  {...register("email")}
-                  autoComplete="email"
-                  inputMode="email"
-                />
-                <FormFieldError message={errors.email?.message} />
-              </label>
-              <label>
-                Ссылка на политику конфиденциальности
-                <input
-                  data-testid="contact-privacy-link"
-                  {...register("privacyLink")}
-                  inputMode="url"
-                  placeholder="https://…"
-                />
-                <FormFieldError message={errors.privacyLink?.message} />
-              </label>
-              <label>
-                Ссылка на пользовательское соглашение
-                <input
-                  data-testid="contact-user-agreement-link"
-                  {...register("userAgreementLink")}
-                  inputMode="url"
-                  placeholder="https://…"
-                />
-                <FormFieldError message={errors.userAgreementLink?.message} />
-              </label>
-            </div>
+
+            <fieldset className="contact-group">
+              <legend className="contact-group-title">Обязательные данные</legend>
+              <div className="form-grid contact-fields">
+                <label>
+                  <span className="field-label">Название поддержки</span>
+                  <span className="field-icon-input">
+                    <StorefrontIcon />
+                    <input
+                      data-testid="contact-display-name"
+                      {...register("displayName")}
+                      autoComplete="organization"
+                    />
+                  </span>
+                  <FormFieldError message={errors.displayName?.message} />
+                </label>
+                <label>
+                  <span className="field-label">Телефон</span>
+                  <PhoneNumberInput
+                    testId="contact-phone"
+                    value={localNumber}
+                    onChange={handleLocalNumberChange}
+                    onBlur={() => void trigger("phone")}
+                    icon={<PhoneIcon />}
+                  />
+                  <FormFieldError message={errors.phone?.message} />
+                </label>
+              </div>
+            </fieldset>
+
+            <fieldset className="contact-group contact-group-optional">
+              <legend className="contact-group-title">
+                Дополнительно
+                <span className="contact-group-badge">необязательно</span>
+              </legend>
+              <div className="form-grid contact-fields">
+                <label>
+                  <span className="field-label">Telegram</span>
+                  <span className="field-icon-input">
+                    <TelegramIcon />
+                    <input
+                      data-testid="contact-telegram"
+                      {...register("telegram")}
+                      placeholder="@alowalow"
+                    />
+                  </span>
+                  <FormFieldError message={errors.telegram?.message} />
+                </label>
+                <label>
+                  <span className="field-label">Email</span>
+                  <span className="field-icon-input">
+                    <MailIcon />
+                    <input
+                      data-testid="contact-email"
+                      {...register("email")}
+                      autoComplete="email"
+                      inputMode="email"
+                    />
+                  </span>
+                  <FormFieldError message={errors.email?.message} />
+                </label>
+                <label className="wide-field">
+                  <span className="field-label">Ссылка на политику конфиденциальности</span>
+                  <span className="field-icon-input">
+                    <LinkIcon />
+                    <input
+                      data-testid="contact-privacy-link"
+                      {...register("privacyLink")}
+                      inputMode="url"
+                      placeholder="https://…"
+                    />
+                  </span>
+                  <FormFieldError message={errors.privacyLink?.message} />
+                </label>
+                <label className="wide-field">
+                  <span className="field-label">Ссылка на пользовательское соглашение</span>
+                  <span className="field-icon-input">
+                    <LinkIcon />
+                    <input
+                      data-testid="contact-user-agreement-link"
+                      {...register("userAgreementLink")}
+                      inputMode="url"
+                      placeholder="https://…"
+                    />
+                  </span>
+                  <FormFieldError message={errors.userAgreementLink?.message} />
+                </label>
+              </div>
+            </fieldset>
+
             {actions.updateContactSettings.error && (
               <div className="inline-alert" role="alert">
                 {actions.updateContactSettings.error instanceof Error
@@ -148,19 +200,25 @@ export function ContactManager() {
                   : "Не удалось сохранить контакты."}
               </div>
             )}
-            {actions.updateContactSettings.isSuccess && (
+            {actions.updateContactSettings.isSuccess && !isDirty && (
               <div className="inline-success" role="status">
                 Контакты сохранены.
               </div>
             )}
-            <button
-              className="primary-button"
-              data-testid="contact-save"
-              disabled={actions.updateContactSettings.isPending || !isDirty}
-              type="submit"
-            >
-              {actions.updateContactSettings.isPending ? "Сохраняем…" : "Сохранить контакты"}
-            </button>
+
+            <div className="contact-editor-footer">
+              <span className="contact-editor-hint">
+                {isDirty ? "Есть несохранённые изменения" : "Все изменения сохранены"}
+              </span>
+              <button
+                className="primary-button"
+                data-testid="contact-save"
+                disabled={actions.updateContactSettings.isPending || !isDirty}
+                type="submit"
+              >
+                {actions.updateContactSettings.isPending ? "Сохраняем…" : "Сохранить контакты"}
+              </button>
+            </div>
           </form>
         )}
       </AsyncPanel>

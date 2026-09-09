@@ -27,6 +27,13 @@ import { ApiError } from "@/src/shared/api/api-client";
 import { useSession } from "@/src/shared/auth";
 import { FormFieldError } from "@/src/shared/forms";
 import { AsyncPanel, DataTable } from "@/src/shared/ui";
+import { HugeiconsIcon } from "@hugeicons/react";
+import {
+  Cancel01Icon,
+  InformationCircleIcon,
+  PencilEdit02Icon,
+  PrinterIcon,
+} from "@hugeicons/core-free-icons";
 import {
   orderPeriodRange,
   todayDateValue,
@@ -238,8 +245,24 @@ export function OrderBoard({
               <span className="order-source-label">Заказ по телефону</span>
             )}
             <span className="order-item-count">
-              {row.original.items.length} позиций
+              {row.original.items.length} позиций ·{" "}
+              {row.original.branchName ?? "старый заказ"}
+              {row.original.branchDistanceMeters !== null &&
+                ` · ${formatBranchDistance(row.original.branchDistanceMeters)}`}
             </span>
+            {row.original.rating && (
+              <span
+                className="order-rating-badge"
+                title={
+                  row.original.rating.comment?.trim() || "Отзыв без комментария"
+                }
+              >
+                {ratingStars(row.original.rating.score)}
+                {row.original.rating.comment?.trim()
+                  ? ` ${row.original.rating.comment.trim()}`
+                  : ""}
+              </span>
+            )}
             {row.original.cancellationReason && (
               <span className="order-cancellation-reason">
                 Причина отмены: {row.original.cancellationReason}
@@ -269,20 +292,6 @@ export function OrderBoard({
               >
                 Комментарий к заказу: {row.original.customerNote}
               </span>
-            )}
-          </div>
-        ),
-      },
-      {
-        header: "Филиал",
-        cell: ({ row }) => (
-          <div className="primary-cell">
-            <strong>{row.original.branchName ?? "Старый заказ"}</strong>
-            {row.original.branchDistanceMeters !== null && (
-              <small>
-                {formatBranchDistance(row.original.branchDistanceMeters)} до
-                клиента
-              </small>
             )}
           </div>
         ),
@@ -325,57 +334,13 @@ export function OrderBoard({
         cell: ({ row }) => (
           <div className="amount-cell">
             <strong>{Number(row.original.total).toFixed(2)} TMT</strong>
-            <small>Наличными</small>
-            {Number(row.original.deliveryFee) > 0 && (
-              <span>
-                Доставка: {Number(row.original.deliveryFee).toFixed(2)} TMT
-              </span>
-            )}
+            <small>
+              Наличными
+              {Number(row.original.deliveryFee) > 0 &&
+                ` · доставка ${Number(row.original.deliveryFee).toFixed(2)}`}
+            </small>
           </div>
         ),
-      },
-      {
-        header: "Статус",
-        cell: ({ row }) =>
-          row.original.cancellationReason ? (
-            <div className="status-context">
-              <span
-                className={`status-pill status-${row.original.status.toLowerCase()}`}
-              >
-                {statusLabels[row.original.status]}
-              </span>
-              <small title={row.original.cancellationReason}>
-                {row.original.cancellationReason}
-              </small>
-            </div>
-          ) : (
-            <span
-              className={`status-pill status-${row.original.status.toLowerCase()}`}
-            >
-              {statusLabels[row.original.status]}
-            </span>
-          ),
-      },
-      {
-        header: "Отзыв",
-        cell: ({ row }) =>
-          row.original.rating ? (
-            <button
-              type="button"
-              className="review-preview"
-              aria-label={`Открыть отзыв к заказу ${row.original.number}`}
-              onClick={() => setSelectedOrderId(row.original.id)}
-            >
-              <span aria-hidden="true">
-                {ratingStars(row.original.rating.score)}
-              </span>
-              <small>
-                {row.original.rating.comment?.trim() || "Без комментария"}
-              </small>
-            </button>
-          ) : (
-            <span className="muted">Нет отзыва</span>
-          ),
       },
       {
         header: "Курьер",
@@ -422,11 +387,17 @@ export function OrderBoard({
             <div className="row-actions">
               <button
                 type="button"
-                className="secondary-button compact"
+                aria-label="Подробнее"
+                title="Подробнее"
+                className="secondary-button compact row-icon-button"
                 data-testid={`order-table-details-${order.id}`}
                 onClick={() => setSelectedOrderId(order.id)}
               >
-                Подробнее
+                <HugeiconsIcon
+                  icon={InformationCircleIcon}
+                  size={15}
+                  strokeWidth={1.8}
+                />
               </button>
               {order.status === "READY" &&
                 order.packingConfirmedAt &&
@@ -451,12 +422,18 @@ export function OrderBoard({
                 canEditCourierAssignment(role, order.status)) && (
                 <button
                   type="button"
-                  className="secondary-button compact"
+                  aria-label="Редактировать"
+                  title="Редактировать"
+                  className="secondary-button compact row-icon-button"
                   data-testid={`order-table-edit-${order.id}`}
                   disabled={pending}
                   onClick={() => setEditingOrder(order)}
                 >
-                  Редактировать
+                  <HugeiconsIcon
+                    icon={PencilEdit02Icon}
+                    size={15}
+                    strokeWidth={1.8}
+                  />
                 </button>
               )}
               {previous && (
@@ -484,23 +461,27 @@ export function OrderBoard({
               {["OPERATOR", "ADMIN", "SUPER_ADMIN"].includes(role) && (
                 <button
                   type="button"
-                  className="secondary-button compact"
+                  aria-label="Печать чека"
+                  title="Печать чека"
+                  className="secondary-button compact row-icon-button"
                   data-testid={`order-table-print-${order.id}`}
                   disabled={receiptPrinting.isPending}
                   onClick={() => { if (window.confirm("Создать дополнительный чек? Сохранённые задания выполнятся автоматически.")) receiptPrinting.mutate(order.id); }}
                 >
-                  Печать
+                  <HugeiconsIcon icon={PrinterIcon} size={15} strokeWidth={1.8} />
                 </button>
               )}
               {canCancel(role, order.status) && (
                 <button
                   type="button"
-                  className="danger-button compact"
+                  aria-label="Отменить заказ"
+                  title="Отменить заказ"
+                  className="danger-button compact row-icon-button"
                   data-testid={`order-table-cancel-${order.id}`}
                   disabled={pending}
                   onClick={() => cancelOrder(order)}
                 >
-                  Отменить
+                  <HugeiconsIcon icon={Cancel01Icon} size={15} strokeWidth={1.8} />
                 </button>
               )}
             </div>
@@ -528,7 +509,6 @@ export function OrderBoard({
         data-testid="orders-header"
       >
         <div>
-          <span className="eyebrow">РЕАЛЬНЫЙ BACKEND</span>
           <h1>{title}</h1>
           <p>{description}</p>
         </div>
@@ -803,7 +783,7 @@ export function OrderBoard({
               getRowId={(order) => order.id}
               empty="Заказов по выбранным условиям нет"
               label="Список заказов"
-              minWidth={1180}
+              minWidth={980}
               variant="orders"
             />
           )}

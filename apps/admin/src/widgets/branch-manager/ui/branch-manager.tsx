@@ -2,7 +2,9 @@ import {
   lazy,
   Suspense,
   useCallback,
+  useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -50,6 +52,7 @@ export function BranchManager() {
       isPrimary: false,
     },
   });
+  const formRef = useRef<HTMLFormElement>(null);
   const canEdit = Boolean(
     session && ["ADMIN", "SUPER_ADMIN"].includes(session.user.role),
   );
@@ -72,12 +75,28 @@ export function BranchManager() {
     setShowForm(true);
   }, [reset]);
 
-  function closeEditor() {
+  const closeEditor = useCallback(() => {
     setEditing(null);
     setSelectedCoordinates(null);
     reset();
     setShowForm(false);
-  }
+  }, [reset]);
+
+  // Dialog acilinca ilk alan odaklansin; kullanici fareye uzanmasin.
+  useEffect(() => {
+    if (!showForm) return;
+    formRef.current?.querySelector<HTMLElement>("input, select")?.focus();
+  }, [showForm]);
+
+  // Esc her modalda beklenen davranis.
+  useEffect(() => {
+    if (!showForm) return;
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") closeEditor();
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [showForm, closeEditor]);
 
   function selectCoordinates(coordinates: BranchCoordinates) {
     setSelectedCoordinates(coordinates);
@@ -90,17 +109,12 @@ export function BranchManager() {
         cell: ({ row }) => (
           <div className="primary-cell">
             <strong>{row.original.name}</strong>
-            {row.original.isPrimary && <small>Главный филиал · резервный маршрут</small>}
+            {row.original.isPrimary && <small>Главный филиал</small>}
             <small>{row.original.address}</small>
+            <small className="coordinate-value">
+              {row.original.latitude.toFixed(4)}, {row.original.longitude.toFixed(4)}
+            </small>
           </div>
-        ),
-      },
-      {
-        header: "Координаты",
-        cell: ({ row }) => (
-          <span className="coordinate-value">
-            {row.original.latitude.toFixed(6)}, {row.original.longitude.toFixed(6)}
-          </span>
         ),
       },
       {
@@ -191,12 +205,8 @@ export function BranchManager() {
     <section className="admin-section" data-testid="branch-manager">
       <header className="section-head" data-testid="branch-header">
         <div>
-          <span className="eyebrow">ТОЧКИ ПРИГОТОВЛЕНИЯ И ВЫДАЧИ</span>
           <h1>Филиалы</h1>
-          <p>
-            Новый заказ автоматически получает ближайший активный филиал по
-            координатам адреса клиента.
-          </p>
+          <p>Заказ уходит в ближайший активный филиал.</p>
         </div>
         {canEdit && (
           <div
@@ -218,101 +228,142 @@ export function BranchManager() {
         )}
       </header>
 
-      {mutationError && (
-        <div className="inline-alert" role="alert">
-          {mutationError instanceof Error ? mutationError.message : ""}
-        </div>
-      )}
-
       {showForm && (
-        <form
-          className="editor-card"
-          data-testid="branch-form"
-          noValidate
-          onSubmit={handleSubmit(submit)}
+        <div
+          className="modal-backdrop"
+          data-testid="branch-form-backdrop"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) closeEditor();
+          }}
         >
-          <div className="editor-title">
-            <h2>{editing ? "Изменить филиал" : "Новый филиал"}</h2>
-            <button
-              className="text-button"
-              data-testid="branch-form-close"
-              type="button"
-              onClick={closeEditor}
-            >
-              Закрыть
-            </button>
-          </div>
-          <div className="form-grid">
-            <label>
-              <span>Название</span>
-              <input
-                data-testid="branch-name"
-                {...register("name")}
-                aria-invalid={Boolean(errors.name)}
-                maxLength={160}
-              />
-              <FormFieldError message={errors.name?.message} />
-            </label>
-            <label>
-              <span>Телефон</span>
-              <input
-                data-testid="branch-phone"
-                {...register("phone")}
-                aria-invalid={Boolean(errors.phone)}
-                type="tel"
-                placeholder="+99365123456"
-              />
-              <FormFieldError message={errors.phone?.message} />
-            </label>
-            <label className="wide-field">
-              <span>Адрес</span>
-              <input
-                data-testid="branch-address"
-                {...register("address")}
-                aria-invalid={Boolean(errors.address)}
-                maxLength={500}
-              />
-              <FormFieldError message={errors.address?.message} />
-            </label>
-            {editing && (
-              <label className="check-field">
-                <input
-                  data-testid="branch-active"
-                  {...register("isActive")}
-                  type="checkbox"
-                />
-                Принимает новые заказы
-              </label>
-            )}
-            <label className="check-field">
-              <input
-                data-testid="branch-primary"
-                {...register("isPrimary")}
-                type="checkbox"
-              />
-              Главный филиал (резерв для заказов)
-            </label>
-            <div className="branch-location-field">
-              <Suspense fallback={<div className="map-loading">Загружаем карту…</div>}>
-                <BranchLocationPicker
-                  coordinates={selectedCoordinates}
-                  onChange={selectCoordinates}
-                />
-              </Suspense>
-            </div>
-          </div>
-          <button
-            className="primary-button"
-            data-testid="branch-save"
-            disabled={pending || !selectedCoordinates}
+          <section
+            aria-labelledby="branch-form-title"
+            aria-modal="true"
+            className="modal branch-form-modal"
+            role="dialog"
           >
-            {pending
-              ? "Сохраняем…"
-              : selectedCoordinates
-                ? "Сохранить филиал"
-                : "Укажите место на карте"}
-          </button>
-        </form>
+            <form
+              data-testid="branch-form"
+              noValidate
+              onSubmit={handleSubmit(submit)}
+              ref={formRef}
+            >
+              <header className="modal-head">
+                <div>
+                  <h2 id="branch-form-title">
+                    {editing ? "Изменить филиал" : "Новый филиал"}
+                  </h2>
+                  <p>
+                    {editing
+                      ? "Обновите данные филиала и точку на карте."
+                      : "Заполните данные и укажите точку на карте."}
+                  </p>
+                </div>
+                <button
+                  aria-label="Закрыть"
+                  className="modal-close"
+                  data-testid="branch-form-close"
+                  type="button"
+                  onClick={closeEditor}
+                >
+                  <svg viewBox="0 0 20 20" aria-hidden="true">
+                    <path
+                      d="M6 6l8 8M14 6l-8 8"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeLinecap="round"
+                      strokeWidth="1.9"
+                    />
+                  </svg>
+                </button>
+              </header>
+              {mutationError && (
+                <div className="inline-alert" role="alert">
+                  {mutationError instanceof Error ? mutationError.message : ""}
+                </div>
+              )}
+              <div className="form-grid">
+                <label>
+                  <span>Название</span>
+                  <input
+                    data-testid="branch-name"
+                    {...register("name")}
+                    aria-invalid={Boolean(errors.name)}
+                    maxLength={160}
+                  />
+                  <FormFieldError message={errors.name?.message} />
+                </label>
+                <label>
+                  <span>Телефон</span>
+                  <input
+                    data-testid="branch-phone"
+                    {...register("phone")}
+                    aria-invalid={Boolean(errors.phone)}
+                    type="tel"
+                    placeholder="+99365123456"
+                  />
+                  <FormFieldError message={errors.phone?.message} />
+                </label>
+                <label className="wide-field">
+                  <span>Адрес</span>
+                  <input
+                    data-testid="branch-address"
+                    {...register("address")}
+                    aria-invalid={Boolean(errors.address)}
+                    maxLength={500}
+                  />
+                  <FormFieldError message={errors.address?.message} />
+                </label>
+                {editing && (
+                  <label className="check-field">
+                    <input
+                      data-testid="branch-active"
+                      {...register("isActive")}
+                      type="checkbox"
+                    />
+                    Принимает новые заказы
+                  </label>
+                )}
+                <label className="check-field">
+                  <input
+                    data-testid="branch-primary"
+                    {...register("isPrimary")}
+                    type="checkbox"
+                  />
+                  Главный филиал (резерв для заказов)
+                </label>
+                <div className="branch-location-field">
+                  <Suspense fallback={<div className="map-loading">Загружаем карту…</div>}>
+                    <BranchLocationPicker
+                      coordinates={selectedCoordinates}
+                      onChange={selectCoordinates}
+                    />
+                  </Suspense>
+                </div>
+              </div>
+              <div className="modal-actions">
+                <button
+                  className="secondary-button"
+                  type="button"
+                  onClick={closeEditor}
+                >
+                  Отмена
+                </button>
+                <button
+                  className="primary-button"
+                  data-testid="branch-save"
+                  disabled={pending || !selectedCoordinates}
+                >
+                  {pending
+                    ? "Сохраняем…"
+                    : selectedCoordinates
+                      ? "Сохранить филиал"
+                      : "Укажите место на карте"}
+                </button>
+              </div>
+            </form>
+          </section>
+        </div>
       )}
 
       <article className="table-card" data-testid="branch-table-card">

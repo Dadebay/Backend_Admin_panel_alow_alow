@@ -177,18 +177,16 @@ export function CourierMapPanel() {
     >
       <div className="section-head compact">
         <div>
-          <h2>Курьеры на карте</h2>
           <p>
-            Ашхабад · обновлено{" "}
+            Обновлено{" "}
             {new Intl.DateTimeFormat("ru-RU", {
               hour: "2-digit",
               minute: "2-digit",
-              second: "2-digit",
             }).format(new Date(dispatch.data.generatedAt))}
             {liveState === "live"
               ? " · LIVE"
               : liveState === "connecting"
-                ? " · подключение LIVE"
+                ? " · подключение"
                 : " · резервное обновление"}
           </p>
         </div>
@@ -220,18 +218,13 @@ export function CourierMapPanel() {
               GPS передают {locationCoverage.located} из {locationCoverage.total}
             </strong>
             <p>
-              На телефоне курьера откройте <code>a7-tagam.com.tm/courier</code>,
-              войдите под его номером и нажмите «Начать смену и показать себя
-              на карте». Передачу выключают только после завершения смены, не
-              после доставки.
+              Без GPS: {locationCoverage.missing.map(courierName).join(", ")}.
+              Курьер включает передачу на <code>a7-tagam.com.tm/courier</code> →
+              «Начать смену».
+              {locationCoverage.located === 0 &&
+                " Видимые служебные точки на карте — филиалы, а не курьеры."}
             </p>
           </div>
-          <small>
-            Без GPS: {locationCoverage.missing.map(courierName).join(", ")}.
-            {locationCoverage.located === 0
-              ? " Видимые служебные точки на карте — филиалы, а не курьеры."
-              : " Эти курьеры есть в списке, но их нельзя поставить на карту без координат."}
-          </small>
         </div>
       )}
 
@@ -252,10 +245,7 @@ export function CourierMapPanel() {
         >
           <div className="courier-route-overview-heading">
             <strong>Маршруты всех занятых курьеров</strong>
-            <span>
-              Каждая линия и точка заказа отмечены цветом курьера. Нажмите
-              курьера, чтобы открыть детали.
-            </span>
+            <span>Нажмите курьера, чтобы открыть детали.</span>
           </div>
           <div className="courier-route-legend">
             {busyCouriers.map((courier) => {
@@ -321,8 +311,6 @@ export function CourierMapPanel() {
               </strong>
               <span>
                 Следующие точки: {courierRoute.data.route.nextWaypoints.length}
-                {" · план "}
-                {courierRoute.data.route.planId.slice(0, 8)}
               </span>
             </>
           ) : courierRoute.data?.routingStatus === "NO_STOPS" ? (

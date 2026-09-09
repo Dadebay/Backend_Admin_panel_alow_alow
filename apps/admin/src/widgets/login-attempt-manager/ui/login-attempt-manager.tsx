@@ -25,9 +25,15 @@ const statusLabels: Record<LoginAttemptStatus, string> = {
 
 const platforms: LoginAttemptPlatform[] = ["ANDROID", "IOS"];
 
-function localDate(value: string) {
-  return new Date(value).toLocaleString("ru-RU");
-}
+const dayFormat = new Intl.DateTimeFormat("ru-RU", {
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+});
+const timeFormat = new Intl.DateTimeFormat("ru-RU", {
+  hour: "2-digit",
+  minute: "2-digit",
+});
 
 function localDateTimeInput(value?: string) {
   if (!value) return "";
@@ -46,23 +52,32 @@ export function LoginAttemptManager() {
   const columns = useMemo<ColumnDef<LoginAttempt, unknown>[]>(
     () => [
       {
-        header: "Дата и время",
-        cell: ({ row }) => localDate(row.original.createdAt),
+        header: "Когда",
+        cell: ({ row }) => {
+          const at = new Date(row.original.createdAt);
+          return (
+            <div className="primary-cell">
+              <strong>{timeFormat.format(at)}</strong>
+              <small>{dayFormat.format(at)}</small>
+            </div>
+          );
+        },
       },
       {
-        header: "Телефон",
-        cell: ({ row }) => (
-          <a href={`tel:${row.original.phone}`}>{row.original.phone}</a>
-        ),
-      },
-      {
-        header: "Пользователь",
-        cell: ({ row }) =>
-          row.original.user
-            ? [row.original.user.firstName, row.original.user.lastName]
-                .filter(Boolean)
-                .join(" ") || "Без имени"
-            : "—",
+        header: "Кто",
+        cell: ({ row }) => {
+          const { user, phone } = row.original;
+          const name = user
+            ? [user.firstName, user.lastName].filter(Boolean).join(" ") ||
+              "Без имени"
+            : "Не зарегистрирован";
+          return (
+            <div className="primary-cell">
+              <strong className={user ? undefined : "muted"}>{name}</strong>
+              <a href={`tel:${phone}`}>{phone}</a>
+            </div>
+          );
+        },
       },
       {
         header: "Статус",
@@ -76,30 +91,34 @@ export function LoginAttemptManager() {
       },
       {
         header: "Устройство",
-        cell: ({ row }) => row.original.deviceName ?? "—",
-      },
-      {
-        header: "Installation ID",
-        cell: ({ row }) =>
-          row.original.installationId ? (
-            <button
-              className="text-button mono"
-              title={row.original.installationId}
-              onClick={() =>
-                void navigator.clipboard?.writeText(
-                  row.original.installationId!,
-                )
-              }
-            >
-              {row.original.installationId.slice(0, 12)}…
-            </button>
-          ) : (
-            "—"
-          ),
-      },
-      {
-        header: "Платформа",
-        cell: ({ row }) => row.original.platform ?? "—",
+        cell: ({ row }) => {
+          const { deviceName, platform, installationId } = row.original;
+          if (!deviceName && !platform && !installationId) {
+            return <span className="muted">—</span>;
+          }
+          return (
+            <div className="primary-cell">
+              <strong>{deviceName ?? "Неизвестное устройство"}</strong>
+              <small>
+                {platform ?? "Платформа не указана"}
+                {installationId && (
+                  <>
+                    {" · "}
+                    <button
+                      className="text-button mono"
+                      title={`Скопировать installation ID: ${installationId}`}
+                      onClick={() =>
+                        void navigator.clipboard?.writeText(installationId)
+                      }
+                    >
+                      {installationId.slice(0, 8)}…
+                    </button>
+                  </>
+                )}
+              </small>
+            </div>
+          );
+        },
       },
     ],
     [],
@@ -133,7 +152,6 @@ export function LoginAttemptManager() {
     >
       <header className="section-head" data-testid="login-attempt-header">
         <div>
-          <span className="eyebrow">БЕЗОПАСНОСТЬ</span>
           <h1>Попытки входа</h1>
           <p>Коды OTP не сохраняются и не отображаются.</p>
         </div>
@@ -167,10 +185,7 @@ export function LoginAttemptManager() {
         aria-label="Фильтры журнала входов"
       >
         <div className="toolbar-heading">
-          <div>
-            <span className="eyebrow">ФИЛЬТРЫ</span>
-            <strong>Найдите нужную попытку</strong>
-          </div>
+          <strong>Фильтры</strong>
           <button
             className="secondary-button compact"
             data-testid="login-attempt-reset"
@@ -283,7 +298,7 @@ export function LoginAttemptManager() {
             getRowId={(attempt) => attempt.id}
             empty="Попыток входа пока нет"
             label="Попытки входа"
-            minWidth={1120}
+            minWidth={720}
           />
           <div className="table-pagination">
             <span>Всего: {data?.total ?? 0}</span>

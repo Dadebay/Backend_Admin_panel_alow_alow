@@ -3,12 +3,17 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { useSession } from "@/src/shared/auth";
-import { FormFieldError } from "@/src/shared/forms";
+import {
+  FormFieldError,
+  PHONE_PREFIX,
+  PhoneNumberInput,
+} from "@/src/shared/forms";
 import {
   otpRequestSchema,
   otpVerifySchema,
   type OtpLoginFormValues,
 } from "../model/otp-login-form";
+import { PhoneIcon } from "./otp-login-icons";
 
 export function OtpLoginCard({
   title = "Вход по телефону",
@@ -21,10 +26,13 @@ export function OtpLoginCard({
   const [codeRequested, setCodeRequested] = useState(false);
   const [apiError, setApiError] = useState("");
   const [devCode, setDevCode] = useState("");
+  const [localNumber, setLocalNumber] = useState("");
   const {
     register,
     handleSubmit,
     reset,
+    setValue,
+    trigger,
     setError,
     formState: { errors },
   } = useForm<OtpLoginFormValues>({
@@ -32,6 +40,11 @@ export function OtpLoginCard({
     mode: "onBlur",
     defaultValues: { phone: "", code: "" },
   });
+
+  function handleLocalNumberChange(digits: string) {
+    setLocalNumber(digits);
+    setValue("phone", `${PHONE_PREFIX}${digits}`, { shouldDirty: true });
+  }
   const otpRequest = useMutation({ mutationFn: requestOtp });
   const otpVerify = useMutation({
     mutationFn: ({ phone, code }: { phone: string; code: string }) =>
@@ -78,14 +91,13 @@ export function OtpLoginCard({
       </div>
       <label>
         <span>Номер телефона</span>
-        <input
-          data-testid="otp-login-phone"
-          {...register("phone")}
-          aria-invalid={Boolean(errors.phone)}
-          type="tel"
-          placeholder="+993 65 12 34 56"
-          autoComplete="tel"
+        <PhoneNumberInput
+          testId="otp-login-phone"
+          value={localNumber}
+          onChange={handleLocalNumberChange}
+          onBlur={() => void trigger("phone")}
           readOnly={codeRequested || pending}
+          icon={<PhoneIcon />}
         />
         <FormFieldError message={errors.phone?.message} />
       </label>
@@ -138,6 +150,7 @@ export function OtpLoginCard({
             setCodeRequested(false);
             setDevCode("");
             setApiError("");
+            setLocalNumber("");
             reset();
           }}
           disabled={pending}

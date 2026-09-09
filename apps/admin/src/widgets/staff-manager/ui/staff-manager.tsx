@@ -1,17 +1,19 @@
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useForm } from "react-hook-form";
-import { roleLabels } from "@/src/entities/order";
-import {
-  useRecentLogins,
-  useStaff,
-  type RecentLogin,
-  type Staff,
-} from "@/src/entities/staff";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { PencilEdit02Icon, PowerIcon } from "@hugeicons/core-free-icons";
+import { roleLabels, type Role } from "@/src/entities/order";
+import { useRecentLogins, useStaff, type Staff } from "@/src/entities/staff";
 import { useStaffActions } from "@/src/features/staff-management";
 import { useSession } from "@/src/shared/auth";
-import { FormFieldError } from "@/src/shared/forms";
+import {
+  digitsFromPhone,
+  FormFieldError,
+  PHONE_PREFIX,
+  PhoneNumberInput,
+} from "@/src/shared/forms";
 import { AsyncPanel, DataTable } from "@/src/shared/ui";
 import {
   staffFormSchema,
@@ -20,6 +22,8 @@ import {
   type StaffFormValues,
 } from "../model/staff-form";
 
+const ALL_ROLES_TAB = "ALL" as const;
+
 export function StaffManager() {
   const { session } = useSession();
   const staff = useStaff();
@@ -27,10 +31,16 @@ export function StaffManager() {
   const actions = useStaffActions();
   const [editing, setEditing] = useState<Staff | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const [phoneDigits, setPhoneDigits] = useState("");
+  const [staffRoleFilter, setStaffRoleFilter] = useState<
+    Role | typeof ALL_ROLES_TAB
+  >(ALL_ROLES_TAB);
   const {
     register,
     handleSubmit,
     reset,
+    setValue,
+    trigger,
     formState: { errors },
   } = useForm<StaffFormInput, unknown, StaffFormValues>({
     resolver: zodResolver(staffFormSchema),
@@ -47,28 +57,55 @@ export function StaffManager() {
     session && ["ADMIN", "SUPER_ADMIN"].includes(session.user.role),
   );
 
-  const recentLoginColumns = useMemo<ColumnDef<RecentLogin, unknown>[]>(
-    () => [
-      {
-        header: "Пользователь",
-        cell: ({ row }) => (
-          <div className="primary-cell">
-            <strong>
-              {[row.original.firstName, row.original.lastName]
-                .filter(Boolean)
-                .join(" ") || row.original.phone}
-            </strong>
-            <small>{row.original.phone}</small>
-          </div>
-        ),
-      },
-      { header: "Роль", cell: ({ row }) => roleLabels[row.original.role] },
-      {
-        header: "Последний вход",
-        cell: ({ row }) => new Date(row.original.lastLoginAt).toLocaleString("ru-RU"),
-      },
-    ],
-    [],
+  const formRef = useRef<HTMLFormElement>(null);
+
+  const closeForm = useCallback(() => {
+    setShowForm(false);
+    setEditing(null);
+    setPhoneDigits("");
+    reset();
+  }, [reset]);
+
+  // Modal acilinca ilk alan odaklansin; kullanici fareye uzanmasin.
+  useEffect(() => {
+    if (!showForm) return;
+    formRef.current?.querySelector<HTMLElement>("input, select")?.focus();
+  }, [showForm]);
+
+  // Esc her modalda beklenen davranis; bu dialogda eksikti.
+  useEffect(() => {
+    if (!showForm) return;
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") closeForm();
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [showForm, closeForm]);
+
+  function handlePhoneChange(digits: string) {
+    setPhoneDigits(digits);
+    setValue("phone", digits ? `${PHONE_PREFIX}${digits}` : "", {
+      shouldDirty: true,
+    });
+  }
+
+  const staffRoleTabs = useMemo(() => {
+    const present = new Set((staff.data ?? []).map((member) => member.role));
+    return (Object.keys(roleLabels) as Role[]).filter((role) =>
+      present.has(role),
+    );
+  }, [staff.data]);
+
+  const filteredStaff = useMemo(() => {
+    if (staffRoleFilter === ALL_ROLES_TAB) return staff.data ?? [];
+    return (staff.data ?? []).filter(
+      (member) => member.role === staffRoleFilter,
+    );
+  }, [staff.data, staffRoleFilter]);
+
+  const lastLoginById = useMemo(
+    () => new Map((recentLogins.data ?? []).map((user) => [user.id, user.lastLoginAt])),
+    [recentLogins.data],
   );
 
   const columns = useMemo<ColumnDef<Staff, unknown>[]>(
@@ -88,7 +125,11 @@ export function StaffManager() {
       },
       {
         header: "Роль",
-        cell: ({ row }) => roleLabels[row.original.role],
+        cell: ({ row }) => (
+          <span className={`role-badge role-badge-${row.original.role.toLowerCase()}`}>
+            {roleLabels[row.original.role]}
+          </span>
+        ),
       },
       {
         header: "Работа",
@@ -98,6 +139,17 @@ export function StaffManager() {
             {row.original._count.cookedOrders}
           </span>
         ),
+      },
+      {
+        header: "Последний вход",
+        cell: ({ row }) => {
+          const lastLoginAt = lastLoginById.get(row.original.id);
+          return (
+            <span className="muted">
+              {lastLoginAt ? new Date(lastLoginAt).toLocaleString("ru-RU") : "Не входил"}
+            </span>
+          );
+        },
       },
       {
         header: "Статус",
@@ -114,9 +166,12 @@ export function StaffManager() {
           canEdit && (
             <div className="row-actions">
               <button
-                className="secondary-button compact"
+                aria-label="Изменить"
+                title="Изменить"
+                className="secondary-button compact row-icon-button"
                 onClick={() => {
                   setEditing(row.original);
+                  setPhoneDigits(digitsFromPhone(row.original.phone));
                   reset({
                     phone: row.original.phone,
                     firstName: row.original.firstName ?? "",
@@ -129,10 +184,12 @@ export function StaffManager() {
                   setShowForm(true);
                 }}
               >
-                Изменить
+                <HugeiconsIcon icon={PencilEdit02Icon} size={15} strokeWidth={1.8} />
               </button>
               <button
-                className="text-button"
+                aria-label={row.original.isActive ? "Отключить" : "Включить"}
+                title={row.original.isActive ? "Отключить" : "Включить"}
+                className="text-button row-icon-button"
                 disabled={actions.updateStaff.isPending}
                 onClick={() =>
                   actions.updateStaff.mutate({
@@ -144,13 +201,13 @@ export function StaffManager() {
                   })
                 }
               >
-                {row.original.isActive ? "Отключить" : "Включить"}
+                <HugeiconsIcon icon={PowerIcon} size={15} strokeWidth={1.8} />
               </button>
             </div>
           ),
       },
     ],
-    [actions.updateStaff, canEdit, reset],
+    [actions.updateStaff, canEdit, lastLoginById, reset],
   );
 
   async function submit(values: StaffFormValues) {
@@ -173,6 +230,7 @@ export function StaffManager() {
       });
     }
     setEditing(null);
+    setPhoneDigits("");
     setShowForm(false);
   }
 
@@ -182,7 +240,6 @@ export function StaffManager() {
     <section className="admin-section" data-testid="staff-manager">
       <header className="section-head" data-testid="staff-header">
         <div>
-          <span className="eyebrow">ДОСТУПЫ И РОЛИ</span>
           <h1>Команда</h1>
           <p>
             Операторы, повара, курьеры и бухгалтеры. Изменения пишутся в аудит.
@@ -198,8 +255,9 @@ export function StaffManager() {
               data-testid="staff-form-open"
               onClick={() => {
                 setEditing(null);
+                setPhoneDigits("");
                 reset();
-                setShowForm((value) => !value);
+                setShowForm(true);
               }}
             >
               + Сотрудник
@@ -208,41 +266,6 @@ export function StaffManager() {
         )}
       </header>
 
-      {canEdit && (
-        <section className="recent-logins" aria-label="Последние входы">
-          <div className="recent-logins-head">
-            <div>
-              <span className="eyebrow">АКТИВНОСТЬ ПОЛЬЗОВАТЕЛЕЙ</span>
-              <h2>Последние входы</h2>
-            </div>
-            {recentLogins.data?.[0] && (
-              <div className="last-login-card">
-                <span>Последний вход</span>
-                <strong>
-                  {[recentLogins.data[0].firstName, recentLogins.data[0].lastName]
-                    .filter(Boolean)
-                    .join(" ") || recentLogins.data[0].phone}
-                </strong>
-                <small>{new Date(recentLogins.data[0].lastLoginAt).toLocaleString("ru-RU")}</small>
-              </div>
-            )}
-          </div>
-          <AsyncPanel
-            pending={recentLogins.isPending}
-            error={recentLogins.error}
-            onRetry={() => void recentLogins.refetch()}
-          >
-            <DataTable
-              columns={recentLoginColumns}
-              data={recentLogins.data ?? []}
-              getRowId={(user) => user.id}
-              empty="Пока никто не вошёл"
-              label="Последние входы пользователей"
-            />
-          </AsyncPanel>
-        </section>
-      )}
-
       {mutationError && (
         <div className="inline-alert">
           {mutationError instanceof Error ? mutationError.message : ""}
@@ -250,107 +273,176 @@ export function StaffManager() {
       )}
 
       {showForm && (
-        <form
-          className="editor-card"
-          data-testid="staff-form"
-          noValidate
-          onSubmit={handleSubmit(submit)}
+        <div
+          className="modal-backdrop"
+          data-testid="staff-form-backdrop"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) closeForm();
+          }}
         >
-          <div className="editor-title">
-            <h2>{editing ? "Изменить сотрудника" : "Новый сотрудник"}</h2>
-            <button
-              className="text-button"
-              type="button"
-              data-testid="staff-form-close"
-              onClick={() => {
-                setShowForm(false);
-                setEditing(null);
-                reset();
-              }}
-            >
-              Закрыть
-            </button>
-          </div>
-          <div className="form-grid">
-            {!editing && (
-              <label>
-                <span>Телефон</span>
-                <input
-                  data-testid="staff-phone"
-                  {...register("phone")}
-                  aria-invalid={Boolean(errors.phone)}
-                  type="tel"
-                  placeholder="+99365123456"
-                />
-                <FormFieldError message={errors.phone?.message} />
-              </label>
-            )}
-            <label>
-              <span>Имя</span>
-              <input
-                data-testid="staff-first-name"
-                {...register("firstName")}
-                aria-invalid={Boolean(errors.firstName)}
-              />
-              <FormFieldError message={errors.firstName?.message} />
-            </label>
-            <label>
-              <span>Фамилия</span>
-              <input
-                data-testid="staff-last-name"
-                {...register("lastName")}
-                aria-invalid={Boolean(errors.lastName)}
-              />
-              <FormFieldError message={errors.lastName?.message} />
-            </label>
-            <label>
-              <span>Роль</span>
-              <select
-                data-testid="staff-role"
-                {...register("role")}
-                aria-invalid={Boolean(errors.role)}
-              >
-                {staffRoles
-                  .filter(
-                    (role) =>
-                      role !== "SUPER_ADMIN" ||
-                      session?.user.role === "SUPER_ADMIN",
-                  )
-                  .map((role) => (
-                    <option key={role} value={role}>
-                      {roleLabels[role]}
-                    </option>
-                  ))}
-              </select>
-              <FormFieldError message={errors.role?.message} />
-            </label>
-            {editing && (
-              <label className="check-field">
-                <input
-                  data-testid="staff-active"
-                  {...register("isActive")}
-                  type="checkbox"
-                />
-                Активен
-              </label>
-            )}
-          </div>
-          <button
-            className="primary-button"
-            data-testid="staff-save"
-            disabled={
-              actions.createStaff.isPending || actions.updateStaff.isPending
-            }
+          <section
+            aria-labelledby="staff-form-title"
+            aria-modal="true"
+            className="modal staff-form-modal"
+            role="dialog"
           >
-            Сохранить сотрудника
-          </button>
-        </form>
+            <form
+              data-testid="staff-form"
+              noValidate
+              onSubmit={handleSubmit(submit)}
+              ref={formRef}
+            >
+              <header className="modal-head">
+                <div>
+                  <h2 id="staff-form-title">
+                    {editing ? "Изменить сотрудника" : "Новый сотрудник"}
+                  </h2>
+                  <p>
+                    {editing
+                      ? "Обновите роль и данные сотрудника."
+                      : "Добавьте сотрудника и назначьте ему роль."}
+                  </p>
+                </div>
+                <button
+                  aria-label="Закрыть"
+                  className="modal-close"
+                  type="button"
+                  data-testid="staff-form-close"
+                  onClick={closeForm}
+                >
+                  <svg viewBox="0 0 20 20" aria-hidden="true">
+                    <path
+                      d="M6 6l8 8M14 6l-8 8"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeLinecap="round"
+                      strokeWidth="1.9"
+                    />
+                  </svg>
+                </button>
+              </header>
+              <div className="form-grid">
+                {!editing && (
+                  <label className="wide-field">
+                    <span>Телефон</span>
+                    <PhoneNumberInput
+                      testId="staff-phone"
+                      value={phoneDigits}
+                      onChange={handlePhoneChange}
+                      onBlur={() => void trigger("phone")}
+                    />
+                    <FormFieldError message={errors.phone?.message} />
+                  </label>
+                )}
+                <label>
+                  <span>Имя</span>
+                  <input
+                    data-testid="staff-first-name"
+                    {...register("firstName")}
+                    aria-invalid={Boolean(errors.firstName)}
+                    autoComplete="given-name"
+                    placeholder="Мерет"
+                  />
+                  <FormFieldError message={errors.firstName?.message} />
+                </label>
+                <label>
+                  <span>Фамилия</span>
+                  <input
+                    data-testid="staff-last-name"
+                    {...register("lastName")}
+                    aria-invalid={Boolean(errors.lastName)}
+                    autoComplete="family-name"
+                    placeholder="Аманов"
+                  />
+                  <FormFieldError message={errors.lastName?.message} />
+                </label>
+                <label className="wide-field">
+                  <span>Роль</span>
+                  <select
+                    data-testid="staff-role"
+                    {...register("role")}
+                    aria-invalid={Boolean(errors.role)}
+                  >
+                    {staffRoles
+                      .filter(
+                        (role) =>
+                          role !== "SUPER_ADMIN" ||
+                          session?.user.role === "SUPER_ADMIN",
+                      )
+                      .map((role) => (
+                        <option key={role} value={role}>
+                          {roleLabels[role]}
+                        </option>
+                      ))}
+                  </select>
+                  <FormFieldError message={errors.role?.message} />
+                </label>
+                {editing && (
+                  <label className="check-field">
+                    <input
+                      data-testid="staff-active"
+                      {...register("isActive")}
+                      type="checkbox"
+                    />
+                    Активен
+                  </label>
+                )}
+              </div>
+              <div className="modal-actions">
+                <button
+                  className="secondary-button"
+                  type="button"
+                  onClick={closeForm}
+                >
+                  Отмена
+                </button>
+                <button
+                  className="primary-button"
+                  data-testid="staff-save"
+                  disabled={
+                    actions.createStaff.isPending || actions.updateStaff.isPending
+                  }
+                >
+                  Сохранить сотрудника
+                </button>
+              </div>
+            </form>
+          </section>
+        </div>
       )}
 
       <article className="table-card" data-testid="staff-table-card">
         <div className="card-title">
           <h2>Все сотрудники</h2>
-          <span>{staff.data?.length ?? 0}</span>
+          <span>{filteredStaff.length}</span>
+        </div>
+        <div className="view-tabs role-tabbar" role="tablist" aria-label="Фильтр по роли">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={staffRoleFilter === ALL_ROLES_TAB}
+            className={staffRoleFilter === ALL_ROLES_TAB ? "active" : ""}
+            onClick={() => setStaffRoleFilter(ALL_ROLES_TAB)}
+          >
+            Все
+            <span className="role-tab-count">{staff.data?.length ?? 0}</span>
+          </button>
+          {staffRoleTabs.map((role) => (
+            <button
+              key={role}
+              type="button"
+              role="tab"
+              aria-selected={staffRoleFilter === role}
+              className={staffRoleFilter === role ? "active" : ""}
+              onClick={() => setStaffRoleFilter(role)}
+            >
+              {roleLabels[role]}
+              <span className="role-tab-count">
+                {(staff.data ?? []).filter((member) => member.role === role)
+                  .length}
+              </span>
+            </button>
+          ))}
         </div>
         <AsyncPanel
           pending={staff.isPending}
@@ -359,7 +451,7 @@ export function StaffManager() {
         >
           <DataTable
             columns={columns}
-            data={staff.data ?? []}
+            data={filteredStaff}
             getRowId={(member) => member.id}
             empty="Сотрудников пока нет"
             label="Команда A7-tagam"

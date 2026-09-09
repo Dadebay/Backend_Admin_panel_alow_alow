@@ -1,6 +1,11 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import type { Product, ReceiptPrinter } from "@/src/entities/catalog";
+import { HugeiconsIcon } from "@hugeicons/react";
+import {
+  ArrowTurnBackwardIcon,
+  FloppyDiskIcon,
+} from "@hugeicons/core-free-icons";
 import { FormFieldError } from "@/src/shared/forms";
 import {
   categoryReceiptRouteFormSchema,
@@ -96,14 +101,18 @@ export function ProductReceiptRoute({
       </small>
       <div className="product-printer-route-actions">
         <button
-          className="secondary-button compact"
+          aria-label="Сохранить аппарат"
+          title="Сохранить аппарат"
+          className="secondary-button compact icon-action-button"
           data-testid={`product-printer-save-${product.id}`}
           disabled={!isDirty || isPending}
         >
-          Сохранить аппарат
+          <HugeiconsIcon icon={FloppyDiskIcon} size={16} strokeWidth={1.8} />
         </button>
         <button
-          className="text-button compact"
+          aria-label="Наследовать категорию"
+          title="Наследовать категорию"
+          className="text-button compact icon-action-button"
           data-testid={`product-printer-clear-${product.id}`}
           disabled={
             (!product.receiptPrinterId && !product.receiptPrinterIp) ||
@@ -112,7 +121,11 @@ export function ProductReceiptRoute({
           type="button"
           onClick={() => void onSave(product, "")}
         >
-          Наследовать категорию
+          <HugeiconsIcon
+            icon={ArrowTurnBackwardIcon}
+            size={16}
+            strokeWidth={1.8}
+          />
         </button>
       </div>
     </form>

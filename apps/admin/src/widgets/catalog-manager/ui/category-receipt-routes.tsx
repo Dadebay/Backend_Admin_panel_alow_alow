@@ -1,5 +1,13 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
+import { HugeiconsIcon } from "@hugeicons/react";
+import {
+  Delete02Icon,
+  FloppyDiskIcon,
+  PrinterOffIcon,
+  ViewIcon,
+  ViewOffIcon,
+} from "@hugeicons/core-free-icons";
 import type { Category, ReceiptPrinter } from "@/src/entities/catalog";
 import { FormFieldError } from "@/src/shared/forms";
 import {
@@ -89,16 +97,22 @@ function CategoryReceiptRouteRow({
         <FormFieldError message={errors.receiptPrinterId?.message} />
       </label>
       {canEdit ? (
+        // Dort satir metin butonu her kategoride tekrar ediyordu; ikon +
+        // title ayni islemleri tek satirda veriyor.
         <div className="category-printer-route-actions">
           <button
-            className="secondary-button compact"
+            aria-label="Сохранить аппарат"
+            title={isPending ? "Сохраняем…" : "Сохранить аппарат"}
+            className="secondary-button compact icon-action-button"
             data-testid={`category-printer-save-${category.id}`}
             disabled={!isDirty || isPending}
           >
-            {isPending ? "Сохраняем…" : "Сохранить аппарат"}
+            <HugeiconsIcon icon={FloppyDiskIcon} size={16} strokeWidth={1.8} />
           </button>
           <button
-            className="text-button compact"
+            aria-label="Убрать аппарат"
+            title="Убрать аппарат"
+            className="text-button icon-action-button"
             data-testid={`category-printer-clear-${category.id}`}
             disabled={
               (!category.receiptPrinterId && !category.receiptPrinterIp) ||
@@ -107,25 +121,37 @@ function CategoryReceiptRouteRow({
             type="button"
             onClick={() => void onClear(category)}
           >
-            Убрать аппарат
+            <HugeiconsIcon icon={PrinterOffIcon} size={16} strokeWidth={1.8} />
           </button>
           <button
-            className="text-button compact"
+            aria-label={
+              category.isActive ? "Скрыть категорию" : "Показать категорию"
+            }
+            title={
+              category.isActive ? "Скрыть категорию" : "Показать категорию"
+            }
+            className="text-button icon-action-button"
             data-testid={`category-visibility-${category.id}`}
             disabled={isPending}
             type="button"
             onClick={() => onToggleActive(category)}
           >
-            {category.isActive ? "Скрыть категорию" : "Показать категорию"}
+            <HugeiconsIcon
+              icon={category.isActive ? ViewOffIcon : ViewIcon}
+              size={16}
+              strokeWidth={1.8}
+            />
           </button>
           <button
-            className="text-button compact danger"
+            aria-label="Удалить категорию"
+            title="Удалить категорию"
+            className="text-button icon-action-button danger"
             data-testid={`category-delete-open-${category.id}`}
             disabled={isPending}
             type="button"
             onClick={() => onDelete(category)}
           >
-            Удалить категорию
+            <HugeiconsIcon icon={Delete02Icon} size={16} strokeWidth={1.8} />
           </button>
         </div>
       ) : (

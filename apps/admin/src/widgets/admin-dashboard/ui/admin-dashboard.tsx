@@ -7,7 +7,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { Link, NavLink, Outlet, useNavigate } from "react-router";
+import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router";
 import { roleLabels } from "@/src/entities/order";
 import {
   canReceiveNewOrderAlerts,
@@ -16,6 +16,11 @@ import {
 import { OtpLoginCard } from "@/src/features/otp-login";
 import { canAccessAdminPortal, useSession } from "@/src/shared/auth";
 import { BrandLogo } from "@/src/shared/ui";
+import { HugeiconsIcon } from "@hugeicons/react";
+import {
+  PanelLeftCloseIcon,
+  PanelLeftOpenIcon,
+} from "@hugeicons/core-free-icons";
 import {
   defaultAdminPathForRole,
   navigationForRole,
@@ -49,11 +54,46 @@ function initials(firstName: string | null, lastName: string | null) {
   return value || "A7";
 }
 
+const SIDEBAR_COLLAPSED_KEY = "admin:sidebar-collapsed";
+
 export function AdminDashboard() {
   const { session, ready, logout } = useSession();
   const [isNavigationOpen, setIsNavigationOpen] = useState(false);
+  // Genis ekranda kenar cubugu daraltilabilir; secim cihazda kalsin.
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "1";
+    } catch {
+      return false;
+    }
+  });
   const navigationToggleRef = useRef<HTMLButtonElement>(null);
   const navigate = useNavigate();
+  const location = useLocation();
+  const showOperationalBanners = ![
+    "/accounting",
+    "/orders",
+    "/branches",
+    "/couriers/map",
+    "/login-attempts",
+    "/contacts",
+    "/staff",
+    "/notifications",
+    "/marketing",
+    "/catalog",
+    "/delivery",
+  ].some((route) => location.pathname.startsWith(route));
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        SIDEBAR_COLLAPSED_KEY,
+        isSidebarCollapsed ? "1" : "0",
+      );
+    } catch {
+      // Private mode: tercih sadece bu oturumda gecerli olur.
+    }
+  }, [isSidebarCollapsed]);
 
   const closeNavigation = useCallback((restoreFocus = false) => {
     setIsNavigationOpen(false);
@@ -139,7 +179,12 @@ export function AdminDashboard() {
     session.user.phone;
 
   return (
-    <div className="app-shell integrated-shell" data-testid="admin-dashboard">
+    <div
+      className={`app-shell integrated-shell${
+        isSidebarCollapsed ? " sidebar-collapsed" : ""
+      }`}
+      data-testid="admin-dashboard"
+    >
       {isNavigationOpen && (
         <button
           type="button"
@@ -194,6 +239,7 @@ export function AdminDashboard() {
               key={item.id}
               className={({ isActive }) => (isActive ? "active" : undefined)}
               aria-label={item.label}
+              title={item.label}
               data-testid={`admin-nav-${item.id}`}
               end
               to={item.path}
@@ -204,12 +250,25 @@ export function AdminDashboard() {
             </NavLink>
           ))}
         </nav>
-        <div className="sidebar-note">
-          <span className="live-dot" />
-          <div>
-            <strong>Backend подключён</strong>
-            <small>PostgreSQL · Redis · S3</small>
-          </div>
+        <div className="sidebar-foot">
+          <button
+            type="button"
+            className="sidebar-collapse"
+            data-testid="admin-navigation-collapse"
+            aria-controls="admin-navigation"
+            aria-expanded={!isSidebarCollapsed}
+            aria-label={
+              isSidebarCollapsed ? "Развернуть меню" : "Свернуть меню"
+            }
+            title={isSidebarCollapsed ? "Развернуть меню" : "Свернуть меню"}
+            onClick={() => setIsSidebarCollapsed((value) => !value)}
+          >
+            <HugeiconsIcon
+              icon={isSidebarCollapsed ? PanelLeftOpenIcon : PanelLeftCloseIcon}
+              size={20}
+              strokeWidth={1.8}
+            />
+          </button>
         </div>
         <div className="sidebar-user">
           <span className="avatar">
@@ -243,12 +302,14 @@ export function AdminDashboard() {
           <span />
           <span />
         </button>
-        {canReceiveNewOrderAlerts(session.user.role) && (
+        {showOperationalBanners && canReceiveNewOrderAlerts(session.user.role) && (
           <div className="new-order-alert-slot">
             <NewOrderAlert onOpenOrders={openOrders} />
           </div>
         )}
-        {canReceiveNewOrderAlerts(session.user.role) && <ReceiptQueue />}
+        {showOperationalBanners && canReceiveNewOrderAlerts(session.user.role) && (
+          <ReceiptQueue />
+        )}
         <Suspense
           fallback={<div className="async-state">Загружаем раздел…</div>}
         >

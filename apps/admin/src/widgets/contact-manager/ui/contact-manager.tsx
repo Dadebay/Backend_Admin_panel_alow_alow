@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { useContactSettings } from "@/src/entities/contact";
 import { useContactSettingsActions } from "@/src/features/contact-settings";
 import {
@@ -26,8 +26,8 @@ import {
 export function ContactManager() {
   const contactSettings = useContactSettings();
   const actions = useContactSettingsActions();
-  const [localNumber, setLocalNumber] = useState("");
   const {
+    control,
     register,
     handleSubmit,
     reset,
@@ -46,11 +46,11 @@ export function ContactManager() {
       userAgreementLink: "",
     },
   });
+  const phone = useWatch({ control, name: "phone" });
 
   useEffect(() => {
     const value = contactSettings.data;
     if (!value || isDirty) return;
-    setLocalNumber(digitsFromPhone(value.phone));
     reset({
       displayName: value.displayName,
       phone: value.phone,
@@ -62,7 +62,6 @@ export function ContactManager() {
   }, [contactSettings.data, isDirty, reset]);
 
   function handleLocalNumberChange(digits: string) {
-    setLocalNumber(digits);
     setValue("phone", digits ? `${PHONE_PREFIX}${digits}` : "", {
       shouldDirty: true,
     });
@@ -123,7 +122,7 @@ export function ContactManager() {
                   <span className="field-label">Телефон</span>
                   <PhoneNumberInput
                     testId="contact-phone"
-                    value={localNumber}
+                    value={digitsFromPhone(phone)}
                     onChange={handleLocalNumberChange}
                     onBlur={() => void trigger("phone")}
                     icon={<PhoneIcon />}

@@ -5,7 +5,7 @@ infrastructure. It records names, responsibilities and recovery procedures,
 never secret values. Update it in the same commit whenever a host, public URL,
 port, service, volume, GitHub setting, registry or deployment branch changes.
 
-Last audited: 2026-08-19.
+Last audited: 2026-09-12.
 
 ## Current answer: production only
 
@@ -179,6 +179,12 @@ and must not be enabled while the TLS site is active. SSH listens only on 22.
 The three active production data volumes are declared `external` in Compose.
 This protects them from normal project replacement and `compose down
 --volumes`; `prepare-production-host.sh` creates them explicitly on a new host.
+
+Local development and GitHub CI pull the pinned MinIO server and client images
+from the official `quay.io/minio` repositories. The image digests are unchanged
+from the previously pinned artifacts; only the registry source changed after
+Docker Hub stopped serving `minio/minio`. Production continues to use the
+Telecom Nexus mirror with those same upstream digests.
 
 All runtime images are pinned by digest. Repository-owned API, migration and
 admin images come from GHCR. Third-party images that the VDS cannot fetch from

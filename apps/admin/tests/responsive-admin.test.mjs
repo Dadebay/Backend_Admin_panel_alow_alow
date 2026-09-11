@@ -94,6 +94,20 @@ test("tablet navigation is a touch-safe drawer", async () => {
   );
 });
 
+test("courier map keeps Leaflet layers below the admin sidebar", async () => {
+  const styles = await readFile(stylesUrl, "utf8");
+
+  assert.match(
+    styles,
+    /\.courier-map-canvas\s*\{[^}]*position: relative;[^}]*z-index: 0;[^}]*isolation: isolate;/s,
+  );
+  assert.match(styles, /\.sidebar\s*\{[^}]*z-index: 10;/s);
+  assert.match(
+    styles,
+    /\.integrated-shell \.sidebar\s*\{[^}]*z-index: 70;/s,
+  );
+});
+
 test("every administrator workspace exposes a stable tablet QA root", async () => {
   await Promise.all(
     tabletWorkspaces.map(async ([relativePath, testId]) => {

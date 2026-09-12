@@ -34,9 +34,17 @@ const printerRegistryUrl = new URL(
   "../src/widgets/catalog-manager/ui/receipt-printer-registry.tsx",
   import.meta.url,
 );
+const dashboardUrl = new URL(
+  "../src/widgets/admin-dashboard/ui/admin-dashboard.tsx",
+  import.meta.url,
+);
 
 test("printing enters the durable queue and notification observation never prints", async () => {
-  const [feature,board,kanban,alert] = await Promise.all([printingFeatureUrl,boardUrl,kanbanUrl,alertUrl].map(url=>readFile(url,"utf8")));
+  const [feature, board, kanban, alert, dashboard] = await Promise.all(
+    [printingFeatureUrl, boardUrl, kanbanUrl, alertUrl, dashboardUrl].map(
+      (url) => readFile(url, "utf8"),
+    ),
+  );
   assert.match(feature, /receipt-print-tasks\/orders/);
   assert.match(feature, /idempotencyKey:\s*key/);
   assert.doesNotMatch(feature, /receipt-print-plan/);
@@ -45,6 +53,14 @@ test("printing enters the durable queue and notification observation never print
   assert.match(board, /Чек добавлен в очередь/);
   assert.match(board, /data-testid=\{`order-table-print-\$\{order\.id\}`\}/);
   assert.match(kanban, /data-testid=\{`order-kanban-print-\$\{order\.id\}`\}/);
+  assert.match(
+    dashboard,
+    /canReceiveNewOrderAlerts\(session\.user\.role\)\s*&&\s*<ReceiptQueue\s*\/>/,
+  );
+  assert.doesNotMatch(
+    dashboard,
+    /showOperationalBanners\s*&&\s*canReceiveNewOrderAlerts\(session\.user\.role\)\s*&&\s*\(\s*<ReceiptQueue/,
+  );
 });
 
 test("catalog manages printer endpoints and assigns them by ID", async () => {

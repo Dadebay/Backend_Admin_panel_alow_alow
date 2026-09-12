@@ -307,9 +307,7 @@ export function AdminDashboard() {
             <NewOrderAlert onOpenOrders={openOrders} />
           </div>
         )}
-        {showOperationalBanners && canReceiveNewOrderAlerts(session.user.role) && (
-          <ReceiptQueue />
-        )}
+        {canReceiveNewOrderAlerts(session.user.role) && <ReceiptQueue />}
         <Suspense
           fallback={<div className="async-state">Загружаем раздел…</div>}
         >

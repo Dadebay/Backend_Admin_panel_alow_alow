@@ -119,9 +119,12 @@ describe("push gateway", () => {
       },
       android: {
         priority: "high",
-        notification: { channelId: "alowalow_general" },
+        notification: { sound: "default" },
       },
     });
+    expect(firstBatch?.[0]).not.toHaveProperty(
+      "android.notification.channelId",
+    );
   });
 
   it("marks expired installations and converts provider failures to delivery results", async () => {

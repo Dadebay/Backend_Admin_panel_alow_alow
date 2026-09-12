@@ -8,6 +8,7 @@ import {
   OnModuleInit,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
+import { randomUUID } from "node:crypto";
 import type { AppEnv } from "../config/env";
 import { toApiResponse } from "../common/api-response";
 import type { AuthUser } from "../common/auth.types";
@@ -67,8 +68,8 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
-   * A single transactional push straight to one customer's devices — an
-   * order status change, not a marketing blast, so it skips the
+   * A best-effort push straight to one user's devices after an order change.
+   * Customer status updates and courier assignments skip the
    * campaign/delivery bookkeeping built for `ALL_CUSTOMERS` broadcasts
    * (that machinery always targets every customer, see `dispatchCampaign`)
    * and just calls the gateway directly. Never throws: a push failure
@@ -80,14 +81,17 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
   ) {
     try {
       const devices = await this.prisma.pushDevice.findMany({
-        where: { userId, isActive: true },
+        where: { userId, isActive: true, user: { isActive: true } },
         select: { id: true, installationId: true },
       });
       if (!devices.length) return;
 
+      // An event needs its own ID: reusing the device ID makes mobile clients
+      // deduplicate subsequent order notifications on the same installation.
+      const notificationId = randomUUID();
       const results = await this.push.send(
         {
-          campaignId: `direct:${userId}:${Date.now()}`,
+          campaignId: `direct:${userId}:${notificationId}`,
           title: message.title,
           body: message.body,
           deepLink: null,
@@ -95,7 +99,7 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
         devices.map((device) => ({
           deliveryId: device.id,
           installationId: device.installationId,
-          notificationId: device.id,
+          notificationId,
         })),
       );
 

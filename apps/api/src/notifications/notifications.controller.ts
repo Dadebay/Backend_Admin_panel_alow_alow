@@ -46,9 +46,11 @@ export class NotificationsController {
   constructor(private readonly notifications: NotificationsService) {}
 
   @Put("devices")
-  @Roles(Role.CUSTOMER)
+  @Roles(Role.CUSTOMER, Role.COURIER)
   @ApiOperation({
     summary: "Register or refresh the current mobile FCM registration token",
+    description:
+      "Customers and couriers register devices for their own authenticated account.",
   })
   @ApiOkResponse({ type: PushDeviceResponseDto })
   registerDevice(
@@ -59,9 +61,13 @@ export class NotificationsController {
   }
 
   @Delete("devices/:installationId")
-  @Roles(Role.CUSTOMER)
+  @Roles(Role.CUSTOMER, Role.COURIER)
   @HttpCode(204)
-  @ApiOperation({ summary: "Deactivate one current-user push installation" })
+  @ApiOperation({
+    summary: "Deactivate one current-user push installation",
+    description:
+      "Customers and couriers can deactivate only their own devices.",
+  })
   @ApiNoContentResponse()
   async unregisterDevice(
     @CurrentUser() actor: AuthUser,

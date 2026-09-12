@@ -313,6 +313,13 @@ export class OrdersService {
     void this.notifications.sendDirectPush(customerId, message);
   }
 
+  private notifyCourier(courierId: string, orderNumber: number) {
+    void this.notifications.sendDirectPush(courierId, {
+      title: `Täze sargyt #${orderNumber}`,
+      body: "Sargyt size berkidildi. Jikme-jiklikleri açyň.",
+    });
+  }
+
   create(user: AuthUser, dto: CreateOrderDto) {
     return this.createOnce(user.id, dto, (tx) =>
       this.createForCustomer(tx, {
@@ -1110,7 +1117,7 @@ export class OrdersService {
   }
 
   async adminEdit(user: AuthUser, id: string, dto: AdminEditOrderDto) {
-    return this.prisma.$transaction(async (tx) => {
+    const outcome = await this.prisma.$transaction(async (tx) => {
       const order = await tx.order.findUnique({
         where: { id },
         include: { items: true, promoCode: true },
@@ -1295,8 +1302,16 @@ export class OrdersService {
         where: { id },
         include: detailInclude,
       });
-      return toApiResponse(withItemImages(result));
+      return {
+        response: toApiResponse(withItemImages(result)),
+        courierToNotify: courierId !== order.courierId ? courierId : null,
+      };
     });
+    const { response, courierToNotify } = outcome;
+    if (courierToNotify) {
+      this.notifyCourier(courierToNotify, response.number);
+    }
+    return response;
   }
 
   async confirmPacking(
@@ -1409,8 +1424,7 @@ export class OrdersService {
   }
 
   async assignCourier(user: AuthUser, id: string, dto: AssignCourierDto) {
-    let notifyTarget: { customerId: string; number: number } | null = null;
-    const response = await this.prisma.$transaction(async (tx) => {
+    const outcome = await this.prisma.$transaction(async (tx) => {
       const [order, courier] = await Promise.all([
         tx.order.findUnique({ where: { id } }),
         tx.user.findUnique({ where: { id: dto.courierId } }),
@@ -1482,22 +1496,20 @@ export class OrdersService {
         where: { id },
         include: detailInclude,
       });
-      if (!isReassignment) {
-        notifyTarget = { customerId: result.customerId, number: result.number };
-      }
-      return toApiResponse(withItemImages(result));
+      return {
+        response: toApiResponse(withItemImages(result)),
+        isReassignment,
+      };
     });
-    const assignTarget = notifyTarget as {
-      customerId: string;
-      number: number;
-    } | null;
-    if (assignTarget) {
+    const { response, isReassignment } = outcome;
+    if (!isReassignment) {
       this.notifyCustomer(
-        assignTarget.customerId,
-        assignTarget.number,
+        response.customerId,
+        response.number,
         OrderStatus.ASSIGNED_TO_COURIER,
       );
     }
+    this.notifyCourier(dto.courierId, response.number);
     return response;
   }
 

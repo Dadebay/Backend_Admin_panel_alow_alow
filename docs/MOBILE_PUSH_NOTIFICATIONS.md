@@ -4,7 +4,7 @@
 
 ```text
 Firebase SDK -> FCM registration token
-             -> PUT /notifications/devices с customer JWT
+             -> PUT /notifications/devices с CUSTOMER или COURIER JWT
              -> PostgreSQL device registration
 
 ADMIN/SUPER_ADMIN -> notification campaign
@@ -56,8 +56,10 @@ Backend отправляет сообщения через поле `token` Fire
    Конкретные актуальные версии берите из официальной Firebase-документации,
    не копируйте случайные версии из примеров.
 5. На Android 13+ запросите runtime-разрешение `POST_NOTIFICATIONS`.
-6. До получения первого сообщения создайте notification channel с ID
-   `alowalow_general` и пользовательским названием, например `AlowAlow`.
+6. До получения первого сообщения создайте notification channel и объявите
+   его как `com.google.firebase.messaging.default_notification_channel_id`
+   в AndroidManifest. По переданному контракту мобильных приложений клиентский
+   канал — `alowalow_orders`, курьерский — `kurier_orders`.
 
 Минимальный callback регистрации:
 
@@ -221,12 +223,12 @@ production-ответе.
 
 ## Регистрация FCM token в AlowAlow
 
-Сразу после успешного customer login и после каждого `onNewToken` /
+Сразу после успешного входа клиента или курьера и после каждого `onNewToken` /
 `didReceiveRegistrationToken` отправьте актуальный token:
 
 ```http
 PUT /api/v1/notifications/devices
-Authorization: Bearer <customer-access-token>
+Authorization: Bearer <customer-or-courier-access-token>
 Content-Type: application/json
 
 {
@@ -246,8 +248,10 @@ registration token длиной 10–255 символов.
 версию, locale и время активности. Поэтому безопасно синхронизировать token при
 каждом запуске после входа.
 
-Нельзя вызвать этот endpoint токеном администратора, курьера или другого
-сотрудника: push-устройства этого flow принадлежат только `CUSTOMER`.
+Endpoint доступен `CUSTOMER` и `COURIER`; токен привязывается к текущему
+авторизованному пользователю. Остальные сотрудники не получают доступ, кроме
+существующего глобального исключения `SUPER_ADMIN`. Курьер не получает право
+создавать кампании или читать клиентский inbox.
 
 ## Получение и обработка сообщения
 
@@ -255,8 +259,8 @@ FCM notification содержит стандартные `title` и `body`, а �
 
 | Поле             | Назначение                                                    |
 | ---------------- | ------------------------------------------------------------- |
-| `campaignId`     | ID административной кампании                                  |
-| `notificationId` | ID записи в inbox конкретного клиента                         |
+| `campaignId`     | ID кампании; у прямого push — `direct:<userId>:<eventId>`       |
+| `notificationId` | ID inbox для кампании; уникальный ID события для прямого push |
 | `deepLink`       | Необязательный внутренний маршрут, например `/orders/current` |
 
 `notificationId` используйте для дедупликации. Доставка outbox имеет гарантию
@@ -267,7 +271,10 @@ FCM notification содержит стандартные `title` и `body`, а �
 разрешать только известные внутренние маршруты. Не передавайте `deepLink` в
 WebView и не открывайте внешние схемы без отдельного allowlist.
 
-Android должен использовать channel ID `alowalow_general`. На iOS обработайте
+Backend не передаёт фиксированный Android `channelId`: FCM использует канал
+из манифеста конкретного приложения, как описано в
+[Firebase Admin SDK](https://firebase.google.com/docs/reference/admin/node/firebase-admin.messaging.androidnotification#androidnotificationchannelid).
+На iOS обработайте
 foreground presentation через `UNUserNotificationCenterDelegate`, если push
 должен быть виден при открытом приложении. Поведение foreground/background/
 terminated проверяйте отдельно.
@@ -300,10 +307,64 @@ Content-Type: application/json
 
 Кампанию также можно создать в React-админке в разделе «Уведомления».
 
+## Push курьеру при назначении заказа
+
+Курьер входит через обычный OTP flow и регистрирует FCM token через
+`PUT /api/v1/notifications/devices` с собственным JWT. Firebase-проект
+приложения должен совпадать с проектом серверного service account. Согласно
+переданному мобильному документу, курьерское приложение —
+`com.gurbanov.kurier` в проекте `alowalow-c3a21`.
+
+Назначение выполняет `OPERATOR`, `ADMIN` или `SUPER_ADMIN`:
+
+```http
+PATCH /api/v1/orders/<orderId>/assign-courier
+Authorization: Bearer <operator-or-admin-access-token>
+Content-Type: application/json
+
+{
+  "courierId": "<courier-user-id>",
+  "version": 2
+}
+```
+
+`version` берётся из текущего ответа заказа. После успешного коммита новый
+курьер получает адресное уведомление на свои активные устройства:
+
+- заголовок: `Täze sargyt #<номер заказа>`;
+- текст: `Sargyt size berkidildi. Jikme-jiklikleri açyň.`
+
+Уведомление отправляется также при переназначении до начала доставки и при
+смене курьера через `PATCH /orders/:id/admin-edit`. Старый курьер его не
+получает. Повторное назначение того же курьера, ошибка прав/версии и изменение
+состава, возвращающее заказ в кухню без курьера, не отправляют push о назначении.
+
+Это прямой best-effort push: он не создаёт кампанию, delivery outbox или запись
+inbox и не имеет автоматического повтора. Сбой FCM или отсутствие устройств
+не отменяют сохранённое назначение. При получении push или открытии приложения
+обновите свой список заказов через `GET /api/v1/orders` с courier JWT.
+`notificationId` здесь является ID события, а не inbox-записи; каждый новый
+push имеет новый ID. `deepLink` для этого сообщения не передаётся.
+Не отправляйте сведения о назначении в общий FCM-топик.
+
+Проверка на устройстве:
+
+1. Войти курьером и проверить успешный `PUT /notifications/devices`.
+2. Назначить упакованный заказ и проверить push с его номером.
+3. Назначить второй заказ тому же курьеру: оба уведомления должны отобразиться.
+4. Переназначить первый заказ другому курьеру: новый push получает новый курьер.
+5. Проверить foreground/background/холодный запуск и канал `kurier_orders`.
+6. Перед logout удалить token через `DELETE /notifications/devices/<token>`;
+   при следующем входе зарегистрировать его повторно.
+
+Для реальной доставки backend должен работать с `PUSH_PROVIDER=fcm`.
+Локальные API-тесты подменяют FCM; получение на физическом устройстве
+проверяется отдельно мобильной командой.
+
 ## Inbox мобильного приложения
 
-Push — сигнал, а не единственный источник данных. Backend сохраняет
-уведомление в PostgreSQL, поэтому приложение восстанавливает историю даже при
+Для административных кампаний push — сигнал, а не единственный источник данных.
+Backend сохраняет уведомление в PostgreSQL, поэтому клиент восстанавливает историю даже при
 запрещённых системных уведомлениях или временном отсутствии сети.
 
 ```text
@@ -319,12 +380,12 @@ POST  /api/v1/notifications/me/read-all
 
 ## Logout и смена пользователя
 
-Перед logout, пока customer `accessToken` ещё действителен, деактивируйте token.
+Перед logout, пока клиентский или курьерский `accessToken` ещё действителен, деактивируйте token.
 Значение в path обязательно URL-encode:
 
 ```http
 DELETE /api/v1/notifications/devices/<url-encoded-fcm-token>
-Authorization: Bearer <customer-access-token>
+Authorization: Bearer <customer-or-courier-access-token>
 ```
 
 После успешного ответа удалите локальную пользовательскую сессию. При новом
@@ -347,7 +408,7 @@ login повторно вызовите `PUT /notifications/devices`: одна �
 
 - передан ли `Authorization: Bearer <accessToken>`;
 - это access token, а не refresh token;
-- пользователь имеет роль `CUSTOMER` и активен;
+- пользователь имеет роль `CUSTOMER` или `COURIER` и активен;
 - после refresh используйте новый access token.
 
 ### `400 Bad Request` при регистрации
@@ -362,8 +423,8 @@ login повторно вызовите `PUT /notifications/devices`: одна �
 1. Убедитесь, что backend работает с `PUSH_PROVIDER=fcm`, а не `console`.
 2. Проверьте, что token получен из Firebase-проекта `alowalow-c3a21` и был
    успешно зарегистрирован в AlowAlow после customer login.
-3. Android: проверьте `onNewToken`, разрешение уведомлений и channel
-   `alowalow_general`.
+3. Android: проверьте `onNewToken`, разрешение уведомлений и default channel
+   в манифесте (`alowalow_orders` у клиента, `kurier_orders` у курьера).
 4. iOS: проверьте физическое устройство, capabilities, APNs `.p8`, Bundle ID,
    разрешение пользователя и callback `didReceiveRegistrationToken`.
 5. Проверьте статус кампании и `failedCount` в админке/API.

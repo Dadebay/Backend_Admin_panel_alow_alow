@@ -155,7 +155,7 @@ export class PushGateway {
         android: {
           priority: "high",
           notification: {
-            channelId: "alowalow_general",
+            // Each mobile app declares its own default channel in its manifest.
             sound: "default",
           },
         },

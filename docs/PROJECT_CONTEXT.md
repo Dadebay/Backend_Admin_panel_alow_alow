@@ -46,7 +46,7 @@ the supplied hot-food delivery-bag mark and only its cream `#FEF7E7`, navy
   gateway. It pulls encrypted, short-lived OTP jobs from the API over HTTPS and
   acknowledges delivery. It is the only production SMS provider; console is
   development-only.
-- Firebase Cloud Messaging is the push transport for customer mobile devices.
+- Firebase Cloud Messaging is the push transport for customer and courier mobile devices.
   Firebase never owns A7-tagam authentication, OTP, users, roles, or business
   data. A PostgreSQL outbox/inbox records campaigns and delivery results;
   `console` is the non-delivering local provider.
@@ -144,7 +144,7 @@ alowalow/
 │   │   │   ├── catalog/   # categories and products
 │   │   │   ├── marketing/ # banners and promo codes
 │   │   │   ├── media/     # S3-compatible image storage
-│   │   │   ├── notifications/ # customer inbox and FCM campaign outbox
+│   │   │   ├── notifications/ # customer inbox/campaign outbox and direct order pushes
 │   │   │   ├── orders/    # workflow, assignment, route, rating, cash
 │   │   │   ├── tracking/  # courier GPS and dispatch map snapshot
 │   │   │   ├── routing/   # validated private OSRM adapter
@@ -738,13 +738,30 @@ order-level promo discount, and its discounted line total. The line discounts
 sum exactly to the authoritative aggregate discount; the response also returns
 the original subtotal, discounted subtotal, delivery fee, and final total.
 
-## Customer notifications
+## Customer and courier notifications
 
-- An authenticated `CUSTOMER` registers or refreshes their own FCM registration
+- An authenticated `CUSTOMER` or `COURIER` registers or refreshes their own FCM registration
   token. The legacy API field is still named `installationId`, but it contains
   the token used by Firebase Admin SDK. The same device may move to a new
-  authenticated customer after logout/login, but one customer cannot
-  deactivate another customer's device.
+  authenticated user after logout/login, but one user cannot
+  deactivate another user's device. Other staff roles remain denied, subject
+  to the existing global `SUPER_ADMIN` override.
+- A successful courier assignment or reassignment sends the new courier a
+  direct push: `Täze sargyt #<number>` / `Sargyt size berkidildi.
+  Jikme-jiklikleri açyň.` This covers both `assign-courier` and a courier change
+  through `admin-edit`. Sending starts only after the order transaction commits;
+  rejected/stale requests, unchanged couriers and edits that clear the courier
+  send no assignment push. Existing customer status notifications are preserved.
+- Direct order pushes target only the recipient's active devices while the
+  user is active. They are best-effort and do not create campaign/inbox/outbox
+  records or retry automatically. Provider failure or missing devices cannot
+  undo the order change; invalid tokens are deactivated. Each direct event has
+  a fresh `notificationId`, shared across that recipient's devices, so a later
+  order is not suppressed as a duplicate. Mobile reloads assigned orders from
+  the authorized API; courier inbox/broadcast access is not added.
+- Android pushes omit a fixed `channelId` and use each app's manifest default:
+  the supplied mobile integration contract names `alowalow_orders` for the
+  customer app and `kurier_orders` for the courier app.
 - `ADMIN` and `SUPER_ADMIN` create immediate broadcasts to all active customers.
   External URLs are rejected; an optional deep link must be an internal
   application path.

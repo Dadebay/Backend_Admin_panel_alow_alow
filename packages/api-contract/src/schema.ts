@@ -945,7 +945,10 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        /** Register or refresh the current mobile FCM registration token */
+        /**
+         * Register or refresh the current mobile FCM registration token
+         * @description Customers and couriers register devices for their own authenticated account.
+         */
         put: operations["NotificationsController_registerDevice_v1"];
         post?: never;
         delete?: never;
@@ -964,7 +967,10 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** Deactivate one current-user push installation */
+        /**
+         * Deactivate one current-user push installation
+         * @description Customers and couriers can deactivate only their own devices.
+         */
         delete: operations["NotificationsController_unregisterDevice_v1"];
         options?: never;
         head?: never;

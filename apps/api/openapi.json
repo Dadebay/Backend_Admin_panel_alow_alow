@@ -2469,6 +2469,7 @@
     },
     "/api/v1/notifications/devices": {
       "put": {
+        "description": "Customers and couriers register devices for their own authenticated account.",
         "operationId": "NotificationsController_registerDevice_v1",
         "parameters": [],
         "requestBody": {
@@ -2506,6 +2507,7 @@
     },
     "/api/v1/notifications/devices/{installationId}": {
       "delete": {
+        "description": "Customers and couriers can deactivate only their own devices.",
         "operationId": "NotificationsController_unregisterDevice_v1",
         "parameters": [
           {

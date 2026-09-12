@@ -677,6 +677,7 @@ export class OrdersService {
     },
   ) {
     const { actorId, customerId, dto, source } = input;
+    const createdAt = new Date();
     const { resolvedItems, subtotal } = await this.resolveOrderItems(
       tx,
       dto.items,
@@ -698,6 +699,7 @@ export class OrdersService {
       tx,
       subtotal,
       selectedAddress.deliveryEtrapId,
+      createdAt,
     );
     const deliveryFee = deliveryPricing.fee;
     const total = roundMoney(subtotal - discount + deliveryFee);
@@ -725,6 +727,7 @@ export class OrdersService {
     const order = await tx.order.create({
       data: {
         customerId,
+        createdAt,
         source,
         status: OrderStatus.COOKING,
         branchId: nearest.branch.id,
@@ -1140,6 +1143,7 @@ export class OrdersService {
         tx,
         subtotal,
         dto.deliveryEtrapId,
+        order.createdAt,
       );
       const nearest = await this.branches.findNearestActive(tx, {
         latitude: dto.latitude,

@@ -2,6 +2,24 @@ import { ApiProperty } from "@nestjs/swagger";
 
 export class DeliverySettingsResponseDto {
   @ApiProperty()
+  fallbackNightPrice: number;
+
+  @ApiProperty({ type: Number, nullable: true })
+  fallbackNightFreeDeliveryThreshold: number | null;
+
+  @ApiProperty()
+  nightTariffEnabled: boolean;
+
+  @ApiProperty({ example: "23:00" })
+  nightStartsAt: string;
+
+  @ApiProperty({ example: "07:00" })
+  nightEndsAt: string;
+
+  @ApiProperty()
+  version: number;
+
+  @ApiProperty()
   id: string;
 
   @ApiProperty()
@@ -18,6 +36,15 @@ export class DeliverySettingsResponseDto {
 }
 
 export class DeliveryEtrapResponseDto {
+  @ApiProperty()
+  nightPrice: number;
+
+  @ApiProperty({ type: Number, nullable: true })
+  nightFreeDeliveryThreshold: number | null;
+
+  @ApiProperty()
+  version: number;
+
   @ApiProperty()
   id: number;
 
@@ -71,6 +98,27 @@ export class DeliveryWelayatResponseDto {
 
 export class DeliveryConfigResponseDto {
   @ApiProperty()
+  fallbackNightPrice: number;
+
+  @ApiProperty({ type: Number, nullable: true })
+  fallbackNightFreeDeliveryThreshold: number | null;
+
+  @ApiProperty()
+  nightTariffEnabled: boolean;
+
+  @ApiProperty({ example: "23:00" })
+  nightStartsAt: string;
+
+  @ApiProperty({ example: "07:00" })
+  nightEndsAt: string;
+
+  @ApiProperty()
+  version: number;
+
+  @ApiProperty({ example: "Asia/Ashgabat" })
+  timeZone: string;
+
+  @ApiProperty()
   fallbackPrice: number;
 
   @ApiProperty({ type: Number, nullable: true })
@@ -97,7 +145,42 @@ export class DeliveryQuoteWelayatResponseDto {
   sortOrder: number;
 }
 
-export class DeliveryQuoteResponseDto {
+export class DeliveryTariffQuoteResponseDto {
+  @ApiProperty({ enum: ["DAY", "NIGHT"] })
+  tariff: "DAY" | "NIGHT";
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    format: "date-time",
+    description:
+      "Requote at this tariff boundary; null when night pricing is disabled",
+  })
+  validUntil: string | null;
+
+  @ApiProperty({ example: "Asia/Ashgabat" })
+  timeZone: string;
+
+  @ApiProperty()
+  subtotal: number;
+
+  @ApiProperty()
+  fee: number;
+
+  @ApiProperty({
+    description:
+      "Price of the currently applicable day or night tariff before the free threshold",
+  })
+  price: number;
+
+  @ApiProperty({ type: Number, nullable: true })
+  freeDeliveryThreshold: number | null;
+
+  @ApiProperty({ type: DeliveryEtrapResponseDto, nullable: true })
+  etrap: DeliveryEtrapResponseDto | null;
+}
+
+export class DeliveryQuoteResponseDto extends DeliveryTariffQuoteResponseDto {
   @ApiProperty({ type: String, nullable: true })
   addressLine: string | null;
 
@@ -106,21 +189,6 @@ export class DeliveryQuoteResponseDto {
 
   @ApiProperty()
   longitude: number;
-
-  @ApiProperty()
-  subtotal: number;
-
-  @ApiProperty()
-  fee: number;
-
-  @ApiProperty()
-  price: number;
-
-  @ApiProperty({ type: Number, nullable: true })
-  freeDeliveryThreshold: number | null;
-
-  @ApiProperty({ type: DeliveryEtrapResponseDto, nullable: true })
-  etrap: DeliveryEtrapResponseDto | null;
 
   @ApiProperty({ type: DeliveryQuoteWelayatResponseDto, nullable: true })
   welayat: DeliveryQuoteWelayatResponseDto | null;

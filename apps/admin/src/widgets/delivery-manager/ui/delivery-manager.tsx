@@ -10,12 +10,7 @@ import {
 } from "@/src/entities/delivery";
 import { useDeliveryActions } from "@/src/features/delivery-management";
 import { FormFieldError } from "@/src/shared/forms";
-import {
-  AsyncPanel,
-  DataTable,
-  EditIcon,
-  PowerIcon,
-} from "@/src/shared/ui";
+import { AsyncPanel, DataTable, EditIcon, PowerIcon } from "@/src/shared/ui";
 import {
   deliveryEtrapFormSchema,
   deliverySettingsFormSchema,
@@ -27,6 +22,8 @@ import {
   type DeliveryWelayatFormInput,
   type DeliveryWelayatFormValues,
 } from "../model/delivery-form";
+
+import { NightDeliverySchedule } from "./night-delivery-schedule";
 
 type WelayatEditor =
   | { mode: "create" }
@@ -44,7 +41,9 @@ export function DeliveryManager() {
   const actions = useDeliveryActions();
   const [search, setSearch] = useState("");
   const [welayatId, setWelayatId] = useState("");
-  const [welayatEditor, setWelayatEditor] = useState<WelayatEditor | null>(null);
+  const [welayatEditor, setWelayatEditor] = useState<WelayatEditor | null>(
+    null,
+  );
   const [etrapEditor, setEtrapEditor] = useState<EtrapEditor | null>(null);
   const welayatFormRef = useRef<HTMLFormElement>(null);
   const etrapFormRef = useRef<HTMLFormElement>(null);
@@ -53,15 +52,13 @@ export function DeliveryManager() {
     handleSubmit: handleSettingsSubmit,
     reset: resetSettings,
     formState: { errors: settingsErrors },
-  } = useForm<
-    DeliverySettingsFormInput,
-    unknown,
-    DeliverySettingsFormValues
-  >({
+  } = useForm<DeliverySettingsFormInput, unknown, DeliverySettingsFormValues>({
     resolver: zodResolver(deliverySettingsFormSchema),
     mode: "onBlur",
     defaultValues: {
       fallbackPrice: "15.00",
+      fallbackNightPrice: "15.00",
+      fallbackNightFreeDeliveryThreshold: "150.00",
       fallbackFreeDeliveryThreshold: "150.00",
     },
   });
@@ -70,11 +67,7 @@ export function DeliveryManager() {
     handleSubmit: handleWelayatSubmit,
     reset: resetWelayat,
     formState: { errors: welayatErrors },
-  } = useForm<
-    DeliveryWelayatFormInput,
-    unknown,
-    DeliveryWelayatFormValues
-  >({
+  } = useForm<DeliveryWelayatFormInput, unknown, DeliveryWelayatFormValues>({
     resolver: zodResolver(deliveryWelayatFormSchema),
     mode: "onBlur",
     defaultValues: { nameEn: "", nameRu: "", nameTk: "", sortOrder: "0" },
@@ -94,6 +87,8 @@ export function DeliveryManager() {
       nameTk: "",
       queuePosition: "",
       price: "15.00",
+      nightPrice: "15.00",
+      nightFreeDeliveryThreshold: "150.00",
       freeDeliveryThreshold: "150.00",
       isDeliveryEnabled: false,
     },
@@ -103,6 +98,9 @@ export function DeliveryManager() {
     if (!config.data) return;
     resetSettings({
       fallbackPrice: config.data.fallbackPrice.toFixed(2),
+      fallbackNightPrice: config.data.fallbackNightPrice.toFixed(2),
+      fallbackNightFreeDeliveryThreshold:
+        config.data.fallbackNightFreeDeliveryThreshold?.toFixed(2) ?? "",
       fallbackFreeDeliveryThreshold:
         config.data.fallbackFreeDeliveryThreshold?.toFixed(2) ?? "",
     });
@@ -117,9 +115,7 @@ export function DeliveryManager() {
 
   useEffect(() => {
     if (!etrapEditor) return;
-    etrapFormRef.current
-      ?.querySelector<HTMLElement>("input, select")
-      ?.focus();
+    etrapFormRef.current?.querySelector<HTMLElement>("input, select")?.focus();
   }, [etrapEditor]);
 
   useEffect(() => {
@@ -153,7 +149,8 @@ export function DeliveryManager() {
   }, [allEtraps, search, welayatId]);
 
   const openCreateWelayat = useCallback(() => {
-    const sortOrders = config.data?.welayats.map(({ sortOrder }) => sortOrder) ?? [];
+    const sortOrders =
+      config.data?.welayats.map(({ sortOrder }) => sortOrder) ?? [];
     const nextSortOrder = Math.max(0, ...sortOrders) + 1;
     setEtrapEditor(null);
     setWelayatEditor({ mode: "create" });
@@ -191,6 +188,9 @@ export function DeliveryManager() {
       nameTk: "",
       queuePosition: "",
       price: config.data?.fallbackPrice.toFixed(2) ?? "15.00",
+      nightPrice: config.data?.fallbackNightPrice.toFixed(2) ?? "15.00",
+      nightFreeDeliveryThreshold:
+        config.data?.fallbackNightFreeDeliveryThreshold?.toFixed(2) ?? "",
       freeDeliveryThreshold:
         config.data?.fallbackFreeDeliveryThreshold?.toFixed(2) ?? "",
       isDeliveryEnabled: false,
@@ -209,8 +209,10 @@ export function DeliveryManager() {
         queuePosition:
           etrap.queuePosition === null ? "" : String(etrap.queuePosition),
         price: etrap.price.toFixed(2),
-        freeDeliveryThreshold:
-          etrap.freeDeliveryThreshold?.toFixed(2) ?? "",
+        nightPrice: etrap.nightPrice.toFixed(2),
+        nightFreeDeliveryThreshold:
+          etrap.nightFreeDeliveryThreshold?.toFixed(2) ?? "",
+        freeDeliveryThreshold: etrap.freeDeliveryThreshold?.toFixed(2) ?? "",
         isDeliveryEnabled: etrap.isDeliveryEnabled,
       });
     },
@@ -278,20 +280,33 @@ export function DeliveryManager() {
         header: "Цена",
         meta: { align: "end" },
         cell: ({ row }) => (
-          <strong className="delivery-price-value">
-            {money(row.original.price)}
-          </strong>
+          <div className="primary-cell">
+            <strong className="delivery-price-value">
+              День: {money(row.original.price)}
+            </strong>
+            <small>Ночь: {money(row.original.nightPrice)}</small>
+          </div>
         ),
       },
       {
         header: "Бесплатно от",
         meta: { align: "end" },
-        cell: ({ row }) =>
-          row.original.freeDeliveryThreshold === null ? (
-            <span className="muted">—</span>
-          ) : (
-            money(row.original.freeDeliveryThreshold)
-          ),
+        cell: ({ row }) => (
+          <div className="primary-cell">
+            <span>
+              День:{" "}
+              {row.original.freeDeliveryThreshold === null
+                ? "всегда платно"
+                : money(row.original.freeDeliveryThreshold)}
+            </span>
+            <small>
+              Ночь:{" "}
+              {row.original.nightFreeDeliveryThreshold === null
+                ? "всегда платно"
+                : money(row.original.nightFreeDeliveryThreshold)}
+            </small>
+          </div>
+        ),
       },
       {
         header: "Статус",
@@ -324,9 +339,7 @@ export function DeliveryManager() {
               aria-label={
                 row.original.isDeliveryEnabled ? "Отключить" : "Включить"
               }
-              title={
-                row.original.isDeliveryEnabled ? "Отключить" : "Включить"
-              }
+              title={row.original.isDeliveryEnabled ? "Отключить" : "Включить"}
               className="text-button row-icon-button"
               data-testid={`delivery-etrap-toggle-${row.original.id}`}
               type="button"
@@ -350,7 +363,14 @@ export function DeliveryManager() {
   );
 
   async function saveSettings(values: DeliverySettingsFormValues) {
-    await actions.updateSettings.mutateAsync(values);
+    try {
+      await actions.updateSettings.mutateAsync({
+        ...values,
+        version: config.data?.version,
+      });
+    } catch {
+      /* The mutation error is displayed above the form. */
+    }
   }
 
   async function saveWelayat(values: DeliveryWelayatFormValues) {
@@ -368,15 +388,19 @@ export function DeliveryManager() {
 
   async function saveEtrap(values: DeliveryEtrapFormValues) {
     if (!etrapEditor) return;
-    if (etrapEditor.mode === "create") {
-      await actions.createEtrap.mutateAsync(values);
-    } else {
-      await actions.updateEtrap.mutateAsync({
-        id: etrapEditor.etrap.id,
-        body: values,
-      });
+    try {
+      if (etrapEditor.mode === "create") {
+        await actions.createEtrap.mutateAsync(values);
+      } else {
+        await actions.updateEtrap.mutateAsync({
+          id: etrapEditor.etrap.id,
+          body: { ...values, version: etrapEditor.etrap.version },
+        });
+      }
+      setEtrapEditor(null);
+    } catch {
+      /* Preserve the entered prices and display the mutation error. */
     }
-    setEtrapEditor(null);
   }
 
   const mutationError =
@@ -414,6 +438,14 @@ export function DeliveryManager() {
       {mutationError && (
         <div className="inline-alert" role="alert">
           {mutationError instanceof Error ? mutationError.message : ""}
+          <button
+            type="button"
+            className="text-button"
+            data-testid="delivery-config-reload"
+            onClick={() => void config.refetch()}
+          >
+            Обновить настройки
+          </button>
         </div>
       )}
       {mutationSucceeded && (
@@ -621,7 +653,7 @@ export function DeliveryManager() {
                   <FormFieldError message={etrapErrors.nameTk?.message} />
                 </label>
                 <label>
-                  <span>Цена доставки, TMT</span>
+                  <span>Дневная цена, TMT</span>
                   <input
                     data-testid="delivery-etrap-price"
                     {...registerEtrap("price")}
@@ -631,7 +663,7 @@ export function DeliveryManager() {
                   <FormFieldError message={etrapErrors.price?.message} />
                 </label>
                 <label>
-                  <span>Бесплатно от, TMT</span>
+                  <span>Днём бесплатно от, TMT</span>
                   <input
                     data-testid="delivery-etrap-threshold"
                     {...registerEtrap("freeDeliveryThreshold")}
@@ -641,6 +673,32 @@ export function DeliveryManager() {
                   />
                   <FormFieldError
                     message={etrapErrors.freeDeliveryThreshold?.message}
+                  />
+                </label>
+
+                <label>
+                  <span>Ночная цена, TMT</span>
+                  <input
+                    data-testid="delivery-etrap-night-price"
+                    {...registerEtrap("nightPrice")}
+                    inputMode="decimal"
+                    aria-invalid={Boolean(etrapErrors.nightPrice)}
+                  />
+                  <FormFieldError message={etrapErrors.nightPrice?.message} />
+                </label>
+                <label>
+                  <span>Ночью бесплатно от, TMT</span>
+                  <input
+                    data-testid="delivery-etrap-night-threshold"
+                    {...registerEtrap("nightFreeDeliveryThreshold")}
+                    inputMode="decimal"
+                    placeholder="Пусто — ночью всегда платно"
+                    aria-invalid={Boolean(
+                      etrapErrors.nightFreeDeliveryThreshold,
+                    )}
+                  />
+                  <FormFieldError
+                    message={etrapErrors.nightFreeDeliveryThreshold?.message}
                   />
                 </label>
                 <label className="check-field">
@@ -687,6 +745,27 @@ export function DeliveryManager() {
                 Район нельзя удалить — выключите его, чтобы скрыть от клиентов и
                 сохранить старые адреса и чеки.
               </p>
+              {(actions.updateEtrap.error || actions.createEtrap.error) && (
+                <div className="inline-alert" role="alert">
+                  {
+                    (actions.updateEtrap.error || actions.createEtrap.error)
+                      ?.message
+                  }
+                  <button
+                    type="button"
+                    className="text-button"
+                    data-testid="delivery-etrap-reload"
+                    onClick={() => {
+                      setEtrapEditor(null);
+                      actions.updateEtrap.reset();
+                      actions.createEtrap.reset();
+                      void config.refetch();
+                    }}
+                  >
+                    Обновить список районов
+                  </button>
+                </div>
+              )}
               <div className="modal-actions">
                 <button
                   className="secondary-button"
@@ -707,6 +786,11 @@ export function DeliveryManager() {
           </section>
         </div>
       )}
+
+      <NightDeliverySchedule
+        config={config.data}
+        onReload={() => void config.refetch()}
+      />
 
       {/* Gunluk is tek sey: bir rayonun fiyatini degistirmek ya da acip
           kapatmak. Sayfanin tamami o liste; velayat sozlugu ve yedek tarif
@@ -829,17 +913,19 @@ export function DeliveryManager() {
             </div>
             <div className="form-grid delivery-price-grid">
               <label>
-                <span>Цена доставки, TMT</span>
+                <span>Дневная цена, TMT</span>
                 <input
                   data-testid="delivery-fallback-price"
                   {...registerSettings("fallbackPrice")}
                   aria-invalid={Boolean(settingsErrors.fallbackPrice)}
                   inputMode="decimal"
                 />
-                <FormFieldError message={settingsErrors.fallbackPrice?.message} />
+                <FormFieldError
+                  message={settingsErrors.fallbackPrice?.message}
+                />
               </label>
               <label>
-                <span>Бесплатно от, TMT</span>
+                <span>Днём бесплатно от, TMT</span>
                 <input
                   data-testid="delivery-fallback-threshold"
                   {...registerSettings("fallbackFreeDeliveryThreshold")}
@@ -850,13 +936,45 @@ export function DeliveryManager() {
                   placeholder="Пусто — всегда платно"
                 />
                 <FormFieldError
-                  message={settingsErrors.fallbackFreeDeliveryThreshold?.message}
+                  message={
+                    settingsErrors.fallbackFreeDeliveryThreshold?.message
+                  }
+                />
+              </label>
+
+              <label>
+                <span>Ночная цена, TMT</span>
+                <input
+                  data-testid="delivery-fallback-night-price"
+                  {...registerSettings("fallbackNightPrice")}
+                  inputMode="decimal"
+                  aria-invalid={Boolean(settingsErrors.fallbackNightPrice)}
+                />
+                <FormFieldError
+                  message={settingsErrors.fallbackNightPrice?.message}
+                />
+              </label>
+              <label>
+                <span>Ночью бесплатно от, TMT</span>
+                <input
+                  data-testid="delivery-fallback-night-threshold"
+                  {...registerSettings("fallbackNightFreeDeliveryThreshold")}
+                  inputMode="decimal"
+                  placeholder="Пусто — ночью всегда платно"
+                  aria-invalid={Boolean(
+                    settingsErrors.fallbackNightFreeDeliveryThreshold,
+                  )}
+                />
+                <FormFieldError
+                  message={
+                    settingsErrors.fallbackNightFreeDeliveryThreshold?.message
+                  }
                 />
               </label>
               <button
                 className="primary-button delivery-settings-save"
                 data-testid="delivery-settings-save"
-                disabled={actions.updateSettings.isPending}
+                disabled={actions.updateSettings.isPending || !config.data}
               >
                 {actions.updateSettings.isPending ? "Сохраняем…" : "Сохранить"}
               </button>

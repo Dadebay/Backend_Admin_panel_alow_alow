@@ -1,13 +1,20 @@
+import { quoteBoundaryDelay } from "../model/quote-validity";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/src/shared/api/api-client";
 import { useSession } from "@/src/shared/auth";
-import type { DeliveryConfig, DeliveryQuote } from "../model/types";
+import type {
+  DeliveryConfig,
+  DeliveryQuote,
+  DeliveryTariffQuote,
+} from "../model/types";
 
 export const deliveryQueryKeys = {
   all: ["delivery"] as const,
   publicConfig: () => [...deliveryQueryKeys.all, "public-config"] as const,
   adminConfig: (userId: string) =>
     [...deliveryQueryKeys.all, "admin-config", userId] as const,
+  tariffQuote: (etrapId: number | null, subtotal: number) =>
+    [...deliveryQueryKeys.all, "tariff-quote", etrapId, subtotal] as const,
   quote: (
     latitude: number | null,
     longitude: number | null,
@@ -40,7 +47,12 @@ export function useDeliveryQuote(
         signal,
       }),
     enabled: enabled && latitude !== null && longitude !== null,
-    staleTime: 60_000,
+    staleTime: 0,
+    refetchInterval: (query) =>
+      query.state.status === "error"
+        ? false
+        : quoteBoundaryDelay(query.state.data?.validUntil),
+    refetchIntervalInBackground: false,
     retry: 1,
   });
 }
@@ -56,5 +68,29 @@ export function useAdminDeliveryConfig() {
       authorizedRequest<DeliveryConfig>("/delivery/admin/config", { signal }),
     enabled: canView,
     staleTime: 30_000,
+  });
+}
+
+export function useDeliveryTariffQuote(
+  etrapId: number | null,
+  subtotal: number,
+  enabled: boolean,
+) {
+  return useQuery({
+    queryKey: deliveryQueryKeys.tariffQuote(etrapId, subtotal),
+    queryFn: ({ signal }) =>
+      apiRequest<DeliveryTariffQuote>("/delivery/tariff-quote", {
+        method: "POST",
+        body: JSON.stringify({ deliveryEtrapId: etrapId, subtotal }),
+        signal,
+      }),
+    enabled,
+    staleTime: 0,
+    refetchInterval: (query) =>
+      query.state.status === "error"
+        ? false
+        : quoteBoundaryDelay(query.state.data?.validUntil),
+    refetchIntervalInBackground: false,
+    retry: 1,
   });
 }

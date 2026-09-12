@@ -101,6 +101,7 @@ alowalow/
 │   ├── INFRASTRUCTURE.md
 │   ├── MOBILE_DELIVERY_AND_COURIER_UPDATE.md
 │   ├── MOBILE_MAP_AND_ROUTING.md
+│   ├── NIGHT_DELIVERY_TARIFFS.md
 │   ├── MOBILE_PUSH_NOTIFICATIONS.md
 │   ├── PRODUCT_PRICING_VARIANTS.md
 │   ├── RECEIPT_PRINTING_WINDOWS_HANDOFF.md
@@ -533,6 +534,31 @@ heights; visual density must not be reduced to the previous pale compact map.
   match uses the separately configurable fallback tariff, initially 15 TMT and
   free from 150 TMT; the operator does not duplicate the address choice with a
   mandatory manual tariff-zone selection.
+- Delivery has independently configurable day and night prices and free-delivery
+  thresholds per etrap, plus independent day/night fallback prices. A null
+  threshold means that tariff stays paid at every order subtotal. The singleton
+  configuration enables/disables night pricing and sets `nightStartsAt` /
+  `nightEndsAt` in `HH:mm`, using `Asia/Ashgabat`. The start is inclusive and
+  the end exclusive; intervals may cross midnight and equal boundaries are
+  rejected. The migration leaves night pricing disabled, copies existing day
+  prices/thresholds into the night fields, and offers inactive `23:00–07:00`
+  schedule defaults until an administrator configures and enables them.
+- Only `ADMIN` / `SUPER_ADMIN` can configure tariffs. Night updates require
+  the current configuration/etrap `version`; compare-and-swap updates return
+  `409` for stale/concurrent changes and record audit history. Legacy clients
+  may still update day-only fields without a version. New etraps inherit their
+  own daytime price/threshold as the initial night tariff when omitted.
+- The backend chooses the current tariff for location quotes, known-etrap or
+  fallback `POST /delivery/tariff-quote`, order quotes, and customer/assisted
+  order creation. Clients cannot submit a clock or financial total. Quotes
+  expose `tariff`, `timeZone` and `validUntil` so clients can refresh at the next
+  boundary. The admin uses server quotes for saved addresses too; it never
+  estimates nighttime charges from the daytime config. Receipt totals use the
+  saved `deliveryFee`. Creation uses one timestamp for both the tariff and the
+  order's `createdAt`; existing orders do not automatically change at a time
+  boundary. Explicit administrator edits reprice using the order creation time
+  and current configuration, preserving its original day/night time reference.
+  Mobile integration: `docs/NIGHT_DELIVERY_TARIFFS.md`.
 - `POST /delivery/quote` is the public location-pricing contract. It accepts
   map coordinates plus subtotal, reverse-geocodes the coordinates on the
   server, returns the official address line and configured fee, and proposes

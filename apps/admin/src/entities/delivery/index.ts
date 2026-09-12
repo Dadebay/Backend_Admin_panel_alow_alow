@@ -3,6 +3,7 @@ export {
   useAdminDeliveryConfig,
   useDeliveryConfig,
   useDeliveryQuote,
+  useDeliveryTariffQuote,
 } from "./api/delivery-queries";
 export {
   deliveryFeeForSubtotal,
@@ -12,6 +13,7 @@ export {
   type CreateDeliveryWelayat,
   type DeliveryConfig,
   type DeliveryQuote,
+  type DeliveryTariffQuote,
   type DeliveryEtrap,
   type DeliveryEtrapWithWelayat,
   type DeliveryWelayat,

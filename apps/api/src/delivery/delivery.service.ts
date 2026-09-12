@@ -6,18 +6,27 @@ import {
 } from "@nestjs/common";
 import { toApiResponse } from "../common/api-response";
 import type { AuthUser } from "../common/auth.types";
-import type { Prisma } from "../generated/prisma/client";
+import type {
+  Prisma,
+  DeliverySettings,
+  Etrap,
+} from "../generated/prisma/client";
 import { GeocodingService } from "../geocoding/geocoding.service";
 import { PrismaService } from "../prisma/prisma.service";
 import {
   CreateDeliveryEtrapDto,
   CreateDeliveryWelayatDto,
   QuoteDeliveryDto,
+  QuoteDeliveryTariffDto,
   UpdateDeliveryEtrapDto,
   UpdateDeliverySettingsDto,
   UpdateDeliveryWelayatDto,
 } from "./delivery.dto";
-import { calculateDeliveryFee } from "./delivery-pricing";
+import {
+  calculateDeliveryFee,
+  resolveDeliveryPeriod,
+  DELIVERY_TIME_ZONE,
+} from "./delivery-pricing";
 import { findDeliveryAreaForAddress } from "./delivery-area-matcher";
 
 const SETTINGS_ID = "default";
@@ -49,77 +58,104 @@ export class DeliveryService {
     if (!settings) throw new NotFoundException("Delivery settings not found");
 
     const etrap = findDeliveryAreaForAddress(etraps, addressLine);
-    const price = Number(etrap?.price ?? settings.fallbackPrice);
-    const freeDeliveryThreshold = etrap
-      ? etrap.freeDeliveryThreshold === null
-        ? null
-        : Number(etrap.freeDeliveryThreshold)
-      : settings.fallbackFreeDeliveryThreshold === null
-        ? null
-        : Number(settings.fallbackFreeDeliveryThreshold);
+    const pricing = this.priceDelivery(
+      settings,
+      etrap,
+      dto.subtotal,
+      new Date(),
+    );
 
     return toApiResponse({
+      ...pricing,
       addressLine,
       latitude: dto.latitude,
       longitude: dto.longitude,
       subtotal: dto.subtotal,
-      fee: calculateDeliveryFee(dto.subtotal, price, freeDeliveryThreshold),
-      price,
-      freeDeliveryThreshold,
       etrap,
       welayat: etrap?.welayat ?? null,
       matched: Boolean(etrap),
     });
   }
 
+  async tariffQuote(dto: QuoteDeliveryTariffDto) {
+    const pricing = await this.prisma.$transaction((tx) =>
+      this.resolvePricing(tx, dto.subtotal, dto.deliveryEtrapId ?? null),
+    );
+    return toApiResponse({ ...pricing, subtotal: dto.subtotal });
+  }
+
   async resolvePricing(
     tx: Prisma.TransactionClient,
     subtotal: number,
     deliveryEtrapId: number | null,
+    at = new Date(),
   ) {
-    if (deliveryEtrapId !== null) {
-      const etrap = await tx.etrap.findUnique({
-        where: { id: deliveryEtrapId },
-        include: { welayat: true },
-      });
-      if (!etrap) throw new BadRequestException("Delivery etrap not found");
-      if (!etrap.isDeliveryEnabled) {
-        throw new BadRequestException(
-          "Delivery is not available for the selected etrap",
-        );
-      }
-      return {
-        fee: calculateDeliveryFee(
-          subtotal,
-          Number(etrap.price),
-          etrap.freeDeliveryThreshold === null
-            ? null
-            : Number(etrap.freeDeliveryThreshold),
-        ),
-        etrap,
-      };
-    }
-
     const settings = await tx.deliverySettings.findUnique({
       where: { id: SETTINGS_ID },
     });
-    if (!settings) {
-      throw new NotFoundException("Delivery settings not found");
-    }
+    if (!settings) throw new NotFoundException("Delivery settings not found");
+    const etrap =
+      deliveryEtrapId === null
+        ? null
+        : await tx.etrap.findUnique({
+            where: { id: deliveryEtrapId },
+            include: { welayat: true },
+          });
+    if (deliveryEtrapId !== null && !etrap)
+      throw new BadRequestException("Delivery etrap not found");
+    if (etrap && !etrap.isDeliveryEnabled)
+      throw new BadRequestException(
+        "Delivery is not available for the selected etrap",
+      );
+    return { ...this.priceDelivery(settings, etrap, subtotal, at), etrap };
+  }
+
+  private priceDelivery(
+    settings: DeliverySettings,
+    etrap: Etrap | null,
+    subtotal: number,
+    at: Date,
+  ) {
+    const period = resolveDeliveryPeriod(settings, at);
+    const night = period.tariff === "NIGHT";
+    const price = Number(
+      etrap
+        ? night
+          ? etrap.nightPrice
+          : etrap.price
+        : night
+          ? settings.fallbackNightPrice
+          : settings.fallbackPrice,
+    );
+    const threshold = etrap
+      ? night
+        ? etrap.nightFreeDeliveryThreshold
+        : etrap.freeDeliveryThreshold
+      : night
+        ? settings.fallbackNightFreeDeliveryThreshold
+        : settings.fallbackFreeDeliveryThreshold;
+    const freeDeliveryThreshold = threshold === null ? null : Number(threshold);
     return {
-      fee: calculateDeliveryFee(
-        subtotal,
-        Number(settings.fallbackPrice),
-        settings.fallbackFreeDeliveryThreshold === null
-          ? null
-          : Number(settings.fallbackFreeDeliveryThreshold),
-      ),
-      etrap: null,
+      ...period,
+      price,
+      freeDeliveryThreshold,
+      fee: calculateDeliveryFee(subtotal, price, freeDeliveryThreshold),
     };
   }
 
   updateSettings(actor: AuthUser, dto: UpdateDeliverySettingsDto) {
-    if (!Object.values(dto).some((value) => value !== undefined)) {
+    const { version, ...update } = dto;
+    const changedFields = Object.keys(update).filter(
+      (key) => update[key as keyof typeof update] !== undefined,
+    );
+    const changesNight = changedFields.some((key) =>
+      key.toLowerCase().includes("night"),
+    );
+    if (changesNight && version === undefined)
+      throw new BadRequestException(
+        "Version is required when changing night settings",
+      );
+    if (!Object.values(update).some((value) => value !== undefined)) {
       throw new BadRequestException(
         "At least one delivery setting is required",
       );
@@ -129,9 +165,26 @@ export class DeliveryService {
         where: { id: SETTINGS_ID },
       });
       if (!before) throw new NotFoundException("Delivery settings not found");
-      const settings = await tx.deliverySettings.update({
+      if (version !== undefined && version !== before.version)
+        throw new ConflictException(
+          "Delivery settings changed; reload and try again",
+        );
+      if (
+        (dto.nightStartsAt ?? before.nightStartsAt) ===
+        (dto.nightEndsAt ?? before.nightEndsAt)
+      ) {
+        throw new BadRequestException("Night start and end must be different");
+      }
+      const changed = await tx.deliverySettings.updateMany({
+        where: { id: SETTINGS_ID, version: before.version },
+        data: { ...update, version: { increment: 1 } },
+      });
+      if (changed.count !== 1)
+        throw new ConflictException(
+          "Delivery settings changed; reload and try again",
+        );
+      const settings = await tx.deliverySettings.findUniqueOrThrow({
         where: { id: SETTINGS_ID },
-        data: dto,
       });
       await tx.auditLog.create({
         data: {
@@ -140,7 +193,7 @@ export class DeliveryService {
           entityType: "DeliverySettings",
           entityId: SETTINGS_ID,
           metadata: {
-            changedFields: Object.keys(dto),
+            changedFields,
             previous: toApiResponse(before),
           },
         },
@@ -234,6 +287,13 @@ export class DeliveryService {
           nameTk: dto.nameTk,
           queuePosition: dto.queuePosition ?? null,
           price: dto.price ?? 15,
+          nightPrice: dto.nightPrice ?? dto.price ?? 15,
+          nightFreeDeliveryThreshold:
+            dto.nightFreeDeliveryThreshold === undefined
+              ? dto.freeDeliveryThreshold === undefined
+                ? 150
+                : dto.freeDeliveryThreshold
+              : dto.nightFreeDeliveryThreshold,
           freeDeliveryThreshold:
             dto.freeDeliveryThreshold === undefined
               ? 150
@@ -259,7 +319,20 @@ export class DeliveryService {
   }
 
   updateEtrap(actor: AuthUser, id: number, dto: UpdateDeliveryEtrapDto) {
+    if (
+      (dto.nightPrice !== undefined ||
+        dto.nightFreeDeliveryThreshold !== undefined) &&
+      dto.version === undefined
+    ) {
+      throw new BadRequestException(
+        "Version is required when changing night prices",
+      );
+    }
     const update = {
+      ...(dto.nightPrice !== undefined ? { nightPrice: dto.nightPrice } : {}),
+      ...(dto.nightFreeDeliveryThreshold !== undefined
+        ? { nightFreeDeliveryThreshold: dto.nightFreeDeliveryThreshold }
+        : {}),
       ...(dto.welayatId !== undefined ? { welayatId: dto.welayatId } : {}),
       ...(dto.nameEn !== undefined ? { nameEn: dto.nameEn } : {}),
       ...(dto.nameRu !== undefined ? { nameRu: dto.nameRu } : {}),
@@ -290,7 +363,19 @@ export class DeliveryService {
         dto.nameTk ?? before.nameTk,
         id,
       );
-      const etrap = await tx.etrap.update({ where: { id }, data: update });
+      if (dto.version !== undefined && dto.version !== before.version)
+        throw new ConflictException(
+          "Delivery etrap changed; reload and try again",
+        );
+      const changed = await tx.etrap.updateMany({
+        where: { id, version: before.version },
+        data: { ...update, version: { increment: 1 } },
+      });
+      if (changed.count !== 1)
+        throw new ConflictException(
+          "Delivery etrap changed; reload and try again",
+        );
+      const etrap = await tx.etrap.findUniqueOrThrow({ where: { id } });
       await tx.auditLog.create({
         data: {
           actorId: actor.id,
@@ -384,6 +469,14 @@ export class DeliveryService {
     return toApiResponse({
       fallbackPrice: settings.fallbackPrice,
       fallbackFreeDeliveryThreshold: settings.fallbackFreeDeliveryThreshold,
+      fallbackNightPrice: settings.fallbackNightPrice,
+      fallbackNightFreeDeliveryThreshold:
+        settings.fallbackNightFreeDeliveryThreshold,
+      nightTariffEnabled: settings.nightTariffEnabled,
+      nightStartsAt: settings.nightStartsAt,
+      nightEndsAt: settings.nightEndsAt,
+      version: settings.version,
+      timeZone: DELIVERY_TIME_ZONE,
       welayats,
     });
   }

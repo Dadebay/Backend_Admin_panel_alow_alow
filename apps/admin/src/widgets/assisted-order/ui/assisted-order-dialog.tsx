@@ -23,10 +23,10 @@ import {
   type AssistedCustomerAddress,
 } from "@/src/entities/customer";
 import {
-  deliveryFeeForSubtotal,
   flattenDeliveryEtraps,
   useDeliveryConfig,
   useDeliveryQuote,
+  useDeliveryTariffQuote,
 } from "@/src/entities/delivery";
 import {
   useGeocodeSearch,
@@ -254,19 +254,13 @@ export default function AssistedOrderDialog({
     (address) => address.id === selectedAddressId,
   );
   const suggestedDeliveryEtrap = deliveryQuote.data?.etrap ?? null;
-  const fallbackDeliveryFee = deliveryConfig.data
-    ? deliveryConfig.data.fallbackFreeDeliveryThreshold !== null &&
-      estimatedSubtotal >= deliveryConfig.data.fallbackFreeDeliveryThreshold
-      ? 0
-      : deliveryConfig.data.fallbackPrice
-    : null;
-  const estimatedDeliveryFee = deliveryQuote.data
-    ? deliveryQuote.data.fee
-    : selectedDeliveryEtrap
-      ? deliveryFeeForSubtotal(estimatedSubtotal, selectedDeliveryEtrap)
-      : selectedAddressId
-        ? fallbackDeliveryFee
-        : null;
+  const savedAddressQuote = useDeliveryTariffQuote(
+    selectedSavedAddress?.deliveryEtrapId ?? null,
+    estimatedSubtotal,
+    Boolean(selectedSavedAddress),
+  );
+  const activeDeliveryQuote = selectedAddressId ? savedAddressQuote : deliveryQuote;
+  const estimatedDeliveryFee = activeDeliveryQuote.data?.fee ?? null;
   const estimatedTotal =
     estimatedDeliveryFee === null
       ? null
@@ -1195,7 +1189,8 @@ export default function AssistedOrderDialog({
               >
                 <input type="hidden" {...register("deliveryEtrapId")} />
                 <strong>Доставка по выбранной точке</strong>
-                {suggestedDeliveryEtrap && (
+                {activeDeliveryQuote.data?.tariff === "NIGHT" && <span data-testid="assisted-delivery-night-tariff">Ночной тариф · время Ашхабада</span>}
+                {!selectedAddressId && suggestedDeliveryEtrap && (
                   <span
                     className="assisted-delivery-match"
                     data-testid="assisted-delivery-etrap-auto"
@@ -1205,7 +1200,7 @@ export default function AssistedOrderDialog({
                     {" · "}доставка {deliveryQuote.data?.fee.toFixed(2)} TMT
                   </span>
                 )}
-                {deliveryQuote.data && !suggestedDeliveryEtrap && (
+                {!selectedAddressId && deliveryQuote.data && !suggestedDeliveryEtrap && (
                   <span
                     className="assisted-delivery-match"
                     data-testid="assisted-delivery-fallback"
@@ -1220,18 +1215,18 @@ export default function AssistedOrderDialog({
                     Определяем адрес и цену доставки…
                   </span>
                 )}
-                {deliveryQuote.isError && !selectedAddressId && (
+                {activeDeliveryQuote.isError && (
                   <span className="form-error">
-                    Не удалось показать предварительную цену. Backend рассчитает
-                    доставку при создании заказа.
+                    Не удалось показать предварительную цену. Стоимость доставки
+                    будет рассчитана при создании заказа.
                   </span>
                 )}
-                {selectedAddressId && !deliveryQuote.data && (
+                {selectedAddressId && (
                   <span className="assisted-order-hint" role="status">
                     {selectedDeliveryEtrap
                       ? `${selectedDeliveryEtrap.nameRu} · доставка ${estimatedDeliveryFee?.toFixed(2)} TMT`
                       : estimatedDeliveryFee === null
-                        ? "Сохранённый адрес · цена будет рассчитана backend"
+                        ? "Сохранённый адрес · рассчитываем цену доставки"
                         : `Сохранённый адрес · базовая доставка ${estimatedDeliveryFee.toFixed(2)} TMT`}
                   </span>
                 )}

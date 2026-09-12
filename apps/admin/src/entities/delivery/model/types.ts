@@ -1,6 +1,8 @@
 import type { components } from "@alowalow/api-contract";
 
 export type DeliveryConfig = components["schemas"]["DeliveryConfigResponseDto"];
+export type DeliveryTariffQuote =
+  components["schemas"]["DeliveryTariffQuoteResponseDto"];
 export type DeliveryQuote = components["schemas"]["DeliveryQuoteResponseDto"];
 export type DeliveryWelayat =
   components["schemas"]["DeliveryWelayatResponseDto"];

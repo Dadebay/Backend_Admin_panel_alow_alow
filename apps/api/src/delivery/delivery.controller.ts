@@ -22,6 +22,7 @@ import {
   CreateDeliveryEtrapDto,
   CreateDeliveryWelayatDto,
   QuoteDeliveryDto,
+  QuoteDeliveryTariffDto,
   UpdateDeliveryEtrapDto,
   UpdateDeliverySettingsDto,
   UpdateDeliveryWelayatDto,
@@ -32,6 +33,7 @@ import {
   DeliverySettingsResponseDto,
   DeliveryWelayatResponseDto,
   DeliveryQuoteResponseDto,
+  DeliveryTariffQuoteResponseDto,
 } from "./delivery-response.dto";
 import { DeliveryService } from "./delivery.service";
 
@@ -63,6 +65,18 @@ export class DeliveryController {
     return this.delivery.quote(dto);
   }
 
+  @Post("tariff-quote")
+  @HttpCode(200)
+  @Public()
+  @ApiOperation({
+    summary:
+      "Quote the current day or night tariff for a known etrap or fallback address",
+  })
+  @ApiOkResponse({ type: DeliveryTariffQuoteResponseDto })
+  tariffQuote(@Body() dto: QuoteDeliveryTariffDto) {
+    return this.delivery.tariffQuote(dto);
+  }
+
   @Get("admin/config")
   @ApiBearerAuth()
   @Roles(Role.ADMIN)
@@ -76,7 +90,7 @@ export class DeliveryController {
   @ApiBearerAuth()
   @Roles(Role.ADMIN)
   @ApiOperation({
-    summary: "Update fallback delivery pricing for legacy addresses",
+    summary: "Update day/night fallback pricing and the night schedule",
   })
   @ApiOkResponse({ type: DeliverySettingsResponseDto })
   updateSettings(

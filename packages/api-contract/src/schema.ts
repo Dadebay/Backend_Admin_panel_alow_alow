@@ -1110,6 +1110,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/delivery/tariff-quote": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Quote the current day or night tariff for a known etrap or fallback address */
+        post: operations["DeliveryController_tariffQuote_v1"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/delivery/admin/config": {
         parameters: {
             query?: never;
@@ -1140,7 +1157,7 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** Update fallback delivery pricing for legacy addresses */
+        /** Update day/night fallback pricing and the night schedule */
         patch: operations["DeliveryController_updateSettings_v1"];
         trace?: never;
     };
@@ -3036,6 +3053,9 @@ export interface components {
             audience: "ALL_CUSTOMERS";
         };
         DeliveryEtrapResponseDto: {
+            nightPrice: number;
+            nightFreeDeliveryThreshold: number | null;
+            version: number;
             id: number;
             welayatId: number;
             nameEn: string | null;
@@ -3057,6 +3077,16 @@ export interface components {
             etraps: components["schemas"]["DeliveryEtrapResponseDto"][];
         };
         DeliveryConfigResponseDto: {
+            fallbackNightPrice: number;
+            fallbackNightFreeDeliveryThreshold: number | null;
+            nightTariffEnabled: boolean;
+            /** @example 23:00 */
+            nightStartsAt: string;
+            /** @example 07:00 */
+            nightEndsAt: string;
+            version: number;
+            /** @example Asia/Ashgabat */
+            timeZone: string;
             fallbackPrice: number;
             fallbackFreeDeliveryThreshold: number | null;
             welayats: components["schemas"]["DeliveryWelayatResponseDto"][];
@@ -3077,24 +3107,80 @@ export interface components {
             sortOrder: number;
         };
         DeliveryQuoteResponseDto: {
-            addressLine: string | null;
-            latitude: number;
-            longitude: number;
+            /** @enum {string} */
+            tariff: "DAY" | "NIGHT";
+            /**
+             * Format: date-time
+             * @description Requote at this tariff boundary; null when night pricing is disabled
+             */
+            validUntil: string | null;
+            /** @example Asia/Ashgabat */
+            timeZone: string;
             subtotal: number;
             fee: number;
+            /** @description Price of the currently applicable day or night tariff before the free threshold */
             price: number;
             freeDeliveryThreshold: number | null;
             etrap: components["schemas"]["DeliveryEtrapResponseDto"] | null;
+            addressLine: string | null;
+            latitude: number;
+            longitude: number;
             welayat: components["schemas"]["DeliveryQuoteWelayatResponseDto"] | null;
             /** @description True when reverse geocoding produced one unambiguous configured delivery area */
             matched: boolean;
         };
+        QuoteDeliveryTariffDto: {
+            subtotal: number;
+            /** @description Null or omitted uses the fallback tariff */
+            deliveryEtrapId?: number | null;
+        };
+        DeliveryTariffQuoteResponseDto: {
+            /** @enum {string} */
+            tariff: "DAY" | "NIGHT";
+            /**
+             * Format: date-time
+             * @description Requote at this tariff boundary; null when night pricing is disabled
+             */
+            validUntil: string | null;
+            /** @example Asia/Ashgabat */
+            timeZone: string;
+            subtotal: number;
+            fee: number;
+            /** @description Price of the currently applicable day or night tariff before the free threshold */
+            price: number;
+            freeDeliveryThreshold: number | null;
+            etrap: components["schemas"]["DeliveryEtrapResponseDto"] | null;
+        };
         UpdateDeliverySettingsDto: {
+            /** @description Current configuration version; required when changing night settings */
+            version?: number;
+            fallbackNightPrice?: number;
+            /** @description Null disables free delivery during the night tariff */
+            fallbackNightFreeDeliveryThreshold?: number | null;
+            nightTariffEnabled?: boolean;
+            /**
+             * @description Inclusive start in Asia/Ashgabat, HH:mm
+             * @example 23:00
+             */
+            nightStartsAt?: string;
+            /**
+             * @description Exclusive end in Asia/Ashgabat, HH:mm
+             * @example 07:00
+             */
+            nightEndsAt?: string;
             fallbackPrice?: number;
             /** @description Null disables free delivery for legacy addresses without an etrap */
             fallbackFreeDeliveryThreshold?: number | null;
         };
         DeliverySettingsResponseDto: {
+            fallbackNightPrice: number;
+            fallbackNightFreeDeliveryThreshold: number | null;
+            nightTariffEnabled: boolean;
+            /** @example 23:00 */
+            nightStartsAt: string;
+            /** @example 07:00 */
+            nightEndsAt: string;
+            version: number;
             id: string;
             fallbackPrice: number;
             fallbackFreeDeliveryThreshold: number | null;
@@ -3117,6 +3203,9 @@ export interface components {
             sortOrder?: number;
         };
         CreateDeliveryEtrapDto: {
+            nightPrice?: number;
+            /** @description Null disables free delivery during the night tariff */
+            nightFreeDeliveryThreshold?: number | null;
             welayatId: number;
             nameEn?: string | null;
             nameRu: string;
@@ -3130,6 +3219,11 @@ export interface components {
             isDeliveryEnabled: boolean;
         };
         UpdateDeliveryEtrapDto: {
+            /** @description Current configuration version; required when changing night settings */
+            version?: number;
+            nightPrice?: number;
+            /** @description Null disables free delivery during the night tariff */
+            nightFreeDeliveryThreshold?: number | null;
             welayatId?: number;
             nameEn?: string | null;
             nameRu?: string;
@@ -5100,6 +5194,29 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DeliveryQuoteResponseDto"];
+                };
+            };
+        };
+    };
+    DeliveryController_tariffQuote_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QuoteDeliveryTariffDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeliveryTariffQuoteResponseDto"];
                 };
             };
         };

@@ -2856,6 +2856,38 @@
         ]
       }
     },
+    "/api/v1/delivery/tariff-quote": {
+      "post": {
+        "operationId": "DeliveryController_tariffQuote_v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QuoteDeliveryTariffDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeliveryTariffQuoteResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Quote the current day or night tariff for a known etrap or fallback address",
+        "tags": [
+          "delivery"
+        ]
+      }
+    },
     "/api/v1/delivery/admin/config": {
       "get": {
         "operationId": "DeliveryController_adminConfig_v1",
@@ -2914,7 +2946,7 @@
             "bearer": []
           }
         ],
-        "summary": "Update fallback delivery pricing for legacy addresses",
+        "summary": "Update day/night fallback pricing and the night schedule",
         "tags": [
           "delivery"
         ]
@@ -8888,6 +8920,16 @@
       "DeliveryEtrapResponseDto": {
         "type": "object",
         "properties": {
+          "nightPrice": {
+            "type": "number"
+          },
+          "nightFreeDeliveryThreshold": {
+            "type": "number",
+            "nullable": true
+          },
+          "version": {
+            "type": "number"
+          },
           "id": {
             "type": "number"
           },
@@ -8924,6 +8966,9 @@
           }
         },
         "required": [
+          "nightPrice",
+          "nightFreeDeliveryThreshold",
+          "version",
           "id",
           "welayatId",
           "nameEn",
@@ -8974,6 +9019,31 @@
       "DeliveryConfigResponseDto": {
         "type": "object",
         "properties": {
+          "fallbackNightPrice": {
+            "type": "number"
+          },
+          "fallbackNightFreeDeliveryThreshold": {
+            "type": "number",
+            "nullable": true
+          },
+          "nightTariffEnabled": {
+            "type": "boolean"
+          },
+          "nightStartsAt": {
+            "type": "string",
+            "example": "23:00"
+          },
+          "nightEndsAt": {
+            "type": "string",
+            "example": "07:00"
+          },
+          "version": {
+            "type": "number"
+          },
+          "timeZone": {
+            "type": "string",
+            "example": "Asia/Ashgabat"
+          },
           "fallbackPrice": {
             "type": "number"
           },
@@ -8989,6 +9059,13 @@
           }
         },
         "required": [
+          "fallbackNightPrice",
+          "fallbackNightFreeDeliveryThreshold",
+          "nightTariffEnabled",
+          "nightStartsAt",
+          "nightEndsAt",
+          "version",
+          "timeZone",
           "fallbackPrice",
           "fallbackFreeDeliveryThreshold",
           "welayats"
@@ -9049,15 +9126,22 @@
       "DeliveryQuoteResponseDto": {
         "type": "object",
         "properties": {
-          "addressLine": {
+          "tariff": {
             "type": "string",
-            "nullable": true
+            "enum": [
+              "DAY",
+              "NIGHT"
+            ]
           },
-          "latitude": {
-            "type": "number"
+          "validUntil": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time",
+            "description": "Requote at this tariff boundary; null when night pricing is disabled"
           },
-          "longitude": {
-            "type": "number"
+          "timeZone": {
+            "type": "string",
+            "example": "Asia/Ashgabat"
           },
           "subtotal": {
             "type": "number"
@@ -9066,7 +9150,8 @@
             "type": "number"
           },
           "price": {
-            "type": "number"
+            "type": "number",
+            "description": "Price of the currently applicable day or night tariff before the free threshold"
           },
           "freeDeliveryThreshold": {
             "type": "number",
@@ -9080,6 +9165,16 @@
                 "$ref": "#/components/schemas/DeliveryEtrapResponseDto"
               }
             ]
+          },
+          "addressLine": {
+            "type": "string",
+            "nullable": true
+          },
+          "latitude": {
+            "type": "number"
+          },
+          "longitude": {
+            "type": "number"
           },
           "welayat": {
             "nullable": true,
@@ -9096,21 +9191,128 @@
           }
         },
         "required": [
-          "addressLine",
-          "latitude",
-          "longitude",
+          "tariff",
+          "validUntil",
+          "timeZone",
           "subtotal",
           "fee",
           "price",
           "freeDeliveryThreshold",
           "etrap",
+          "addressLine",
+          "latitude",
+          "longitude",
           "welayat",
           "matched"
+        ]
+      },
+      "QuoteDeliveryTariffDto": {
+        "type": "object",
+        "properties": {
+          "subtotal": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1000000
+          },
+          "deliveryEtrapId": {
+            "type": "number",
+            "nullable": true,
+            "minimum": 1,
+            "description": "Null or omitted uses the fallback tariff"
+          }
+        },
+        "required": [
+          "subtotal"
+        ]
+      },
+      "DeliveryTariffQuoteResponseDto": {
+        "type": "object",
+        "properties": {
+          "tariff": {
+            "type": "string",
+            "enum": [
+              "DAY",
+              "NIGHT"
+            ]
+          },
+          "validUntil": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time",
+            "description": "Requote at this tariff boundary; null when night pricing is disabled"
+          },
+          "timeZone": {
+            "type": "string",
+            "example": "Asia/Ashgabat"
+          },
+          "subtotal": {
+            "type": "number"
+          },
+          "fee": {
+            "type": "number"
+          },
+          "price": {
+            "type": "number",
+            "description": "Price of the currently applicable day or night tariff before the free threshold"
+          },
+          "freeDeliveryThreshold": {
+            "type": "number",
+            "nullable": true
+          },
+          "etrap": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DeliveryEtrapResponseDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "tariff",
+          "validUntil",
+          "timeZone",
+          "subtotal",
+          "fee",
+          "price",
+          "freeDeliveryThreshold",
+          "etrap"
         ]
       },
       "UpdateDeliverySettingsDto": {
         "type": "object",
         "properties": {
+          "version": {
+            "type": "number",
+            "minimum": 1,
+            "description": "Current configuration version; required when changing night settings"
+          },
+          "fallbackNightPrice": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1000000
+          },
+          "fallbackNightFreeDeliveryThreshold": {
+            "type": "number",
+            "nullable": true,
+            "minimum": 0,
+            "maximum": 1000000,
+            "description": "Null disables free delivery during the night tariff"
+          },
+          "nightTariffEnabled": {
+            "type": "boolean"
+          },
+          "nightStartsAt": {
+            "type": "string",
+            "example": "23:00",
+            "description": "Inclusive start in Asia/Ashgabat, HH:mm"
+          },
+          "nightEndsAt": {
+            "type": "string",
+            "example": "07:00",
+            "description": "Exclusive end in Asia/Ashgabat, HH:mm"
+          },
           "fallbackPrice": {
             "type": "number",
             "minimum": 0,
@@ -9128,6 +9330,27 @@
       "DeliverySettingsResponseDto": {
         "type": "object",
         "properties": {
+          "fallbackNightPrice": {
+            "type": "number"
+          },
+          "fallbackNightFreeDeliveryThreshold": {
+            "type": "number",
+            "nullable": true
+          },
+          "nightTariffEnabled": {
+            "type": "boolean"
+          },
+          "nightStartsAt": {
+            "type": "string",
+            "example": "23:00"
+          },
+          "nightEndsAt": {
+            "type": "string",
+            "example": "07:00"
+          },
+          "version": {
+            "type": "number"
+          },
           "id": {
             "type": "string"
           },
@@ -9148,6 +9371,12 @@
           }
         },
         "required": [
+          "fallbackNightPrice",
+          "fallbackNightFreeDeliveryThreshold",
+          "nightTariffEnabled",
+          "nightStartsAt",
+          "nightEndsAt",
+          "version",
           "id",
           "fallbackPrice",
           "fallbackFreeDeliveryThreshold",
@@ -9209,6 +9438,18 @@
       "CreateDeliveryEtrapDto": {
         "type": "object",
         "properties": {
+          "nightPrice": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1000000
+          },
+          "nightFreeDeliveryThreshold": {
+            "type": "number",
+            "nullable": true,
+            "minimum": 0,
+            "maximum": 1000000,
+            "description": "Null disables free delivery during the night tariff"
+          },
           "welayatId": {
             "type": "number",
             "minimum": 1,
@@ -9260,6 +9501,23 @@
       "UpdateDeliveryEtrapDto": {
         "type": "object",
         "properties": {
+          "version": {
+            "type": "number",
+            "minimum": 1,
+            "description": "Current configuration version; required when changing night settings"
+          },
+          "nightPrice": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1000000
+          },
+          "nightFreeDeliveryThreshold": {
+            "type": "number",
+            "nullable": true,
+            "minimum": 0,
+            "maximum": 1000000,
+            "description": "Null disables free delivery during the night tariff"
+          },
           "welayatId": {
             "type": "number",
             "minimum": 1,

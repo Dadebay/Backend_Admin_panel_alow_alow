@@ -11,6 +11,7 @@ import {
   IsString,
   Max,
   MaxLength,
+  Matches,
   Min,
   ValidateIf,
 } from "class-validator";
@@ -34,7 +35,80 @@ export class QuoteDeliveryDto {
   subtotal: number;
 }
 
+export class QuoteDeliveryTariffDto {
+  @ApiProperty({ minimum: 0, maximum: 1_000_000 })
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @Max(1_000_000)
+  subtotal: number;
+
+  @ApiPropertyOptional({
+    type: Number,
+    nullable: true,
+    minimum: 1,
+    description: "Null or omitted uses the fallback tariff",
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(2_147_483_647)
+  deliveryEtrapId?: number | null;
+}
+
 export class UpdateDeliverySettingsDto {
+  @ApiPropertyOptional({
+    minimum: 1,
+    description:
+      "Current configuration version; required when changing night settings",
+  })
+  @ValidateIf((_object, value: unknown) => value !== undefined)
+  @IsInt()
+  @Min(1)
+  version?: number;
+
+  @ApiPropertyOptional({ minimum: 0, maximum: 1_000_000 })
+  @ValidateIf((_object, value: unknown) => value !== undefined)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @Max(1_000_000)
+  fallbackNightPrice?: number;
+
+  @ApiPropertyOptional({
+    type: Number,
+    nullable: true,
+    minimum: 0,
+    maximum: 1_000_000,
+    description: "Null disables free delivery during the night tariff",
+  })
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @Max(1_000_000)
+  fallbackNightFreeDeliveryThreshold?: number | null;
+
+  @ApiPropertyOptional()
+  @ValidateIf((_object, value: unknown) => value !== undefined)
+  @IsBoolean()
+  nightTariffEnabled?: boolean;
+
+  @ApiPropertyOptional({
+    example: "23:00",
+    description: "Inclusive start in Asia/Ashgabat, HH:mm",
+  })
+  @ValidateIf((_object, value: unknown) => value !== undefined)
+  @IsString()
+  @Matches(/^([01]\d|2[0-3]):[0-5]\d$/)
+  nightStartsAt?: string;
+
+  @ApiPropertyOptional({
+    example: "07:00",
+    description: "Exclusive end in Asia/Ashgabat, HH:mm",
+  })
+  @ValidateIf((_object, value: unknown) => value !== undefined)
+  @IsString()
+  @Matches(/^([01]\d|2[0-3]):[0-5]\d$/)
+  nightEndsAt?: string;
+
   @ApiPropertyOptional({ minimum: 0, maximum: 1_000_000 })
   @ValidateIf((_object, value: unknown) => value !== undefined)
   @Type(() => Number)
@@ -60,6 +134,36 @@ export class UpdateDeliverySettingsDto {
 }
 
 export class UpdateDeliveryEtrapDto {
+  @ApiPropertyOptional({
+    minimum: 1,
+    description:
+      "Current configuration version; required when changing night settings",
+  })
+  @ValidateIf((_object, value: unknown) => value !== undefined)
+  @IsInt()
+  @Min(1)
+  version?: number;
+
+  @ApiPropertyOptional({ minimum: 0, maximum: 1_000_000 })
+  @ValidateIf((_object, value: unknown) => value !== undefined)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @Max(1_000_000)
+  nightPrice?: number;
+
+  @ApiPropertyOptional({
+    type: Number,
+    nullable: true,
+    minimum: 0,
+    maximum: 1_000_000,
+    description: "Null disables free delivery during the night tariff",
+  })
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @Max(1_000_000)
+  nightFreeDeliveryThreshold?: number | null;
+
   @ApiPropertyOptional({ minimum: 1, maximum: 2_147_483_647 })
   @ValidateIf((_object, value: unknown) => value !== undefined)
   @Type(() => Number)
@@ -197,6 +301,26 @@ export class UpdateDeliveryWelayatDto {
 }
 
 export class CreateDeliveryEtrapDto {
+  @ApiPropertyOptional({ minimum: 0, maximum: 1_000_000 })
+  @ValidateIf((_object, value: unknown) => value !== undefined)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @Max(1_000_000)
+  nightPrice?: number;
+
+  @ApiPropertyOptional({
+    type: Number,
+    nullable: true,
+    minimum: 0,
+    maximum: 1_000_000,
+    description: "Null disables free delivery during the night tariff",
+  })
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @Max(1_000_000)
+  nightFreeDeliveryThreshold?: number | null;
+
   @ApiProperty({ minimum: 1, maximum: 2_147_483_647 })
   @Type(() => Number)
   @IsInt()

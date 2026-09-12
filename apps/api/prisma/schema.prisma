@@ -335,11 +335,17 @@ model ContactSettings {
 }
 
 model DeliverySettings {
-  id                            String   @id @default("default") @db.VarChar(40)
-  fallbackPrice                 Decimal  @default(15) @db.Decimal(12, 2)
-  fallbackFreeDeliveryThreshold Decimal? @default(150) @db.Decimal(12, 2)
-  createdAt                     DateTime @default(now())
-  updatedAt                     DateTime @updatedAt
+  id                                 String   @id @default("default") @db.VarChar(40)
+  fallbackPrice                      Decimal  @default(15) @db.Decimal(12, 2)
+  fallbackFreeDeliveryThreshold      Decimal? @default(150) @db.Decimal(12, 2)
+  fallbackNightPrice                 Decimal  @default(15) @db.Decimal(12, 2)
+  fallbackNightFreeDeliveryThreshold Decimal? @default(150) @db.Decimal(12, 2)
+  nightTariffEnabled                 Boolean  @default(false)
+  nightStartsAt                      String   @default("23:00") @db.VarChar(5)
+  nightEndsAt                        String   @default("07:00") @db.VarChar(5)
+  version                            Int      @default(1)
+  createdAt                          DateTime @default(now())
+  updatedAt                          DateTime @updatedAt
 }
 
 model Welayat {
@@ -354,19 +360,22 @@ model Welayat {
 }
 
 model Etrap {
-  id                    Int           @id @default(autoincrement())
-  welayatId             Int
-  nameEn                String?       @db.VarChar(240)
-  nameRu                String        @db.VarChar(240)
-  nameTk                String        @db.VarChar(240)
-  queuePosition         Int?
-  price                 Decimal       @default(15) @db.Decimal(12, 2)
-  freeDeliveryThreshold Decimal?      @default(150) @db.Decimal(12, 2)
-  isDeliveryEnabled     Boolean       @default(false)
-  updatedAt             DateTime      @updatedAt
-  welayat               Welayat       @relation(fields: [welayatId], references: [id], onDelete: Restrict)
-  addresses             UserAddress[]
-  orders                Order[]
+  id                         Int           @id @default(autoincrement())
+  welayatId                  Int
+  nameEn                     String?       @db.VarChar(240)
+  nameRu                     String        @db.VarChar(240)
+  nameTk                     String        @db.VarChar(240)
+  queuePosition              Int?
+  price                      Decimal       @default(15) @db.Decimal(12, 2)
+  freeDeliveryThreshold      Decimal?      @default(150) @db.Decimal(12, 2)
+  nightPrice                 Decimal       @default(15) @db.Decimal(12, 2)
+  nightFreeDeliveryThreshold Decimal?      @default(150) @db.Decimal(12, 2)
+  version                    Int           @default(1)
+  isDeliveryEnabled          Boolean       @default(false)
+  updatedAt                  DateTime      @updatedAt
+  welayat                    Welayat       @relation(fields: [welayatId], references: [id], onDelete: Restrict)
+  addresses                  UserAddress[]
+  orders                     Order[]
 
   @@index([welayatId, isDeliveryEnabled, queuePosition, nameRu])
 }

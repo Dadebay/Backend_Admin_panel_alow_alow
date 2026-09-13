@@ -9,16 +9,21 @@ records how those decisions are verified.
 
 ### Courier map
 
-- The default dispatch view fits every courier that has a current Redis GPS
-  point and overlays every busy courier route at once. Each busy courier keeps
-  a distinct brand-derived route color; the legend and permanent delivery-stop
-  labels bind that color to the courier name and active order numbers.
-  Selecting one courier focuses their route and delivery stops, but must not
-  remove the other courier markers. Returning to `Все курьеры` restores every
-  busy route overlay.
-- Every located courier marker permanently displays the courier name and one
-  workload label: `Свободен`, `В заказе #<number>`, or
-  `В заказах · <count>`.
+- The default dispatch view fits every courier with a GPS point and shows all
+  available backend road routes and delivery labels. Every courier has an
+  individual numbered marker without clustering. Their marker, drawer number,
+  line and order labels share a distinct color, stable when filtering. The name
+  menu and `Все курьеры` switch between all and one courier and enable routes.
+  Couriers at identical coordinates remain individually selectable in the drawer.
+- Routes share individual query keys between overview and selection, load at most
+  three at a time, and appear as each succeeds. A GPS update invalidates only that
+  courier’s route; missing GPS, a slow route or an error cannot hide other lines.
+- Selecting one courier filters out the others, shows that courier's backend
+  road route and expands their orders under their name in the drawer: meals,
+  quantities, branch, destination, address details, customer contact and comment.
+  A missing comment is labelled `Без комментария`.
+- The drawer lists all active couriers and can be collapsed. Live GPS does not
+  reset a manual pan/zoom; `Вместить в карту` explicitly refits the view.
 - Workload and GPS presence are independent. A courier with active orders is
   busy even when the point is `STALE`; `ONLINE`, `STALE`, and `OFFLINE` must
   never be used as substitutes for free/busy state.
@@ -118,11 +123,13 @@ printing them.
    courier, one busy stale courier, and one courier without GPS. Verify marker
    labels, colors, dashed stale state, overview counts, the missing-GPS warning,
    explicit `Филиал` labels, and no horizontal overflow on desktop and phone.
-2. In `Все курьеры`, verify every busy courier has a distinct route color and
-   that each route legend/stop label states the courier and order numbers.
-   Select a busy courier from the legend, verify their backend road route and
-   stops appear while every other located courier marker remains visible, then
-   return with `Все курьеры`.
+2. In `Все курьеры`, verify individual markers and colored road routes appear
+   by default. Confirm colors match drawer numbers and order labels for 16
+   couriers. Toggle routes off/on, select by name or marker, and verify only that
+   courier is shown without changing their color. Select couriers with identical
+   GPS from the drawer. Expand food/address/comments and return with `Все курьеры`:
+   routes must still appear. Check Back/Forward restores selection, drawer Escape returns
+   focus to its toggle, and SSE moves GPS without undoing a manual pan/zoom.
 3. On that courier's phone open `/courier`, sign in and start the shift. Complete
    the courier's last order. Verify the same marker remains, changes
    to `Свободен`, and moves when the mobile client publishes the next point.
@@ -155,3 +162,23 @@ stops sending points or the operating system suspends background location. The
 same-origin `/courier` screen is an immediately available web fallback, but a
 native client with approved background-location behavior remains the reliable
 choice while a phone is locked.
+
+## Drawer release verification — 2026-09-13
+
+The saved `41c30fb` implementation is integrated with current main. GPS help
+now describes the mobile courier application; the website is not required.
+Fresh production-build QA passed Chromium, Firefox and WebKit at 1440, 820 and
+390 pixels against an isolated real API/database/Redis/OSRM fixture: 16 courier
+rows/colors, 15 GPS markers, 11 orders and 7 READY road routes. Selection, drawer
+keyboard controls, missing/stale GPS, empty state, denied roles, SSE pan
+preservation and exact courier route invalidation passed. Maximum route request
+concurrency was three, with no duplicate initial requests.
+
+Admin: 160 tests, lint/build/typecheck and full/production audits passed (zero
+vulnerabilities; three pre-existing phone-field lint warnings). No map runtime
+errors or horizontal overflow. The existing unavailable local print-agent health
+request is recorded separately. Entry gzip grew by 382 bytes; selection took
+30–58 ms and Chromium CLS remained below 0.078 in this laboratory run. These are
+not production p75 figures or physical-device tests. Evidence and reproducible
+runner: `outputs/qa/` in the isolated courier-map release worktree; handoff copy
+under `outputs/courier-map-release-20260913/` in the original workspace.

@@ -1,23 +1,26 @@
-import { Fragment, useEffect } from "react";
+import { Fragment, useEffect, useRef } from "react";
 import {
   CircleMarker,
   MapContainer,
+  Marker,
   Polyline,
   Popup,
   TileLayer,
   Tooltip,
   useMap,
 } from "react-leaflet";
-import type { LatLngBoundsExpression, LatLngTuple } from "leaflet";
+import {
+  divIcon,
+  type LatLngBoundsExpression,
+  type LatLngTuple,
+} from "leaflet";
 import { MAP_ATTRIBUTION, MAP_TILE_URL } from "@/src/shared/map";
 import { brandColors } from "@/src/shared/ui";
 import {
   courierMapLocations,
   courierName,
-  courierPresenceLabels,
   courierRouteColor,
   courierWorkLabel,
-  courierWorkState,
 } from "../model/courier-status";
 import type {
   CourierRouteOverlay,
@@ -26,61 +29,110 @@ import type {
 } from "../model/map-types";
 
 const ASHGABAT_CENTER: LatLngTuple = [37.9601, 58.3261];
-function FitMap({ points }: { points: LatLngTuple[] }) {
+function FitMap({ points, scope }: { points: LatLngTuple[]; scope: string }) {
   const map = useMap();
+  const fittedScope = useRef<string | null>(null);
   useEffect(() => {
-    if (!points.length) return;
-    if (points.length === 1) {
-      map.setView(points[0], 14, { animate: false });
-      return;
-    }
-    map.fitBounds(points as LatLngBoundsExpression, {
-      padding: [24, 24],
-      maxZoom: 15,
-      animate: false,
-    });
-  }, [map, points]);
+    // Live GPS must move markers without undoing the dispatcher's pan/zoom.
+    if (!points.length || fittedScope.current === scope) return;
+    fittedScope.current = scope;
+    if (points.length === 1) map.setView(points[0], 14, { animate: false });
+    else
+      map.fitBounds(points as LatLngBoundsExpression, {
+        padding: [40, 40],
+        maxZoom: 15,
+        animate: false,
+      });
+  }, [map, points, scope]);
+  useEffect(() => {
+    const observer = new ResizeObserver(() =>
+      map.invalidateSize({ pan: false }),
+    );
+    observer.observe(map.getContainer());
+    return () => observer.disconnect();
+  }, [map]);
   return null;
+}
+
+function CourierMarkers({
+  couriers,
+  allCouriers,
+  selectedCourierId,
+  onSelectCourier,
+}: {
+  couriers: DispatchCourier[];
+  allCouriers: DispatchCourier[];
+  selectedCourierId: string | null;
+  onSelectCourier: (id: string) => void;
+}) {
+  return courierMapLocations(couriers).map(
+    ({ courier, latitude, longitude }) => {
+      const number = allCouriers.findIndex(({ id }) => id === courier.id) + 1;
+      const color = courierRouteColor(number - 1);
+      return (
+        <Marker
+          key={courier.id}
+          position={[latitude, longitude]}
+          title={courierName(courier)}
+          alt={courierName(courier)}
+          icon={divIcon({
+            className: `dispatch-map-pin ${courier.presence.toLowerCase()}`,
+            html: `<span data-testid="dispatch-map-courier-${courier.id}" style="background:${color}">${number}</span>`,
+            iconSize: [36, 36],
+            iconAnchor: [18, 18],
+          })}
+          eventHandlers={{ click: () => onSelectCourier(courier.id) }}
+        >
+          <Tooltip
+            direction="top"
+            offset={[0, -16]}
+            permanent={courier.id === selectedCourierId}
+          >
+            <strong>{courierName(courier)}</strong>
+            <br />
+            {courierWorkLabel(courier)}
+          </Tooltip>
+        </Marker>
+      );
+    },
+  );
 }
 
 export default function CourierMapCanvas({
   branches,
   couriers,
+  allCouriers,
   selectedCourierId,
   routes,
+  showStops,
+  fitRevision,
   onSelectCourier,
 }: {
   branches: DispatchBranchDto[];
   couriers: DispatchCourier[];
+  allCouriers: DispatchCourier[];
   selectedCourierId: string | null;
   routes: CourierRouteOverlay[];
-  onSelectCourier: (courierId: string) => void;
+  showStops: boolean;
+  fitRevision: number;
+  onSelectCourier: (id: string) => void;
 }) {
-  const selected =
-    couriers.find(({ id }) => id === selectedCourierId) ?? null;
-  const routeByCourierId = new Map(
-    routes.map((overlay) => [overlay.courier.id, overlay]),
-  );
-  const visibleCouriers = selected
-    ? [selected]
-    : couriers.filter(({ activeOrders }) => activeOrders.length);
-  const stopGroups = visibleCouriers.map((courier) => {
-    const overlay = routeByCourierId.get(courier.id);
-    return {
-      color:
-        overlay?.color ??
-        courierRouteColor(couriers.findIndex(({ id }) => id === courier.id)),
-      courier,
-      stops: overlay?.route.stops ?? courier.activeOrders,
-    };
-  });
+  const stopGroups = showStops
+    ? couriers.map((courier) => ({
+        courier,
+        color: courierRouteColor(
+          allCouriers.findIndex(({ id }) => id === courier.id),
+        ),
+        // Snapshot is the current order authority; an older route must not resurrect completed stops.
+        stops: courier.activeOrders,
+      }))
+    : [];
   const routeLines = routes.flatMap(({ color, courier, route }) =>
     route.routingStatus === "READY" && route.route
       ? [
           {
             color,
             courier,
-            orderNumbers: route.stops.map(({ orderNumber }) => orderNumber),
             points: route.route.geometry.coordinates.map(
               ([longitude, latitude]) =>
                 [latitude, longitude] satisfies LatLngTuple,
@@ -91,28 +143,23 @@ export default function CourierMapCanvas({
   );
   const points: LatLngTuple[] = routeLines.flatMap(({ points }) => points);
   const courierLocations = courierMapLocations(couriers);
-  for (const location of courierLocations) {
+  for (const location of courierLocations)
     points.push([location.latitude, location.longitude]);
-  }
-  if (!selected) {
-    for (const branch of branches) {
-      points.push([branch.latitude, branch.longitude]);
-    }
-  }
-  for (const { stops } of stopGroups) {
+  const visibleBranches = selectedCourierId
+    ? branches.filter((branch) =>
+        couriers.some((courier) =>
+          courier.activeOrders.some((order) => order.branch?.id === branch.id),
+        ),
+      )
+    : branches;
+  for (const branch of visibleBranches)
+    points.push([branch.latitude, branch.longitude]);
+  for (const { stops } of stopGroups)
     for (const order of stops) {
-      if (order.branch?.latitude != null && order.branch.longitude != null) {
-        points.push([order.branch.latitude, order.branch.longitude]);
-      }
       points.push([order.latitude, order.longitude]);
+      if (order.branch?.latitude != null && order.branch.longitude != null)
+        points.push([order.branch.latitude, order.branch.longitude]);
     }
-  }
-  if (!points.length) {
-    for (const branch of branches) {
-      points.push([branch.latitude, branch.longitude]);
-    }
-  }
-
   return (
     <MapContainer
       className="courier-map-canvas"
@@ -122,45 +169,50 @@ export default function CourierMapCanvas({
       zoomControl
       data-testid="dispatch-courier-map"
     >
-      <TileLayer
-        url={MAP_TILE_URL}
-        attribution={MAP_ATTRIBUTION}
+      <TileLayer url={MAP_TILE_URL} attribution={MAP_ATTRIBUTION} />
+      <FitMap
+        points={points}
+        scope={`${selectedCourierId ?? "all"}:${fitRevision}:${showStops}:${routeLines.length > 0}`}
       />
-      <FitMap points={points} />
-      {routeLines.map(({ color, courier, orderNumbers, points: routeLine }) => (
+      {routeLines.map(({ color, courier, points: line }) => (
         <Fragment key={courier.id}>
           <Polyline
-            positions={routeLine}
-            pathOptions={{ color: brandColors.cream, weight: 10, opacity: 0.9 }}
+            positions={line}
+            interactive={false}
+            pathOptions={{
+              color: brandColors.cream,
+              weight: 7,
+              opacity: 0.85,
+              interactive: false,
+            }}
           />
           <Polyline
-            positions={routeLine}
-            pathOptions={{ color, weight: 6, opacity: 0.95 }}
+            positions={line}
+            className="dispatch-road-route"
+            pathOptions={{
+              color,
+              weight: 4,
+              opacity: 0.9,
+            }}
             eventHandlers={{ click: () => onSelectCourier(courier.id) }}
           >
-            <Tooltip sticky>
-              {courierName(courier)} · {orderNumbers
-                .map((number) => `#${number}`)
-                .join(", ")}
-            </Tooltip>
+            <Tooltip sticky>{courierName(courier)}</Tooltip>
           </Polyline>
         </Fragment>
       ))}
-      {branches.map((branch) => (
+      {visibleBranches.map((branch) => (
         <CircleMarker
           key={branch.id}
           center={[branch.latitude, branch.longitude]}
-          radius={10}
+          radius={7}
           pathOptions={{
-            color: brandColors.cream,
-            fillColor: brandColors.orange,
+            color: brandColors.orange,
+            fillColor: brandColors.cream,
             fillOpacity: 1,
             weight: 3,
           }}
         >
-          <Tooltip permanent direction="top">
-            Филиал · {branch.name}
-          </Tooltip>
+          <Tooltip direction="top">Филиал · {branch.name}</Tooltip>
           <Popup>
             <strong>Филиал · {branch.name}</strong>
             <br />
@@ -168,81 +220,43 @@ export default function CourierMapCanvas({
           </Popup>
         </CircleMarker>
       ))}
-      {courierLocations.map(({ courier, latitude, longitude }) => {
-        const workState = courierWorkState(courier);
-        const workLabel = courierWorkLabel(courier);
-        const routeColor =
-          routeByCourierId.get(courier.id)?.color ??
-          courierRouteColor(couriers.findIndex(({ id }) => id === courier.id));
-        return (
+      {stopGroups.flatMap(({ color, courier, stops }) =>
+        stops.map((order) => (
           <CircleMarker
-            key={courier.id}
-            center={[latitude, longitude]}
-            radius={courier.id === selected?.id ? 11 : 8}
+            key={order.id}
+            center={[order.latitude, order.longitude]}
+            radius={6}
             pathOptions={{
-              color: brandColors.cream,
-              fillColor:
-                workState === "BUSY" ? routeColor : brandColors.navy,
-              fillOpacity: courier.presence === "ONLINE" ? 1 : 0.62,
+              color,
+              fillColor: brandColors.cream,
+              fillOpacity: 1,
               weight: 3,
-              ...(courier.presence === "ONLINE" ? {} : { dashArray: "4 3" }),
             }}
             eventHandlers={{ click: () => onSelectCourier(courier.id) }}
           >
             <Tooltip
-              className={`courier-marker-tooltip ${workState.toLowerCase()}`}
-              direction="top"
               permanent
+              direction="right"
+              className="dispatch-order-label"
             >
-              <strong>{courierName(courier)}</strong>
-              <span>{workLabel}</span>
+              <span style={{ color }}>#{order.number}</span>
             </Tooltip>
             <Popup>
-              <strong>{courierName(courier)}</strong>
+              <strong>Заказ #{order.number}</strong>
               <br />
-              {workLabel}
+              {order.address}
               <br />
-              {courierPresenceLabels[courier.presence]}
-              <br />
-              {courier.phone}
+              {courierName(courier)}
             </Popup>
           </CircleMarker>
-        );
-      })}
-      {stopGroups.flatMap(({ color, courier, stops }) =>
-        stops.map((order, index) => {
-          const orderNumber =
-            "number" in order ? order.number : order.orderNumber;
-          return (
-            <CircleMarker
-              key={`${courier.id}:${"id" in order ? order.id : order.orderId}`}
-              center={[order.latitude, order.longitude]}
-              radius={8}
-              pathOptions={{
-                color: brandColors.cream,
-                fillColor: color,
-                fillOpacity: 1,
-                weight: 3,
-              }}
-            >
-              <Tooltip permanent direction="right">
-                {selected
-                  ? `${index + 1}. #${orderNumber}`
-                  : `${courierName(courier)} · #${orderNumber}`}
-              </Tooltip>
-              <Popup>
-                <strong>{courierName(courier)}</strong>
-                <br />
-                Заказ #{orderNumber}
-                <br />
-                {order.address}
-                <br />
-                {order.customer.firstName ?? "Клиент"} · {order.customer.phone}
-              </Popup>
-            </CircleMarker>
-          );
-        }),
+        )),
       )}
+      <CourierMarkers
+        couriers={couriers}
+        allCouriers={allCouriers}
+        selectedCourierId={selectedCourierId}
+        onSelectCourier={onSelectCourier}
+      />
     </MapContainer>
   );
 }

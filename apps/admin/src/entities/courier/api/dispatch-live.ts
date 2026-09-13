@@ -19,9 +19,7 @@ export function useDispatchLiveUpdates(): DispatchLiveState {
   const [state, setState] = useState<DispatchLiveState>("connecting");
   const accessToken = session?.accessToken;
   const userId = session?.user.id;
-  const canView = Boolean(
-    session && ACCESS_ROLES.has(session.user.role),
-  );
+  const canView = Boolean(session && ACCESS_ROLES.has(session.user.role));
 
   useEffect(() => {
     if (!accessToken || !userId || !canView) {
@@ -32,17 +30,11 @@ export function useDispatchLiveUpdates(): DispatchLiveState {
     const queryKey = courierQueryKeys.dispatch(userId);
 
     const applyEvent = (event: DispatchLiveEvent) => {
-      if (
-        event.type !== "courier.location" ||
-        !event.courierId
-      ) {
+      if (event.type !== "courier.location" || !event.courierId) {
         return;
       }
       void queryClient.invalidateQueries({
         queryKey: courierQueryKeys.route(userId, event.courierId),
-      });
-      void queryClient.invalidateQueries({
-        queryKey: courierQueryKeys.routeOverview(userId),
       });
       const current = queryClient.getQueryData<DispatchSnapshot>(queryKey);
       if (!current) return;

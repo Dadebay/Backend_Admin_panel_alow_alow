@@ -1,11 +1,11 @@
-import { lazy, Suspense, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import { useSearchParams } from "react-router";
 import {
   useCourierRoute,
   useCourierRoutes,
   useDispatchLiveUpdates,
   useDispatchSnapshot,
 } from "@/src/entities/courier";
-import { orderItemLabel } from "@/src/entities/order";
 import { OtpLoginCard } from "@/src/features/otp-login";
 import { useSession } from "@/src/shared/auth";
 import {
@@ -15,55 +15,57 @@ import {
   courierPresenceLabels,
   courierRouteColor,
   courierWorkLabel,
-  courierWorkState,
 } from "../model/courier-status";
+import { couriersOnMap } from "../model/map-view";
 import type { CourierRouteOverlay } from "../model/map-types";
+import { CourierOrderDetails } from "./courier-order-details";
+import "./courier-map.css";
 
 const CourierMapCanvas = lazy(() => import("./courier-map-canvas"));
-
 const ACCESS_ROLES = new Set(["OPERATOR", "ADMIN", "SUPER_ADMIN"]);
 
 function formatLocationTime(value?: string) {
-  if (!value) return "GPS ещё не получен";
-  return `GPS ${new Intl.DateTimeFormat("ru-RU", {
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(new Date(value))}`;
+  if (!value) return "Нет GPS";
+  return `GPS ${new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit" }).format(new Date(value))}`;
 }
 
 export function CourierMapPanel() {
   const { session, ready, logout } = useSession();
   const dispatch = useDispatchSnapshot();
   const liveState = useDispatchLiveUpdates();
-  const [selectedCourierId, setSelectedCourierId] = useState<string | null>(
-    null,
-  );
+  const [params, setParams] = useSearchParams();
+  const [drawerOpen, setDrawerOpen] = useState(true);
+  const [collapsedId, setCollapsedId] = useState<string | null>(null);
+  const [fitRevision, setFitRevision] = useState(0);
+  const drawerToggle = useRef<HTMLButtonElement>(null);
+  const selectedRow = useRef<HTMLButtonElement>(null);
   const branches = dispatch.data?.branches ?? [];
   const couriers = dispatch.data?.couriers ?? [];
-  const selected =
-    couriers.find(({ id }) => id === selectedCourierId) ?? null;
-  const busyCouriers = couriers.filter(({ activeOrders }) => activeOrders.length);
-  const courierRoute = useCourierRoute(selected?.id ?? null);
+  const selectedCourierId = params.get("courier");
+  const selected = couriers.find(({ id }) => id === selectedCourierId) ?? null;
+  const visibleCouriers = couriersOnMap(couriers, selected?.id ?? null);
+  const showRoutes = params.get("routes") !== "hide";
+  const courierRoute = useCourierRoute(
+    showRoutes ? (selected?.id ?? null) : null,
+  );
   const overviewRoutes = useCourierRoutes(
-    selected ? [] : busyCouriers.map(({ id }) => id),
+    showRoutes && !selected
+      ? couriers
+          .filter(({ activeOrders }) => activeOrders.length)
+          .map(({ id }) => id)
+      : [],
   );
   const overviewRouteByCourierId = new Map(
-    (overviewRoutes.data ?? []).map(({ courierId, route }) => [courierId, route]),
+    (overviewRoutes.data ?? []).map(({ courierId, route }) => [
+      courierId,
+      route,
+    ]),
   );
-  const routeOverlays: CourierRouteOverlay[] = selected
-    ? courierRoute.data
-      ? [
-          {
-            color: courierRouteColor(
-              couriers.findIndex(({ id }) => id === selected.id),
-            ),
-            courier: selected,
-            route: courierRoute.data,
-          },
-        ]
-      : []
-    : busyCouriers.flatMap((courier) => {
-        const route = overviewRouteByCourierId.get(courier.id);
+  const routeOverlays: CourierRouteOverlay[] = showRoutes
+    ? visibleCouriers.flatMap((courier) => {
+        const route = selected
+          ? courierRoute.data
+          : overviewRouteByCourierId.get(courier.id);
         return route
           ? [
               {
@@ -75,11 +77,37 @@ export function CourierMapPanel() {
               },
             ]
           : [];
-      });
-  const displayedStops =
-    courierRoute.data?.stops ?? selected?.activeOrders ?? [];
-  const overviewCounts = courierOverviewCounts(couriers);
+      })
+    : [];
+  const counts = courierOverviewCounts(couriers);
   const locationCoverage = courierLocationCoverage(couriers);
+
+  useEffect(() => {
+    const row = selectedRow.current;
+    const list = row?.closest(".dispatch-drawer-list");
+    if (!drawerOpen || !selectedCourierId || !row || !list) return;
+    list.scrollTo({
+      top:
+        list.scrollTop +
+        row.getBoundingClientRect().top -
+        list.getBoundingClientRect().top -
+        8,
+    });
+    row.scrollIntoView({ block: "nearest" });
+  }, [drawerOpen, selectedCourierId]);
+
+  function selectCourier(id: string | null) {
+    setParams((current) => {
+      const next = new URLSearchParams(current);
+      if (id) next.set("courier", id);
+      else next.delete("courier");
+      next.delete("routes");
+      return next;
+    });
+    setCollapsedId(null);
+    setFitRevision((value) => value + 1);
+    if (id) setDrawerOpen(true);
+  }
 
   if (!ready) {
     return (
@@ -150,7 +178,7 @@ export function CourierMapPanel() {
         <div className="section-head compact">
           <div>
             <h2>Курьеры на карте</h2>
-            <p>Нет соединения с backend</p>
+            <p>Нет соединения с сервером</p>
           </div>
         </div>
         <div className="map-message">
@@ -172,282 +200,264 @@ export function CourierMapPanel() {
 
   return (
     <aside
-      className="dispatch-card live-dispatch"
+      className="dispatch-card live-dispatch dispatch-workspace"
       data-testid="dispatch-map-panel"
     >
-      <div className="section-head compact">
-        <div>
-          <p>
-            Обновлено{" "}
-            {new Intl.DateTimeFormat("ru-RU", {
-              hour: "2-digit",
-              minute: "2-digit",
-            }).format(new Date(dispatch.data.generatedAt))}
-            {liveState === "live"
-              ? " · LIVE"
-              : liveState === "connecting"
-                ? " · подключение"
-                : " · резервное обновление"}
-          </p>
-        </div>
-        <button
-          className="square-button"
-          data-testid="dispatch-refresh-map"
-          aria-label="Обновить карту"
-          onClick={() => {
-            void dispatch.refetch();
-            if (selected) {
-              void courierRoute.refetch();
-            } else {
-              void overviewRoutes.refetch();
-            }
-          }}
-        >
-          ↻
-        </button>
-      </div>
-
-      {locationCoverage.missing.length > 0 && (
-        <div
-          className="dispatch-location-coverage"
-          data-testid="dispatch-location-coverage"
-          role="status"
-        >
-          <div>
-            <strong>
-              GPS передают {locationCoverage.located} из {locationCoverage.total}
-            </strong>
-            <p>
-              Без GPS: {locationCoverage.missing.map(courierName).join(", ")}.
-              Курьер включает передачу на <code>a7-tagam.com.tm/courier</code> →
-              «Начать смену».
-              {locationCoverage.located === 0 &&
-                " Видимые служебные точки на карте — филиалы, а не курьеры."}
-            </p>
-          </div>
-        </div>
-      )}
-
-      <Suspense fallback={<div className="map-loading">Загружаем карту…</div>}>
-        <CourierMapCanvas
-          branches={branches}
-          couriers={couriers}
-          selectedCourierId={selected?.id ?? null}
-          routes={routeOverlays}
-          onSelectCourier={setSelectedCourierId}
-        />
-      </Suspense>
-
-      {!selected && busyCouriers.length > 0 && (
-        <section
-          className="courier-route-overview"
-          data-testid="dispatch-route-overview"
-        >
-          <div className="courier-route-overview-heading">
-            <strong>Маршруты всех занятых курьеров</strong>
-            <span>Нажмите курьера, чтобы открыть детали.</span>
-          </div>
-          <div className="courier-route-legend">
-            {busyCouriers.map((courier) => {
-              const route = overviewRouteByCourierId.get(courier.id);
-              const plannedRoute = route?.route;
-              const color = courierRouteColor(
-                couriers.findIndex(({ id }) => id === courier.id),
-              );
-              return (
-                <button
-                  key={courier.id}
-                  data-testid={`dispatch-route-legend-${courier.id}`}
-                  onClick={() => setSelectedCourierId(courier.id)}
-                >
-                  <span
-                    className="courier-route-swatch"
-                    style={{ backgroundColor: color }}
-                    aria-hidden="true"
-                  />
-                  <span>
-                    <strong>{courierName(courier)}</strong>
-                    <small>
-                      Заказы: {courier.activeOrders
-                        .map(({ number }) => `#${number}`)
-                        .join(", ")}
-                    </small>
-                  </span>
-                  <em>
-                    {overviewRoutes.isPending
-                      ? "Строим…"
-                      : plannedRoute
-                        ? `${(plannedRoute.distanceMeters / 1_000).toFixed(1)} км · ~${Math.max(
-                            1,
-                            Math.ceil(plannedRoute.durationSeconds / 60),
-                          )} мин`
-                        : "Маршрут недоступен"}
-                  </em>
-                </button>
-              );
-            })}
-          </div>
-        </section>
-      )}
-
-      {selected && (
-        <div
-          className="courier-route-status"
-          data-testid="dispatch-route-summary"
-        >
-          {courierRoute.isPending ? (
-            <span>Строим дорожный маршрут…</span>
-          ) : courierRoute.data?.routingStatus === "READY" &&
-            courierRoute.data.route ? (
-            <>
-              <strong>
-                {(courierRoute.data.route.distanceMeters / 1_000).toFixed(1)} км
-                {" · ~"}
-                {Math.max(
-                  1,
-                  Math.ceil(courierRoute.data.route.durationSeconds / 60),
-                )}{" "}
-                мин
-              </strong>
-              <span>
-                Следующие точки: {courierRoute.data.route.nextWaypoints.length}
-              </span>
-            </>
-          ) : courierRoute.data?.routingStatus === "NO_STOPS" ? (
-            <span>Активных точек маршрута нет.</span>
-          ) : (
-            <span>Маршрутный сервис временно недоступен; точки сохранены.</span>
-          )}
-        </div>
-      )}
-
-      {!couriers.length ? (
-        <div className="map-message">
-          Активных курьеров пока нет. Добавьте сотрудника с ролью COURIER.
-        </div>
-      ) : (
-        <>
-          <div className="live-courier-list">
-            <button
-              className={
-                !selected
-                  ? "selected courier-overview-button"
-                  : "courier-overview-button"
-              }
-              data-testid="dispatch-show-all-couriers"
-              onClick={() => setSelectedCourierId(null)}
-            >
-              <span className="presence-dot online" />
-              <span>
-                <strong>Все курьеры</strong>
-                <small>
-                  В заказе: {overviewCounts.busy} · свободных: {overviewCounts.freeOnline}
-                  {" · "}
-                  GPS у {overviewCounts.located} из {overviewCounts.total}
-                </small>
-              </span>
-              <em>{overviewCounts.online} на линии</em>
-            </button>
+      <div className="dispatch-toolbar">
+        <label className="dispatch-name-filter">
+          <span>Показать на карте</span>
+          <select
+            data-testid="dispatch-courier-filter"
+            value={selected?.id ?? ""}
+            onChange={(event) => selectCourier(event.target.value || null)}
+          >
+            <option value="">Все курьеры ({couriers.length})</option>
             {couriers.map((courier) => (
-              <button
-                key={courier.id}
-                className={courier.id === selected?.id ? "selected" : ""}
-                data-testid={`dispatch-select-courier-${courier.id}`}
-                onClick={() => setSelectedCourierId(courier.id)}
-              >
-                <span
-                  className={`presence-dot ${courier.presence.toLowerCase()}`}
-                />
-                <span>
-                  <strong>{courierName(courier)}</strong>
-                  <small>
-                    {formatLocationTime(courier.location?.recordedAt)} ·{" "}
-                    {courierPresenceLabels[courier.presence]}
-                  </small>
-                </span>
-                <em
-                  className={`courier-work-status ${courierWorkState(courier).toLowerCase()}`}
-                >
-                  {courierWorkLabel(courier)}
-                </em>
-              </button>
+              <option value={courier.id} key={courier.id}>
+                {courierName(courier)}
+              </option>
             ))}
+          </select>
+        </label>
+        <button
+          className="secondary-button"
+          data-testid="dispatch-toggle-routes"
+          aria-pressed={showRoutes}
+          onClick={() =>
+            setParams((current) => {
+              const next = new URLSearchParams(current);
+              next.set("routes", showRoutes ? "hide" : "show");
+              return next;
+            })
+          }
+        >
+          {showRoutes ? "Скрыть маршруты" : "Показать маршруты"}
+        </button>
+        <div className="dispatch-toolbar-end">
+          <span className="dispatch-live-label" role="status">
+            {liveState === "live"
+              ? "● В эфире"
+              : liveState === "connecting"
+                ? "Подключение…"
+                : "Обновление каждые 30 с"}
+          </span>
+          <button
+            className="square-button"
+            data-testid="dispatch-refresh-map"
+            aria-label="Обновить карту"
+            disabled={dispatch.isFetching}
+            onClick={() => {
+              void dispatch.refetch();
+              if (showRoutes) {
+                if (selected) void courierRoute.refetch();
+                else void overviewRoutes.refetch();
+              }
+            }}
+          >
+            ↻
+          </button>
+          <button
+            ref={drawerToggle}
+            className="secondary-button"
+            data-testid="dispatch-toggle-drawer"
+            aria-expanded={drawerOpen}
+            aria-controls="dispatch-courier-drawer"
+            onClick={() => setDrawerOpen(!drawerOpen)}
+          >
+            Курьеры · {couriers.length}
+          </button>
+        </div>
+      </div>
+      <div className={`dispatch-map-layout ${drawerOpen ? "drawer-open" : ""}`}>
+        <div className="dispatch-map-surface">
+          <div className="dispatch-map-caption">
+            <strong>{selected ? courierName(selected) : "Все курьеры"}</strong>
+            <span>
+              {selected
+                ? courierWorkLabel(selected)
+                : `В заказе: ${counts.busy} · свободных на линии: ${counts.freeOnline}`}
+            </span>
+            <button
+              className="text-button"
+              data-testid="dispatch-fit-map"
+              onClick={() => setFitRevision((value) => value + 1)}
+            >
+              Вместить в карту
+            </button>
           </div>
-
-          {selected && (
-            <div className="courier-route-details">
-              <div className="courier-contact">
-                <div>
-                  <strong>{courierName(selected)}</strong>
-                  <a href={`tel:${selected.phone}`}>{selected.phone}</a>
-                </div>
-                <span>
-                  {selected.rating ? `${selected.rating} ★` : "Нет рейтинга"}
-                </span>
-              </div>
-              {displayedStops.length ? (
-                displayedStops.map((order, index) => {
-                  const orderNumber =
-                    "number" in order ? order.number : order.orderNumber;
-                  return (
-                    <article
-                      className="delivery-stop"
-                      key={"id" in order ? order.id : order.orderId}
-                    >
-                      <span>{index + 1}</span>
-                      <div>
-                        <div className="delivery-stop-title">
-                          <strong>Заказ #{orderNumber}</strong>
-                          <b>{order.cashToCollect} TMT</b>
-                        </div>
-                        <p>{order.address}</p>
-                        {order.branch && (
-                          <div className="order-branch-row">
-                            Забрать: <strong>{order.branch.name}</strong>
-                            {order.branch.address &&
-                              ` · ${order.branch.address}`}
-                          </div>
-                        )}
-                        {(order.entrance || order.floor || order.apartment) && (
-                          <small>
-                            {[
-                              order.entrance && `подъезд ${order.entrance}`,
-                              order.floor && `этаж ${order.floor}`,
-                              order.apartment && `кв. ${order.apartment}`,
-                            ]
-                              .filter(Boolean)
-                              .join(" · ")}
-                          </small>
-                        )}
-                        <a href={`tel:${order.customer.phone}`}>
-                          {[order.customer.firstName, order.customer.lastName]
-                            .filter(Boolean)
-                            .join(" ") || "Клиент"}{" "}
-                          · {order.customer.phone}
-                        </a>
-                        <ul>
-                          {order.items.map((item) => (
-                            <li
-                              key={`${item.productName}:${item.variantName ?? "base"}`}
-                            >
-                              {orderItemLabel(item)} × {item.quantity}
-                            </li>
-                          ))}
-                        </ul>
-                        {order.customerNote && (
-                          <p className="customer-note">{order.customerNote}</p>
-                        )}
-                      </div>
-                    </article>
-                  );
-                })
-              ) : (
-                <p className="no-stops">У курьера нет активных заказов.</p>
-              )}
+          <Suspense
+            fallback={<div className="map-loading">Загружаем карту…</div>}
+          >
+            <CourierMapCanvas
+              branches={branches}
+              couriers={visibleCouriers}
+              allCouriers={couriers}
+              selectedCourierId={selected?.id ?? null}
+              routes={routeOverlays}
+              showStops={Boolean(selected) || showRoutes}
+              fitRevision={fitRevision}
+              onSelectCourier={selectCourier}
+            />
+          </Suspense>
+          <div className="dispatch-map-footer">
+            <span>
+              <i className="dispatch-legend-courier" /> Курьер · нажмите для
+              деталей
+            </span>
+            <span>
+              <i className="dispatch-legend-branch" /> Филиал
+            </span>
+            <span>Один цвет — курьер, его линия и заказы</span>
+            <span>
+              GPS у {locationCoverage.located} из {locationCoverage.total}
+            </span>
+          </div>
+          {selected && !selected.location && (
+            <p className="dispatch-map-notice" role="status">
+              У {courierName(selected)} нет GPS. Показаны адреса заказов;
+              положение курьера неизвестно.
+            </p>
+          )}
+          {showRoutes && (
+            <div
+              className="courier-route-status"
+              data-testid="dispatch-route-summary"
+              role="status"
+            >
+              {selected
+                ? courierRoute.isPending
+                  ? "Строим дорожный маршрут…"
+                  : courierRoute.data?.routingStatus === "READY" &&
+                      courierRoute.data.route
+                    ? `${(courierRoute.data.route.distanceMeters / 1000).toFixed(1)} км · ~${Math.max(1, Math.ceil(courierRoute.data.route.durationSeconds / 60))} мин`
+                    : courierRoute.data?.routingStatus === "NO_STOPS"
+                      ? "Нет активных точек маршрута."
+                      : "Маршрут недоступен. Адреса заказов сохранены."
+                : `${routeOverlays.filter(({ route }) => route.routingStatus === "READY").length} из ${counts.busy} маршрутов показано${overviewRoutes.isPending ? " · загружаем остальные…" : " · без актуального GPS маршрут недоступен"}`}
             </div>
           )}
-        </>
-      )}
+        </div>
+        {drawerOpen && (
+          <section
+            className="dispatch-courier-drawer"
+            id="dispatch-courier-drawer"
+            aria-label="Список курьеров"
+            data-testid="dispatch-courier-drawer"
+            onKeyDown={(event) => {
+              if (event.key === "Escape") {
+                setDrawerOpen(false);
+                drawerToggle.current?.focus();
+              }
+            }}
+          >
+            <header className="dispatch-drawer-header">
+              <div>
+                <h2>
+                  Курьеры <span>{couriers.length}</span>
+                </h2>
+                <p>Выберите имя, чтобы увидеть заказы</p>
+              </div>
+              <button
+                className="square-button"
+                data-testid="dispatch-close-drawer"
+                aria-label="Скрыть список курьеров"
+                onClick={() => {
+                  setDrawerOpen(false);
+                  drawerToggle.current?.focus();
+                }}
+              >
+                ×
+              </button>
+            </header>
+            <button
+              className={`dispatch-all-couriers ${!selected ? "selected" : ""}`}
+              data-testid="dispatch-show-all-couriers"
+              aria-pressed={!selected}
+              onClick={() => selectCourier(null)}
+            >
+              <strong>Все курьеры</strong>
+              <span>
+                {counts.online} на линии · {counts.busy} в заказе
+              </span>
+            </button>
+            <div className="dispatch-drawer-list">
+              {!couriers.length && (
+                <p className="dispatch-detail-notice">
+                  Активных курьеров пока нет.
+                </p>
+              )}
+              {couriers.map((courier, index) => {
+                const expanded =
+                  selected?.id === courier.id && collapsedId !== courier.id;
+                return (
+                  <div
+                    className={`dispatch-courier-row ${selected?.id === courier.id ? "selected" : ""}`}
+                    key={courier.id}
+                  >
+                    <button
+                      ref={
+                        selected?.id === courier.id ? selectedRow : undefined
+                      }
+                      className="dispatch-courier-summary"
+                      data-testid={`dispatch-select-courier-${courier.id}`}
+                      aria-expanded={expanded}
+                      aria-controls={`dispatch-details-${courier.id}`}
+                      onClick={() => {
+                        if (selected?.id === courier.id)
+                          setCollapsedId(expanded ? courier.id : null);
+                        else selectCourier(courier.id);
+                      }}
+                    >
+                      <span
+                        className="dispatch-courier-number"
+                        style={{ backgroundColor: courierRouteColor(index) }}
+                      >
+                        {index + 1}
+                      </span>
+                      <span className="dispatch-courier-name">
+                        <strong>{courierName(courier)}</strong>
+                        <span>{courierWorkLabel(courier)}</span>
+                        <small>
+                          <i
+                            className={`presence-dot ${courier.presence.toLowerCase()}`}
+                          />
+                          {courierPresenceLabels[courier.presence]} ·{" "}
+                          {formatLocationTime(courier.location?.recordedAt)}
+                        </small>
+                      </span>
+                      <span className="dispatch-expand-icon" aria-hidden="true">
+                        {expanded ? "−" : "+"}
+                      </span>
+                    </button>
+                    <div
+                      id={`dispatch-details-${courier.id}`}
+                      hidden={!expanded}
+                    >
+                      {expanded && <CourierOrderDetails courier={courier} />}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            {locationCoverage.missing.length > 0 && (
+              <details
+                className="dispatch-gps-help"
+                data-testid="dispatch-location-coverage"
+              >
+                <summary data-testid="dispatch-gps-help-toggle">
+                  Без GPS: {locationCoverage.missing.length} · подробнее
+                </summary>
+                <p>
+                  {locationCoverage.missing.map(courierName).join(", ")}. Координаты
+                  поступают из приложения курьера во время смены. Если точка не
+                  появляется, проверьте разрешение на геолокацию и интернет в
+                  приложении.
+                </p>
+              </details>
+            )}
+          </section>
+        )}
+      </div>
     </aside>
   );
 }

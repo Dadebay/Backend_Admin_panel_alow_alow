@@ -377,3 +377,23 @@ volumes must never be copied into DEV.
 
 Detailed provisioning and TLS commands remain in `docs/DEPLOYMENT.md`; mobile
 map integration remains in `docs/MOBILE_MAP_AND_ROUTING.md`.
+
+
+## Local courier-road demonstration — 2026-09-12
+
+The user requested a live local map demonstration, including road lines. Docker
+Desktop was recovered from an unresponsive VM and the existing ignored
+Turkmenistan graph is served by `alowalow-routing-routing-1` from
+`routing/compose.yml`, using the unchanged pinned OSRM image. For this local
+demo only, `ROUTING_PORT=59999` binds OSRM to `127.0.0.1:59999`; NestJS is
+its consumer. The override avoids the macOS service already owning port 5000.
+No production port, container, image or service was changed.
+
+The demo frontend is `http://127.0.0.1:4319/demo`, its real NestJS API is on
+loopback port 4000, isolated native PostgreSQL is on 55439 (`alofood_test`),
+and isolated native Redis is on 56399 (DB 15). The task-owned native runtime
+and PID files are under `/tmp/a7-courier-map-live/`; the demo runner is
+`outputs/courier-map-20260912/road-demo.cjs`. These services are intentionally
+left running for the user's interactive demonstration. Stop only this demo's
+Node process, its native database/Redis and the `alowalow-routing` Compose
+project when the user finishes; do not stop workstation printing.

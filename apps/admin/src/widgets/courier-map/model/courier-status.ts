@@ -32,16 +32,30 @@ export type CourierMapLocation = {
 };
 
 export const courierRouteColors = [
-  "#ec7a1b",
-  "#31577f",
-  "#c45f20",
-  "#607b98",
-  "#9f5429",
-  "#123f6d",
+  "#2563eb",
+  "#c2410c",
+  "#15803d",
+  "#9333ea",
+  "#db2777",
+  "#0e7490",
+  "#b91c1c",
+  "#7c6a0a",
+  "#4f46e5",
+  "#0f766e",
+  "#a21caf",
+  "#854d0e",
+  "#0369a1",
+  "#4d7c0f",
+  "#be123c",
+  "#6d28d9",
+  "#475569",
+  "#9a3412",
+  "#115e59",
+  "#86198f",
 ] as const;
 
 export function courierRouteColor(index: number) {
-  return courierRouteColors[index % courierRouteColors.length];
+  return courierRouteColors[index] ?? `hsl(${(index * 137.508) % 360} 65% 36%)`;
 }
 
 export function courierName(
@@ -78,7 +92,9 @@ export function courierLocationCoverage(couriers: DispatchCourier[]) {
   };
 }
 
-export function courierWorkState(courier: CourierStatusSource): CourierWorkState {
+export function courierWorkState(
+  courier: CourierStatusSource,
+): CourierWorkState {
   return courier.activeOrders.length ? "BUSY" : "FREE";
 }
 
@@ -98,9 +114,7 @@ export function courierOverviewCounts(
       busy: counts.busy + Number(courier.activeOrders.length > 0),
       freeOnline:
         counts.freeOnline +
-        Number(
-          courier.presence === "ONLINE" && !courier.activeOrders.length,
-        ),
+        Number(courier.presence === "ONLINE" && !courier.activeOrders.length),
       located: counts.located + Number(Boolean(courier.location)),
       online: counts.online + Number(courier.presence === "ONLINE"),
       total: counts.total + 1,

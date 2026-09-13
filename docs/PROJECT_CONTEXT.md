@@ -36,7 +36,9 @@ The customer-facing brand is `A7-tagam`. Existing repository, package, service,
 deployment-directory, map-style, and storage identifiers named `alowalow`
 remain stable technical identifiers for backward compatibility. The admin uses
 the supplied hot-food delivery-bag mark and only its cream `#FEF7E7`, navy
-`#062F5E`, and orange `#EC7A1B` palette or blends derived from those colors.
+`#062F5E`, and orange `#EC7A1B` palette or blends derived from those colors. Courier map
+identifiers and routes use distinct operational colors so couriers can be told
+apart; their numbers also identify them independently of color.
 
 ## Stack and storage
 
@@ -429,19 +431,30 @@ restricted to `OPERATOR`, `ADMIN`, and `SUPER_ADMIN` and includes each active
 courier, latest location, all active assigned orders, delivery coordinates,
 customer contact details, items, and cash to collect.
 
-The dispatch map opens in an explicit all-couriers overview instead of
-auto-selecting one courier. Every courier with a latest GPS point remains in
-the fitted map bounds and every located courier has a permanent marker label
-with their name and backend-derived workload: `Свободен`, one order number, or
-the active-order count. Presence remains a separate signal, so a busy courier
-with stale GPS is not incorrectly shown as free. SSE updates move the marker.
-The overview overlays every busy courier's backend road route at once using a
-stable, visually distinct brand-derived color per courier. Its legend and
-delivery-stop labels bind each colored line to the courier name and active
-order numbers. Selecting a courier keeps the other live courier markers while
-focusing the map, route summary and stop details on that courier; the `Все
-курьеры` control restores all route overlays and reports busy/free/online/GPS
-counts.
+The dispatch map opens in an all-couriers overview with compact numbered GPS
+markers matching the drawer rows. Each located courier has an individual marker
+at their real GPS coordinates, without clustering. Courier markers, their road
+lines and order labels share a distinct color from the full roster; filtering
+does not reassign colors or numbers. Couriers at identical coordinates remain
+individually selectable in the drawer. Workload and GPS
+presence are separate signals. The name menu and `Все курьеры` control switch
+between all couriers and exactly one courier; the selection is stored in the URL.
+The drawer always lists every active courier, including those without GPS.
+Clicking a courier selects their map and expands their orders in place with food,
+quantities, pickup branch, destination, entrance/floor/apartment, customer contact,
+cash and an explicitly labelled customer comment (or `Без комментария`).
+Both the general overview and a selected courier show backend road routes and
+delivery labels by default. `Скрыть маршруты` explicitly hides lines; selecting
+a courier or returning to `Все курьеры` enables them again. Selecting one
+courier filters the others out. Only actual READY road geometry is rendered;
+missing/stale GPS and unavailable routing must not produce invented lines. GPS moves markers without
+resetting manual pan/zoom. `Вместить в карту` explicitly refits the current scope.
+The drawer is collapsible, scrolls independently on desktop and sits below the
+map on narrow screens. Enabled visible routes share individual per-courier
+TanStack queries between overview and selection. Requests are bounded to three
+at a time and settle independently, so a slow/failing route does not hold back
+completed lines. SSE invalidates only the changed courier’s route and updates
+the single existing dispatch cache.
 
 The previous 120-second courier publish interval plus 30-second admin polling
 is only a near-real-time fallback and is no longer the accepted live-tracking
@@ -456,13 +469,15 @@ Redis, and pushes each accepted point through the role-protected
 `/tracking/dispatch/live` SSE stream. The admin applies those events directly
 to the existing TanStack Query snapshot cache. A slower periodic snapshot
 remains only for initial state and reconnect recovery.
-The same contract is available at `/courier`: a courier signs in with their own
-OTP, explicitly starts the shift, and keeps the page active until pressing the
-separate end-shift action. Delivery completion never unmounts or stops its GPS
-publisher. The dispatcher map must state how many active couriers currently
-have coordinates, list the couriers without GPS, and label branch points as
-branches so staff never mistake a branch for a courier marker. No client may
-invent a courier coordinate when the courier has not published one.
+Couriers use the mobile application and begin sharing GPS there when they start
+work. Access to the admin website or its `/courier` page is never a prerequisite
+for receiving or displaying mobile GPS. Dispatcher help must describe the mobile
+application and its location/network permissions, not instruct couriers to sign
+in on the website. The existing browser `/courier` publisher remains a compatible
+fallback, not the operational requirement. The dispatcher map states how many
+active couriers have coordinates, retains couriers without GPS in the drawer,
+and labels branch points as branches. No client may invent a coordinate when
+none has been published.
 The maintained regression matrix, automated coverage map, and manual QA cases
 for courier visibility and printer routing live in
 `docs/COURIER_MAP_AND_PRINTER_ROUTING_QA.md`.
@@ -931,9 +946,10 @@ Current status:
 - the dispatch map and courier GPS-sharing screen use Redis-backed tracking;
   accepted locations reach authorized dispatchers immediately through SSE,
   with the 30-second snapshot poll retained only as reconnect recovery. The
-  initial map view contains every located courier, permanent labels distinguish
-  free and busy couriers, delivery completion preserves shift tracking, and
-  selecting a route keeps the remaining courier markers visible. The isolated
+  initial map view contains individual markers for every located courier and
+  their available road routes in distinct matching colors,
+  the drawer distinguishes free/busy work and GPS presence, delivery completion
+  preserves shift tracking, and selecting a courier isolates their map and orders. The isolated
   `/courier` web shift screen lets a `COURIER` start whole-shift GPS without
   granting access to the operations admin, while the dispatcher explicitly
   names couriers without GPS and distinguishes branch markers;
@@ -1795,3 +1811,72 @@ The frontend slice remains `features/receipt-printing`; backend queue DTOs,
 controller and service belong to `orders`. See `RECEIPT_QUEUE.md` for protocol,
 tests, Windows/Mac releases, upgrade coordination and rollback. Production
 push/deployment was explicitly authorized by the user on 2026-09-04.
+
+
+## Dispatcher map usability — 2026-09-12
+
+The first iteration used compact all-courier GPS markers with overlapping
+points grouped, and filtered to one courier through the name menu or drawer. The always-complete drawer expands food, destination and
+customer comments beneath the selected courier. Overview routes were opt-in;
+this default and clustering are superseded by the correction below.
+Manual map pan/zoom survives SSE updates. This supersedes the earlier default
+of simultaneously drawing every route and retaining all markers on selection.
+
+Verification used the real isolated local API with 16 couriers/11 orders in
+Chromium, Firefox and WebKit at 1440/820/390 px: all nine scenarios passed,
+including missing GPS, multiple orders, blank comments, overlapping points,
+keyboard controls and history. Empty dispatch and CUSTOMER denial were checked.
+There is one snapshot and SSE connection per view, with zero overview route
+requests while routes are hidden. Lab LCP was 0.709–1.588 seconds, CLS 0 and
+courier selection 26–59 ms; these are not production p75 measurements.
+The entry is 244.04 KB raw / 77.33 KB gzip, about 0.9 KB more raw than the
+pre-change build; dispatch/map code and CSS remain lazy. All 143 admin tests,
+build/typecheck, lint (only three existing phone-field warnings), audit with
+zero vulnerabilities and import-cycle checks passed.
+
+Docker was unavailable, so QA used isolated native PostgreSQL 14 / Redis 7;
+private OSRM was unavailable and its real API fallback was checked. Existing
+local print-agent connection errors were the only browser console errors.
+Evidence and limitations are in `outputs/courier-map-20260912/DEV_NOTES.md`.
+No deployment or production data mutation was performed.
+
+
+The follow-up local demo on 2026-09-12 recovered Docker Desktop and started
+the existing OSRM Turkmenistan graph. Successful road geometry is now verified
+visually in the open local map; seven active couriers have usable road paths.
+The demo samples movement along geometry returned through NestJS and publishes
+synthetic GPS every three seconds. Its selected and all-courier buttons enable
+route lines. This supersedes the earlier local-demo OSRM limitation; no
+production application or policy was changed.
+
+
+### All-courier visibility correction — 2026-09-12
+
+User feedback rejected clustering and indistinguishable colors. All located
+couriers now render individually; 16 demo couriers have distinct colors shared
+by their marker, drawer number, road geometry and delivery labels. All-courier
+routes are on by default, including after returning from a selected courier.
+The old selection handler reset `routes`, unintentionally hiding overview lines.
+Route loading now shares per-courier queries with selection, limits simultaneous
+requests to three and invalidates only the courier whose GPS changed.
+
+Verification of this correction: 144/144 admin tests, build/typecheck, lint
+(existing phone-field warnings only), audit with zero vulnerabilities, frontend
+hygiene and 182-file import-cycle check passed. The open local Chromium map at
+1440/820/390 px showed 15 individual markers, 16 distinct roster colors and
+seven READY road lines, with no horizontal overflow. Selection preserved colors
+and returning to all couriers preserved routes. During 59.43 seconds including
+interactions, CDP measured 759.75 ms scripting and 82.58 ms layout. Entry size is
+244.03 KB raw / 78.30 KB gzip; map modules remain lazy. Firefox/WebKit were not
+retested for this final correction because only the in-app browser was available.
+Detailed evidence and limitations: `outputs/courier-map-20260912/DEV_NOTES_COLORS.md`.
+
+## Courier map release recovery — 2026-09-13
+
+The saved drawer and distinct-route implementation was commit `41c30fb` on
+`codex/courier-map-visibility`; it had not been merged into `main`. Later releases
+therefore still contained the older map. This release integrates that retained
+implementation with current main and corrects the misleading website GPS help.
+Mobile clients continue using the existing authenticated whole-shift tracking
+API. No tracking API, permissions, location TTL, database schema or mobile build
+is changed by this frontend release.

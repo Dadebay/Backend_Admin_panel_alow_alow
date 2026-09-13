@@ -21,6 +21,8 @@ import {
   courierWorkState,
 } from "../src/widgets/courier-map/model/courier-status.ts";
 
+import { couriersOnMap } from "../src/widgets/courier-map/model/map-view.ts";
+
 function courier(overrides = {}) {
   return {
     id: "courier-default",
@@ -75,13 +77,18 @@ test("courier workload distinguishes free couriers from one or several orders", 
   assert.equal(courierWorkLabel(severalOrders), "В заказах · 2");
 });
 
-test("overview assigns stable distinct route colors before the palette repeats", () => {
+test("overview gives all 16 demo couriers distinct colors and does not wrap the palette", () => {
   const assigned = courierRouteColors.map((_, index) =>
     courierRouteColor(index),
   );
 
   assert.equal(new Set(assigned).size, courierRouteColors.length);
-  assert.equal(courierRouteColor(courierRouteColors.length), assigned[0]);
+  assert.ok(courierRouteColors.length >= 16);
+  assert.equal(
+    new Set(Array.from({ length: 150 }, (_, i) => courierRouteColor(i))).size,
+    150,
+  );
+  assert.equal(courierRouteColor(2), assigned[2]);
 });
 
 test("courier overview counts workload, presence and GPS independently", () => {
@@ -419,10 +426,7 @@ test("dispatch and branch maps keep an operational working height", async () => 
 
 test("dispatch applies authenticated server-pushed GPS events to TanStack cache", async () => {
   const liveSource = await readFile(
-    new URL(
-      "../src/entities/courier/api/dispatch-live.ts",
-      import.meta.url,
-    ),
+    new URL("../src/entities/courier/api/dispatch-live.ts", import.meta.url),
     "utf8",
   );
   const panel = await readFile(
@@ -433,17 +437,20 @@ test("dispatch applies authenticated server-pushed GPS events to TanStack cache"
     "utf8",
   );
   const querySource = await readFile(
-    new URL(
-      "../src/entities/courier/api/dispatch-query.ts",
-      import.meta.url,
-    ),
+    new URL("../src/entities/courier/api/dispatch-query.ts", import.meta.url),
     "utf8",
   );
 
   assert.match(liveSource, /\/tracking\/dispatch\/live/);
   assert.match(liveSource, /openApiEventStream/);
   assert.match(liveSource, /setQueryData<DispatchSnapshot>/);
-  assert.match(liveSource, /courierQueryKeys\.route/);
+  assert.match(
+    liveSource,
+    /courierQueryKeys\.route\(userId, event.courierId\)/,
+  );
+  assert.doesNotMatch(liveSource, /routeOverview/);
+  assert.match(querySource, /useQueries/);
+  assert.match(panel, /const showRoutes = params.get\("routes"\) !== "hide"/);
   assert.match(querySource, /\/orders\/couriers\/\$\{courierId\}\/route/);
   assert.match(panel, /useDispatchLiveUpdates/);
   assert.match(panel, /useCourierRoute/);
@@ -451,49 +458,37 @@ test("dispatch applies authenticated server-pushed GPS events to TanStack cache"
   assert.match(panel, /dispatch-route-summary/);
 });
 
-test("dispatch opens with every located courier in view and keeps an explicit overview", async () => {
-  const [canvas, panel] = await Promise.all([
-    readFile(
-      new URL(
-        "../src/widgets/courier-map/ui/courier-map-canvas.tsx",
-        import.meta.url,
-      ),
-      "utf8",
-    ),
-    readFile(
-      new URL(
-        "../src/widgets/courier-map/ui/courier-map-panel.tsx",
-        import.meta.url,
-      ),
-      "utf8",
-    ),
-  ]);
+test("map filter shows all couriers or exactly the requested courier, including missing GPS", () => {
+  const busy = courier({ id: "busy", activeOrders: [{ number: 42 }] });
+  const free = courier({ id: "free", presence: "ONLINE" });
+  const couriers = [busy, free];
+  assert.equal(couriersOnMap(couriers, null), couriers);
+  assert.deepEqual(couriersOnMap(couriers, "busy"), [busy]);
+  assert.deepEqual(couriersOnMap(couriers, "free"), [free]);
+  assert.deepEqual(couriersOnMap(couriers, "removed"), []);
+});
 
-  assert.match(panel, /useState<string \| null>\(\s*null,?\s*\)/);
-  assert.match(panel, /data-testid="dispatch-show-all-couriers"/);
-  assert.match(panel, /data-testid={`dispatch-select-courier-\$\{courier\.id\}`\}/);
-  assert.match(panel, /onClick=\{\(\) => setSelectedCourierId\(null\)\}/);
-  assert.match(panel, /data-testid="dispatch-route-overview"/);
-  assert.match(panel, /dispatch-route-legend-/);
-  assert.match(panel, /Маршруты всех занятых курьеров/);
-  assert.doesNotMatch(panel, /couriers\[0\]/);
-  assert.match(canvas, /courierMapLocations\(couriers\)/);
-  assert.match(canvas, /courierLocations\.map/);
-  assert.match(canvas, /routeLines\.map/);
-  assert.match(canvas, /fillColor: color/);
-  assert.match(canvas, /courierName\(courier\).*#\$\{orderNumber\}/s);
-  assert.match(
-    canvas,
-    /className=\{`courier-marker-tooltip \$\{workState\.toLowerCase\(\)\}`\}/,
+test("overlapping couriers remain individually reachable without inventing missing GPS", () => {
+  const couriers = [
+    courier({ id: "a", location: { latitude: 37.96, longitude: 58.33 } }),
+    courier({ id: "b", location: { latitude: 37.96, longitude: 58.33 } }),
+    courier({ id: "far", location: { latitude: 38.5, longitude: 59.5 } }),
+    courier({ id: "missing" }),
+  ];
+  const markers = courierMapLocations(couriers);
+  assert.deepEqual(
+    markers.map(({ courier }) => courier.id),
+    ["a", "b", "far"],
   );
-  assert.match(canvas, /<Tooltip[\s\S]*?permanent/);
-  assert.match(canvas, /<strong>\{courierName\(courier\)\}<\/strong>/);
-  assert.match(canvas, /<span>\{workLabel\}<\/span>/);
-  assert.match(canvas, /Филиал · \{branch\.name\}/);
-  assert.match(panel, /data-testid="dispatch-location-coverage"/);
-  assert.match(panel, /GPS передают \{locationCoverage\.located\} из/);
-  assert.match(panel, /a7-tagam\.com\.tm\/courier/);
-  assert.match(panel, /Видимые служебные точки на карте — филиалы/);
+  assert.equal(markers[0].latitude, markers[1].latitude);
+  assert.equal(markers[0].longitude, markers[1].longitude);
+  const many = Array.from({ length: 150 }, (_, index) =>
+    courier({
+      id: `courier-${index}`,
+      location: { latitude: 37.96, longitude: 58.33 },
+    }),
+  );
+  assert.equal(courierMapLocations(many).length, 150);
 });
 
 test("courier GPS remains a whole-shift feed after an order is delivered", async () => {
@@ -546,7 +541,10 @@ test("courier GPS remains a whole-shift feed after an order is delivered", async
   assert.match(sessionAccess, /"COURIER"/);
   assert.match(context, /after an order becomes `DELIVERED`/);
   assert.match(context, /COURIER_MAP_AND_PRINTER_ROUTING_QA\.md/);
-  assert.match(mobileContract, /Завершение доставки не\s+должно останавливать GPS/);
+  assert.match(
+    mobileContract,
+    /Завершение доставки не\s+должно останавливать GPS/,
+  );
   assert.match(qaContract, /may continue publishing new points after delivery/);
   assert.match(
     qaContract,
@@ -560,7 +558,10 @@ test("admin and production ingress share the public raster XYZ contract", async 
     "utf8",
   );
   const httpNginx = await readFile(
-    new URL("../../../deploy/nginx/alowalow-http-temporary.conf", import.meta.url),
+    new URL(
+      "../../../deploy/nginx/alowalow-http-temporary.conf",
+      import.meta.url,
+    ),
     "utf8",
   );
   const tlsNginx = await readFile(
@@ -572,13 +573,28 @@ test("admin and production ingress share the public raster XYZ contract", async 
     "utf8",
   );
 
-  assert.match(adminConfig, /DEFAULT_TILE_URL = "\/tile\/\{z\}\/\{x\}\/\{y\}\.png"/);
+  assert.match(
+    adminConfig,
+    /DEFAULT_TILE_URL = "\/tile\/\{z\}\/\{x\}\/\{y\}\.png"/,
+  );
   for (const nginx of [httpNginx, tlsNginx]) {
     assert.match(nginx, /location ~ "\^\/tile\/\(\[0-9\]\{1,2\}\)/);
-    assert.match(nginx, /rewrite "\^\/tile\/.+" \/styles\/alowalow\/\$1\/\$2\/\$3\.png break;/);
+    assert.match(
+      nginx,
+      /rewrite "\^\/tile\/.+" \/styles\/alowalow\/\$1\/\$2\/\$3\.png break;/,
+    );
     assert.match(nginx, /proxy_hide_header Access-Control-Allow-Origin/);
     assert.match(nginx, /Access-Control-Allow-Origin "\*" always/);
   }
-  assert.match(workflow, /VITE_MAP_TILE_URL:.*'\/tile\/\{z\}\/\{x\}\/\{y\}\.png'/);
+  assert.match(
+    workflow,
+    /VITE_MAP_TILE_URL:.*'\/tile\/\{z\}\/\{x\}\/\{y\}\.png'/,
+  );
   assert.match(workflow, /sudo systemctl reload nginx/);
+});
+
+test("dispatcher GPS help describes the mobile app without requiring a website shift", async () => {
+  const panel = await readFile(new URL("../src/widgets/courier-map/ui/courier-map-panel.tsx", import.meta.url), "utf8");
+  assert.match(panel, /из приложения курьера во время смены/);
+  assert.doesNotMatch(panel, /a7-tagam\.com\.tm\/courier|Начать смену|Видимые служебные точки/);
 });

@@ -1,6 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { useOrders, type Order } from "@/src/entities/order";
-import { collectNewItems } from "../model/new-order-alert";
+import { createNewOrderTracker } from "../model/new-order-alert";
+import { useOrderAlertSound } from "../model/use-order-alert-sound";
+import "./new-order-alert.css";
 
 type AlertBatch = {
   orders: Order[];
@@ -22,34 +24,29 @@ function notificationBody(orders: Order[]) {
   return `Заказ #${order.number} · ${Number(order.total).toFixed(2)} TMT`;
 }
 
-export function NewOrderAlert({ onOpenOrders }: { onOpenOrders: () => void }) {
+export function NewOrderAlert({
+  onOpenOrders,
+  userId,
+}: {
+  onOpenOrders: () => void;
+  userId: string;
+}) {
   const orders = useOrders({
     statuses: ["COOKING", "READY"],
     page: 1,
     limit: 100,
   });
-  const seenOrderIds = useRef<Set<string> | null>(null);
+  const trackOrders = useRef(createNewOrderTracker<Order>());
+  const sound = useOrderAlertSound(userId);
   const [alert, setAlert] = useState<AlertBatch | null>(null);
   const [permission, setPermission] = useState<BrowserPermission>(
     readBrowserPermission,
   );
 
-  useEffect(() => {
-    const currentOrders = orders.data?.items;
-    if (!currentOrders) return;
-
-    const previousIds = seenOrderIds.current;
-    const currentIds = new Set(currentOrders.map((order) => order.id));
-    const newOrders = collectNewItems(previousIds, currentOrders);
-    seenOrderIds.current = currentIds;
-
-    if (!newOrders.length) return;
-    const alertTimeout = window.setTimeout(() => {
-      setAlert({ orders: newOrders, announcedAt: Date.now() });
-    }, 0);
-
+  const announce = useEffectEvent((newOrders: Order[]) => {
+    sound.play();
     if (permission !== "granted" || typeof Notification === "undefined") {
-      return () => window.clearTimeout(alertTimeout);
+      return;
     }
 
     try {
@@ -57,6 +54,7 @@ export function NewOrderAlert({ onOpenOrders }: { onOpenOrders: () => void }) {
         body: notificationBody(newOrders),
         icon: "/a7-tagam-logo.png",
         tag: `a7-new-orders-${newOrders.map((order) => order.id).join("-")}`,
+        silent: true,
       });
       notification.onclick = () => {
         window.focus();
@@ -67,8 +65,19 @@ export function NewOrderAlert({ onOpenOrders }: { onOpenOrders: () => void }) {
       // The in-app alert remains authoritative when the browser blocks a
       // system notification despite a previously granted permission.
     }
+  });
+
+  useEffect(() => {
+    const currentOrders = orders.data?.items;
+    if (!currentOrders) return;
+    const newOrders = trackOrders.current(currentOrders);
+    if (!newOrders.length) return;
+    const alertTimeout = window.setTimeout(() => {
+      setAlert({ orders: newOrders, announcedAt: Date.now() });
+      announce(newOrders);
+    }, 0);
     return () => window.clearTimeout(alertTimeout);
-  }, [onOpenOrders, orders.data?.items, permission]);
+  }, [orders.data?.items]);
 
   async function requestPermission() {
     if (typeof Notification === "undefined") return;
@@ -85,7 +94,9 @@ export function NewOrderAlert({ onOpenOrders }: { onOpenOrders: () => void }) {
         className={`new-order-alert-control ${orders.isError ? "error" : ""}`}
         data-testid="new-order-alert-control"
       >
-        {permission === "default" ? (
+        {orders.isError ? (
+          <span role="status">Проверка заказов недоступна</span>
+        ) : permission === "default" ? (
           <button
             type="button"
             data-testid="new-order-alert-enable"
@@ -97,12 +108,61 @@ export function NewOrderAlert({ onOpenOrders }: { onOpenOrders: () => void }) {
         ) : (
           <span>
             <i aria-hidden="true" />
-            {orders.isError
-              ? "Проверка заказов недоступна"
-              : permission === "granted"
-                ? "Уведомления включены"
-                : "Уведомления внутри админки"}
+            {permission === "granted"
+              ? "Уведомления включены"
+              : "Уведомления внутри админки"}
           </span>
+        )}
+        {sound.state === "unsupported" ? (
+          <span>Звук не поддерживается</span>
+        ) : (
+          <button
+            type="button"
+            className="new-order-sound-toggle"
+            data-testid="new-order-alert-sound-toggle"
+            aria-label="Звук новых заказов"
+            aria-pressed={!sound.muted && sound.state === "ready"}
+            onClick={() =>
+              sound.setMuted(!sound.muted && sound.state === "ready")
+            }
+          >
+            <svg
+              aria-hidden="true"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M11 5 6 9H3v6h3l5 4z" />
+              {!sound.muted && sound.state === "ready" ? (
+                <path d="M15 8a6 6 0 0 1 0 8m3-11a10 10 0 0 1 0 14" />
+              ) : (
+                <path d="m16 9 5 6m0-6-5 6" />
+              )}
+            </svg>
+            {sound.muted
+              ? "Звук выключен"
+              : sound.state === "ready"
+                ? "Звук включён"
+                : "Включить звук"}
+          </button>
+        )}
+        {!sound.muted && sound.state === "ready" && (
+          <button
+            type="button"
+            className="new-order-sound-test"
+            data-testid="new-order-alert-sound-test"
+            onClick={sound.test}
+          >
+            Проверить звук
+          </button>
+        )}
+        {!sound.muted && sound.state === "blocked" && (
+          <small className="new-order-sound-help" role="status">
+            Браузер приостановил звук. Нажмите «Включить звук».
+          </small>
         )}
       </div>
 

@@ -262,6 +262,31 @@ and courier handoff first. Every current item must be checked; changing the
 order version resets unsaved checkmarks in both board and table. Only the
 authoritative packing response changes the status and unlocks assignment.
 
+## New-order sound alerts — 2026-09-13
+
+The shared admin layout announces newly received kitchen orders with an in-app
+notification and one short two-tone chime per received batch. The existing
+role-scoped TanStack order query remains the only alert feed: every 30 seconds
+while the document is visible, across admin routes. ADMIN and SUPER_ADMIN can
+use it in the web portal; ACCOUNTANT and the isolated courier screen do not
+mount the alert. No background/closed-tab delivery is promised.
+
+The first successful response is quiet. Backend IDs deduplicate later responses,
+and the initial creation-time boundary excludes older orders returning to the
+kitchen. The boundary remains fixed to allow concurrent orders that commit out
+of creation order. Tracking resets when the signed-in account changes.
+
+Sound is armed by default and unlocked on the first pointer or keyboard action,
+as required by browser autoplay rules. Staff can explicitly enable/mute it or
+play a test signal. Mute is saved per staff account in this browser; after a
+reload, enabled audio still needs a fresh gesture. A single reusable Web Audio
+context generates the sound locally, releases nodes after each chime, and closes
+on mute/logout. Suspended audio never queues stale sounds for later playback.
+Sound does not require browser Notification permission. Optional system notices
+use the existing explicit permission button and are silent to avoid a second
+OS chime. Visual alerts remain available when sound or system notices are blocked.
+Receipt printing continues through its independent durable queue.
+
 ## Order state machine
 
 ```text

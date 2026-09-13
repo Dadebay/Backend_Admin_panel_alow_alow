@@ -7,7 +7,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router";
+import { Link, NavLink, Outlet, useNavigate } from "react-router";
 import { roleLabels } from "@/src/entities/order";
 import {
   canReceiveNewOrderAlerts,
@@ -69,20 +69,6 @@ export function AdminDashboard() {
   });
   const navigationToggleRef = useRef<HTMLButtonElement>(null);
   const navigate = useNavigate();
-  const location = useLocation();
-  const showOperationalBanners = ![
-    "/accounting",
-    "/orders",
-    "/branches",
-    "/couriers/map",
-    "/login-attempts",
-    "/contacts",
-    "/staff",
-    "/notifications",
-    "/marketing",
-    "/catalog",
-    "/delivery",
-  ].some((route) => location.pathname.startsWith(route));
 
   useEffect(() => {
     try {
@@ -302,9 +288,13 @@ export function AdminDashboard() {
           <span />
           <span />
         </button>
-        {showOperationalBanners && canReceiveNewOrderAlerts(session.user.role) && (
+        {canReceiveNewOrderAlerts(session.user.role) && (
           <div className="new-order-alert-slot">
-            <NewOrderAlert onOpenOrders={openOrders} />
+            <NewOrderAlert
+              key={session.user.id}
+              userId={session.user.id}
+              onOpenOrders={openOrders}
+            />
           </div>
         )}
         {canReceiveNewOrderAlerts(session.user.role) && <ReceiptQueue />}

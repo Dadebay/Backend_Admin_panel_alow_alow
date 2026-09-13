@@ -26,7 +26,7 @@ test("top-level admin actions share one bordered header surface", async () => {
   );
 });
 
-test("marketing is a focused campaign workspace without operational chrome", async () => {
+test("marketing keeps its focused workspace alongside global order alerts", async () => {
   const [marketing, dashboard, styles] = await Promise.all([
     readFile(
       new URL(
@@ -53,7 +53,8 @@ test("marketing is a focused campaign workspace without operational chrome", asy
   assert.match(marketing, /className="marketing-panel-actions"/);
   assert.match(marketing, /data-testid="banner-form-open"/);
   assert.match(marketing, /data-testid="promo-form-open"/);
-  assert.match(dashboard, /"\/marketing"/);
+  assert.doesNotMatch(dashboard, /showOperationalBanners/);
+  assert.match(dashboard, /canReceiveNewOrderAlerts\(session\.user\.role\)/);
   assert.match(
     styles,
     /\.marketing-section > \.section-head\s*\{[^}]*border-radius: 18px;/s,

@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   canReceiveNewOrderAlerts,
   collectNewItems,
+  createNewOrderTracker,
 } from "../src/features/new-order-alert/model/new-order-alert.ts";
 
 test("new-order alerts establish a quiet baseline and announce unseen IDs once", () => {
@@ -17,6 +18,25 @@ test("new-order alerts establish a quiet baseline and announce unseen IDs once",
     collectNewItems(new Set(current.map((item) => item.id)), current),
     [],
   );
+});
+
+test("only newly created orders ring, including equal timestamps and an empty baseline", () => {
+  const tracker = createNewOrderTracker();
+  const old = { id: "old", createdAt: "2026-09-13T07:00:00Z" };
+  const first = { id: "first", createdAt: "2026-09-13T08:00:00Z" };
+  const second = { id: "second", createdAt: first.createdAt };
+  const third = { id: "third", createdAt: "2026-09-13T08:01:00Z" };
+  assert.deepEqual(tracker([first]), []);
+  assert.deepEqual(tracker([second, first]), [second]);
+  assert.deepEqual(tracker([]), []);
+  assert.deepEqual(tracker([old, first, second]), []);
+  assert.deepEqual(tracker([third, second]), [third]);
+  assert.deepEqual(tracker([third, { ...second, version: 2 }]), []);
+  const lateCommit = { id: "late-commit", createdAt: "2026-09-13T08:00:30Z" };
+  assert.deepEqual(tracker([third, lateCommit]), [lateCommit]);
+  const empty = createNewOrderTracker();
+  assert.deepEqual(empty([]), []);
+  assert.deepEqual(empty([first, second]), [first, second]);
 });
 
 test("only order intake roles receive new-order alerts", () => {
@@ -64,4 +84,6 @@ test("the alert uses one visible-tab 30-second order poll and browser opt-in", a
     dashboardSource,
     /canReceiveNewOrderAlerts\(session\.user\.role\)/,
   );
+  assert.doesNotMatch(dashboardSource, /showOperationalBanners/);
+  assert.match(dashboardSource, /<NewOrderAlert\s+key=\{session\.user\.id\}/);
 });

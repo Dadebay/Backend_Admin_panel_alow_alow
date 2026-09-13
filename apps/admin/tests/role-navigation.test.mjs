@@ -51,6 +51,7 @@ test("administrators retain all management sections represented outside the full
     "notifications",
     "staff",
     "contacts",
+    "app-versions",
   ];
 
   assert.deepEqual(views("ADMIN"), expected);

@@ -19,6 +19,7 @@ const expectedPaths = {
   notifications: "/notifications",
   staff: "/staff",
   contacts: "/contacts",
+  "app-versions": "/settings/app-versions",
 };
 
 const routeTree = [

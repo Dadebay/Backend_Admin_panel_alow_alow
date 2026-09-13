@@ -3949,6 +3949,125 @@
           "accounting"
         ]
       }
+    },
+    "/api/v1/app/version": {
+      "get": {
+        "description": "Only configured platforms return a policy. On 404 or any check failure mobile clients continue normally.",
+        "operationId": "AppVersionsController_publicVersion_v1",
+        "parameters": [
+          {
+            "name": "platform",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "ANDROID",
+                "IOS"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicAppVersionResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Platform is not configured; continue without an update prompt"
+          }
+        },
+        "summary": "Read the mobile update policy before login",
+        "tags": [
+          "app-versions"
+        ]
+      }
+    },
+    "/api/v1/app/admin/versions": {
+      "get": {
+        "operationId": "AppVersionsController_list_v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AdminAppVersionResponseDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "List configured mobile platform versions",
+        "tags": [
+          "app-versions"
+        ]
+      }
+    },
+    "/api/v1/app/admin/versions/{platform}": {
+      "put": {
+        "operationId": "AppVersionsController_save_v1",
+        "parameters": [
+          {
+            "name": "platform",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "ANDROID",
+                "IOS"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveAppVersionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminAppVersionResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Create or replace a platform update policy with optimistic concurrency and audit",
+        "tags": [
+          "app-versions"
+        ]
+      }
     }
   },
   "info": {
@@ -10396,6 +10515,148 @@
           "daily",
           "handoffs",
           "popularProducts"
+        ]
+      },
+      "PublicAppVersionResponseDto": {
+        "type": "object",
+        "properties": {
+          "latestVersion": {
+            "type": "string",
+            "example": "1.4.0"
+          },
+          "minSupportedVersion": {
+            "type": "string",
+            "example": "1.2.0"
+          },
+          "storeUrl": {
+            "type": "string",
+            "example": "https://play.google.com/store/apps/details?id=com.gurbanov.alowalow"
+          },
+          "releaseNotesRu": {
+            "type": "string",
+            "nullable": true
+          },
+          "releaseNotesTk": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "latestVersion",
+          "minSupportedVersion",
+          "storeUrl",
+          "releaseNotesRu",
+          "releaseNotesTk"
+        ]
+      },
+      "AdminAppVersionResponseDto": {
+        "type": "object",
+        "properties": {
+          "latestVersion": {
+            "type": "string",
+            "example": "1.4.0"
+          },
+          "minSupportedVersion": {
+            "type": "string",
+            "example": "1.2.0"
+          },
+          "storeUrl": {
+            "type": "string",
+            "example": "https://play.google.com/store/apps/details?id=com.gurbanov.alowalow"
+          },
+          "releaseNotesRu": {
+            "type": "string",
+            "nullable": true
+          },
+          "releaseNotesTk": {
+            "type": "string",
+            "nullable": true
+          },
+          "platform": {
+            "type": "string",
+            "enum": [
+              "ANDROID",
+              "IOS"
+            ]
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "latestVersion",
+          "minSupportedVersion",
+          "storeUrl",
+          "releaseNotesRu",
+          "releaseNotesTk",
+          "platform",
+          "version",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "SaveAppVersionDto": {
+        "type": "object",
+        "properties": {
+          "latestVersion": {
+            "type": "string",
+            "example": "1.4.0",
+            "maxLength": 32,
+            "pattern": "^\\d+\\.\\d+\\.\\d+$"
+          },
+          "minSupportedVersion": {
+            "type": "string",
+            "example": "1.2.0",
+            "maxLength": 32,
+            "pattern": "^\\d+\\.\\d+\\.\\d+$"
+          },
+          "storeUrl": {
+            "type": "string",
+            "example": "https://play.google.com/store/apps/details?id=com.gurbanov.alowalow",
+            "maxLength": 2048
+          },
+          "releaseNotesRu": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 5000
+          },
+          "releaseNotesTk": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 5000
+          },
+          "version": {
+            "type": "number",
+            "description": "Current record version; 0 only when creating a platform policy",
+            "minimum": 0
+          },
+          "publishedConfirmed": {
+            "type": "boolean",
+            "description": "Administrator confirms this release is available to all users in the store",
+            "enum": [
+              true
+            ]
+          },
+          "confirmMinimumIncrease": {
+            "type": "boolean",
+            "description": "Explicitly acknowledge blocking older versions when the minimum increases"
+          }
+        },
+        "required": [
+          "latestVersion",
+          "minSupportedVersion",
+          "storeUrl",
+          "version",
+          "publishedConfirmed"
         ]
       }
     }

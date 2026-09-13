@@ -23,6 +23,7 @@ import { ContactModule } from "./contact/contact.module";
 import { GeocodingModule } from "./geocoding/geocoding.module";
 import { DeliveryModule } from "./delivery/delivery.module";
 import { AccountingModule } from "./accounting/accounting.module";
+import { AppVersionsModule } from "./app-versions/app-versions.module";
 
 @Module({
   imports: [
@@ -66,6 +67,7 @@ import { AccountingModule } from "./accounting/accounting.module";
     GeocodingModule,
     DeliveryModule,
     AccountingModule,
+    AppVersionsModule,
   ],
   controllers: [HealthController],
   providers: [

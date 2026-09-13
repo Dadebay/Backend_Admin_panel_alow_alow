@@ -10,6 +10,7 @@ export type AdminView =
   | "notifications"
   | "staff"
   | "contacts"
+  | "app-versions"
   | "login-attempts"
   | "accounting";
 
@@ -99,6 +100,13 @@ export const adminNavigation: AdminNavigationItem[] = [
     label: "Контакты",
     icon: "contacts",
     path: "/contacts",
+    roles: ["ADMIN", "SUPER_ADMIN"],
+  },
+  {
+    id: "app-versions",
+    label: "Настройки",
+    icon: "app-versions",
+    path: "/settings/app-versions",
     roles: ["ADMIN", "SUPER_ADMIN"],
   },
 ];

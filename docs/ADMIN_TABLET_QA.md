@@ -62,6 +62,7 @@
 | `/notifications` | `/notifications/admin/campaigns?page=1&limit=25` |
 | `/staff` | `/staff`, `/staff/recent-logins` |
 | `/contacts` | `/contacts` |
+| `/settings/app-versions` | `/app/admin/versions`; запись `PUT /app/admin/versions/:platform`, публичная проверка `/app/version?platform=ANDROID|IOS` |
 | `/login-attempts` | `/staff/login-attempts?page=1&limit=25` |
 
 ## Выполненный API smoke

@@ -23,6 +23,7 @@ import { useSession } from "@/src/shared/auth";
 import { AppProviders } from "../providers";
 
 const adminRouteComponents = {
+  "app-versions": lazy(() => import("@/src/widgets/app-version-manager").then((module) => ({ default: module.AppVersionManager }))),
   orders: lazy(() =>
     import("@/src/widgets/order-board").then((module) => ({
       default: module.OrderBoard,

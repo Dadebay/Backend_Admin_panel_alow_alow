@@ -95,6 +95,7 @@ alowalow/
 ├── docs/
 │   ├── ANDROID_SMS_GATEWAY.md
 │   ├── ADMIN_TABLET_QA.md
+│   ├── APP_FORCE_UPDATE.md
 │   ├── CATALOG_CATEGORY_GROUPING.md
 │   ├── COURIER_MAP_AND_PRINTER_ROUTING_QA.md
 │   ├── DEPLOYMENT.md
@@ -146,6 +147,7 @@ alowalow/
 │   │   │   ├── marketing/ # banners and promo codes
 │   │   │   ├── media/     # S3-compatible image storage
 │   │   │   ├── notifications/ # customer inbox/campaign outbox and direct order pushes
+│   │   │   ├── app-versions/ # public mobile update policy and audited administrator settings
 │   │   │   ├── orders/    # workflow, assignment, route, rating, cash
 │   │   │   ├── tracking/  # courier GPS and dispatch map snapshot
 │   │   │   ├── routing/   # validated private OSRM adapter
@@ -165,9 +167,9 @@ alowalow/
 │       ├── package-lock.json # isolated frontend dependency/security tree
 │       ├── src/            # FSD product layers
 │       │   ├── app/        # SPA bootstrap, routes, providers, global styles
-│       │   ├── widgets/    # boards/maps/managers, incl. shift accounting
-│       │   ├── features/   # typed mutations, incl. cash handoff actions
-│       │   ├── entities/   # typed queries/models, incl. accounting/delivery
+│       │   ├── widgets/    # boards/maps/managers, incl. shift accounting and app-version-manager
+│       │   ├── features/   # typed mutations, incl. cash handoff and app-version-management
+│       │   ├── entities/   # typed queries/models, incl. accounting/delivery/app-version
 │       │   └── shared/     # HTTP/query clients, auth, Zod form helpers, UI
 │       ├── public/
 │       └── tests/
@@ -788,6 +790,37 @@ with its original unit and line price, a proportional rounded share of the
 order-level promo discount, and its discounted line total. The line discounts
 sum exactly to the authoritative aggregate discount; the response also returns
 the original subtotal, discounted subtotal, delivery fee, and final total.
+
+## Mobile application versions — 2026-09-13
+
+`GET /api/v1/app/version?platform=ANDROID|IOS` is public and available before
+login. A configured platform returns exactly `latestVersion`,
+`minSupportedVersion`, `storeUrl`, `releaseNotesRu` and `releaseNotesTk`.
+Marketing versions use numeric `MAJOR.MINOR.PATCH` without build suffixes;
+the minimum cannot exceed the latest version. Responses must not be cached.
+An unconfigured platform returns 404; mobile clients continue normally on
+any version-check failure. The additive migration creates no initial policies
+and never forces an update on deployment. The mobile app owns blocking and
+optional-update presentation; this feature does not change API authorization.
+
+`AppVersion` stores one policy per platform, reusing `PushDevicePlatform`.
+`ADMIN` and `SUPER_ADMIN` manage policies at `/settings/app-versions`
+(«Настройки → Версии приложения»), through `GET /app/admin/versions` and
+`PUT /app/admin/versions/:platform`. Other roles are denied. Writes require
+the current row version (`0` for first creation), return 409 on stale or
+concurrent changes, and atomically audit the actor plus full before/after
+policy and acknowledgements. Store URLs must use HTTPS and the platform's
+official store: Google Play for `com.gurbanov.alowalow`, or `apps.apple.com`
+with a numeric App Store ID. No sample iOS ID or release versions are seeded.
+
+The administrator must confirm the latest release is already available to
+all users in the store, with phased rollout finished. This is an audited
+human attestation, not automatic verification through store APIs. Raising
+the minimum, including initial configuration above `0.0.0`, additionally
+requires an explicit blocking confirmation in the UI and API. Lowering the
+minimum remains possible for emergency recovery. The form requires separate
+configuration per platform and supports nullable RU/TK release notes. See
+`docs/APP_FORCE_UPDATE.md` for the mobile contract and release procedure.
 
 ## Customer and courier notifications
 

@@ -1527,6 +1527,60 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/app/version": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the mobile update policy before login
+         * @description Only configured platforms return a policy. On 404 or any check failure mobile clients continue normally.
+         */
+        get: operations["AppVersionsController_publicVersion_v1"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/app/admin/versions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List configured mobile platform versions */
+        get: operations["AppVersionsController_list_v1"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/app/admin/versions/{platform}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Create or replace a platform update policy with optimistic concurrency and audit */
+        put: operations["AppVersionsController_save_v1"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -3475,6 +3529,52 @@ export interface components {
             daily: components["schemas"]["AccountingDailyResponseDto"][];
             handoffs: components["schemas"]["CashHandoffResponseDto"][];
             popularProducts: components["schemas"]["AccountingPopularProductResponseDto"][];
+        };
+        PublicAppVersionResponseDto: {
+            /** @example 1.4.0 */
+            latestVersion: string;
+            /** @example 1.2.0 */
+            minSupportedVersion: string;
+            /** @example https://play.google.com/store/apps/details?id=com.gurbanov.alowalow */
+            storeUrl: string;
+            releaseNotesRu: string | null;
+            releaseNotesTk: string | null;
+        };
+        AdminAppVersionResponseDto: {
+            /** @example 1.4.0 */
+            latestVersion: string;
+            /** @example 1.2.0 */
+            minSupportedVersion: string;
+            /** @example https://play.google.com/store/apps/details?id=com.gurbanov.alowalow */
+            storeUrl: string;
+            releaseNotesRu: string | null;
+            releaseNotesTk: string | null;
+            /** @enum {string} */
+            platform: "ANDROID" | "IOS";
+            version: number;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        SaveAppVersionDto: {
+            /** @example 1.4.0 */
+            latestVersion: string;
+            /** @example 1.2.0 */
+            minSupportedVersion: string;
+            /** @example https://play.google.com/store/apps/details?id=com.gurbanov.alowalow */
+            storeUrl: string;
+            releaseNotesRu?: string | null;
+            releaseNotesTk?: string | null;
+            /** @description Current record version; 0 only when creating a platform policy */
+            version: number;
+            /**
+             * @description Administrator confirms this release is available to all users in the store
+             * @enum {boolean}
+             */
+            publishedConfirmed: true;
+            /** @description Explicitly acknowledge blocking older versions when the minimum increases */
+            confirmMinimumIncrease?: boolean;
         };
     };
     responses: never;
@@ -5871,6 +5971,78 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AccountingReportResponseDto"];
+                };
+            };
+        };
+    };
+    AppVersionsController_publicVersion_v1: {
+        parameters: {
+            query: {
+                platform: "ANDROID" | "IOS";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicAppVersionResponseDto"];
+                };
+            };
+            /** @description Platform is not configured; continue without an update prompt */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AppVersionsController_list_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminAppVersionResponseDto"][];
+                };
+            };
+        };
+    };
+    AppVersionsController_save_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                platform: "ANDROID" | "IOS";
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SaveAppVersionDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminAppVersionResponseDto"];
                 };
             };
         };

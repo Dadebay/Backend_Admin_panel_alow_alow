@@ -1,4 +1,15 @@
 export { useInventoryActions } from "./api/use-inventory-actions";
+export { InventoryDialog } from "./ui/inventory-dialog";
+export {
+  ingredientEditorSchema,
+  inventoryPurchaseUnits,
+  stockEntrySchema,
+} from "./model/inventory-editor";
+export type {
+  IngredientEditorInput,
+  IngredientEditorValues,
+  StockEntryInput,
+} from "./model/inventory-editor";
 export {
   ingredientFormSchema,
   recipeFormSchema,

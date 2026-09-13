@@ -364,16 +364,31 @@ Physical stock accuracy and actions by a database owner require operational
 inventory reconciliation; these application controls do not prove absence of
 theft. See [inventory QA and case matrix](INVENTORY_QA.md).
 
-`/meal-config` (sidebar «Склад и рецептуры») shows branch-scoped available
-stock, thresholds, counts and an availability diagram for `IN_STOCK`,
-`LOW_STOCK` and `OUT_OF_STOCK`. Charts count branch/ingredient positions and
-never add grams, milliliters and pieces together. React Hook Form/Zod forms
-write through the real inventory API. The global administrator «Склад» button
-shows the latest 20 decreases from `GET /inventory/movements`; read markers are
-local to the browser and staff account. Inventory notifications are UI-only:
-no FCM, SMS, browser permission or operating-system notification is used. The
-single feed observer and mounted stock view poll every 15 seconds while the
-document is visible; mutations invalidate affected stock/feed caches.
+`/meal-config` (sidebar «Склад и рецептуры») has four focused views selected
+by the `view=stock|ingredients|recipes|budget` query parameter. Stock is the
+default: branch filter, name search, status count filters and per-position
+threshold meters; an empty warehouse explains ingredient → receipt → recipe
+setup. Counts represent branch/ingredient positions, never mixed-unit totals.
+Ingredients have a searchable list and create/edit dialog. Purchase prices,
+minimum balances and manual stock entries use kg, litres or pieces in the UI;
+validated form output converts weight/volume to persisted grams/millilitres.
+An existing ingredient's unit is immutable in the editor. Receipt/writeoff
+shows current and resulting balance, requires a reason, and retains the same
+idempotency key for an unchanged retry after a failed/lost response.
+The recipe view separates the dish picker from its composition editor and
+shows batch/per-portion cost. Quantities remain explicitly in g/ml/pieces for
+the entire recipe yield; unsaved edits warn before changing dishes or tabs.
+The budget view separates catalog selection from chosen portions and the
+server quote. Changing quantities, budget, promotion or delivery marks an old
+quote stale. Reduction suggestions are approximate and require a fresh quote;
+no order is created by this preview.
+React Hook Form/Zod forms write through the real inventory API. The global
+administrator «Склад» button shows the latest 20 decreases from
+`GET /inventory/movements`; read markers are local to the browser and staff
+account. Inventory notifications are UI-only: no FCM, SMS, browser permission
+or operating-system notification is used. The single feed observer and mounted
+stock view poll every 15 seconds while the document is visible; leaving the
+stock tab unmounts its observer. Mutations invalidate affected stock/feed caches.
 
 ## Order state machine
 

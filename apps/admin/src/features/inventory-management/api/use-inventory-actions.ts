@@ -1,4 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import type { components } from "@alowalow/api-contract";
 import { useSession } from "@/src/shared/auth";
 import type {
   AdjustStock,
@@ -44,6 +45,20 @@ export function useInventoryActions() {
       }),
     onSuccess: () => refresh(["recipes"]),
   });
+  const updateIngredient = useMutation({
+    mutationFn: ({
+      id,
+      payload,
+    }: {
+      id: string;
+      payload: components["schemas"]["UpdateIngredientDto"];
+    }) =>
+      authorizedRequest<Ingredient>("/inventory/ingredients/" + id, {
+        method: "PATCH",
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => refresh(["ingredients", "stock", "alerts", "recipes"]),
+  });
   const adjustStock = useMutation({
     mutationFn: ({
       ingredientId,
@@ -59,5 +74,5 @@ export function useInventoryActions() {
       }),
     onSuccess: () => refresh(["stock", "alerts", "movements"]),
   });
-  return { createIngredient, saveRecipe, adjustStock };
+  return { createIngredient, updateIngredient, saveRecipe, adjustStock };
 }

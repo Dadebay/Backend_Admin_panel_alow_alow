@@ -103,6 +103,7 @@ alowalow/
 │   ├── MOBILE_DELIVERY_AND_COURIER_UPDATE.md
 │   ├── MOBILE_MAP_AND_ROUTING.md
 │   ├── NIGHT_DELIVERY_TARIFFS.md
+│   ├── MOBILE_TOPIC_BROADCAST.md
 │   ├── MOBILE_PUSH_NOTIFICATIONS.md
 │   ├── PRODUCT_PRICING_VARIANTS.md
 │   ├── RECEIPT_PRINTING_WINDOWS_HANDOFF.md
@@ -858,6 +859,27 @@ configuration per platform and supports nullable RU/TK release notes. See
 - Customers may list only their own inbox, read their unread count, and mark one
   or all own notifications read. A push permission or network failure does not
   remove the durable inbox item.
+- Public announcements use the additional `ALL_APP_INSTALLATIONS` audience and
+  the fixed FCM topic `a7-tagam`. The user's explicit topic replaces `hantagam`
+  in the supplied mobile note. Customer apps subscribe before login and keep
+  that subscription after logout, so guests need no API JWT/PushDevice record.
+  Only administrators may create/retry campaigns; there is no public send API.
+- Topic campaigns share the durable worker/atomic claim and audit history, but
+  bypass customer enumeration, inbox and per-device delivery rows. Provider
+  acceptance is recorded in `topicMessageId`; delivery/subscriber counters are
+  unknown (`null` in API/UI), never a claimed number of delivered devices.
+  Retry/restart can redeliver; mobile deduplicates by stable `campaignId`.
+- Topic creation requires a UUID `idempotencyKey`, scoped to the administrator.
+  Repeating identical content returns the same campaign; changed content under
+  that key returns 409. The UI retains the key across network retries. Retry
+  claims are conditional; late worker results cannot overwrite a recovered
+  topic dispatch. Full content, actor, target and provider outcome are audited.
+- Topic payloads use string data (`campaignId`, optional internal `deepLink`),
+  default Android channels and APNs sound. UTF-8 JSON is conservatively limited
+  to 2048 bytes before queuing. Topic messages contain no personal inbox ID;
+  use only public content. Older mobile builds subscribed solely to `hantagam`
+  require an app update; sending to both topics is not an implicit fallback.
+  Mobile handoff and phone QA: `docs/MOBILE_TOPIC_BROADCAST.md`.
 - Firebase is transport only. A7-tagam phone OTP/JWT stays authoritative, and
   the FCM service account exists only in the backend runtime environment.
 

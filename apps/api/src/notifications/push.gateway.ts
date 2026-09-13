@@ -10,6 +10,7 @@ import {
 } from "firebase-admin/app";
 import { getMessaging, type Message } from "firebase-admin/messaging";
 import type { AppEnv } from "../config/env";
+import { topicMessage } from "./topic-message";
 
 export type PushTarget = {
   deliveryId: string;
@@ -31,6 +32,11 @@ export type PushResult = {
   errorCode: string | null;
   invalidInstallation: boolean;
 };
+
+export type TopicPushResult = Pick<
+  PushResult,
+  "ok" | "providerMessageId" | "errorCode"
+>;
 
 const FCM_APP_NAME = "alowalow-push";
 const FCM_BATCH_SIZE = 500;
@@ -110,6 +116,30 @@ export class PushGateway {
   private app: App | null = null;
 
   constructor(private readonly config: ConfigService<AppEnv, true>) {}
+
+  async sendTopic(
+    payload: PushPayload,
+    dryRun = false,
+  ): Promise<TopicPushResult> {
+    if (this.config.get("PUSH_PROVIDER", { infer: true }) === "console") {
+      return {
+        ok: true,
+        providerMessageId: `console:topic:${payload.campaignId}`,
+        errorCode: null,
+      };
+    }
+    try {
+      const providerMessageId = await withTimeout(
+        getMessaging(this.getFcmApp()).send(topicMessage(payload), dryRun),
+        FCM_SEND_TIMEOUT_MS,
+      );
+      return { ok: true, providerMessageId, errorCode: null };
+    } catch (error) {
+      const code = errorCode(error);
+      this.logger.warn(`Topic campaign ${payload.campaignId} failed: ${code}`);
+      return { ok: false, providerMessageId: null, errorCode: code };
+    }
+  }
 
   async send(
     payload: PushPayload,

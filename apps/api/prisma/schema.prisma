@@ -68,6 +68,7 @@ enum LoginAttemptStatus {
 
 enum NotificationAudience {
   ALL_CUSTOMERS
+  ALL_APP_INSTALLATIONS
 }
 
 enum NotificationCampaignStatus {
@@ -649,6 +650,11 @@ model NotificationCampaign {
   body              String                     @db.VarChar(1000)
   deepLink          String?                    @db.VarChar(500)
   audience          NotificationAudience       @default(ALL_CUSTOMERS)
+  topic             String?                    @db.VarChar(100)
+  topicMessageId    String?                    @db.VarChar(500)
+  topicErrorCode    String?                    @db.VarChar(160)
+  idempotencyKey    String?                    @db.Uuid
+  dispatchToken     String?                    @db.Uuid
   status            NotificationCampaignStatus @default(PENDING)
   intendedUserCount Int                        @default(0)
   deviceCount       Int                        @default(0)
@@ -664,6 +670,7 @@ model NotificationCampaign {
 
   @@index([status, createdAt])
   @@index([createdById, createdAt])
+  @@unique([createdById, idempotencyKey])
 }
 
 model UserNotification {

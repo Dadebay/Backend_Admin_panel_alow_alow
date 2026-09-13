@@ -407,6 +407,7 @@ test("notification schema accepts only internal application deep links", () => {
       deepLink: "/orders/current",
     }),
     {
+      audience: "ALL_CUSTOMERS",
       title: "Заказ уже рядом",
       body: "Проверьте статус доставки.",
       deepLink: "/orders/current",
@@ -566,4 +567,26 @@ test("every admin form uses React Hook Form instead of manual FormData", async (
     assert.match(source, /zodResolver/);
     assert.doesNotMatch(source, /new FormData\(/);
   }
+});
+
+test("notifications can target guests while retaining the authenticated audience default", () => {
+  const body = { title: "Объявление", body: "Новое меню", deepLink: "" };
+  assert.equal(notificationFormSchema.parse(body).audience, "ALL_CUSTOMERS");
+  assert.equal(
+    notificationFormSchema.parse({ ...body, audience: "ALL_APP_INSTALLATIONS" })
+      .audience,
+    "ALL_APP_INSTALLATIONS",
+  );
+  assert.equal(
+    notificationFormSchema.safeParse({ ...body, audience: "arbitrary-topic" })
+      .success,
+    false,
+  );
+  assert.equal(
+    notificationFormSchema.safeParse({
+      ...body,
+      deepLink: "/" + String.fromCharCode(92) + "evil.example",
+    }).success,
+    false,
+  );
 });

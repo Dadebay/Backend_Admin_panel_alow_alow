@@ -1,15 +1,17 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
-import { Type } from "class-transformer";
+import { Transform, Type } from "class-transformer";
 import {
   IsEnum,
   IsInt,
   IsOptional,
   IsString,
+  IsUUID,
   Matches,
   Max,
   MaxLength,
   Min,
   MinLength,
+  ValidateIf,
 } from "class-validator";
 import {
   NotificationAudience,
@@ -52,12 +54,18 @@ export class RegisterPushDeviceDto {
 
 export class CreateNotificationCampaignDto {
   @ApiProperty({ example: "Скидка на ужин" })
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === "string" ? value.trim() : value,
+  )
   @IsString()
   @MinLength(1)
   @MaxLength(160)
   title: string;
 
   @ApiProperty({ example: "Сегодня с 18:00 действует скидка 15%." })
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === "string" ? value.trim() : value,
+  )
   @IsString()
   @MinLength(1)
   @MaxLength(1000)
@@ -70,16 +78,29 @@ export class CreateNotificationCampaignDto {
   @IsOptional()
   @IsString()
   @MaxLength(500)
-  @Matches(/^\/(?!\/)[^\s]*$/)
+  @Matches(/^\/(?![\\/])[^\\\s]*$/)
   deepLink?: string;
 
   @ApiPropertyOptional({
     enum: NotificationAudience,
     default: NotificationAudience.ALL_CUSTOMERS,
   })
-  @IsOptional()
+  @ValidateIf((_object, value: unknown) => value !== undefined)
   @IsEnum(NotificationAudience)
   audience: NotificationAudience = NotificationAudience.ALL_CUSTOMERS;
+
+  @ApiPropertyOptional({
+    format: "uuid",
+    description:
+      "Required for ALL_APP_INSTALLATIONS. Reuse the UUID when retrying the same creation request; changed content returns 409.",
+  })
+  @ValidateIf(
+    (dto: CreateNotificationCampaignDto) =>
+      dto.audience === NotificationAudience.ALL_APP_INSTALLATIONS ||
+      dto.idempotencyKey !== undefined,
+  )
+  @IsUUID("4")
+  idempotencyKey?: string;
 }
 
 export class ListNotificationCampaignsQueryDto {

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import {
   useNotificationCampaigns,
   type NotificationCampaign,
@@ -51,6 +51,7 @@ function NotificationHistoryCard({
   onRetry: () => void;
 }) {
   const status = statusView[campaign.status];
+  const isTopic = campaign.audience === "ALL_APP_INSTALLATIONS";
   const canRetry = ["FAILED", "PARTIAL"].includes(campaign.status);
 
   return (
@@ -73,23 +74,35 @@ function NotificationHistoryCard({
         </div>
         <span className={`status-pill ${status.tone}`}>
           <i />
-          {status.label}
+          {isTopic && campaign.status === "SENT"
+            ? "Принято к отправке"
+            : status.label}
         </span>
       </header>
 
       <dl className="notification-history-metrics">
         <div>
           <dt>Аудитория</dt>
-          <dd>{campaign.intendedUserCount} клиентов</dd>
-          <small>{campaign.deviceCount} устройств</small>
+          <dd>
+            {isTopic
+              ? "Все устройства"
+              : `${campaign.intendedUserCount} клиентов`}
+          </dd>
+          <small>
+            {isTopic
+              ? "Включая гостей без регистрации"
+              : `${campaign.deviceCount} устройств`}
+          </small>
         </div>
         <div>
-          <dt>Доставлено</dt>
-          <dd>{campaign.sentCount}</dd>
-          <small className={campaign.failedCount > 0 ? "is-alert" : ""}>
-            {campaign.failedCount > 0
-              ? `${campaign.failedCount} с ошибкой`
-              : "Без ошибок"}
+          <dt>{isTopic ? "Получили сообщение" : "Доставлено"}</dt>
+          <dd>{isTopic ? "Количество неизвестно" : campaign.sentCount}</dd>
+          <small className={(campaign.failedCount ?? 0) > 0 ? "is-alert" : ""}>
+            {isTopic
+              ? "Статус отправки не подтверждает доставку каждому"
+              : (campaign.failedCount ?? 0) > 0
+                ? `${campaign.failedCount} с ошибкой`
+                : "Без ошибок"}
           </small>
         </div>
         <div>
@@ -100,7 +113,11 @@ function NotificationHistoryCard({
       </dl>
 
       <footer className="notification-history-card-footer">
-        <span>Результат обновляется автоматически.</span>
+        <span>
+          {isTopic && canRetry
+            ? "Повторная отправка может привести к повторному уведомлению."
+            : "Результат обновляется автоматически."}
+        </span>
         {canRetry && (
           <button
             className="secondary-button compact"
@@ -123,16 +140,28 @@ export function NotificationManager() {
   const campaigns = useNotificationCampaigns(page);
   const actions = useNotificationActions();
   const composerRef = useRef<HTMLFormElement>(null);
+  const creationRequest = useRef<{ fingerprint: string; key: string } | null>(
+    null,
+  );
   const {
     register,
+    control,
     handleSubmit,
     reset,
     formState: { errors },
   } = useForm<NotificationFormInput, unknown, NotificationFormValues>({
     resolver: zodResolver(notificationFormSchema),
     mode: "onBlur",
-    defaultValues: { title: "", body: "", deepLink: "" },
+    defaultValues: {
+      title: "",
+      body: "",
+      deepLink: "",
+      audience: "ALL_CUSTOMERS",
+    },
   });
+
+  const audience = useWatch({ control, name: "audience" });
+  const isTopic = audience === "ALL_APP_INSTALLATIONS";
 
   useEffect(() => {
     if (!showComposer) return;
@@ -148,15 +177,22 @@ export function NotificationManager() {
   }, [actions.create.isPending, showComposer]);
 
   async function submit(values: NotificationFormValues) {
-    await actions.create.mutateAsync({
-      title: values.title,
-      body: values.body,
-      deepLink: values.deepLink,
-      audience: "ALL_CUSTOMERS",
-    });
-    reset();
-    setPage(1);
-    setShowComposer(false);
+    const fingerprint = JSON.stringify(values);
+    if (creationRequest.current?.fingerprint !== fingerprint) {
+      creationRequest.current = { fingerprint, key: crypto.randomUUID() };
+    }
+    try {
+      await actions.create.mutateAsync({
+        ...values,
+        idempotencyKey: creationRequest.current.key,
+      });
+      creationRequest.current = null;
+      reset();
+      setPage(1);
+      setShowComposer(false);
+    } catch {
+      // Keep the draft and request key: retrying after a network failure is safe.
+    }
   }
 
   const mutationError = actions.create.error || actions.retry.error;
@@ -168,7 +204,7 @@ export function NotificationManager() {
     >
       <header className="section-head" data-testid="notification-header">
         <div>
-          <h1>Рассылка клиентам</h1>
+          <h1>Рассылки</h1>
           <p>
             Отправляйте важные сообщения в приложение и следите за результатом
             доставки.
@@ -179,7 +215,10 @@ export function NotificationManager() {
             className="primary-button"
             data-testid="notification-form-open"
             type="button"
-            onClick={() => setShowComposer(true)}
+            onClick={() => {
+              actions.create.reset();
+              setShowComposer(true);
+            }}
           >
             + Новая рассылка
           </button>
@@ -209,7 +248,7 @@ export function NotificationManager() {
               data-testid="notification-form"
               noValidate
               ref={composerRef}
-              onSubmit={handleSubmit(submit)}
+              onSubmit={(event) => void handleSubmit(submit)(event)}
             >
               <header className="modal-head notification-composer-header">
                 <div className="notification-composer-title">
@@ -221,7 +260,9 @@ export function NotificationManager() {
                   </span>
                   <div>
                     <h2 id="notification-form-title">Новое сообщение</h2>
-                    <p>Оно будет доставлено всем активным клиентам A7-tagam.</p>
+                    <p>
+                      Выберите получателей и проверьте текст перед отправкой.
+                    </p>
                   </div>
                 </div>
                 <button
@@ -243,9 +284,28 @@ export function NotificationManager() {
                   </svg>
                 </button>
               </header>
-              <div className="notification-composer-audience">
-                <span>Получатели</span>
-                <strong>Все активные клиенты</strong>
+              <div className="form-grid notification-form-grid">
+                <label className="wide-field">
+                  <span>Получатели</span>
+                  <select
+                    data-testid="notification-audience"
+                    {...register("audience")}
+                    disabled={actions.create.isPending}
+                  >
+                    <option value="ALL_CUSTOMERS">
+                      Зарегистрированные клиенты
+                    </option>
+                    <option value="ALL_APP_INSTALLATIONS">
+                      Все устройства, включая гостей
+                    </option>
+                  </select>
+                  <FormFieldError message={errors.audience?.message} />
+                  <small data-testid="notification-audience-description">
+                    {isTopic
+                      ? "Общее объявление всем подписанным устройствам, даже без входа. Не добавляйте персональные данные. В истории клиента оно не сохраняется."
+                      : "Сообщение сохраняется в истории всех активных клиентов; push получают их зарегистрированные устройства."}
+                  </small>
+                </label>
               </div>
               <div className="form-grid notification-form-grid">
                 <label>
@@ -283,10 +343,23 @@ export function NotificationManager() {
                   <FormFieldError message={errors.body?.message} />
                 </label>
               </div>
+              {actions.create.error && (
+                <div
+                  className="inline-alert"
+                  role="alert"
+                  data-testid="notification-create-error"
+                >
+                  {actions.create.error.message}
+                </div>
+              )}
               <div className="notification-send-row">
                 <div className="notification-send-note">
                   <strong>Проверьте текст перед отправкой</strong>
-                  <span>Сообщение сразу появится в приложении клиентов.</span>
+                  <span>
+                    {isTopic
+                      ? "Рассылка начнётся сразу. Число получателей неизвестно."
+                      : "Рассылка начнётся сразу; сообщение сохранится в истории клиентов."}
+                  </span>
                 </div>
                 <button
                   className="primary-button"
@@ -309,7 +382,7 @@ export function NotificationManager() {
           Рассылка «{actions.create.data.title}» запланирована.
         </div>
       )}
-      {mutationError && (
+      {mutationError && !showComposer && (
         <div className="inline-alert" role="alert">
           {mutationError.message}
         </div>
@@ -333,7 +406,10 @@ export function NotificationManager() {
           onRetry={() => void campaigns.refetch()}
         >
           {campaigns.data?.items.length ? (
-            <div aria-label="История рассылок" className="notification-history-list">
+            <div
+              aria-label="История рассылок"
+              className="notification-history-list"
+            >
               {campaigns.data.items.map((campaign) => (
                 <NotificationHistoryCard
                   campaign={campaign}

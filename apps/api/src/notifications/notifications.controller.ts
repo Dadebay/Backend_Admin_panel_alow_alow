@@ -122,7 +122,10 @@ export class NotificationsController {
 
   @Post("admin/campaigns")
   @Roles(Role.ADMIN)
-  @ApiOperation({ summary: "Create and queue a customer push campaign" })
+  @ApiOperation({
+    summary:
+      "Create and queue a customer or public guest-inclusive topic campaign",
+  })
   @ApiCreatedResponse({ type: NotificationCampaignResponseDto })
   createCampaign(
     @CurrentUser() actor: AuthUser,

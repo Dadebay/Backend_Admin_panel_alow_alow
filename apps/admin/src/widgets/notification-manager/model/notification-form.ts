@@ -1,6 +1,9 @@
 import { z } from "zod";
 
 export const notificationFormSchema = z.object({
+  audience: z
+    .enum(["ALL_CUSTOMERS", "ALL_APP_INSTALLATIONS"])
+    .default("ALL_CUSTOMERS"),
   title: z
     .string()
     .trim()
@@ -16,7 +19,7 @@ export const notificationFormSchema = z.object({
     .trim()
     .max(500, "Не больше 500 символов")
     .refine(
-      (value) => !value || /^\/(?!\/)[^\s]*$/.test(value),
+      (value) => !value || /^\/(?![\\/])[^\\\s]*$/.test(value),
       "Укажите внутренний путь, например /orders/current",
     )
     .transform((value) => value || undefined),

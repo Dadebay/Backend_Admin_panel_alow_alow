@@ -7,6 +7,7 @@ const firebase = vi.hoisted(() => ({
   getApps: vi.fn(() => [] as Array<{ name: string }>),
   initializeApp: vi.fn(() => ({ name: "alowalow-push" })),
   sendEach: vi.fn(),
+  send: vi.fn(),
 }));
 
 vi.mock("firebase-admin/app", () => ({
@@ -16,7 +17,10 @@ vi.mock("firebase-admin/app", () => ({
 }));
 
 vi.mock("firebase-admin/messaging", () => ({
-  getMessaging: vi.fn(() => ({ sendEach: firebase.sendEach })),
+  getMessaging: vi.fn(() => ({
+    sendEach: firebase.sendEach,
+    send: firebase.send,
+  })),
 }));
 
 import {
@@ -197,5 +201,81 @@ describe("push gateway", () => {
         }),
       ]),
     );
+  });
+  it("publishes once to a7-tagam without token targeting, supports iOS sound and dry-run validation", async () => {
+    firebase.send.mockResolvedValue("projects/test/messages/topic-1");
+    const gateway = new PushGateway(
+      config({
+        PUSH_PROVIDER: "fcm",
+        FCM_SERVICE_ACCOUNT_BASE64: Buffer.from(
+          JSON.stringify({
+            project_id: "test",
+            client_email: "test@example.test",
+            private_key: "key",
+          }),
+        ).toString("base64"),
+      }),
+    );
+    await expect(gateway.sendTopic(payload)).resolves.toEqual({
+      ok: true,
+      providerMessageId: "projects/test/messages/topic-1",
+      errorCode: null,
+    });
+    expect(firebase.send).toHaveBeenLastCalledWith(
+      {
+        topic: "a7-tagam",
+        notification: { title: payload.title, body: payload.body },
+        data: { campaignId: payload.campaignId, deepLink: payload.deepLink },
+        android: { priority: "high", notification: { sound: "default" } },
+        apns: { payload: { aps: { sound: "default" } } },
+      },
+      false,
+    );
+    await gateway.sendTopic({ ...payload, deepLink: null }, true);
+    expect(firebase.send).toHaveBeenLastCalledWith(
+      expect.objectContaining({ data: { campaignId: payload.campaignId } }),
+      true,
+    );
+    expect(firebase.sendEach).not.toHaveBeenCalled();
+  });
+
+  it("keeps console topic testing non-delivering", async () => {
+    const gateway = new PushGateway(config({ PUSH_PROVIDER: "console" }));
+    expect(await gateway.sendTopic(payload)).toEqual({
+      ok: true,
+      providerMessageId: `console:topic:${payload.campaignId}`,
+      errorCode: null,
+    });
+    expect(firebase.send).not.toHaveBeenCalled();
+  });
+
+  it("records bounded topic errors without claiming device delivery or exposing raw provider details", async () => {
+    firebase.send.mockRejectedValueOnce({
+      code: "messaging/unavailable",
+      message: "provider internal detail",
+    });
+    const gateway = new PushGateway(
+      config({
+        PUSH_PROVIDER: "fcm",
+        FCM_SERVICE_ACCOUNT_BASE64: Buffer.from(
+          JSON.stringify({
+            project_id: "test",
+            client_email: "test@example.test",
+            private_key: "key",
+          }),
+        ).toString("base64"),
+      }),
+    );
+    await expect(gateway.sendTopic(payload)).resolves.toEqual({
+      ok: false,
+      providerMessageId: null,
+      errorCode: "messaging/unavailable",
+    });
+    firebase.send.mockRejectedValueOnce(new Error("private provider detail"));
+    await expect(gateway.sendTopic(payload)).resolves.toEqual({
+      ok: false,
+      providerMessageId: null,
+      errorCode: "messaging/unknown-error",
+    });
   });
 });

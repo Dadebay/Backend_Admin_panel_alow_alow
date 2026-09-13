@@ -1052,7 +1052,7 @@ export interface paths {
         /** List push campaigns and delivery totals */
         get: operations["NotificationsController_campaigns_v1"];
         put?: never;
-        /** Create and queue a customer push campaign */
+        /** Create and queue a customer or public guest-inclusive topic campaign */
         post: operations["NotificationsController_createCampaign_v1"];
         delete?: never;
         options?: never;
@@ -3068,13 +3068,21 @@ export interface components {
             body: string;
             deepLink?: string | null;
             /** @enum {string} */
-            audience: "ALL_CUSTOMERS";
+            audience: "ALL_CUSTOMERS" | "ALL_APP_INSTALLATIONS";
+            topic: string | null;
+            /** @description Provider acceptance ID, not proof of device delivery */
+            topicMessageId: string | null;
+            topicErrorCode: string | null;
             /** @enum {string} */
             status: "PENDING" | "SENDING" | "SENT" | "PARTIAL" | "FAILED";
-            intendedUserCount: number;
-            deviceCount: number;
-            sentCount: number;
-            failedCount: number;
+            /** @description Customer delivery count; null for topic broadcasts because subscriber delivery is unknown */
+            intendedUserCount: number | null;
+            /** @description Customer delivery count; null for topic broadcasts because subscriber delivery is unknown */
+            deviceCount: number | null;
+            /** @description Customer delivery count; null for topic broadcasts because subscriber delivery is unknown */
+            sentCount: number | null;
+            /** @description Customer delivery count; null for topic broadcasts because subscriber delivery is unknown */
+            failedCount: number | null;
             /** Format: date-time */
             startedAt?: string | null;
             /** Format: date-time */
@@ -3104,7 +3112,12 @@ export interface components {
              * @default ALL_CUSTOMERS
              * @enum {string}
              */
-            audience: "ALL_CUSTOMERS";
+            audience: "ALL_CUSTOMERS" | "ALL_APP_INSTALLATIONS";
+            /**
+             * Format: uuid
+             * @description Required for ALL_APP_INSTALLATIONS. Reuse the UUID when retrying the same creation request; changed content returns 409.
+             */
+            idempotencyKey?: string;
         };
         DeliveryEtrapResponseDto: {
             nightPrice: number;

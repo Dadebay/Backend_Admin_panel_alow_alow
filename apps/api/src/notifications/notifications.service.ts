@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  ForbiddenException,
   Logger,
   NotFoundException,
   OnModuleDestroy,
@@ -13,7 +14,9 @@ import type { AppEnv } from "../config/env";
 import { toApiResponse } from "../common/api-response";
 import type { AuthUser } from "../common/auth.types";
 import {
+  NotificationAudience,
   NotificationCampaignStatus,
+  Prisma,
   NotificationDeliveryStatus,
   Role,
 } from "../generated/prisma/client";
@@ -26,6 +29,7 @@ import {
   RegisterPushDeviceDto,
 } from "./notifications.dto";
 import { PushGateway } from "./push.gateway";
+import { PUBLIC_BROADCAST_TOPIC, topicMessageFits } from "./topic-message";
 
 const campaignInclude = {
   createdBy: {
@@ -240,34 +244,137 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
     return { updated: result.count };
   }
 
-  async createCampaign(actor: AuthUser, dto: CreateNotificationCampaignDto) {
-    const campaign = await this.prisma.$transaction(async (tx) => {
-      const created = await tx.notificationCampaign.create({
-        data: {
-          createdById: actor.id,
-          title: dto.title.trim(),
-          body: dto.body.trim(),
-          deepLink: dto.deepLink?.trim() || null,
-          audience: dto.audience,
-        },
-        include: campaignInclude,
-      });
-      await tx.auditLog.create({
-        data: {
-          actorId: actor.id,
-          action: "notification.campaign.created",
-          entityType: "NotificationCampaign",
-          entityId: created.id,
-          metadata: {
-            title: created.title,
-            audience: created.audience,
-          },
-        },
-      });
-      return created;
+  private campaignResponse(
+    campaign: Prisma.NotificationCampaignGetPayload<{
+      include: typeof campaignInclude;
+    }>,
+  ) {
+    const topic =
+      campaign.audience === NotificationAudience.ALL_APP_INSTALLATIONS;
+    return toApiResponse({
+      id: campaign.id,
+      createdById: campaign.createdById,
+      title: campaign.title,
+      body: campaign.body,
+      deepLink: campaign.deepLink,
+      audience: campaign.audience,
+      status: campaign.status,
+      topic: campaign.topic,
+      topicMessageId: campaign.topicMessageId,
+      topicErrorCode: campaign.topicErrorCode,
+      intendedUserCount: topic ? null : campaign.intendedUserCount,
+      deviceCount: topic ? null : campaign.deviceCount,
+      sentCount: topic ? null : campaign.sentCount,
+      failedCount: topic ? null : campaign.failedCount,
+      startedAt: campaign.startedAt,
+      completedAt: campaign.completedAt,
+      createdAt: campaign.createdAt,
+      updatedAt: campaign.updatedAt,
+      createdBy: campaign.createdBy,
     });
-    queueMicrotask(() => void this.dispatchPendingCampaigns());
-    return toApiResponse(campaign);
+  }
+
+  private assertCampaignAdministrator(actor: AuthUser) {
+    if (actor.role !== Role.ADMIN && actor.role !== Role.SUPER_ADMIN) {
+      throw new ForbiddenException("Only administrators may send campaigns");
+    }
+  }
+
+  private async existingCampaign(
+    actor: AuthUser,
+    dto: CreateNotificationCampaignDto,
+  ) {
+    if (!dto.idempotencyKey) return null;
+    const existing = await this.prisma.notificationCampaign.findUnique({
+      where: {
+        createdById_idempotencyKey: {
+          createdById: actor.id,
+          idempotencyKey: dto.idempotencyKey,
+        },
+      },
+      include: campaignInclude,
+    });
+    if (
+      existing &&
+      (existing.title !== dto.title.trim() ||
+        existing.body !== dto.body.trim() ||
+        existing.deepLink !== (dto.deepLink?.trim() || null) ||
+        existing.audience !== dto.audience)
+    ) {
+      throw new ConflictException(
+        "Idempotency key already used for different campaign content",
+      );
+    }
+    return existing;
+  }
+
+  async createCampaign(actor: AuthUser, dto: CreateNotificationCampaignDto) {
+    this.assertCampaignAdministrator(actor);
+    const id = randomUUID();
+    const isTopic = dto.audience === NotificationAudience.ALL_APP_INSTALLATIONS;
+    if (isTopic && !dto.idempotencyKey)
+      throw new BadRequestException(
+        "Topic campaign requires an idempotency key",
+      );
+    if (
+      isTopic &&
+      !topicMessageFits({
+        campaignId: id,
+        title: dto.title.trim(),
+        body: dto.body.trim(),
+        deepLink: dto.deepLink?.trim() || null,
+      })
+    ) {
+      throw new BadRequestException(
+        "Сообщение для всех устройств слишком длинное. Сократите заголовок, текст или ссылку.",
+      );
+    }
+    const existing = await this.existingCampaign(actor, dto);
+    if (existing) return this.campaignResponse(existing);
+    try {
+      const campaign = await this.prisma.$transaction(async (tx) => {
+        const created = await tx.notificationCampaign.create({
+          data: {
+            id,
+            createdById: actor.id,
+            title: dto.title.trim(),
+            body: dto.body.trim(),
+            deepLink: dto.deepLink?.trim() || null,
+            audience: dto.audience,
+            topic: isTopic ? PUBLIC_BROADCAST_TOPIC : null,
+            idempotencyKey: dto.idempotencyKey,
+          },
+          include: campaignInclude,
+        });
+        await tx.auditLog.create({
+          data: {
+            actorId: actor.id,
+            action: "notification.campaign.created",
+            entityType: "NotificationCampaign",
+            entityId: created.id,
+            metadata: {
+              title: created.title,
+              body: created.body,
+              deepLink: created.deepLink,
+              audience: created.audience,
+              topic: created.topic,
+            },
+          },
+        });
+        return created;
+      });
+      queueMicrotask(() => void this.dispatchPendingCampaigns());
+      return this.campaignResponse(campaign);
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2002"
+      ) {
+        const previous = await this.existingCampaign(actor, dto);
+        if (previous) return this.campaignResponse(previous);
+      }
+      throw error;
+    }
   }
 
   async campaigns(query: ListNotificationCampaignsQueryDto) {
@@ -281,7 +388,7 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
       this.prisma.notificationCampaign.count(),
     ]);
     return toApiResponse({
-      items,
+      items: items.map((item) => this.campaignResponse(item)),
       total,
       page: query.page,
       limit: query.limit,
@@ -290,6 +397,7 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
   }
 
   async retryCampaign(actor: AuthUser, id: string) {
+    this.assertCampaignAdministrator(actor);
     const campaign = await this.prisma.notificationCampaign.findUnique({
       where: { id },
       include: campaignInclude,
@@ -302,6 +410,19 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
       throw new ConflictException("Only failed campaigns can be retried");
     }
     const updated = await this.prisma.$transaction(async (tx) => {
+      const claimed = await tx.notificationCampaign.updateMany({
+        where: { id, status: campaign.status, updatedAt: campaign.updatedAt },
+        data: {
+          status: NotificationCampaignStatus.PENDING,
+          completedAt: null,
+          failedCount: 0,
+          topicMessageId: null,
+          topicErrorCode: null,
+          dispatchToken: null,
+        },
+      });
+      if (!claimed.count)
+        throw new ConflictException("Campaign changed; reload before retrying");
       await tx.notificationDelivery.updateMany({
         where: {
           campaignId: id,
@@ -315,13 +436,8 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
           attemptedAt: null,
         },
       });
-      const next = await tx.notificationCampaign.update({
+      const next = await tx.notificationCampaign.findUniqueOrThrow({
         where: { id },
-        data: {
-          status: NotificationCampaignStatus.PENDING,
-          completedAt: null,
-          failedCount: 0,
-        },
         include: campaignInclude,
       });
       await tx.auditLog.create({
@@ -335,7 +451,7 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
       return next;
     });
     queueMicrotask(() => void this.dispatchPendingCampaigns());
-    return toApiResponse(updated);
+    return this.campaignResponse(updated);
   }
 
   private async requeueStaleCampaigns() {
@@ -347,6 +463,7 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
       data: {
         status: NotificationCampaignStatus.PENDING,
         startedAt: null,
+        dispatchToken: null,
       },
     });
   }
@@ -363,23 +480,35 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
         select: { id: true },
       });
       for (const { id } of pending) await this.dispatchCampaign(id);
+    } catch (error) {
+      this.logger.error(
+        `Campaign dispatch interrupted: ${error instanceof Error ? error.name : "unknown error"}`,
+      );
     } finally {
       this.dispatchInProgress = false;
     }
   }
 
   private async dispatchCampaign(id: string) {
+    const dispatchToken = randomUUID();
     const claimed = await this.prisma.notificationCampaign.updateMany({
       where: { id, status: NotificationCampaignStatus.PENDING },
       data: {
         status: NotificationCampaignStatus.SENDING,
         startedAt: new Date(),
+        dispatchToken,
       },
     });
     if (!claimed.count) return;
 
-    const [campaign, users, devices] = await Promise.all([
-      this.prisma.notificationCampaign.findUniqueOrThrow({ where: { id } }),
+    const campaign = await this.prisma.notificationCampaign.findUniqueOrThrow({
+      where: { id },
+    });
+    if (campaign.audience === NotificationAudience.ALL_APP_INSTALLATIONS) {
+      await this.dispatchTopicCampaign(campaign, dispatchToken);
+      return;
+    }
+    const [users, devices] = await Promise.all([
       this.prisma.user.findMany({
         where: { role: Role.CUSTOMER, isActive: true },
         select: { id: true },
@@ -512,6 +641,60 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
         : NotificationCampaignStatus.FAILED
       : NotificationCampaignStatus.SENT;
     await this.finishCampaign(id, status, sentCount, failedCount);
+  }
+
+  private async dispatchTopicCampaign(
+    campaign: Prisma.NotificationCampaignGetPayload<object>,
+    dispatchToken: string,
+  ) {
+    const result =
+      campaign.topic === PUBLIC_BROADCAST_TOPIC
+        ? await this.push.sendTopic({
+            campaignId: campaign.id,
+            title: campaign.title,
+            body: campaign.body,
+            deepLink: campaign.deepLink,
+          })
+        : {
+            ok: false,
+            providerMessageId: null,
+            errorCode: "messaging/invalid-topic",
+          };
+    const status = result.ok
+      ? NotificationCampaignStatus.SENT
+      : NotificationCampaignStatus.FAILED;
+    await this.prisma.$transaction(async (tx) => {
+      const updated = await tx.notificationCampaign.updateMany({
+        where: {
+          id: campaign.id,
+          status: NotificationCampaignStatus.SENDING,
+          dispatchToken,
+        },
+        data: {
+          status,
+          topicMessageId: result.providerMessageId,
+          topicErrorCode: result.errorCode,
+          completedAt: new Date(),
+          dispatchToken: null,
+        },
+      });
+      // A recovered worker owns the lease now; a late response must not overwrite it.
+      if (!updated.count) return;
+      await tx.auditLog.create({
+        data: {
+          actorId: campaign.createdById,
+          action: "notification.campaign.finished",
+          entityType: "NotificationCampaign",
+          entityId: campaign.id,
+          metadata: {
+            status,
+            topic: campaign.topic,
+            providerMessageId: result.providerMessageId,
+            errorCode: result.errorCode,
+          },
+        },
+      });
+    });
   }
 
   private async finishCampaign(

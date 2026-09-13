@@ -2761,7 +2761,7 @@
             "bearer": []
           }
         ],
-        "summary": "Create and queue a customer push campaign",
+        "summary": "Create and queue a customer or public guest-inclusive topic campaign",
         "tags": [
           "notifications"
         ]
@@ -8920,8 +8920,22 @@
           "audience": {
             "type": "string",
             "enum": [
-              "ALL_CUSTOMERS"
+              "ALL_CUSTOMERS",
+              "ALL_APP_INSTALLATIONS"
             ]
+          },
+          "topic": {
+            "type": "string",
+            "nullable": true
+          },
+          "topicMessageId": {
+            "type": "string",
+            "nullable": true,
+            "description": "Provider acceptance ID, not proof of device delivery"
+          },
+          "topicErrorCode": {
+            "type": "string",
+            "nullable": true
           },
           "status": {
             "type": "string",
@@ -8934,16 +8948,24 @@
             ]
           },
           "intendedUserCount": {
-            "type": "number"
+            "type": "number",
+            "nullable": true,
+            "description": "Customer delivery count; null for topic broadcasts because subscriber delivery is unknown"
           },
           "deviceCount": {
-            "type": "number"
+            "type": "number",
+            "nullable": true,
+            "description": "Customer delivery count; null for topic broadcasts because subscriber delivery is unknown"
           },
           "sentCount": {
-            "type": "number"
+            "type": "number",
+            "nullable": true,
+            "description": "Customer delivery count; null for topic broadcasts because subscriber delivery is unknown"
           },
           "failedCount": {
-            "type": "number"
+            "type": "number",
+            "nullable": true,
+            "description": "Customer delivery count; null for topic broadcasts because subscriber delivery is unknown"
           },
           "startedAt": {
             "type": "string",
@@ -8968,6 +8990,9 @@
           "title",
           "body",
           "audience",
+          "topic",
+          "topicMessageId",
+          "topicErrorCode",
           "status",
           "intendedUserCount",
           "deviceCount",
@@ -9026,9 +9051,15 @@
           "audience": {
             "type": "string",
             "enum": [
-              "ALL_CUSTOMERS"
+              "ALL_CUSTOMERS",
+              "ALL_APP_INSTALLATIONS"
             ],
             "default": "ALL_CUSTOMERS"
+          },
+          "idempotencyKey": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Required for ALL_APP_INSTALLATIONS. Reuse the UUID when retrying the same creation request; changed content returns 409."
           }
         },
         "required": [

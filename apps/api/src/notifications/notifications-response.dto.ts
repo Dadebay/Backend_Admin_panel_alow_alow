@@ -58,20 +58,53 @@ export class NotificationCampaignResponseDto {
   @ApiProperty({ enum: NotificationAudience })
   audience: NotificationAudience;
 
+  @ApiProperty({ type: String, nullable: true })
+  topic: string | null;
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description: "Provider acceptance ID, not proof of device delivery",
+  })
+  topicMessageId: string | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  topicErrorCode: string | null;
+
   @ApiProperty({ enum: NotificationCampaignStatus })
   status: NotificationCampaignStatus;
 
-  @ApiProperty()
-  intendedUserCount: number;
+  @ApiProperty({
+    type: Number,
+    nullable: true,
+    description:
+      "Customer delivery count; null for topic broadcasts because subscriber delivery is unknown",
+  })
+  intendedUserCount: number | null;
 
-  @ApiProperty()
-  deviceCount: number;
+  @ApiProperty({
+    type: Number,
+    nullable: true,
+    description:
+      "Customer delivery count; null for topic broadcasts because subscriber delivery is unknown",
+  })
+  deviceCount: number | null;
 
-  @ApiProperty()
-  sentCount: number;
+  @ApiProperty({
+    type: Number,
+    nullable: true,
+    description:
+      "Customer delivery count; null for topic broadcasts because subscriber delivery is unknown",
+  })
+  sentCount: number | null;
 
-  @ApiProperty()
-  failedCount: number;
+  @ApiProperty({
+    type: Number,
+    nullable: true,
+    description:
+      "Customer delivery count; null for topic broadcasts because subscriber delivery is unknown",
+  })
+  failedCount: number | null;
 
   @ApiPropertyOptional({ nullable: true, format: "date-time", type: String })
   startedAt: string | null;

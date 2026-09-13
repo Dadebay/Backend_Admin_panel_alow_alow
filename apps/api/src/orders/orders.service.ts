@@ -19,6 +19,7 @@ import {
 import type { AuthUser } from "../common/auth.types";
 import { toApiResponse } from "../common/api-response";
 import { PrismaService } from "../prisma/prisma.service";
+import { InventoryService } from "../inventory/inventory.service";
 import { AddressesService } from "../users/addresses.service";
 import { BranchesService } from "../branches/branches.service";
 import { NotificationsService } from "../notifications/notifications.service";
@@ -46,6 +47,7 @@ import {
   assertOrderTransition,
   canAdministratorEditOrder,
   canCancelOrder,
+  returnsInventoryOnCancellation,
   canEditCourierAssignment,
   canManageCourierAssignment,
   CUSTOMER_CANCELLATION_WINDOW_MS,
@@ -230,6 +232,7 @@ export class OrdersService {
     private readonly routing: RoutingService,
     private readonly notifications: NotificationsService,
     private readonly delivery: DeliveryService,
+    private readonly inventory: InventoryService,
   ) {}
 
   quote(user: AuthUser, dto: QuoteOrderDto) {
@@ -804,6 +807,7 @@ export class OrdersService {
         },
       },
     });
+    await this.inventory.allocateOrder(tx, { id: actorId }, order);
     await this.enqueueReceipt(tx, order.id, `ORDER_CREATED:${order.id}`);
     return toApiResponse(withItemImages(order));
   }
@@ -1306,6 +1310,9 @@ export class OrdersService {
         where: { id },
         include: detailInclude,
       });
+      if (itemsChanged || order.branchId !== result.branchId) {
+        await this.inventory.allocateOrder(tx, user, result, true);
+      }
       return {
         response: toApiResponse(withItemImages(result)),
         courierToNotify: courierId !== order.courierId ? courierId : null,
@@ -1562,6 +1569,9 @@ export class OrdersService {
       });
       if (cancelled.count !== 1) {
         throw new ConflictException("Order changed; reload and try again");
+      }
+      if (returnsInventoryOnCancellation(order.status)) {
+        await this.inventory.releaseOrderReservation(tx, user, order);
       }
       await tx.orderTransition.create({
         data: {

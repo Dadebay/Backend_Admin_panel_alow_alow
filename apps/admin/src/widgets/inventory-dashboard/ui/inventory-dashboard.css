@@ -1,0 +1,229 @@
+.inventory-dashboard {
+  scroll-margin-top: 24px;
+}
+.inventory-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin: 20px 0;
+}
+.inventory-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  border: 1px solid currentColor;
+  border-radius: 16px;
+  padding: 18px;
+  text-align: left;
+  min-width: 0;
+}
+.inventory-stat strong {
+  font-size: 32px;
+  line-height: 1;
+}
+.inventory-stat small {
+  font-size: 12px;
+}
+.inventory-stat[aria-pressed="true"] {
+  outline: 3px solid #ec7a1b;
+  outline-offset: 2px;
+}
+.inventory-tone-IN_STOCK {
+  background: #062f5e;
+  color: #fef7e7;
+}
+.inventory-tone-LOW_STOCK {
+  background: #ec7a1b;
+  color: #062f5e;
+}
+.inventory-tone-OUT_OF_STOCK {
+  background: #fef7e7;
+  color: #062f5e;
+  border: 1px dashed #062f5e;
+}
+.inventory-chart {
+  margin: 0 0 20px;
+}
+.inventory-chart figcaption {
+  font-weight: 700;
+  margin-bottom: 10px;
+}
+.inventory-stacked-bar {
+  display: flex;
+  height: 20px;
+  overflow: hidden;
+  border-radius: 8px;
+  border: 1px solid #062f5e;
+}
+.inventory-stacked-bar span {
+  min-width: 2px;
+}
+.inventory-list-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 24px 0 12px;
+}
+.inventory-stock-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.inventory-stock-list > li {
+  border-top: 1px solid color-mix(in srgb, #062f5e 18%, #fef7e7);
+  padding: 16px 0;
+}
+.inventory-stock-row {
+  display: grid;
+  grid-template-columns: minmax(140px, 1.2fr) minmax(120px, 1fr) minmax(
+      150px,
+      1fr
+    ) auto;
+  gap: 16px;
+  align-items: center;
+}
+.inventory-stock-row > div {
+  display: grid;
+  min-width: 0;
+  gap: 6px;
+  overflow-wrap: anywhere;
+}
+.inventory-stock-row small {
+  opacity: 0.8;
+}
+.inventory-status {
+  justify-self: start;
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 12px;
+}
+.inventory-meter {
+  width: 100%;
+  height: 7px;
+  background: color-mix(in srgb, #062f5e 12%, #fef7e7);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.inventory-meter span {
+  display: block;
+  height: 100%;
+  background: #ec7a1b;
+}
+.inventory-adjustment {
+  margin-top: 16px;
+  padding: 20px;
+  border: 1px solid #ec7a1b;
+  border-radius: 12px;
+  background: #fef7e7;
+}
+.inventory-recipe-line {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: end;
+}
+.inventory-recipe-line label {
+  min-width: 0;
+}
+@media (max-width: 1080px) {
+  .inventory-stock-row {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+  .inventory-stock-row button {
+    justify-self: start;
+  }
+}
+@media (max-width: 600px) {
+  .inventory-summary {
+    gap: 6px;
+  }
+  .inventory-stat {
+    padding: 12px 8px;
+    border-radius: 10px;
+    font-size: 12px;
+  }
+  .inventory-stat strong {
+    font-size: 26px;
+  }
+  .inventory-stat small {
+    font-size: 10px;
+  }
+  .inventory-dashboard .card-title,
+  .inventory-list-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .inventory-recipe-line {
+    grid-template-columns: minmax(0, 1fr);
+    padding-bottom: 12px;
+    border-bottom: 1px solid #ec7a1b;
+  }
+  .inventory-adjustment {
+    padding: 14px;
+  }
+  .inventory-stock-row {
+    gap: 12px;
+  }
+  .inventory-stock-row button {
+    width: 100%;
+    padding-inline: 10px;
+  }
+}
+
+.inventory-content {
+  padding: 0 20px 20px;
+}
+.inventory-dashboard .card-title h2 {
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.25;
+  margin-bottom: 8px;
+}
+.inventory-dashboard .alert-panel {
+  display: grid;
+  gap: 6px;
+  padding: 16px;
+  border: 1px solid #ec7a1b;
+  border-radius: 12px;
+  background: color-mix(in srgb, #ec7a1b 10%, #fef7e7);
+}
+.inventory-dashboard .card-title .compact-field {
+  display: grid;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.inventory-dashboard select {
+  border: 1px solid color-mix(in srgb, #062f5e 25%, #fef7e7);
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: #fef7e7;
+  min-height: 42px;
+  max-width: 100%;
+}
+[data-testid="recipe-inventory-configurator"] > .form-grid {
+  padding: 20px;
+}
+[data-testid="recipe-inventory-configurator"] h3 {
+  font-weight: 700;
+}
+@media (max-width: 600px) {
+  .inventory-content {
+    padding: 0 14px 16px;
+  }
+  .inventory-stat {
+    padding: 12px 6px;
+  }
+  .inventory-list-heading {
+    gap: 8px;
+  }
+}
+
+.inventory-loading {
+  min-height: 1000px;
+  padding-top: 24px;
+}
+.inventory-dashboard .compact-field select {
+  width: 210px;
+}

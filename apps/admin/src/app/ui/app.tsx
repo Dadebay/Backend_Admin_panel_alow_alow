@@ -74,6 +74,11 @@ const adminRouteComponents = {
       default: module.LoginAttemptManager,
     })),
   ),
+  "meal-config": lazy(() =>
+    import("@/src/widgets/meal-config-calculator").then((module) => ({
+      default: module.MealConfigCalculator,
+    })),
+  ),
   accounting: lazy(() =>
     import("@/src/widgets/accounting-dashboard").then((module) => ({
       default: module.AccountingDashboard,

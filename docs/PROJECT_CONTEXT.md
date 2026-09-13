@@ -143,6 +143,7 @@ alowalow/
 │   │   ├── src/
 │   │   │   ├── auth/      # OTP, JWT, refresh, Android pull SMS gateway
 │   │   │   ├── accounting/ # configurable shifts, cash handoffs, reports
+│   │   │   ├── inventory/ # ingredients, recipes, branch stock, order reservations and audit
 │   │   │   ├── users/     # staff and customer addresses
 │   │   │   ├── branches/  # branch CRUD and nearest-branch selection
 │   │   │   ├── delivery/  # welayat/etrap tariffs and delivery pricing
@@ -170,9 +171,9 @@ alowalow/
 │       ├── package-lock.json # isolated frontend dependency/security tree
 │       ├── src/            # FSD product layers
 │       │   ├── app/        # SPA bootstrap, routes, providers, global styles
-│       │   ├── widgets/    # boards/maps/managers, incl. shift accounting and app-version-manager
-│       │   ├── features/   # typed mutations, incl. cash handoff and app-version-management
-│       │   ├── entities/   # typed queries/models, incl. accounting/delivery/app-version
+│       │   ├── widgets/    # inventory-dashboard, meal/recipe configurator, boards/maps/managers, incl. shift accounting and app-version-manager
+│       │   ├── features/   # inventory actions/notifications/calculator, typed mutations, incl. cash handoff and app-version-management
+│       │   ├── entities/   # typed queries/models, incl. inventory/accounting/delivery/app-version
 │       │   └── shared/     # HTTP/query clients, auth, Zod form helpers, UI
 │       ├── public/
 │       └── tests/
@@ -291,6 +292,88 @@ Sound does not require browser Notification permission. Optional system notices
 use the existing explicit permission button and are silent to avoid a second
 OS chime. Visual alerts remain available when sound or system notices are blocked.
 Receipt printing continues through its independent durable queue.
+
+The budget planner and recipe/stock configurator (`/meal-config`) are an
+`ADMIN`/`SUPER_ADMIN` only screen. The budget section builds an authoritative
+quote from `/orders/quote`, which permits customers and administrators while
+keeping other staff roles denied. It previews pricing without placing an order
+or consuming stock/promo usage; promo eligibility uses the signed-in account.
+The configurator manages product recipes, ingredient
+base units (`GRAM`, `MILLILITER`, `PIECE`), cost per unit, branch stock and
+reorder alerts through `/inventory`. `OPERATOR` and `COOK` may read inventory
+endpoints for kitchen visibility, while ingredient, recipe and stock mutations
+are restricted to `ADMIN`/`SUPER_ADMIN` and create audit records. Stock cannot
+become negative, and recipe lines reference active ingredients only.
+
+## Ingredient reservations and inventory — 2026-09-13
+
+Orders continue to enter `COOKING` immediately, with the existing cooking and
+packing workflow. No separate kitchen-start action is required. Creating either
+customer or assisted orders atomically reserves ingredients from the assigned
+branch: recipe quantity × ordered portions ÷ recipe yield. Displayed stock is
+availability after reservations. Active product recipes apply to all variants;
+products without active recipes remain orderable without ingredient debits.
+A configured recipe with insufficient stock returns `409` and rolls back the
+entire order transaction. Ingredient totals use Decimal arithmetic and round
+up to the supported 0.001 base-unit precision.
+
+A permitted cancellation in `COOKING`, `READY`, or `ASSIGNED_TO_COURIER`
+returns the exact net reservation automatically. This includes the existing
+customer 15-minute cancellation window. Assignment alone is not physical
+pickup: once the courier advances to `OUT_FOR_DELIVERY`, ingredients are no
+longer returned on cancellation, including cancellation from `DELIVERED`.
+The canonical decision is in `orders/order-policy.ts`. Existing cancellation
+roles, ownership, deadline and terminal-state restrictions remain unchanged.
+Cancellation versus courier pickup uses the same order version; only one
+concurrent action can commit. Packing, printing and workflow rollback do not
+charge ingredients a second time.
+
+Pre-pickup composition or branch edits atomically replace the reservation.
+Refund amounts always come from persisted order-linked movements, never from a
+changed recipe. New requirements use the current recipe at the time of an edit.
+`InventoryAllocatedProduct` records inventory-managed product quantities;
+legacy orders have no such records and receive no automatic stock backfill.
+Manual and automatic operations share conditional, atomic stock increments
+and ordered row locks; concurrent receipts/debits cannot overwrite one another.
+Ingredient units cannot change after movement history exists, even at zero stock.
+
+Successful inventory writes and order reservation/return movements share a
+transaction with `AuditLog`: actor, database timestamp, reason, ingredient and
+branch, movement/order IDs, base unit and exact before/after quantities.
+Ingredient and recipe configuration changes preserve complete before/after
+snapshots. Concurrent configuration transactions use Serializable isolation and
+return a reload/retry `409` on a serialization conflict. No inventory API allows
+rewriting or deleting movements or audit records.
+
+Manual adjustments accept an optional UUID `idempotencyKey`, unique per actor.
+The administrator UI reuses the same key when retrying unchanged form data.
+Duplicate/concurrent requests commit one movement; changing the payload under
+an existing key returns `409`. Legacy callers without a key remain compatible
+and each request is a separate operation. This does not prevent an authorized
+administrator from intentionally submitting another operation under a new key;
+such operations are audited independently.
+
+`common/operations-audit.filter.ts` persists rejected inventory/order HTTP
+requests outside any rolled-back business transaction, including authentication,
+role, validation and stock/version conflicts. It records the verified actor when
+available, route template, method, status and socket address, without request
+bodies, headers, query strings or secrets. Successful writes fail atomically if
+their audit cannot be saved. If the audit database itself is unavailable, rejected
+request audit persistence is best effort and emits a sanitized server error.
+Physical stock accuracy and actions by a database owner require operational
+inventory reconciliation; these application controls do not prove absence of
+theft. See [inventory QA and case matrix](INVENTORY_QA.md).
+
+`/meal-config` (sidebar «Склад и рецептуры») shows branch-scoped available
+stock, thresholds, counts and an availability diagram for `IN_STOCK`,
+`LOW_STOCK` and `OUT_OF_STOCK`. Charts count branch/ingredient positions and
+never add grams, milliliters and pieces together. React Hook Form/Zod forms
+write through the real inventory API. The global administrator «Склад» button
+shows the latest 20 decreases from `GET /inventory/movements`; read markers are
+local to the browser and staff account. Inventory notifications are UI-only:
+no FCM, SMS, browser permission or operating-system notification is used. The
+single feed observer and mounted stock view poll every 15 seconds while the
+document is visible; mutations invalidate affected stock/feed caches.
 
 ## Order state machine
 

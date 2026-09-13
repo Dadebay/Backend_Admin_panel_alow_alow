@@ -684,6 +684,144 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/inventory/ingredients": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List recipe ingredients */
+        get: operations["InventoryController_listIngredients_v1"];
+        put?: never;
+        /** Create an ingredient */
+        post: operations["InventoryController_createIngredient_v1"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/inventory/ingredients/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update an ingredient */
+        patch: operations["InventoryController_updateIngredient_v1"];
+        trace?: never;
+    };
+    "/api/v1/inventory/recipes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List configured product recipes */
+        get: operations["InventoryController_listRecipes_v1"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/inventory/recipes/{productId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get a product recipe */
+        get: operations["InventoryController_getRecipe_v1"];
+        /** Create or replace a product recipe */
+        put: operations["InventoryController_upsertRecipe_v1"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/inventory/stock": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List stock by branch and ingredient */
+        get: operations["InventoryController_listStock_v1"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/inventory/alerts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List ingredients at or below reorder point */
+        get: operations["InventoryController_listAlerts_v1"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/inventory/movements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List recent stock decreases for the in-app inventory notification feed */
+        get: operations["InventoryController_listMovements_v1"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/inventory/stock/{ingredientId}/adjust": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Adjust ingredient stock */
+        post: operations["InventoryController_adjustStock_v1"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/staff/login-attempts": {
         parameters: {
             query?: never;
@@ -2685,6 +2823,177 @@ export interface components {
              */
             idempotencyKey: string;
         };
+        InventoryIngredientResponseDto: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            sku: string | null;
+            /** @enum {string} */
+            unit: "GRAM" | "MILLILITER" | "PIECE";
+            costPerUnit: number;
+            reorderPoint: number;
+            isActive: boolean;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        CreateIngredientDto: {
+            /** @example Мука */
+            name: string;
+            /** @example FLOUR-001 */
+            sku?: string;
+            /**
+             * @description Base unit used by recipes and stock
+             * @enum {string}
+             */
+            unit: "GRAM" | "MILLILITER" | "PIECE";
+            /**
+             * @description Cost in TMT per base unit
+             * @example 0.02
+             */
+            costPerUnit: number;
+            /**
+             * @default 0
+             * @example 500
+             */
+            reorderPoint: number;
+        };
+        UpdateIngredientDto: {
+            /** @example Мука */
+            name?: string;
+            /** @example FLOUR-001 */
+            sku?: Record<string, never> | null;
+            /** @enum {string} */
+            unit?: "GRAM" | "MILLILITER" | "PIECE";
+            /** @example 0.02 */
+            costPerUnit?: number;
+            /** @example 500 */
+            reorderPoint?: number;
+            /** @default true */
+            isActive: boolean;
+        };
+        InventoryRecipeIngredientResponseDto: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            ingredientId: string;
+            quantity: number;
+            estimatedCost: number;
+            ingredient: components["schemas"]["InventoryIngredientResponseDto"];
+        };
+        InventoryRecipeResponseDto: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            productId: string;
+            productName: string;
+            yieldQuantity: number;
+            estimatedCost: number;
+            isActive: boolean;
+            ingredients: components["schemas"]["InventoryRecipeIngredientResponseDto"][];
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        RecipeIngredientInputDto: {
+            /** Format: uuid */
+            ingredientId: string;
+            /**
+             * @description Amount in the ingredient base unit
+             * @example 120
+             */
+            quantity: number;
+        };
+        UpsertRecipeDto: {
+            /**
+             * @description How many portions one recipe batch yields
+             * @example 1
+             */
+            yieldQuantity: number;
+            ingredients: components["schemas"]["RecipeIngredientInputDto"][];
+            /** @default true */
+            isActive: boolean;
+        };
+        InventoryStockResponseDto: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            ingredientId: string;
+            ingredientName: string;
+            /** @enum {string} */
+            unit: "GRAM" | "MILLILITER" | "PIECE";
+            /** Format: uuid */
+            branchId: string;
+            branchName: string;
+            quantity: number;
+            reorderPoint: number;
+            /** @enum {string} */
+            status: "IN_STOCK" | "LOW_STOCK" | "OUT_OF_STOCK";
+            /** Format: date-time */
+            updatedAt: Record<string, never> | null;
+        };
+        InventoryAlertResponseDto: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            ingredientId: string;
+            ingredientName: string;
+            /** @enum {string} */
+            unit: "GRAM" | "MILLILITER" | "PIECE";
+            /** Format: uuid */
+            branchId: string;
+            branchName: string;
+            quantity: number;
+            reorderPoint: number;
+            /** @enum {string} */
+            status: "IN_STOCK" | "LOW_STOCK" | "OUT_OF_STOCK";
+            /** Format: date-time */
+            updatedAt: Record<string, never> | null;
+            missingQuantity: number;
+        };
+        InventoryMovementResponseDto: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            ingredientId: string;
+            /** Format: uuid */
+            branchId: string;
+            ingredientName: string;
+            /** @enum {string} */
+            unit: "GRAM" | "MILLILITER" | "PIECE";
+            branchName: string;
+            /** Format: uuid */
+            orderId: string | null;
+            orderNumber: number | null;
+            /** @enum {string} */
+            type: "RECEIPT" | "CONSUMPTION" | "WASTE" | "ADJUSTMENT";
+            quantityDelta: number;
+            quantityAfter: number;
+            reason: string | null;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        AdjustInventoryStockDto: {
+            /**
+             * Format: uuid
+             * @description Reuse for retries of the same manual operation; a changed payload with the same key returns 409
+             */
+            idempotencyKey?: string;
+            /** Format: uuid */
+            branchId: string;
+            /**
+             * @description Positive receipt or negative write-off in base units
+             * @example 1000
+             */
+            quantityDelta: number;
+            /**
+             * @default ADJUSTMENT
+             * @enum {string}
+             */
+            type: "RECEIPT" | "CONSUMPTION" | "WASTE" | "ADJUSTMENT";
+            /** @example Приемка поставки №42 */
+            reason?: string;
+        };
         LoginAttemptUserResponseDto: {
             /** Format: uuid */
             id: string;
@@ -4659,6 +4968,227 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ReceiptTaskResponseDto"];
+                };
+            };
+        };
+    };
+    InventoryController_listIngredients_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InventoryIngredientResponseDto"][];
+                };
+            };
+        };
+    };
+    InventoryController_createIngredient_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateIngredientDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InventoryIngredientResponseDto"];
+                };
+            };
+        };
+    };
+    InventoryController_updateIngredient_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateIngredientDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InventoryIngredientResponseDto"];
+                };
+            };
+        };
+    };
+    InventoryController_listRecipes_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InventoryRecipeResponseDto"][];
+                };
+            };
+        };
+    };
+    InventoryController_getRecipe_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                productId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InventoryRecipeResponseDto"];
+                };
+            };
+        };
+    };
+    InventoryController_upsertRecipe_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                productId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpsertRecipeDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InventoryRecipeResponseDto"];
+                };
+            };
+        };
+    };
+    InventoryController_listStock_v1: {
+        parameters: {
+            query?: {
+                branchId?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InventoryStockResponseDto"][];
+                };
+            };
+        };
+    };
+    InventoryController_listAlerts_v1: {
+        parameters: {
+            query?: {
+                branchId?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InventoryAlertResponseDto"][];
+                };
+            };
+        };
+    };
+    InventoryController_listMovements_v1: {
+        parameters: {
+            query?: {
+                branchId?: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InventoryMovementResponseDto"][];
+                };
+            };
+        };
+    };
+    InventoryController_adjustStock_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ingredientId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdjustInventoryStockDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InventoryStockResponseDto"];
                 };
             };
         };

@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { components } from "@alowalow/api-contract";
+import { inventoryQueryKeys } from "@/src/entities/inventory";
 import { courierQueryKeys } from "@/src/entities/courier";
 import {
   orderQueryKeys,
@@ -17,11 +18,12 @@ type CancelBody = components["schemas"]["CancelOrderDto"];
 
 export function useOrderActions() {
   const queryClient = useQueryClient();
-  const { authorizedRequest } = useSession();
+  const { session, authorizedRequest } = useSession();
   const refresh = async () => {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: orderQueryKeys.all }),
       queryClient.invalidateQueries({ queryKey: courierQueryKeys.all }),
+      queryClient.invalidateQueries({ predicate: (query) => query.queryKey[0] === inventoryQueryKeys.all[0] && ["stock", "alerts", "movements"].includes(String(query.queryKey[1])) && query.queryKey[2] === session?.user.id }),
     ]);
   };
   const refreshConflict = async (error: Error) => {

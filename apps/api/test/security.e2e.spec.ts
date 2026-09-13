@@ -746,11 +746,20 @@ describe("backend security and critical workflow", () => {
     const orderCountBefore = await prisma.order.count();
 
     await request(server).post("/api/v1/orders/quote").send(body).expect(401);
-    await request(server)
-      .post("/api/v1/orders/quote")
-      .set(bearer(tokens.operator))
-      .send(body)
-      .expect(403);
+    for (const role of ["operator", "cook", "courier", "accountant"] as const) {
+      await request(server)
+        .post("/api/v1/orders/quote")
+        .set(bearer(tokens[role]))
+        .send(body)
+        .expect(403);
+    }
+    for (const role of ["admin", "superAdmin"] as const) {
+      await request(server)
+        .post("/api/v1/orders/quote")
+        .set(bearer(tokens[role]))
+        .send(body)
+        .expect(200);
+    }
 
     const response = await request(server)
       .post("/api/v1/orders/quote")

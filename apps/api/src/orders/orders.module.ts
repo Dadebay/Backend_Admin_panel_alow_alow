@@ -1,6 +1,7 @@
 import { ReceiptQueueController } from "./receipt-queue.controller";
 import { ReceiptQueueService } from "./receipt-queue.service";
 import { Module } from "@nestjs/common";
+import { InventoryModule } from "../inventory/inventory.module";
 import { UsersModule } from "../users/users.module";
 import { BranchesModule } from "../branches/branches.module";
 import { NotificationsModule } from "../notifications/notifications.module";
@@ -12,6 +13,7 @@ import { OrdersService } from "./orders.service";
 
 @Module({
   imports: [
+    InventoryModule,
     UsersModule,
     BranchesModule,
     TrackingModule,

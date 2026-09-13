@@ -103,3 +103,13 @@ export function canManageCourierAssignment(role: Role) {
 export function canEditCourierAssignment(status: OrderStatus) {
   return courierAssignmentStatuses.includes(status);
 }
+
+/** Ingredient reservations remain refundable until the courier physically
+ * picks up the order. Assignment alone is not pickup. */
+export function returnsInventoryOnCancellation(status: OrderStatus): boolean {
+  return (
+    status === OrderStatus.COOKING ||
+    status === OrderStatus.READY ||
+    status === OrderStatus.ASSIGNED_TO_COURIER
+  );
+}

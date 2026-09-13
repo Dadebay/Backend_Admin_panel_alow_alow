@@ -1,0 +1,19 @@
+.meal-config-calculator .form-grid > * {
+  min-width: 0;
+}
+
+.meal-config-calculator .form-grid :is(input, select) {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.meal-config-calculator > .table-card > .form-grid {
+  padding: 18px;
+}
+
+.meal-config-calculator .card-title {
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 8px;
+}

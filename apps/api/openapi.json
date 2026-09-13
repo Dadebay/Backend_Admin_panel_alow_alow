@@ -1774,6 +1774,404 @@
         ]
       }
     },
+    "/api/v1/inventory/ingredients": {
+      "get": {
+        "operationId": "InventoryController_listIngredients_v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/InventoryIngredientResponseDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "List recipe ingredients",
+        "tags": [
+          "inventory"
+        ]
+      },
+      "post": {
+        "operationId": "InventoryController_createIngredient_v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateIngredientDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InventoryIngredientResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Create an ingredient",
+        "tags": [
+          "inventory"
+        ]
+      }
+    },
+    "/api/v1/inventory/ingredients/{id}": {
+      "patch": {
+        "operationId": "InventoryController_updateIngredient_v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateIngredientDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InventoryIngredientResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Update an ingredient",
+        "tags": [
+          "inventory"
+        ]
+      }
+    },
+    "/api/v1/inventory/recipes": {
+      "get": {
+        "operationId": "InventoryController_listRecipes_v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/InventoryRecipeResponseDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "List configured product recipes",
+        "tags": [
+          "inventory"
+        ]
+      }
+    },
+    "/api/v1/inventory/recipes/{productId}": {
+      "get": {
+        "operationId": "InventoryController_getRecipe_v1",
+        "parameters": [
+          {
+            "name": "productId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InventoryRecipeResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Get a product recipe",
+        "tags": [
+          "inventory"
+        ]
+      },
+      "put": {
+        "operationId": "InventoryController_upsertRecipe_v1",
+        "parameters": [
+          {
+            "name": "productId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpsertRecipeDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InventoryRecipeResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Create or replace a product recipe",
+        "tags": [
+          "inventory"
+        ]
+      }
+    },
+    "/api/v1/inventory/stock": {
+      "get": {
+        "operationId": "InventoryController_listStock_v1",
+        "parameters": [
+          {
+            "name": "branchId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/InventoryStockResponseDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "List stock by branch and ingredient",
+        "tags": [
+          "inventory"
+        ]
+      }
+    },
+    "/api/v1/inventory/alerts": {
+      "get": {
+        "operationId": "InventoryController_listAlerts_v1",
+        "parameters": [
+          {
+            "name": "branchId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/InventoryAlertResponseDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "List ingredients at or below reorder point",
+        "tags": [
+          "inventory"
+        ]
+      }
+    },
+    "/api/v1/inventory/movements": {
+      "get": {
+        "operationId": "InventoryController_listMovements_v1",
+        "parameters": [
+          {
+            "name": "branchId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/InventoryMovementResponseDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "List recent stock decreases for the in-app inventory notification feed",
+        "tags": [
+          "inventory"
+        ]
+      }
+    },
+    "/api/v1/inventory/stock/{ingredientId}/adjust": {
+      "post": {
+        "operationId": "InventoryController_adjustStock_v1",
+        "parameters": [
+          {
+            "name": "ingredientId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdjustInventoryStockDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InventoryStockResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Adjust ingredient stock",
+        "tags": [
+          "inventory"
+        ]
+      }
+    },
     "/api/v1/staff/login-attempts": {
       "get": {
         "operationId": "UsersController_loginAttempts_v1",
@@ -7647,6 +8045,489 @@
         },
         "required": [
           "idempotencyKey"
+        ]
+      },
+      "InventoryIngredientResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "sku": {
+            "type": "string",
+            "nullable": true
+          },
+          "unit": {
+            "type": "string",
+            "enum": [
+              "GRAM",
+              "MILLILITER",
+              "PIECE"
+            ]
+          },
+          "costPerUnit": {
+            "type": "number"
+          },
+          "reorderPoint": {
+            "type": "number"
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "sku",
+          "unit",
+          "costPerUnit",
+          "reorderPoint",
+          "isActive",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "CreateIngredientDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "Мука"
+          },
+          "sku": {
+            "type": "string",
+            "example": "FLOUR-001"
+          },
+          "unit": {
+            "type": "string",
+            "enum": [
+              "GRAM",
+              "MILLILITER",
+              "PIECE"
+            ],
+            "description": "Base unit used by recipes and stock"
+          },
+          "costPerUnit": {
+            "type": "number",
+            "example": 0.02,
+            "description": "Cost in TMT per base unit"
+          },
+          "reorderPoint": {
+            "type": "number",
+            "example": 500,
+            "default": 0
+          }
+        },
+        "required": [
+          "name",
+          "unit",
+          "costPerUnit"
+        ]
+      },
+      "UpdateIngredientDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "Мука"
+          },
+          "sku": {
+            "type": "object",
+            "example": "FLOUR-001",
+            "nullable": true
+          },
+          "unit": {
+            "type": "string",
+            "enum": [
+              "GRAM",
+              "MILLILITER",
+              "PIECE"
+            ]
+          },
+          "costPerUnit": {
+            "type": "number",
+            "example": 0.02
+          },
+          "reorderPoint": {
+            "type": "number",
+            "example": 500
+          },
+          "isActive": {
+            "type": "boolean",
+            "default": true
+          }
+        }
+      },
+      "InventoryRecipeIngredientResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "ingredientId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "quantity": {
+            "type": "number"
+          },
+          "estimatedCost": {
+            "type": "number"
+          },
+          "ingredient": {
+            "$ref": "#/components/schemas/InventoryIngredientResponseDto"
+          }
+        },
+        "required": [
+          "id",
+          "ingredientId",
+          "quantity",
+          "estimatedCost",
+          "ingredient"
+        ]
+      },
+      "InventoryRecipeResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "productId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "productName": {
+            "type": "string"
+          },
+          "yieldQuantity": {
+            "type": "number"
+          },
+          "estimatedCost": {
+            "type": "number"
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "ingredients": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InventoryRecipeIngredientResponseDto"
+            }
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "productId",
+          "productName",
+          "yieldQuantity",
+          "estimatedCost",
+          "isActive",
+          "ingredients",
+          "updatedAt"
+        ]
+      },
+      "RecipeIngredientInputDto": {
+        "type": "object",
+        "properties": {
+          "ingredientId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "quantity": {
+            "type": "number",
+            "example": 120,
+            "description": "Amount in the ingredient base unit"
+          }
+        },
+        "required": [
+          "ingredientId",
+          "quantity"
+        ]
+      },
+      "UpsertRecipeDto": {
+        "type": "object",
+        "properties": {
+          "yieldQuantity": {
+            "type": "number",
+            "example": 1,
+            "description": "How many portions one recipe batch yields"
+          },
+          "ingredients": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RecipeIngredientInputDto"
+            }
+          },
+          "isActive": {
+            "type": "boolean",
+            "default": true
+          }
+        },
+        "required": [
+          "yieldQuantity",
+          "ingredients"
+        ]
+      },
+      "InventoryStockResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "ingredientId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "ingredientName": {
+            "type": "string"
+          },
+          "unit": {
+            "type": "string",
+            "enum": [
+              "GRAM",
+              "MILLILITER",
+              "PIECE"
+            ]
+          },
+          "branchId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "branchName": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": "number"
+          },
+          "reorderPoint": {
+            "type": "number"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "IN_STOCK",
+              "LOW_STOCK",
+              "OUT_OF_STOCK"
+            ]
+          },
+          "updatedAt": {
+            "type": "object",
+            "format": "date-time",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "ingredientId",
+          "ingredientName",
+          "unit",
+          "branchId",
+          "branchName",
+          "quantity",
+          "reorderPoint",
+          "status",
+          "updatedAt"
+        ]
+      },
+      "InventoryAlertResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "ingredientId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "ingredientName": {
+            "type": "string"
+          },
+          "unit": {
+            "type": "string",
+            "enum": [
+              "GRAM",
+              "MILLILITER",
+              "PIECE"
+            ]
+          },
+          "branchId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "branchName": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": "number"
+          },
+          "reorderPoint": {
+            "type": "number"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "IN_STOCK",
+              "LOW_STOCK",
+              "OUT_OF_STOCK"
+            ]
+          },
+          "updatedAt": {
+            "type": "object",
+            "format": "date-time",
+            "nullable": true
+          },
+          "missingQuantity": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "id",
+          "ingredientId",
+          "ingredientName",
+          "unit",
+          "branchId",
+          "branchName",
+          "quantity",
+          "reorderPoint",
+          "status",
+          "updatedAt",
+          "missingQuantity"
+        ]
+      },
+      "InventoryMovementResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "ingredientId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "branchId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "ingredientName": {
+            "type": "string"
+          },
+          "unit": {
+            "type": "string",
+            "enum": [
+              "GRAM",
+              "MILLILITER",
+              "PIECE"
+            ]
+          },
+          "branchName": {
+            "type": "string"
+          },
+          "orderId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "orderNumber": {
+            "type": "number",
+            "nullable": true
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "RECEIPT",
+              "CONSUMPTION",
+              "WASTE",
+              "ADJUSTMENT"
+            ]
+          },
+          "quantityDelta": {
+            "type": "number"
+          },
+          "quantityAfter": {
+            "type": "number"
+          },
+          "reason": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "ingredientId",
+          "branchId",
+          "ingredientName",
+          "unit",
+          "branchName",
+          "orderId",
+          "orderNumber",
+          "type",
+          "quantityDelta",
+          "quantityAfter",
+          "reason",
+          "createdAt"
+        ]
+      },
+      "AdjustInventoryStockDto": {
+        "type": "object",
+        "properties": {
+          "idempotencyKey": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Reuse for retries of the same manual operation; a changed payload with the same key returns 409"
+          },
+          "branchId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "quantityDelta": {
+            "type": "number",
+            "example": 1000,
+            "description": "Positive receipt or negative write-off in base units"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "RECEIPT",
+              "CONSUMPTION",
+              "WASTE",
+              "ADJUSTMENT"
+            ],
+            "default": "ADJUSTMENT"
+          },
+          "reason": {
+            "type": "string",
+            "example": "Приемка поставки №42"
+          }
+        },
+        "required": [
+          "branchId",
+          "quantityDelta",
+          "type"
         ]
       },
       "LoginAttemptUserResponseDto": {

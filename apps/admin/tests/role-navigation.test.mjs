@@ -42,6 +42,7 @@ test("administrators retain all management sections represented outside the full
   const expected = [
     "login-attempts",
     "orders",
+    "meal-config",
     "accounting",
     "map",
     "branches",

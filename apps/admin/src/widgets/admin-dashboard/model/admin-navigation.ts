@@ -3,6 +3,7 @@ import type { Role } from "@/src/entities/order";
 export type AdminView =
   | "orders"
   | "map"
+  | "meal-config"
   | "branches"
   | "delivery"
   | "catalog"
@@ -37,6 +38,13 @@ export const adminNavigation: AdminNavigationItem[] = [
     label: "Заказы",
     icon: "orders",
     path: "/orders",
+    roles: ["ADMIN", "SUPER_ADMIN"],
+  },
+  {
+    id: "meal-config",
+    label: "Склад и рецептуры",
+    icon: "meal-config",
+    path: "/meal-config",
     roles: ["ADMIN", "SUPER_ADMIN"],
   },
   {

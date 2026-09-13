@@ -50,6 +50,7 @@ export default defineConfig({
       include: [
         "src/app-versions/**/*.ts",
         "src/accounting/**/*.ts",
+        "src/inventory/**/*.ts",
         "src/auth/**/*.ts",
         "src/branches/**/*.ts",
         "src/catalog/**/*.ts",

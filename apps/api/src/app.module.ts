@@ -1,10 +1,12 @@
 import { Module } from "@nestjs/common";
 import { ConfigModule, ConfigService } from "@nestjs/config";
-import { APP_GUARD } from "@nestjs/core";
+import { APP_FILTER, APP_GUARD } from "@nestjs/core";
 import { JwtModule } from "@nestjs/jwt";
 import type { AppEnv } from "./config/env";
 import { validateEnv } from "./config/env";
 import { JwtAuthGuard } from "./common/jwt-auth.guard";
+import { OperationsAuditFilter } from "./common/operations-audit.filter";
+import { InventoryModule } from "./inventory/inventory.module";
 import { RolesGuard } from "./common/roles.guard";
 import { PrismaModule } from "./prisma/prisma.module";
 import { AuthModule } from "./auth/auth.module";
@@ -68,9 +70,11 @@ import { AppVersionsModule } from "./app-versions/app-versions.module";
     DeliveryModule,
     AccountingModule,
     AppVersionsModule,
+    InventoryModule,
   ],
   controllers: [HealthController],
   providers: [
+    { provide: APP_FILTER, useClass: OperationsAuditFilter },
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
   ],

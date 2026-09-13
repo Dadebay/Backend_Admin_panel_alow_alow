@@ -380,3 +380,22 @@ form one coordinated release authorized by the user. Close old frontend tabs,
 preserve agent journals and use the new Windows/Mac build. No historical orders
 are backfilled. See [RECEIPT_QUEUE.md](RECEIPT_QUEUE.md) for failure semantics and
 rollout/rollback.
+
+## Inventory rollout and rollback
+
+The inventory release adds three migrations: `20260911120000_add_recipe_inventory`,
+`20260913080000_inventory_order_consumption`, and
+`20260913100000_inventory_adjustment_idempotency`. Apply them after a verified
+PostgreSQL backup, before replacing API and admin. Existing products and orders
+are not seeded or backfilled; configure ingredients, branch balances and recipes
+through the administrator UI. Check authenticated inventory role gates and the
+public `/meal-config` bundle after deployment.
+
+After any `InventoryAllocatedProduct`, `InventoryMovement`, or `Recipe` row
+exists, do not roll back to an API without inventory integration: it would omit
+reservation updates on order creation, editing or cancellation. Keep the new API
+and fix forward. Before any of those rows exist, an immediate health-check
+failure may restore the previous image manifest while retaining additive tables.
+The fallback uses the existing deployment lock, immutable revision labels,
+archive/image/file checksums, backup and `.release.previous.env`; it preserves
+runtime secrets and the supporting database, Redis, storage and map containers.

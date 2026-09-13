@@ -1,6 +1,7 @@
 import { ReceiptQueue } from "@/src/features/receipt-printing";
 import {
   Suspense,
+  lazy,
   useCallback,
   useEffect,
   useRef,
@@ -27,8 +28,11 @@ import {
   type AdminNavIconName,
 } from "../model/admin-navigation";
 
+const InventoryNotifications = lazy(() => import("@/src/features/inventory-notifications").then((module) => ({ default: module.InventoryNotifications })));
+
 function NavIcon({ name }: { name: AdminNavIconName }) {
   const paths: Record<AdminNavIconName, ReactNode> = {
+    "meal-config": <><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M7 8h10M7 12h8M7 16h6" /><path d="m16 12-1-1v3z" /></>,
     "app-versions": <><rect x="6" y="2" width="12" height="20" rx="3" /><path d="M10 18h4M12 6v7m-3-3 3 3 3-3" /></>,
     orders: <><rect x="5" y="3" width="14" height="18" rx="2" /><path d="M9 3h6v3H9zM9 11h6M9 15h4" /></>,
     map: <><path d="m9 18-6 3V6l6-3 6 3 6-3v15l-6 3zM9 3v15M15 6v15" /></>,
@@ -299,6 +303,9 @@ export function AdminDashboard() {
           </div>
         )}
         {canReceiveNewOrderAlerts(session.user.role) && <ReceiptQueue />}
+        {(session.user.role === "ADMIN" || session.user.role === "SUPER_ADMIN") && (
+          <div style={{ minHeight: 90 }}><Suspense fallback={null}><InventoryNotifications /></Suspense></div>
+        )}
         <Suspense
           fallback={<div className="async-state">Загружаем раздел…</div>}
         >

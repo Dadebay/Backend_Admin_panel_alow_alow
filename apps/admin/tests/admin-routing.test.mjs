@@ -11,6 +11,7 @@ const expectedPaths = {
   "login-attempts": "/login-attempts",
   orders: "/orders",
   accounting: "/accounting",
+  "meal-config": "/meal-config",
   map: "/couriers/map",
   branches: "/branches",
   delivery: "/delivery",

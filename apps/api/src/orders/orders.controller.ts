@@ -52,7 +52,7 @@ export class OrdersController {
 
   @Post("quote")
   @HttpCode(HttpStatus.OK)
-  @Roles(Role.CUSTOMER)
+  @Roles(Role.CUSTOMER, Role.ADMIN)
   @ApiOperation({
     summary:
       "Preview authoritative variant prices, promo discount and delivery totals without creating an order",

@@ -2609,6 +2609,103 @@
         ]
       }
     },
+    "/api/v1/admin-page-access/me": {
+      "get": {
+        "operationId": "AdminPageAccessController_mine_v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminRolePageAccessResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin page access"
+        ]
+      }
+    },
+    "/api/v1/admin-page-access": {
+      "get": {
+        "operationId": "AdminPageAccessController_matrix_v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminPageAccessMatrixResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin page access"
+        ]
+      }
+    },
+    "/api/v1/admin-page-access/{role}": {
+      "put": {
+        "operationId": "AdminPageAccessController_update_v1",
+        "parameters": [
+          {
+            "name": "role",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateAdminPageAccessDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminRolePageAccessResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin page access"
+        ]
+      }
+    },
     "/api/v1/branches": {
       "get": {
         "operationId": "BranchesController_list_v1",
@@ -9035,6 +9132,128 @@
             "type": "string"
           }
         }
+      },
+      "AdminRolePageAccessResponseDto": {
+        "type": "object",
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": [
+              "CUSTOMER",
+              "OPERATOR",
+              "COOK",
+              "COURIER",
+              "ACCOUNTANT",
+              "ADMIN",
+              "SUPER_ADMIN"
+            ]
+          },
+          "allowedPages": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "LOGIN_ATTEMPTS",
+                "ORDERS",
+                "MEAL_CONFIG",
+                "ACCOUNTING",
+                "COURIER_MAP",
+                "BRANCHES",
+                "DELIVERY",
+                "CATALOG",
+                "MARKETING",
+                "NOTIFICATIONS",
+                "STAFF",
+                "CONTACTS",
+                "APP_VERSIONS"
+              ]
+            }
+          },
+          "availablePages": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "LOGIN_ATTEMPTS",
+                "ORDERS",
+                "MEAL_CONFIG",
+                "ACCOUNTING",
+                "COURIER_MAP",
+                "BRANCHES",
+                "DELIVERY",
+                "CATALOG",
+                "MARKETING",
+                "NOTIFICATIONS",
+                "STAFF",
+                "CONTACTS",
+                "APP_VERSIONS"
+              ]
+            }
+          },
+          "editable": {
+            "type": "boolean"
+          },
+          "version": {
+            "type": "number",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "role",
+          "allowedPages",
+          "availablePages",
+          "editable",
+          "version"
+        ]
+      },
+      "AdminPageAccessMatrixResponseDto": {
+        "type": "object",
+        "properties": {
+          "roles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminRolePageAccessResponseDto"
+            }
+          }
+        },
+        "required": [
+          "roles"
+        ]
+      },
+      "UpdateAdminPageAccessDto": {
+        "type": "object",
+        "properties": {
+          "allowedPages": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "LOGIN_ATTEMPTS",
+                "ORDERS",
+                "MEAL_CONFIG",
+                "ACCOUNTING",
+                "COURIER_MAP",
+                "BRANCHES",
+                "DELIVERY",
+                "CATALOG",
+                "MARKETING",
+                "NOTIFICATIONS",
+                "STAFF",
+                "CONTACTS",
+                "APP_VERSIONS"
+              ]
+            }
+          },
+          "version": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Current access-policy version"
+          }
+        },
+        "required": [
+          "allowedPages",
+          "version"
+        ]
       },
       "BranchResponseDto": {
         "type": "object",

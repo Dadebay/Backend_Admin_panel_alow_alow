@@ -18,6 +18,22 @@ enum Role {
   SUPER_ADMIN
 }
 
+enum AdminPage {
+  LOGIN_ATTEMPTS
+  ORDERS
+  MEAL_CONFIG
+  ACCOUNTING
+  COURIER_MAP
+  BRANCHES
+  DELIVERY
+  CATALOG
+  MARKETING
+  NOTIFICATIONS
+  STAFF
+  CONTACTS
+  APP_VERSIONS
+}
+
 enum OrderStatus {
   COOKING
   READY
@@ -629,6 +645,13 @@ model AuditLog {
 
   @@index([entityType, entityId, createdAt])
   @@index([actorId, createdAt])
+}
+
+model AdminRolePageAccess {
+  role         Role        @id
+  allowedPages AdminPage[]
+  version      Int         @default(1)
+  updatedAt    DateTime    @updatedAt
 }
 
 model Ingredient {

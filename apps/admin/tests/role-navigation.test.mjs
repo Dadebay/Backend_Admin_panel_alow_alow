@@ -14,6 +14,22 @@ function views(role) {
   return navigationForRole(role).map((item) => item.id);
 }
 
+const administratorViews = [
+  "login-attempts",
+  "orders",
+  "meal-config",
+  "accounting",
+  "map",
+  "branches",
+  "delivery",
+  "catalog",
+  "marketing",
+  "notifications",
+  "staff",
+  "contacts",
+  "app-versions",
+];
+
 test("only accountants and administrators may enter the admin portal", () => {
   for (const role of ["ACCOUNTANT", "ADMIN", "SUPER_ADMIN"]) {
     assert.equal(canAccessAdminPortal(role), true, role);
@@ -39,24 +55,25 @@ test("accountant navigation contains only shift accounting", () => {
 });
 
 test("administrators retain all management sections represented outside the full-flow board", () => {
-  const expected = [
-    "login-attempts",
-    "orders",
-    "meal-config",
-    "accounting",
-    "map",
-    "branches",
-    "delivery",
-    "catalog",
-    "marketing",
-    "notifications",
-    "staff",
-    "contacts",
-    "app-versions",
-  ];
+  assert.deepEqual(views("ADMIN"), administratorViews);
+  assert.deepEqual(views("SUPER_ADMIN"), [...administratorViews, "access"]);
+});
 
-  assert.deepEqual(views("ADMIN"), expected);
-  assert.deepEqual(views("SUPER_ADMIN"), expected);
+test("server-provided page access narrows navigation without expanding role capabilities", () => {
+  assert.deepEqual(
+    navigationForRole("ADMIN", ["ORDERS", "CATALOG"]).map(({ id }) => id),
+    ["orders", "catalog"],
+  );
+  assert.deepEqual(
+    navigationForRole("ACCOUNTANT", ["ORDERS", "ACCOUNTING"]).map(
+      ({ id }) => id,
+    ),
+    ["accounting"],
+  );
+  assert.deepEqual(
+    navigationForRole("SUPER_ADMIN", []).map(({ id }) => id),
+    [...administratorViews, "access"],
+  );
 });
 
 test("dashboard renders navigation from the tested role matrix", async () => {
@@ -68,7 +85,10 @@ test("dashboard renders navigation from the tested role matrix", async () => {
     "utf8",
   );
 
-  assert.match(source, /navigationForRole\(session\.user\.role\)/);
+  assert.match(source, /navigationForRole\(\s*session\.user\.role,/);
+  assert.match(source, /pageAccess\.data\.allowedPages/);
+  assert.match(source, /canOpenOrders/);
+  assert.match(source, /canOpenInventory/);
   assert.match(source, /visibleNav\.map/);
   assert.match(source, /<NavLink/);
   assert.match(source, /to=\{item\.path\}/);
@@ -104,7 +124,7 @@ test("the courier screen is isolated from admin navigation and accepts courier s
   assert.match(appSource, /CourierTrackingScreen/);
   assert.match(
     appSource,
-    /defaultAdminPathForRole\(session\.user\.role\)/,
+    /defaultAdminPathForRole\(\s*session\.user\.role,/,
   );
   assert.match(sessionSource, /!canAccessWebSession\(response\.user\.role\)/);
   assert.match(sessionSource, /Веб-доступ разрешён/);

@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import { Link, NavLink, Outlet, useNavigate } from "react-router";
+import { useMyAdminPageAccess } from "@/src/entities/admin-page-access";
 import { roleLabels } from "@/src/entities/order";
 import {
   canReceiveNewOrderAlerts,
@@ -45,6 +46,7 @@ function NavIcon({ name }: { name: AdminNavIconName }) {
     contacts: <><path d="M4 14v-2a8 8 0 0 1 16 0v2M4 14h3v5H5a1 1 0 0 1-1-1zM20 14h-3v5h2a1 1 0 0 0 1-1zM17 19c0 2-2 3-5 3h-2" /></>,
     "login-attempts": <><path d="M12 3a9 9 0 1 0 9 9" /><path d="M12 7v5l3 2M15 3h6v6" /></>,
     accounting: <><rect x="3" y="5" width="18" height="14" rx="2" /><path d="M7 9h10M7 13h4M15 13h2M7 17h10" /></>,
+    access: <><rect x="3" y="5" width="18" height="14" rx="2" /><path d="M8 10h8M8 14h5" /><circle cx="17" cy="14" r="2" /></>,
   };
 
   return (
@@ -63,6 +65,7 @@ const SIDEBAR_COLLAPSED_KEY = "admin:sidebar-collapsed";
 
 export function AdminDashboard() {
   const { session, ready, logout } = useSession();
+  const pageAccess = useMyAdminPageAccess();
   const [isNavigationOpen, setIsNavigationOpen] = useState(false);
   // Genis ekranda kenar cubugu daraltilabilir; secim cihazda kalsin.
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
@@ -163,8 +166,49 @@ export function AdminDashboard() {
     );
   }
 
-  const visibleNav = navigationForRole(session.user.role);
-  const homePath = defaultAdminPathForRole(session.user.role);
+  if (pageAccess.isPending) {
+    return (
+      <main className="login-page" data-testid="admin-page-access-loading">
+        Загружаем права доступа…
+      </main>
+    );
+  }
+
+  if (pageAccess.isError || !pageAccess.data) {
+    return (
+      <main className="login-page" data-testid="admin-page-access-error">
+        <section className="access-card">
+          <h1>Не удалось проверить доступ</h1>
+          <p>Разделы закрыты до успешной загрузки серверной матрицы прав.</p>
+          <button
+            className="primary-button"
+            type="button"
+            onClick={() => void pageAccess.refetch()}
+          >
+            Повторить
+          </button>
+          <button
+            className="secondary-button"
+            type="button"
+            onClick={() => void logout()}
+          >
+            Выйти
+          </button>
+        </section>
+      </main>
+    );
+  }
+
+  const visibleNav = navigationForRole(
+    session.user.role,
+    pageAccess.data.allowedPages,
+  );
+  const homePath = defaultAdminPathForRole(
+    session.user.role,
+    pageAccess.data.allowedPages,
+  );
+  const canOpenOrders = pageAccess.data.allowedPages.includes("ORDERS");
+  const canOpenInventory = pageAccess.data.allowedPages.includes("MEAL_CONFIG");
   const userName =
     [session.user.firstName, session.user.lastName].filter(Boolean).join(" ") ||
     session.user.phone;
@@ -293,7 +337,7 @@ export function AdminDashboard() {
           <span />
           <span />
         </button>
-        {canReceiveNewOrderAlerts(session.user.role) && (
+        {canOpenOrders && canReceiveNewOrderAlerts(session.user.role) && (
           <div className="new-order-alert-slot">
             <NewOrderAlert
               key={session.user.id}
@@ -302,8 +346,8 @@ export function AdminDashboard() {
             />
           </div>
         )}
-        {canReceiveNewOrderAlerts(session.user.role) && <ReceiptQueue />}
-        {(session.user.role === "ADMIN" || session.user.role === "SUPER_ADMIN") && (
+        {canOpenOrders && canReceiveNewOrderAlerts(session.user.role) && <ReceiptQueue />}
+        {canOpenInventory && (session.user.role === "ADMIN" || session.user.role === "SUPER_ADMIN") && (
           <div style={{ minHeight: 90 }}><Suspense fallback={null}><InventoryNotifications /></Suspense></div>
         )}
         <Suspense

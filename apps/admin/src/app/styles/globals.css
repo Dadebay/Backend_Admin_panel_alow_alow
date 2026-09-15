@@ -10246,3 +10246,186 @@ button:disabled {
     display: none;
   }
 }
+
+.page-access-manager {
+  display: grid;
+  gap: 18px;
+}
+
+.page-access-notice {
+  padding: 14px 16px;
+  border: 1px solid color-mix(in srgb, var(--brand-orange) 30%, var(--line));
+  border-radius: 12px;
+  color: var(--brand-navy);
+  background: color-mix(in srgb, var(--brand-orange) 8%, var(--brand-cream));
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.page-access-role-list {
+  display: grid;
+  gap: 16px;
+}
+
+.page-access-role-card {
+  display: grid;
+  gap: 18px;
+}
+
+.page-access-role-card.is-locked {
+  background: color-mix(in srgb, var(--brand-cream) 95%, var(--brand-navy));
+}
+
+.page-access-role-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.page-access-role-head h2,
+.page-access-role-head p {
+  margin: 0;
+}
+
+.page-access-role-head p {
+  max-width: 680px;
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.page-access-badge {
+  flex: 0 0 auto;
+  padding: 6px 9px;
+  border-radius: 999px;
+  color: var(--brand-navy);
+  background: color-mix(in srgb, var(--brand-orange) 14%, var(--brand-cream));
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.page-access-fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.page-access-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 9px;
+}
+
+.page-access-option {
+  position: relative;
+  display: grid;
+  grid-template-columns: 22px 1fr;
+  align-items: center;
+  gap: 9px;
+  min-height: 48px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  color: var(--ink);
+  background: var(--brand-cream);
+  cursor: pointer;
+}
+
+.page-access-option input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.page-access-option > span {
+  display: grid;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--brand-navy) 28%, var(--line));
+  border-radius: 7px;
+  color: var(--brand-cream);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.page-access-option:has(input:checked),
+.page-access-option.is-checked {
+  border-color: color-mix(in srgb, var(--brand-orange) 55%, var(--line));
+  background: color-mix(
+    in srgb,
+    var(--brand-orange) 7%,
+    var(--brand-cream)
+  );
+}
+
+.page-access-option input:checked + span,
+.page-access-option.is-checked > span {
+  border-color: var(--brand-orange);
+  background: var(--brand-orange);
+}
+
+.page-access-option input:checked + span::after {
+  content: "✓";
+}
+
+.page-access-option:has(input:focus-visible) {
+  outline: 3px solid color-mix(in srgb, var(--brand-orange) 30%, transparent);
+  outline-offset: 2px;
+}
+
+.page-access-option strong {
+  font-size: 12px;
+}
+
+.page-access-option small {
+  grid-column: 2;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.page-access-option.is-disabled {
+  color: var(--muted);
+  background: color-mix(
+    in srgb,
+    var(--brand-cream) 92%,
+    var(--brand-navy)
+  );
+  cursor: not-allowed;
+  opacity: 0.72;
+}
+
+.page-access-role-card.is-locked .page-access-option.is-disabled {
+  color: var(--ink);
+  cursor: default;
+  opacity: 1;
+}
+
+.page-access-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 40px;
+}
+
+@media (max-width: 640px) {
+  .page-access-role-head,
+  .page-access-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .page-access-badge {
+    align-self: flex-start;
+  }
+
+  .page-access-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Shared visual rhythm for every top-level admin workspace. */

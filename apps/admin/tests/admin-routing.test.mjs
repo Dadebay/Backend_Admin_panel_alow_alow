@@ -21,6 +21,7 @@ const expectedPaths = {
   staff: "/staff",
   contacts: "/contacts",
   "app-versions": "/settings/app-versions",
+  access: "/access",
 };
 
 const routeTree = [
@@ -53,6 +54,8 @@ test("each portal role returns to its authorized home", () => {
   assert.equal(defaultAdminPathForRole("ACCOUNTANT"), "/accounting");
   assert.equal(defaultAdminPathForRole("ADMIN"), "/orders");
   assert.equal(defaultAdminPathForRole("SUPER_ADMIN"), "/orders");
+  assert.equal(defaultAdminPathForRole("ADMIN", ["CATALOG"]), "/catalog");
+  assert.equal(defaultAdminPathForRole("ADMIN", []), "/access-denied");
 });
 
 test("the SPA uses history routing, role guards and a nested admin layout", async () => {
@@ -71,12 +74,13 @@ test("the SPA uses history routing, role guards and a nested admin layout", asyn
   assert.match(appSource, /<BrowserRouter>/);
   assert.match(appSource, /<Routes>/);
   assert.match(appSource, /adminNavigation\.map/);
-  assert.match(appSource, /navigationItem\.roles\.includes\(session\.user\.role\)/);
+  assert.match(appSource, /navigationForRole\(/);
+  assert.match(appSource, /pageAccess\.data\.allowedPages/);
   assert.match(appSource, /function RootRedirect/);
   assert.match(appSource, /path="\/courier"/);
   assert.match(
     appSource,
-    /defaultAdminPathForRole\(session\.user\.role\)/,
+    /defaultAdminPathForRole\(\s*session\.user\.role,/,
   );
   assert.match(appSource, /<Route path="\*" element=\{<NotFound \/>\}/);
   assert.match(dashboardSource, /<NavLink/);

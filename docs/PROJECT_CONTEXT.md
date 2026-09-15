@@ -144,7 +144,7 @@ alowalow/
 │   │   │   ├── auth/      # OTP, JWT, refresh, Android pull SMS gateway
 │   │   │   ├── accounting/ # configurable shifts, cash handoffs, reports
 │   │   │   ├── inventory/ # ingredients, recipes, branch stock, order reservations and audit
-│   │   │   ├── users/     # staff and customer addresses
+│   │   │   ├── users/     # staff, customer addresses and admin page-access policy
 │   │   │   ├── branches/  # branch CRUD and nearest-branch selection
 │   │   │   ├── delivery/  # welayat/etrap tariffs and delivery pricing
 │   │   │   ├── catalog/   # categories and products
@@ -171,9 +171,9 @@ alowalow/
 │       ├── package-lock.json # isolated frontend dependency/security tree
 │       ├── src/            # FSD product layers
 │       │   ├── app/        # SPA bootstrap, routes, providers, global styles
-│       │   ├── widgets/    # inventory-dashboard, meal/recipe configurator, boards/maps/managers, incl. shift accounting and app-version-manager
-│       │   ├── features/   # inventory actions/notifications/calculator, typed mutations, incl. cash handoff and app-version-management
-│       │   ├── entities/   # typed queries/models, incl. inventory/accounting/delivery/app-version
+│       │   ├── widgets/    # inventory-dashboard, meal/recipe configurator, boards/maps/managers, incl. page-access and app-version managers
+│       │   ├── features/   # inventory/page-access actions, notifications/calculator, typed mutations and app-version management
+│       │   ├── entities/   # typed queries/models, incl. inventory/accounting/delivery/page-access/app-version
 │       │   └── shared/     # HTTP/query clients, auth, Zod form helpers, UI
 │       ├── public/
 │       └── tests/
@@ -233,6 +233,15 @@ their own staff account as the customer of an ordinary order.
 Only `SUPER_ADMIN` may manage another `SUPER_ADMIN`, and the system must retain
 at least one active `SUPER_ADMIN`.
 
+`SUPER_ADMIN` owns the `/access` role-page matrix. The matrix may narrow the
+existing browser-page access of `ADMIN` and `ACCOUNTANT`, but it cannot expand a
+role beyond the API capabilities already granted in code. `SUPER_ADMIN` always
+retains every operations-admin page and cannot be edited in the matrix.
+`CUSTOMER`, `OPERATOR`, `COOK`, and `COURIER` cannot be granted operations-admin
+pages through this setting; the courier's isolated `/courier` screen remains a
+separate policy. Stored role policies are versioned for conflict detection and
+every successful change creates an audit record.
+
 The React/Vite operations admin accepts admin-navigation access only for
 `ACCOUNTANT`, `ADMIN`, and `SUPER_ADMIN`. `CUSTOMER`, `OPERATOR`, and `COOK`
 cannot retain a web session. `COURIER` may retain a session only for the
@@ -247,8 +256,12 @@ accountant to `/accounting` and administrators to `/orders`; the courier
 dispatch map is `/couriers/map`, and the remaining
 management sections use their stable top-level paths. Sidebar navigation uses
 history-aware links, direct loads are served through the Nginx SPA fallback,
-and a role-forbidden section redirects to that staff role's default allowed
-section. Backend authorization remains authoritative.
+and both menu visibility and direct route entry use the effective server-owned
+role-page matrix. A role-forbidden section redirects to that staff role's first
+allowed section; if none remain, the admin shows a dedicated no-access state.
+Failure to load the matrix closes all admin sections until it can be retried.
+Backend endpoint authorization remains authoritative and is not replaced by
+page visibility.
 
 The admin order workspace defaults to a role-aware Kanban backed by the same
 paginated order API and mutation policy as the table. `ADMIN` and `SUPER_ADMIN`

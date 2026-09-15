@@ -1,4 +1,5 @@
 import type { Role } from "@/src/entities/order";
+import type { AdminPage } from "@/src/entities/admin-page-access";
 
 export type AdminView =
   | "orders"
@@ -13,7 +14,8 @@ export type AdminView =
   | "contacts"
   | "app-versions"
   | "login-attempts"
-  | "accounting";
+  | "accounting"
+  | "access";
 
 export type AdminNavIconName = AdminView;
 
@@ -23,6 +25,7 @@ export type AdminNavigationItem = {
   icon: AdminNavIconName;
   path: `/${string}`;
   roles: Role[];
+  page: AdminPage | null;
 };
 
 export const adminNavigation: AdminNavigationItem[] = [
@@ -32,6 +35,7 @@ export const adminNavigation: AdminNavigationItem[] = [
     icon: "login-attempts",
     path: "/login-attempts",
     roles: ["ADMIN", "SUPER_ADMIN"],
+    page: "LOGIN_ATTEMPTS",
   },
   {
     id: "orders",
@@ -39,6 +43,7 @@ export const adminNavigation: AdminNavigationItem[] = [
     icon: "orders",
     path: "/orders",
     roles: ["ADMIN", "SUPER_ADMIN"],
+    page: "ORDERS",
   },
   {
     id: "meal-config",
@@ -46,6 +51,7 @@ export const adminNavigation: AdminNavigationItem[] = [
     icon: "meal-config",
     path: "/meal-config",
     roles: ["ADMIN", "SUPER_ADMIN"],
+    page: "MEAL_CONFIG",
   },
   {
     id: "accounting",
@@ -53,6 +59,7 @@ export const adminNavigation: AdminNavigationItem[] = [
     icon: "accounting",
     path: "/accounting",
     roles: ["ACCOUNTANT", "ADMIN", "SUPER_ADMIN"],
+    page: "ACCOUNTING",
   },
   {
     id: "map",
@@ -60,6 +67,7 @@ export const adminNavigation: AdminNavigationItem[] = [
     icon: "map",
     path: "/couriers/map",
     roles: ["ADMIN", "SUPER_ADMIN"],
+    page: "COURIER_MAP",
   },
   {
     id: "branches",
@@ -67,6 +75,7 @@ export const adminNavigation: AdminNavigationItem[] = [
     icon: "branches",
     path: "/branches",
     roles: ["ADMIN", "SUPER_ADMIN"],
+    page: "BRANCHES",
   },
   {
     id: "delivery",
@@ -74,6 +83,7 @@ export const adminNavigation: AdminNavigationItem[] = [
     icon: "delivery",
     path: "/delivery",
     roles: ["ADMIN", "SUPER_ADMIN"],
+    page: "DELIVERY",
   },
   {
     id: "catalog",
@@ -81,6 +91,7 @@ export const adminNavigation: AdminNavigationItem[] = [
     icon: "catalog",
     path: "/catalog",
     roles: ["ADMIN", "SUPER_ADMIN"],
+    page: "CATALOG",
   },
   {
     id: "marketing",
@@ -88,6 +99,7 @@ export const adminNavigation: AdminNavigationItem[] = [
     icon: "marketing",
     path: "/marketing",
     roles: ["ADMIN", "SUPER_ADMIN"],
+    page: "MARKETING",
   },
   {
     id: "notifications",
@@ -95,6 +107,7 @@ export const adminNavigation: AdminNavigationItem[] = [
     icon: "notifications",
     path: "/notifications",
     roles: ["ADMIN", "SUPER_ADMIN"],
+    page: "NOTIFICATIONS",
   },
   {
     id: "staff",
@@ -102,6 +115,7 @@ export const adminNavigation: AdminNavigationItem[] = [
     icon: "staff",
     path: "/staff",
     roles: ["ADMIN", "SUPER_ADMIN"],
+    page: "STAFF",
   },
   {
     id: "contacts",
@@ -109,6 +123,7 @@ export const adminNavigation: AdminNavigationItem[] = [
     icon: "contacts",
     path: "/contacts",
     roles: ["ADMIN", "SUPER_ADMIN"],
+    page: "CONTACTS",
   },
   {
     id: "app-versions",
@@ -116,20 +131,36 @@ export const adminNavigation: AdminNavigationItem[] = [
     icon: "app-versions",
     path: "/settings/app-versions",
     roles: ["ADMIN", "SUPER_ADMIN"],
+    page: "APP_VERSIONS",
+  },
+  {
+    id: "access",
+    label: "Доступы",
+    icon: "access",
+    path: "/access",
+    roles: ["SUPER_ADMIN"],
+    page: null,
   },
 ];
 
-export function navigationForRole(role: Role) {
-  return adminNavigation.filter((item) => item.roles.includes(role));
+export function navigationForRole(role: Role, allowedPages?: AdminPage[]) {
+  return adminNavigation.filter((item) => {
+    if (!item.roles.includes(role)) return false;
+    if (role === "SUPER_ADMIN" || allowedPages === undefined) return true;
+    return item.page !== null && allowedPages.includes(item.page);
+  });
 }
 
-export function defaultAdminPathForRole(role: Role) {
-  const navigation = navigationForRole(role);
+export function defaultAdminPathForRole(
+  role: Role,
+  allowedPages?: AdminPage[],
+) {
+  const navigation = navigationForRole(role, allowedPages);
   return (
     navigation.find(({ id }) => id === "accounting" && role === "ACCOUNTANT")
       ?.path ??
     navigation.find(({ id }) => id === "orders")?.path ??
     navigation[0]?.path ??
-    "/"
+    (allowedPages ? "/access-denied" : "/")
   );
 }

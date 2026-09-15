@@ -16,9 +16,11 @@ import {
   AdminDashboard,
   adminNavigation,
   defaultAdminPathForRole,
+  navigationForRole,
   type AdminNavigationItem,
   type AdminView,
 } from "@/src/widgets/admin-dashboard";
+import { useMyAdminPageAccess } from "@/src/entities/admin-page-access";
 import { useSession } from "@/src/shared/auth";
 import { AppProviders } from "../providers";
 
@@ -84,6 +86,11 @@ const adminRouteComponents = {
       default: module.AccountingDashboard,
     })),
   ),
+  access: lazy(() =>
+    import("@/src/widgets/page-access-manager").then((module) => ({
+      default: module.PageAccessManager,
+    })),
+  ),
 } satisfies Record<AdminView, LazyExoticComponent<ComponentType>>;
 
 const CourierTrackingScreen = lazy(() =>
@@ -109,9 +116,9 @@ function NotFound() {
         <Link
           className="primary-button link-button"
           data-testid="app-not-found-home"
-          to="/orders"
+          to="/"
         >
-          Открыть заказы
+          Открыть центр управления
         </Link>
       </section>
     </main>
@@ -126,13 +133,23 @@ function RoleProtectedView({
   children: ReactNode;
 }) {
   const { session } = useSession();
+  const pageAccess = useMyAdminPageAccess();
 
   if (!session) return null;
-  if (!navigationItem.roles.includes(session.user.role)) {
+  if (pageAccess.isPending) return <RouteFallback />;
+  if (pageAccess.isError || !pageAccess.data) return null;
+  const allowedNavigation = navigationForRole(
+    session.user.role,
+    pageAccess.data.allowedPages,
+  );
+  if (!allowedNavigation.some(({ id }) => id === navigationItem.id)) {
     return (
       <Navigate
         replace
-        to={defaultAdminPathForRole(session.user.role)}
+        to={defaultAdminPathForRole(
+          session.user.role,
+          pageAccess.data.allowedPages,
+        )}
       />
     );
   }
@@ -142,7 +159,15 @@ function RoleProtectedView({
 
 function RootRedirect() {
   const { session, ready } = useSession();
+  const pageAccess = useMyAdminPageAccess();
   if (!ready) return <RouteFallback />;
+  if (
+    session &&
+    session.user.role !== "COURIER" &&
+    pageAccess.isPending
+  ) {
+    return <RouteFallback />;
+  }
   return (
     <Navigate
       replace
@@ -150,7 +175,10 @@ function RootRedirect() {
         session?.user.role === "COURIER"
           ? "/courier"
           : session
-            ? defaultAdminPathForRole(session.user.role)
+            ? defaultAdminPathForRole(
+                session.user.role,
+                pageAccess.data?.allowedPages,
+              )
             : "/orders"
       }
     />
@@ -177,6 +205,22 @@ function AdminRoutes() {
             />
           );
         })}
+        <Route
+          path="/access-denied"
+          element={
+            <section className="admin-section" data-testid="admin-no-page-access">
+              <header className="section-head">
+                <div>
+                  <h1>Нет доступных разделов</h1>
+                  <p>
+                    Для вашей роли отключён доступ ко всем страницам. Обратитесь
+                    к главному администратору.
+                  </p>
+                </div>
+              </header>
+            </section>
+          }
+        />
       </Route>
       <Route path="*" element={<NotFound />} />
     </Routes>

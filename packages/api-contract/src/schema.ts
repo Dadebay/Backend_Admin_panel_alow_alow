@@ -971,6 +971,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin-page-access/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["AdminPageAccessController_mine_v1"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin-page-access": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["AdminPageAccessController_matrix_v1"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin-page-access/{role}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["AdminPageAccessController_update_v1"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/branches": {
         parameters: {
             query?: never;
@@ -3131,6 +3179,22 @@ export interface components {
             entrance?: string;
             floor?: string;
             apartment?: string;
+        };
+        AdminRolePageAccessResponseDto: {
+            /** @enum {string} */
+            role: "CUSTOMER" | "OPERATOR" | "COOK" | "COURIER" | "ACCOUNTANT" | "ADMIN" | "SUPER_ADMIN";
+            allowedPages: ("LOGIN_ATTEMPTS" | "ORDERS" | "MEAL_CONFIG" | "ACCOUNTING" | "COURIER_MAP" | "BRANCHES" | "DELIVERY" | "CATALOG" | "MARKETING" | "NOTIFICATIONS" | "STAFF" | "CONTACTS" | "APP_VERSIONS")[];
+            availablePages: ("LOGIN_ATTEMPTS" | "ORDERS" | "MEAL_CONFIG" | "ACCOUNTING" | "COURIER_MAP" | "BRANCHES" | "DELIVERY" | "CATALOG" | "MARKETING" | "NOTIFICATIONS" | "STAFF" | "CONTACTS" | "APP_VERSIONS")[];
+            editable: boolean;
+            version: number;
+        };
+        AdminPageAccessMatrixResponseDto: {
+            roles: components["schemas"]["AdminRolePageAccessResponseDto"][];
+        };
+        UpdateAdminPageAccessDto: {
+            allowedPages: ("LOGIN_ATTEMPTS" | "ORDERS" | "MEAL_CONFIG" | "ACCOUNTING" | "COURIER_MAP" | "BRANCHES" | "DELIVERY" | "CATALOG" | "MARKETING" | "NOTIFICATIONS" | "STAFF" | "CONTACTS" | "APP_VERSIONS")[];
+            /** @description Current access-policy version */
+            version: number;
         };
         BranchResponseDto: {
             /** Format: uuid */
@@ -5441,6 +5505,69 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    AdminPageAccessController_mine_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminRolePageAccessResponseDto"];
+                };
+            };
+        };
+    };
+    AdminPageAccessController_matrix_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminPageAccessMatrixResponseDto"];
+                };
+            };
+        };
+    };
+    AdminPageAccessController_update_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                role: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateAdminPageAccessDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminRolePageAccessResponseDto"];
+                };
             };
         };
     };

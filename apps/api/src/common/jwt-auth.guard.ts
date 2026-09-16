@@ -62,7 +62,6 @@ export class JwtAuthGuard implements CanActivate {
           phone: true,
           role: true,
           isActive: true,
-          adminPageAccess: { select: { allowedPages: true } },
         },
       });
       if (!user?.isActive) {
@@ -82,17 +81,21 @@ export class JwtAuthGuard implements CanActivate {
           throw new UnauthorizedException("Session is revoked or expired");
         }
       }
+      const rolePolicy = await this.prisma.adminRolePageAccess.findUnique({
+        where: { role: user.role },
+        select: { allowedPages: true },
+      });
       request.user = {
         id: user.id,
         phone: user.phone,
         role: user.role,
         adminPages: effectiveAdminPages(
           user.role,
-          user.adminPageAccess?.allowedPages ?? null,
+          rolePolicy?.allowedPages ?? null,
         ),
         expandedAdminPages: expandedAdminPages(
           user.role,
-          user.adminPageAccess?.allowedPages ?? null,
+          rolePolicy?.allowedPages ?? null,
         ),
       };
       return true;

@@ -15,24 +15,9 @@ export class UpdateAdminPageAccessDto {
   version: number;
 }
 
-export class AdminUserPageAccessResponseDto {
-  @ApiProperty({ format: "uuid" })
-  userId: string;
-
-  @ApiProperty({ nullable: true })
-  firstName: string | null;
-
-  @ApiProperty({ nullable: true })
-  lastName: string | null;
-
-  @ApiProperty()
-  phone: string;
-
+export class AdminRolePageAccessResponseDto {
   @ApiProperty({ enum: Role })
   role: Role;
-
-  @ApiProperty()
-  isActive: boolean;
 
   @ApiProperty({ enum: AdminPage, isArray: true })
   allowedPages: AdminPage[];
@@ -43,7 +28,7 @@ export class AdminUserPageAccessResponseDto {
   @ApiProperty({
     enum: AdminPage,
     isArray: true,
-    description: "Pages granted beyond the employee's base role defaults",
+    description: "Pages granted beyond the role's safe defaults",
   })
   expandedPages: AdminPage[];
 
@@ -55,6 +40,6 @@ export class AdminUserPageAccessResponseDto {
 }
 
 export class AdminPageAccessMatrixResponseDto {
-  @ApiProperty({ type: [AdminUserPageAccessResponseDto] })
-  users: AdminUserPageAccessResponseDto[];
+  @ApiProperty({ type: [AdminRolePageAccessResponseDto] })
+  roles: AdminRolePageAccessResponseDto[];
 }

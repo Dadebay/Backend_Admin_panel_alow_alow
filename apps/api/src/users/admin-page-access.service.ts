@@ -2,7 +2,6 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
-  NotFoundException,
 } from "@nestjs/common";
 import type { AuthUser } from "../common/auth.types";
 import { AdminPage, Prisma, Role } from "../generated/prisma/client";
@@ -10,99 +9,84 @@ import { PrismaService } from "../prisma/prisma.service";
 import type { UpdateAdminPageAccessDto } from "./admin-page-access.dto";
 import {
   ADMIN_PAGES,
+  ADMIN_PAGE_ACCESS_MATRIX_ROLES,
   availableAdminPages,
   effectiveAdminPages,
   expandedAdminPages,
   isConfigurableAdminPageRole,
 } from "./admin-page-access.policy";
 
-const userAccessSelect = {
-  id: true,
-  firstName: true,
-  lastName: true,
-  phone: true,
-  role: true,
-  isActive: true,
-  adminPageAccess: {
-    select: { allowedPages: true, version: true },
-  },
-} satisfies Prisma.UserSelect;
-
-type UserWithAccess = Prisma.UserGetPayload<{ select: typeof userAccessSelect }>;
-
 @Injectable()
 export class AdminPageAccessService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async mine(userId: string) {
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: userAccessSelect,
+  async mine(role: Role) {
+    const policy = await this.prisma.adminRolePageAccess.findUnique({
+      where: { role },
     });
-    if (!user) throw new NotFoundException("User not found");
-    return this.toResponse(user);
+    return this.toResponse(
+      role,
+      policy?.allowedPages ?? null,
+      policy?.version ?? 0,
+    );
   }
 
   async matrix() {
-    const users = await this.prisma.user.findMany({
-      where: { role: { not: Role.CUSTOMER } },
-      orderBy: [
-        { role: "asc" },
-        { firstName: "asc" },
-        { lastName: "asc" },
-        { phone: "asc" },
-      ],
-      select: userAccessSelect,
+    const policies = await this.prisma.adminRolePageAccess.findMany({
+      where: { role: { in: [...ADMIN_PAGE_ACCESS_MATRIX_ROLES] } },
     });
-    return { users: users.map((user) => this.toResponse(user)) };
+    const byRole = new Map(policies.map((policy) => [policy.role, policy]));
+    return {
+      roles: ADMIN_PAGE_ACCESS_MATRIX_ROLES.map((role) => {
+        const policy = byRole.get(role);
+        return this.toResponse(
+          role,
+          policy?.allowedPages ?? null,
+          policy?.version ?? 0,
+        );
+      }),
+    };
   }
 
-  async update(
-    actor: AuthUser,
-    userId: string,
-    dto: UpdateAdminPageAccessDto,
-  ) {
+  async update(actor: AuthUser, role: Role, dto: UpdateAdminPageAccessDto) {
+    if (!isConfigurableAdminPageRole(role)) {
+      throw new BadRequestException(
+        "Page access can be configured only for staff web roles",
+      );
+    }
+
     const normalized = ADMIN_PAGES.filter((page) =>
       dto.allowedPages.includes(page),
     );
 
     try {
       return await this.prisma.$transaction(async (tx) => {
-        const target = await tx.user.findUnique({
-          where: { id: userId },
-          select: userAccessSelect,
+        const current = await tx.adminRolePageAccess.findUnique({
+          where: { role },
         });
-        if (!target) throw new NotFoundException("Employee not found");
-        if (!isConfigurableAdminPageRole(target.role)) {
-          throw new BadRequestException(
-            "Page access cannot be changed for this employee",
-          );
-        }
-
-        const currentVersion = target.adminPageAccess?.version ?? 0;
+        const currentVersion = current?.version ?? 0;
         if (currentVersion !== dto.version) {
           throw new ConflictException(
             "Page access changed in another session. Reload and try again",
           );
         }
 
-        const saved = target.adminPageAccess
-          ? await this.updateExisting(tx, userId, normalized, currentVersion)
-          : await tx.adminUserPageAccess.create({
-              data: { userId, allowedPages: normalized, version: 1 },
+        const saved = current
+          ? await this.updateExisting(tx, role, normalized, currentVersion)
+          : await tx.adminRolePageAccess.create({
+              data: { role, allowedPages: normalized, version: 1 },
             });
 
         await tx.auditLog.create({
           data: {
             actorId: actor.id,
-            action: "admin_user_page_access.updated",
-            entityType: "AdminUserPageAccess",
-            entityId: userId,
+            action: "admin_role_page_access.updated",
+            entityType: "AdminRolePageAccess",
+            entityId: role,
             metadata: {
-              targetRole: target.role,
               previousAllowedPages: effectiveAdminPages(
-                target.role,
-                target.adminPageAccess?.allowedPages ?? null,
+                role,
+                current?.allowedPages ?? null,
               ),
               allowedPages: normalized,
               previousVersion: currentVersion,
@@ -111,10 +95,7 @@ export class AdminPageAccessService {
           },
         });
 
-        return this.toResponse({
-          ...target,
-          adminPageAccess: saved,
-        });
+        return this.toResponse(role, saved.allowedPages, saved.version);
       });
     } catch (error) {
       if (
@@ -131,12 +112,12 @@ export class AdminPageAccessService {
 
   private async updateExisting(
     tx: Prisma.TransactionClient,
-    userId: string,
+    role: Role,
     allowedPages: AdminPage[],
     version: number,
   ) {
-    const updated = await tx.adminUserPageAccess.updateMany({
-      where: { userId, version },
+    const updated = await tx.adminRolePageAccess.updateMany({
+      where: { role, version },
       data: { allowedPages, version: { increment: 1 } },
     });
     if (updated.count !== 1) {
@@ -144,28 +125,21 @@ export class AdminPageAccessService {
         "Page access changed in another session. Reload and try again",
       );
     }
-    return tx.adminUserPageAccess.findUniqueOrThrow({ where: { userId } });
+    return tx.adminRolePageAccess.findUniqueOrThrow({ where: { role } });
   }
 
-  private toResponse(user: UserWithAccess) {
+  private toResponse(
+    role: Role,
+    storedPages: readonly AdminPage[] | null,
+    version: number,
+  ) {
     return {
-      userId: user.id,
-      firstName: user.firstName,
-      lastName: user.lastName,
-      phone: user.phone,
-      role: user.role,
-      isActive: user.isActive,
-      allowedPages: effectiveAdminPages(
-        user.role,
-        user.adminPageAccess?.allowedPages ?? null,
-      ),
-      availablePages: availableAdminPages(user.role),
-      expandedPages: expandedAdminPages(
-        user.role,
-        user.adminPageAccess?.allowedPages ?? null,
-      ),
-      editable: isConfigurableAdminPageRole(user.role),
-      version: user.adminPageAccess?.version ?? 0,
+      role,
+      allowedPages: effectiveAdminPages(role, storedPages),
+      availablePages: availableAdminPages(role),
+      expandedPages: expandedAdminPages(role, storedPages),
+      editable: isConfigurableAdminPageRole(role),
+      version,
     };
   }
 }

@@ -8,6 +8,6 @@ export {
   adminPageValues,
   type AdminPage,
   type AdminPageAccessMatrix,
-  type AdminUserPageAccess,
+  type AdminRolePageAccess,
   type UpdateAdminPageAccess,
 } from "./model/types";

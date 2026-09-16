@@ -1,12 +1,12 @@
 import type { components } from "@alowalow/api-contract";
 
-export type AdminUserPageAccess =
-  components["schemas"]["AdminUserPageAccessResponseDto"];
+export type AdminRolePageAccess =
+  components["schemas"]["AdminRolePageAccessResponseDto"];
 export type AdminPageAccessMatrix =
   components["schemas"]["AdminPageAccessMatrixResponseDto"];
 export type UpdateAdminPageAccess =
   components["schemas"]["UpdateAdminPageAccessDto"];
-export type AdminPage = AdminUserPageAccess["allowedPages"][number];
+export type AdminPage = AdminRolePageAccess["allowedPages"][number];
 
 export const adminPageValues = [
   "LOGIN_ATTEMPTS",

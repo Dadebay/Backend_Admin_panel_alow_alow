@@ -2,27 +2,23 @@ import { useQuery } from "@tanstack/react-query";
 import { canAccessWebSession, useSession } from "@/src/shared/auth";
 import type {
   AdminPageAccessMatrix,
-  AdminUserPageAccess,
+  AdminRolePageAccess,
 } from "../model/types";
 
 export const adminPageAccessQueryKeys = {
   all: ["admin-page-access"] as const,
-  mine: (userId: string) =>
-    [...adminPageAccessQueryKeys.all, "mine", userId] as const,
+  mine: (role: string) =>
+    [...adminPageAccessQueryKeys.all, "mine", role] as const,
   matrix: () => [...adminPageAccessQueryKeys.all, "matrix"] as const,
 };
 
 export function useMyAdminPageAccess() {
   const { session, authorizedRequest } = useSession();
-  const canLoad = Boolean(
-    session && canAccessWebSession(session.user.role),
-  );
+  const canLoad = Boolean(session && canAccessWebSession(session.user.role));
   return useQuery({
-    queryKey: adminPageAccessQueryKeys.mine(
-      session?.user.id ?? "anonymous",
-    ),
+    queryKey: adminPageAccessQueryKeys.mine(session?.user.role ?? "anonymous"),
     queryFn: ({ signal }) =>
-      authorizedRequest<AdminUserPageAccess>("/admin-page-access/me", {
+      authorizedRequest<AdminRolePageAccess>("/admin-page-access/me", {
         signal,
       }),
     enabled: canLoad,

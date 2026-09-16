@@ -57,10 +57,16 @@ test("super-admin access screen uses the real API, versioned updates and accessi
   assert.match(managerSource, /register\("allowedPages"\)/);
   assert.match(managerSource, /register\("version"/);
   assert.match(managerSource, /type="checkbox"/);
-  assert.match(managerSource, /page-access-save-\$\{access\.userId/);
-  assert.match(managerSource, /Доступ сотрудника/);
-  assert.match(managerSource, /независимо от его роли/);
-  assert.match(managerSource, /page-access-search/);
-  assert.match(managerSource, /page-access-role-filter/);
+  assert.match(
+    managerSource,
+    /page-access-save-\$\{access\.role\.toLowerCase\(\)/,
+  );
+  assert.match(managerSource, /Доступ по ролям/);
+  assert.match(managerSource, /все 14 страниц/);
+  assert.match(managerSource, /всем сотрудникам выбранной роли/);
+  assert.match(managerSource, /matrix\.data\?\.roles/);
+  assert.doesNotMatch(managerSource, /page-access-search/);
+  assert.doesNotMatch(managerSource, /page-access-role-filter/);
+  assert.doesNotMatch(managerSource, /access\.userId/);
   assert.doesNotMatch(managerSource, /Не поддерживается ролью/);
 });

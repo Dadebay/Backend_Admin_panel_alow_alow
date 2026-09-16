@@ -10267,17 +10267,6 @@ button:disabled {
   gap: 16px;
 }
 
-.page-access-filters {
-  display: grid;
-  grid-template-columns: minmax(240px, 1fr) minmax(180px, 260px);
-  gap: 12px;
-}
-
-.page-access-filters .text-input,
-.page-access-filters .select-input {
-  width: 100%;
-}
-
 .page-access-role-card {
   display: grid;
   gap: 18px;
@@ -10424,10 +10413,6 @@ button:disabled {
 }
 
 @media (max-width: 640px) {
-  .page-access-filters {
-    grid-template-columns: 1fr;
-  }
-
   .page-access-role-head,
   .page-access-actions {
     align-items: stretch;

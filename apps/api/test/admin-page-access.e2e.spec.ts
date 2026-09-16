@@ -6,11 +6,7 @@ import request from "supertest";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { AppModule } from "../src/app.module";
 import { configureApp } from "../src/bootstrap";
-import {
-  AdminPage,
-  Role,
-  type User,
-} from "../src/generated/prisma/client";
+import { AdminPage, Role, type User } from "../src/generated/prisma/client";
 import { PrismaService } from "../src/prisma/prisma.service";
 
 type ActorName =
@@ -18,11 +14,12 @@ type ActorName =
   | "admin"
   | "cook"
   | "courier"
+  | "courierTwo"
   | "customer"
   | "operator"
   | "superAdmin";
+
 type PageAccessResponse = {
-  userId: string;
   role: Role;
   allowedPages: AdminPage[];
   availablePages: AdminPage[];
@@ -31,7 +28,7 @@ type PageAccessResponse = {
   version: number;
 };
 
-describe("individual admin page access", () => {
+describe("role-wide admin page access", () => {
   let app: INestApplication;
   let prisma: PrismaService;
   let server: Parameters<typeof request>[0];
@@ -52,11 +49,26 @@ describe("individual admin page access", () => {
     const jwt = app.get(JwtService);
     server = app.getHttpServer() as Parameters<typeof request>[0];
 
+    await prisma.adminRolePageAccess.deleteMany({
+      where: {
+        role: {
+          in: [
+            Role.ACCOUNTANT,
+            Role.ADMIN,
+            Role.COOK,
+            Role.COURIER,
+            Role.OPERATOR,
+          ],
+        },
+      },
+    });
+
     const roles = {
       accountant: Role.ACCOUNTANT,
       admin: Role.ADMIN,
       cook: Role.COOK,
       courier: Role.COURIER,
+      courierTwo: Role.COURIER,
       customer: Role.CUSTOMER,
       operator: Role.OPERATOR,
       superAdmin: Role.SUPER_ADMIN,
@@ -90,11 +102,21 @@ describe("individual admin page access", () => {
   });
 
   afterAll(async () => {
-    await prisma.adminUserPageAccess.deleteMany({
-      where: { userId: { in: Object.values(users).map(({ id }) => id) } },
+    await prisma.adminRolePageAccess.deleteMany({
+      where: {
+        role: {
+          in: [
+            Role.ACCOUNTANT,
+            Role.ADMIN,
+            Role.COOK,
+            Role.COURIER,
+            Role.OPERATOR,
+          ],
+        },
+      },
     });
     await prisma.auditLog.deleteMany({
-      where: { action: "admin_user_page_access.updated" },
+      where: { action: "admin_role_page_access.updated" },
     });
     await prisma.user.deleteMany({
       where: { firstName: { startsWith: "page-access-" } },
@@ -102,7 +124,7 @@ describe("individual admin page access", () => {
     await app.close();
   });
 
-  it("returns role defaults but offers every page for every employee", async () => {
+  it("returns role defaults and all 14 pages for every configurable role", async () => {
     await request(server).get("/api/v1/admin-page-access/me").expect(401);
     await request(server)
       .get("/api/v1/admin-page-access/me")
@@ -120,7 +142,6 @@ describe("individual admin page access", () => {
         .set(bearer(tokens[name]))
         .expect(200);
       expect(response.body).toMatchObject({
-        userId: users[name].id,
         role: users[name].role,
         allowedPages: defaults,
         availablePages: Object.values(AdminPage),
@@ -134,7 +155,7 @@ describe("individual admin page access", () => {
       .set(bearer(tokens.superAdmin))
       .expect(200);
     expect(superAdmin.body).toMatchObject({
-      userId: users.superAdmin.id,
+      role: Role.SUPER_ADMIN,
       editable: false,
       allowedPages: Object.values(AdminPage),
       availablePages: Object.values(AdminPage),
@@ -144,30 +165,33 @@ describe("individual admin page access", () => {
       .get("/api/v1/admin-page-access")
       .set(bearer(tokens.superAdmin))
       .expect(200);
-    const matrixBody = matrix.body as { users: PageAccessResponse[] };
-    expect(matrixBody.users.map(({ userId }) => userId)).toEqual(
-      expect.arrayContaining(
-        Object.entries(users)
-          .filter(([name]) => name !== "customer")
-          .map(([, user]) => user.id),
-      ),
-    );
+    const matrixBody = matrix.body as { roles: PageAccessResponse[] };
+    expect(matrixBody.roles.map(({ role }) => role)).toEqual([
+      Role.SUPER_ADMIN,
+      Role.ADMIN,
+      Role.OPERATOR,
+      Role.COOK,
+      Role.COURIER,
+      Role.ACCOUNTANT,
+    ]);
+    for (const access of matrixBody.roles) {
+      expect(access.availablePages).toEqual(Object.values(AdminPage));
+    }
   });
 
-  it("lets only super admin update one employee with optimistic concurrency", async () => {
-    const target = users.admin;
+  it("lets only super admin update a role with optimistic concurrency", async () => {
     await request(server)
       .get("/api/v1/admin-page-access")
       .set(bearer(tokens.admin))
       .expect(403);
     await request(server)
-      .put(`/api/v1/admin-page-access/${target.id}`)
+      .put("/api/v1/admin-page-access/ADMIN")
       .set(bearer(tokens.admin))
       .send({ allowedPages: [AdminPage.ORDERS], version: 0 })
       .expect(403);
 
     const saved = await request(server)
-      .put(`/api/v1/admin-page-access/${target.id}`)
+      .put("/api/v1/admin-page-access/ADMIN")
       .set(bearer(tokens.superAdmin))
       .send({
         allowedPages: [AdminPage.ORDERS, AdminPage.CATALOG],
@@ -175,7 +199,6 @@ describe("individual admin page access", () => {
       })
       .expect(200);
     expect(saved.body).toMatchObject({
-      userId: target.id,
       role: Role.ADMIN,
       allowedPages: [AdminPage.ORDERS, AdminPage.CATALOG],
       version: 1,
@@ -193,17 +216,9 @@ describe("individual admin page access", () => {
       .get("/api/v1/staff/recent-logins")
       .set(bearer(tokens.admin))
       .expect(403);
-    const operator = await request(server)
-      .get("/api/v1/admin-page-access/me")
-      .set(bearer(tokens.operator))
-      .expect(200);
-    expect((operator.body as PageAccessResponse).allowedPages).toEqual([
-      AdminPage.ORDERS,
-      AdminPage.COURIER_MAP,
-    ]);
 
     await request(server)
-      .put(`/api/v1/admin-page-access/${target.id}`)
+      .put("/api/v1/admin-page-access/ADMIN")
       .set(bearer(tokens.superAdmin))
       .send({ allowedPages: [AdminPage.ORDERS], version: 0 })
       .expect(409);
@@ -211,26 +226,25 @@ describe("individual admin page access", () => {
       await prisma.auditLog.count({
         where: {
           actorId: users.superAdmin.id,
-          action: "admin_user_page_access.updated",
-          entityId: target.id,
+          action: "admin_role_page_access.updated",
+          entityId: Role.ADMIN,
         },
       }),
     ).toBe(1);
   });
 
-  it("can grant a courier an admin page and its protected API", async () => {
-    await request(server)
-      .get("/api/v1/staff/recent-logins")
-      .set(bearer(tokens.courier))
-      .expect(403);
+  it("grants normal admin access to every courier in the role", async () => {
+    for (const token of [tokens.courier, tokens.courierTwo]) {
+      await request(server)
+        .get("/api/v1/staff/recent-logins")
+        .set(bearer(token))
+        .expect(403);
+    }
 
     const saved = await request(server)
-      .put(`/api/v1/admin-page-access/${users.courier.id}`)
+      .put("/api/v1/admin-page-access/COURIER")
       .set(bearer(tokens.superAdmin))
-      .send({
-        allowedPages: [AdminPage.STAFF],
-        version: 0,
-      })
+      .send({ allowedPages: [AdminPage.STAFF], version: 0 })
       .expect(200);
     expect((saved.body as PageAccessResponse).allowedPages).toEqual([
       AdminPage.STAFF,
@@ -239,19 +253,28 @@ describe("individual admin page access", () => {
       AdminPage.STAFF,
     ]);
 
-    await request(server)
-      .get("/api/v1/staff/recent-logins")
-      .set(bearer(tokens.courier))
-      .expect(200);
-    await request(server)
-      .get("/api/v1/orders")
-      .set(bearer(tokens.courier))
-      .expect(403);
+    for (const name of ["courier", "courierTwo"] as const) {
+      const mine = await request(server)
+        .get("/api/v1/admin-page-access/me")
+        .set(bearer(tokens[name]))
+        .expect(200);
+      expect((mine.body as PageAccessResponse).allowedPages).toEqual([
+        AdminPage.STAFF,
+      ]);
+      await request(server)
+        .get("/api/v1/staff/recent-logins")
+        .set(bearer(tokens[name]))
+        .expect(200);
+      await request(server)
+        .get("/api/v1/orders")
+        .set(bearer(tokens[name]))
+        .expect(403);
+    }
   });
 
-  it("accepts cross-role expansion and rejects immutable users", async () => {
+  it("accepts cross-role expansion and rejects immutable roles", async () => {
     const accountant = await request(server)
-      .put(`/api/v1/admin-page-access/${users.accountant.id}`)
+      .put("/api/v1/admin-page-access/ACCOUNTANT")
       .set(bearer(tokens.superAdmin))
       .send({
         allowedPages: [AdminPage.ACCOUNTING, AdminPage.ORDERS],
@@ -264,12 +287,12 @@ describe("individual admin page access", () => {
     ]);
 
     await request(server)
-      .put(`/api/v1/admin-page-access/${users.superAdmin.id}`)
+      .put("/api/v1/admin-page-access/SUPER_ADMIN")
       .set(bearer(tokens.superAdmin))
       .send({ allowedPages: [], version: 0 })
       .expect(400);
     await request(server)
-      .put(`/api/v1/admin-page-access/${users.customer.id}`)
+      .put("/api/v1/admin-page-access/CUSTOMER")
       .set(bearer(tokens.superAdmin))
       .send({ allowedPages: [AdminPage.ORDERS], version: 0 })
       .expect(400);

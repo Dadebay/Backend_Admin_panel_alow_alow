@@ -82,7 +82,7 @@ test("administrators retain all management sections represented outside the full
   assert.deepEqual(views("SUPER_ADMIN"), [...administratorViews, "access"]);
 });
 
-test("server-provided page access controls and expands individual navigation", () => {
+test("server-provided page access controls and expands role navigation", () => {
   assert.deepEqual(
     navigationForRole("ADMIN", ["ORDERS", "CATALOG"]).map(({ id }) => id),
     ["orders", "catalog"],
@@ -97,7 +97,10 @@ test("server-provided page access controls and expands individual navigation", (
     navigationForRole("OPERATOR", ["ORDERS"]).map(({ id }) => id),
     ["orders"],
   );
-  assert.deepEqual(navigationForRole("COOK", []).map(({ id }) => id), []);
+  assert.deepEqual(
+    navigationForRole("COOK", []).map(({ id }) => id),
+    [],
+  );
   assert.deepEqual(
     navigationForRole("SUPER_ADMIN", []).map(({ id }) => id),
     [...administratorViews, "access"],
@@ -129,10 +132,7 @@ test("the courier screen is isolated from admin navigation and accepts courier s
   const [appSource, sessionSource, dashboardSource] = await Promise.all([
     readFile(new URL("../src/app/ui/app.tsx", import.meta.url), "utf8"),
     readFile(
-      new URL(
-        "../src/shared/auth/model/session-provider.tsx",
-        import.meta.url,
-      ),
+      new URL("../src/shared/auth/model/session-provider.tsx", import.meta.url),
       "utf8",
     ),
     readFile(
@@ -152,10 +152,7 @@ test("the courier screen is isolated from admin navigation and accepts courier s
   assert.match(appSource, /CourierTrackingScreen/);
   assert.match(appSource, /COURIER_WORKSPACE/);
   assert.match(appSource, /path="\/access-denied"/);
-  assert.match(
-    appSource,
-    /defaultAdminPathForRole\(\s*session\.user\.role,/,
-  );
+  assert.match(appSource, /defaultAdminPathForRole\(\s*session\.user\.role,/);
   assert.match(sessionSource, /!canAccessWebSession\(response\.user\.role\)/);
   assert.match(sessionSource, /Веб-доступ разрешён/);
   assert.match(dashboardSource, /!canAccessAdminPortal\(session\.user\.role\)/);

@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   adminPageAccessQueryKeys,
-  type AdminUserPageAccess,
+  type AdminRolePageAccess,
   type UpdateAdminPageAccess,
 } from "@/src/entities/admin-page-access";
 import { useSession } from "@/src/shared/auth";
@@ -10,15 +10,15 @@ export function useAdminPageAccessActions() {
   const { authorizedRequest } = useSession();
   const queryClient = useQueryClient();
 
-  const updateUserAccess = useMutation({
+  const updateRoleAccess = useMutation({
     mutationFn: ({
-      userId,
+      role,
       body,
     }: {
-      userId: string;
+      role: string;
       body: UpdateAdminPageAccess;
     }) =>
-      authorizedRequest<AdminUserPageAccess>(`/admin-page-access/${userId}`, {
+      authorizedRequest<AdminRolePageAccess>(`/admin-page-access/${role}`, {
         method: "PUT",
         body: JSON.stringify(body),
       }),
@@ -29,5 +29,5 @@ export function useAdminPageAccessActions() {
     },
   });
 
-  return { updateUserAccess };
+  return { updateRoleAccess };
 }

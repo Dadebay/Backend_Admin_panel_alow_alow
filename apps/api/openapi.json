@@ -2619,7 +2619,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AdminUserPageAccessResponseDto"
+                  "$ref": "#/components/schemas/AdminRolePageAccessResponseDto"
                 }
               }
             }
@@ -2661,12 +2661,12 @@
         ]
       }
     },
-    "/api/v1/admin-page-access/{userId}": {
+    "/api/v1/admin-page-access/{role}": {
       "put": {
         "operationId": "AdminPageAccessController_update_v1",
         "parameters": [
           {
-            "name": "userId",
+            "name": "role",
             "required": true,
             "in": "path",
             "schema": {
@@ -2690,7 +2690,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AdminUserPageAccessResponseDto"
+                  "$ref": "#/components/schemas/AdminRolePageAccessResponseDto"
                 }
               }
             }
@@ -9133,24 +9133,9 @@
           }
         }
       },
-      "AdminUserPageAccessResponseDto": {
+      "AdminRolePageAccessResponseDto": {
         "type": "object",
         "properties": {
-          "userId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "firstName": {
-            "type": "object",
-            "nullable": true
-          },
-          "lastName": {
-            "type": "object",
-            "nullable": true
-          },
-          "phone": {
-            "type": "string"
-          },
           "role": {
             "type": "string",
             "enum": [
@@ -9162,9 +9147,6 @@
               "ADMIN",
               "SUPER_ADMIN"
             ]
-          },
-          "isActive": {
-            "type": "boolean"
           },
           "allowedPages": {
             "type": "array",
@@ -9212,7 +9194,7 @@
           },
           "expandedPages": {
             "type": "array",
-            "description": "Pages granted beyond the employee's base role defaults",
+            "description": "Pages granted beyond the role's safe defaults",
             "items": {
               "type": "string",
               "enum": [
@@ -9242,12 +9224,7 @@
           }
         },
         "required": [
-          "userId",
-          "firstName",
-          "lastName",
-          "phone",
           "role",
-          "isActive",
           "allowedPages",
           "availablePages",
           "expandedPages",
@@ -9258,15 +9235,15 @@
       "AdminPageAccessMatrixResponseDto": {
         "type": "object",
         "properties": {
-          "users": {
+          "roles": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/AdminUserPageAccessResponseDto"
+              "$ref": "#/components/schemas/AdminRolePageAccessResponseDto"
             }
           }
         },
         "required": [
-          "users"
+          "roles"
         ]
       },
       "UpdateAdminPageAccessDto": {

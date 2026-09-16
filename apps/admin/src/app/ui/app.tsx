@@ -5,13 +5,7 @@ import {
   type LazyExoticComponent,
   type ReactNode,
 } from "react";
-import {
-  BrowserRouter,
-  Link,
-  Navigate,
-  Route,
-  Routes,
-} from "react-router";
+import { BrowserRouter, Link, Navigate, Route, Routes } from "react-router";
 import {
   AdminDashboard,
   adminNavigation,
@@ -26,7 +20,11 @@ import { useSession } from "@/src/shared/auth";
 import { AppProviders } from "../providers";
 
 const adminRouteComponents = {
-  "app-versions": lazy(() => import("@/src/widgets/app-version-manager").then((module) => ({ default: module.AppVersionManager }))),
+  "app-versions": lazy(() =>
+    import("@/src/widgets/app-version-manager").then((module) => ({
+      default: module.AppVersionManager,
+    })),
+  ),
   orders: lazy(() =>
     import("@/src/widgets/order-board").then((module) => ({
       default: module.OrderBoard,
@@ -162,8 +160,8 @@ function NoPageAccess() {
       <section className="access-card">
         <h1>Нет доступных рабочих страниц</h1>
         <p>
-          Главный администратор не выдал этому сотруднику ни одной рабочей
-          страницы. Текущая роль: «{roleLabels[session.user.role]}».
+          Главный администратор не выдал роли «{roleLabels[session.user.role]}»
+          ни одной рабочей страницы.
         </p>
         <button
           className="secondary-button"
@@ -249,10 +247,7 @@ function RootRedirect() {
             ? "/courier"
             : "/access-denied"
           : session
-            ? defaultAdminPathForRole(
-                session.user.role,
-                allowedPages,
-              )
+            ? defaultAdminPathForRole(session.user.role, allowedPages)
             : "/orders"
       }
     />

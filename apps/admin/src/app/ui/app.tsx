@@ -162,8 +162,8 @@ function NoPageAccess() {
       <section className="access-card">
         <h1>Нет доступных рабочих страниц</h1>
         <p>
-          Для роли «{roleLabels[session.user.role]}» главный администратор
-          отключил все рабочие страницы.
+          Главный администратор не выдал этому сотруднику ни одной рабочей
+          страницы. Текущая роль: «{roleLabels[session.user.role]}».
         </p>
         <button
           className="secondary-button"
@@ -234,18 +234,24 @@ function RootRedirect() {
   if (session && (pageAccess.isError || !pageAccess.data)) {
     return <PageAccessLoadError />;
   }
+  const allowedPages = pageAccess.data?.allowedPages;
+  const adminNavigationItems = session
+    ? navigationForRole(session.user.role, allowedPages).filter(
+        (item) => item.page !== null,
+      )
+    : [];
   return (
     <Navigate
       replace
       to={
-        session?.user.role === "COURIER"
-          ? pageAccess.data?.allowedPages.includes("COURIER_WORKSPACE")
+        session?.user.role === "COURIER" && adminNavigationItems.length === 0
+          ? allowedPages?.includes("COURIER_WORKSPACE")
             ? "/courier"
             : "/access-denied"
           : session
             ? defaultAdminPathForRole(
                 session.user.role,
-                pageAccess.data?.allowedPages,
+                allowedPages,
               )
             : "/orders"
       }

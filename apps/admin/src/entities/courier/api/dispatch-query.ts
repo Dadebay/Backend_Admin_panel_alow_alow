@@ -16,9 +16,7 @@ export const courierQueryKeys = {
 export function useDispatchSnapshot() {
   const { session, authorizedRequest } = useSession();
   const userId = session?.user.id ?? "anonymous";
-  const canViewDispatch = Boolean(
-    session && ["OPERATOR", "ADMIN", "SUPER_ADMIN"].includes(session.user.role),
-  );
+  const canViewDispatch = Boolean(session);
   return useQuery({
     queryKey: courierQueryKeys.dispatch(userId),
     queryFn: ({ signal }) =>
@@ -40,9 +38,7 @@ export function useDispatchSnapshot() {
 function useRouteQueries(courierIds: Array<string | null>) {
   const { session, authorizedRequest } = useSession();
   const userId = session?.user.id ?? "anonymous";
-  const canViewDispatch = Boolean(
-    session && ["OPERATOR", "ADMIN", "SUPER_ADMIN"].includes(session.user.role),
-  );
+  const canViewDispatch = Boolean(session);
   return useQueries({
     queries: courierIds.map((courierId) => ({
       queryKey: courierQueryKeys.route(userId, courierId ?? "unselected"),

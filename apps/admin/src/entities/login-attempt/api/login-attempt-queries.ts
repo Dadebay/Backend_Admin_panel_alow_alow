@@ -20,7 +20,6 @@ export const loginAttemptQueryKeys = {
 
 export function useLoginAttempts(filters: LoginAttemptFilters) {
   const { session, authorizedRequest } = useSession();
-  const canView = Boolean(session && ["ADMIN", "SUPER_ADMIN"].includes(session.user.role));
   return useQuery({
     queryKey: loginAttemptQueryKeys.list(session?.user.id ?? "anonymous", filters),
     queryFn: ({ signal }) => {
@@ -30,7 +29,7 @@ export function useLoginAttempts(filters: LoginAttemptFilters) {
       }
       return authorizedRequest<LoginAttemptsResponse>(`/staff/login-attempts?${params}`, { signal });
     },
-    enabled: canView,
+    enabled: Boolean(session),
     staleTime: 15_000,
   });
 }

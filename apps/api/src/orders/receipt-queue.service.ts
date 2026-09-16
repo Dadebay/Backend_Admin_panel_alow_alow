@@ -6,6 +6,7 @@ import {
 } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
 import {
+  AdminPage,
   Prisma,
   ReceiptPrintTaskStatus,
   Role,
@@ -37,7 +38,8 @@ export class ReceiptQueueService {
     if (
       !([Role.OPERATOR, Role.ADMIN, Role.SUPER_ADMIN] as Role[]).includes(
         actor.role,
-      )
+      ) &&
+      !actor.expandedAdminPages.includes(AdminPage.ORDERS)
     )
       throw new ForbiddenException(
         "Receipt queue is restricted to operations staff",

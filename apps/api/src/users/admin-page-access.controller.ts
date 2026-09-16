@@ -3,7 +3,7 @@ import {
   Controller,
   Get,
   Param,
-  ParseEnumPipe,
+  ParseUUIDPipe,
   Put,
 } from "@nestjs/common";
 import {
@@ -16,7 +16,7 @@ import type { AuthUser } from "../common/auth.types";
 import { Role } from "../generated/prisma/client";
 import {
   AdminPageAccessMatrixResponseDto,
-  AdminRolePageAccessResponseDto,
+  AdminUserPageAccessResponseDto,
   UpdateAdminPageAccessDto,
 } from "./admin-page-access.dto";
 import { AdminPageAccessService } from "./admin-page-access.service";
@@ -36,9 +36,9 @@ export class AdminPageAccessController {
     Role.ADMIN,
     Role.SUPER_ADMIN,
   )
-  @ApiOkResponse({ type: AdminRolePageAccessResponseDto })
+  @ApiOkResponse({ type: AdminUserPageAccessResponseDto })
   mine(@CurrentUser() actor: AuthUser) {
-    return this.pageAccess.mine(actor.role);
+    return this.pageAccess.mine(actor.id);
   }
 
   @Get()
@@ -48,14 +48,14 @@ export class AdminPageAccessController {
     return this.pageAccess.matrix();
   }
 
-  @Put(":role")
+  @Put(":userId")
   @Roles(Role.SUPER_ADMIN)
-  @ApiOkResponse({ type: AdminRolePageAccessResponseDto })
+  @ApiOkResponse({ type: AdminUserPageAccessResponseDto })
   update(
     @CurrentUser() actor: AuthUser,
-    @Param("role", new ParseEnumPipe(Role)) role: Role,
+    @Param("userId", new ParseUUIDPipe()) userId: string,
     @Body() dto: UpdateAdminPageAccessDto,
   ) {
-    return this.pageAccess.update(actor, role, dto);
+    return this.pageAccess.update(actor, userId, dto);
   }
 }

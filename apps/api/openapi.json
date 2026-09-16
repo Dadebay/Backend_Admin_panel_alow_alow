@@ -2619,7 +2619,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AdminRolePageAccessResponseDto"
+                  "$ref": "#/components/schemas/AdminUserPageAccessResponseDto"
                 }
               }
             }
@@ -2661,12 +2661,12 @@
         ]
       }
     },
-    "/api/v1/admin-page-access/{role}": {
+    "/api/v1/admin-page-access/{userId}": {
       "put": {
         "operationId": "AdminPageAccessController_update_v1",
         "parameters": [
           {
-            "name": "role",
+            "name": "userId",
             "required": true,
             "in": "path",
             "schema": {
@@ -2690,7 +2690,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AdminRolePageAccessResponseDto"
+                  "$ref": "#/components/schemas/AdminUserPageAccessResponseDto"
                 }
               }
             }
@@ -9133,9 +9133,24 @@
           }
         }
       },
-      "AdminRolePageAccessResponseDto": {
+      "AdminUserPageAccessResponseDto": {
         "type": "object",
         "properties": {
+          "userId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "firstName": {
+            "type": "object",
+            "nullable": true
+          },
+          "lastName": {
+            "type": "object",
+            "nullable": true
+          },
+          "phone": {
+            "type": "string"
+          },
           "role": {
             "type": "string",
             "enum": [
@@ -9147,6 +9162,9 @@
               "ADMIN",
               "SUPER_ADMIN"
             ]
+          },
+          "isActive": {
+            "type": "boolean"
           },
           "allowedPages": {
             "type": "array",
@@ -9192,6 +9210,29 @@
               ]
             }
           },
+          "expandedPages": {
+            "type": "array",
+            "description": "Pages granted beyond the employee's base role defaults",
+            "items": {
+              "type": "string",
+              "enum": [
+                "LOGIN_ATTEMPTS",
+                "ORDERS",
+                "MEAL_CONFIG",
+                "ACCOUNTING",
+                "COURIER_MAP",
+                "COURIER_WORKSPACE",
+                "BRANCHES",
+                "DELIVERY",
+                "CATALOG",
+                "MARKETING",
+                "NOTIFICATIONS",
+                "STAFF",
+                "CONTACTS",
+                "APP_VERSIONS"
+              ]
+            }
+          },
           "editable": {
             "type": "boolean"
           },
@@ -9201,9 +9242,15 @@
           }
         },
         "required": [
+          "userId",
+          "firstName",
+          "lastName",
+          "phone",
           "role",
+          "isActive",
           "allowedPages",
           "availablePages",
+          "expandedPages",
           "editable",
           "version"
         ]
@@ -9211,15 +9258,15 @@
       "AdminPageAccessMatrixResponseDto": {
         "type": "object",
         "properties": {
-          "roles": {
+          "users": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/AdminRolePageAccessResponseDto"
+              "$ref": "#/components/schemas/AdminUserPageAccessResponseDto"
             }
           }
         },
         "required": [
-          "roles"
+          "users"
         ]
       },
       "UpdateAdminPageAccessDto": {

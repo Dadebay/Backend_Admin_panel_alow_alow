@@ -20,9 +20,14 @@ import {
   ApiOperation,
   ApiTags,
 } from "@nestjs/swagger";
-import { CurrentUser, Public, Roles } from "../common/auth.decorators";
+import {
+  AdminPages,
+  CurrentUser,
+  Public,
+  Roles,
+} from "../common/auth.decorators";
 import type { AuthUser } from "../common/auth.types";
-import { Role } from "../generated/prisma/client";
+import { AdminPage, Role } from "../generated/prisma/client";
 import {
   AddProductImageDto,
   CreateCategoryDto,
@@ -69,6 +74,7 @@ export class CatalogController {
   @Get("admin/categories")
   @ApiBearerAuth()
   @Roles(Role.ADMIN, Role.OPERATOR)
+  @AdminPages(AdminPage.CATALOG, AdminPage.MEAL_CONFIG, AdminPage.ORDERS)
   @ApiOperation({ summary: "List categories including hidden records" })
   @ApiOkResponse({ type: [CatalogAdminCategoryResponseDto] })
   adminCategories() {
@@ -78,6 +84,7 @@ export class CatalogController {
   @Get("admin/receipt-print-settings")
   @ApiBearerAuth()
   @Roles(Role.ADMIN, Role.OPERATOR)
+  @AdminPages(AdminPage.CATALOG, AdminPage.ORDERS)
   @ApiOperation({ summary: "Get the complete administrator receipt printer" })
   @ApiOkResponse({ type: ReceiptPrintSettingsResponseDto })
   receiptPrintSettings() {
@@ -87,6 +94,7 @@ export class CatalogController {
   @Get("admin/receipt-printers")
   @ApiBearerAuth()
   @Roles(Role.ADMIN, Role.OPERATOR)
+  @AdminPages(AdminPage.CATALOG, AdminPage.ORDERS)
   @ApiOperation({ summary: "List registered LAN receipt printers" })
   @ApiOkResponse({ type: [ReceiptPrinterResponseDto] })
   receiptPrinters() {
@@ -96,6 +104,7 @@ export class CatalogController {
   @Post("categories")
   @ApiBearerAuth()
   @Roles(Role.ADMIN)
+  @AdminPages(AdminPage.CATALOG)
   @ApiCreatedResponse({ type: CatalogAdminCategorySummaryResponseDto })
   createCategory(
     @CurrentUser() actor: AuthUser,
@@ -107,6 +116,7 @@ export class CatalogController {
   @Patch("categories/:id")
   @ApiBearerAuth()
   @Roles(Role.ADMIN)
+  @AdminPages(AdminPage.CATALOG)
   @ApiOkResponse({ type: CatalogAdminCategorySummaryResponseDto })
   updateCategory(
     @CurrentUser() actor: AuthUser,
@@ -119,6 +129,7 @@ export class CatalogController {
   @Delete("categories/:id")
   @ApiBearerAuth()
   @Roles(Role.ADMIN)
+  @AdminPages(AdminPage.CATALOG)
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: "Permanently delete an unused category" })
   @ApiNoContentResponse({ description: "Category deleted" })
@@ -135,6 +146,7 @@ export class CatalogController {
   @Patch("receipt-print-settings")
   @ApiBearerAuth()
   @Roles(Role.ADMIN)
+  @AdminPages(AdminPage.CATALOG)
   @ApiOperation({
     summary: "Configure the complete administrator receipt printer",
   })
@@ -149,6 +161,7 @@ export class CatalogController {
   @Post("receipt-printers")
   @ApiBearerAuth()
   @Roles(Role.ADMIN)
+  @AdminPages(AdminPage.CATALOG)
   @ApiOperation({ summary: "Register a LAN receipt printer" })
   @ApiCreatedResponse({ type: ReceiptPrinterResponseDto })
   createReceiptPrinter(
@@ -161,6 +174,7 @@ export class CatalogController {
   @Patch("receipt-printers/:id")
   @ApiBearerAuth()
   @Roles(Role.ADMIN)
+  @AdminPages(AdminPage.CATALOG)
   @ApiOperation({ summary: "Update a registered LAN receipt printer" })
   @ApiOkResponse({ type: ReceiptPrinterResponseDto })
   updateReceiptPrinter(
@@ -174,6 +188,7 @@ export class CatalogController {
   @Delete("receipt-printers/:id")
   @ApiBearerAuth()
   @Roles(Role.ADMIN)
+  @AdminPages(AdminPage.CATALOG)
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: "Delete an unused registered receipt printer" })
   @ApiNoContentResponse({ description: "Receipt printer deleted" })
@@ -190,6 +205,7 @@ export class CatalogController {
   @Get("admin/products")
   @ApiBearerAuth()
   @Roles(Role.ADMIN, Role.OPERATOR)
+  @AdminPages(AdminPage.CATALOG, AdminPage.MEAL_CONFIG, AdminPage.ORDERS)
   @ApiOkResponse({ type: [CatalogAdminProductResponseDto] })
   adminProducts(@Query("categoryId") categoryId?: string) {
     return this.catalog.products(categoryId, true);
@@ -198,6 +214,7 @@ export class CatalogController {
   @Post("products")
   @ApiBearerAuth()
   @Roles(Role.ADMIN)
+  @AdminPages(AdminPage.CATALOG)
   @ApiCreatedResponse({ type: CatalogAdminProductResponseDto })
   createProduct(@CurrentUser() actor: AuthUser, @Body() dto: CreateProductDto) {
     return this.catalog.createProduct(actor, dto);
@@ -206,6 +223,7 @@ export class CatalogController {
   @Patch("products/:id")
   @ApiBearerAuth()
   @Roles(Role.ADMIN)
+  @AdminPages(AdminPage.CATALOG)
   @ApiOkResponse({ type: CatalogAdminProductResponseDto })
   updateProduct(
     @CurrentUser() actor: AuthUser,
@@ -218,6 +236,7 @@ export class CatalogController {
   @Delete("products/:id")
   @ApiBearerAuth()
   @Roles(Role.ADMIN)
+  @AdminPages(AdminPage.CATALOG)
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: "Permanently delete an unused product" })
   @ApiNoContentResponse({ description: "Product deleted" })
@@ -234,6 +253,7 @@ export class CatalogController {
   @Post("products/:id/images")
   @ApiBearerAuth()
   @Roles(Role.ADMIN)
+  @AdminPages(AdminPage.CATALOG)
   @ApiCreatedResponse({ type: CatalogProductImageResponseDto })
   addImage(
     @CurrentUser() actor: AuthUser,

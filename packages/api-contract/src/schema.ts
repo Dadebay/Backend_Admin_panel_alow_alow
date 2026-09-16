@@ -1003,7 +1003,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/admin-page-access/{role}": {
+    "/api/v1/admin-page-access/{userId}": {
         parameters: {
             query?: never;
             header?: never;
@@ -3180,16 +3180,24 @@ export interface components {
             floor?: string;
             apartment?: string;
         };
-        AdminRolePageAccessResponseDto: {
+        AdminUserPageAccessResponseDto: {
+            /** Format: uuid */
+            userId: string;
+            firstName: Record<string, never> | null;
+            lastName: Record<string, never> | null;
+            phone: string;
             /** @enum {string} */
             role: "CUSTOMER" | "OPERATOR" | "COOK" | "COURIER" | "ACCOUNTANT" | "ADMIN" | "SUPER_ADMIN";
+            isActive: boolean;
             allowedPages: ("LOGIN_ATTEMPTS" | "ORDERS" | "MEAL_CONFIG" | "ACCOUNTING" | "COURIER_MAP" | "COURIER_WORKSPACE" | "BRANCHES" | "DELIVERY" | "CATALOG" | "MARKETING" | "NOTIFICATIONS" | "STAFF" | "CONTACTS" | "APP_VERSIONS")[];
             availablePages: ("LOGIN_ATTEMPTS" | "ORDERS" | "MEAL_CONFIG" | "ACCOUNTING" | "COURIER_MAP" | "COURIER_WORKSPACE" | "BRANCHES" | "DELIVERY" | "CATALOG" | "MARKETING" | "NOTIFICATIONS" | "STAFF" | "CONTACTS" | "APP_VERSIONS")[];
+            /** @description Pages granted beyond the employee's base role defaults */
+            expandedPages: ("LOGIN_ATTEMPTS" | "ORDERS" | "MEAL_CONFIG" | "ACCOUNTING" | "COURIER_MAP" | "COURIER_WORKSPACE" | "BRANCHES" | "DELIVERY" | "CATALOG" | "MARKETING" | "NOTIFICATIONS" | "STAFF" | "CONTACTS" | "APP_VERSIONS")[];
             editable: boolean;
             version: number;
         };
         AdminPageAccessMatrixResponseDto: {
-            roles: components["schemas"]["AdminRolePageAccessResponseDto"][];
+            users: components["schemas"]["AdminUserPageAccessResponseDto"][];
         };
         UpdateAdminPageAccessDto: {
             allowedPages: ("LOGIN_ATTEMPTS" | "ORDERS" | "MEAL_CONFIG" | "ACCOUNTING" | "COURIER_MAP" | "COURIER_WORKSPACE" | "BRANCHES" | "DELIVERY" | "CATALOG" | "MARKETING" | "NOTIFICATIONS" | "STAFF" | "CONTACTS" | "APP_VERSIONS")[];
@@ -5522,7 +5530,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["AdminRolePageAccessResponseDto"];
+                    "application/json": components["schemas"]["AdminUserPageAccessResponseDto"];
                 };
             };
         };
@@ -5551,7 +5559,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                role: string;
+                userId: string;
             };
             cookie?: never;
         };
@@ -5566,7 +5574,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["AdminRolePageAccessResponseDto"];
+                    "application/json": components["schemas"]["AdminUserPageAccessResponseDto"];
                 };
             };
         };

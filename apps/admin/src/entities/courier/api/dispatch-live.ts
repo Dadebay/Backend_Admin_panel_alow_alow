@@ -10,7 +10,6 @@ import type { DispatchSnapshot } from "../model/types";
 type DispatchLiveEvent = components["schemas"]["DispatchLiveEventDto"];
 export type DispatchLiveState = "connecting" | "live" | "fallback";
 
-const ACCESS_ROLES = new Set(["OPERATOR", "ADMIN", "SUPER_ADMIN"]);
 const RECONNECT_DELAY_MS = 2_000;
 
 export function useDispatchLiveUpdates(): DispatchLiveState {
@@ -19,7 +18,7 @@ export function useDispatchLiveUpdates(): DispatchLiveState {
   const [state, setState] = useState<DispatchLiveState>("connecting");
   const accessToken = session?.accessToken;
   const userId = session?.user.id;
-  const canView = Boolean(session && ACCESS_ROLES.has(session.user.role));
+  const canView = Boolean(session);
 
   useEffect(() => {
     if (!accessToken || !userId || !canView) {

@@ -16,9 +16,9 @@ import {
   ApiProduces,
   ApiTags,
 } from "@nestjs/swagger";
-import { CurrentUser, Roles } from "../common/auth.decorators";
+import { AdminPages, CurrentUser, Roles } from "../common/auth.decorators";
 import type { AuthUser } from "../common/auth.types";
-import { Role } from "../generated/prisma/client";
+import { AdminPage, Role } from "../generated/prisma/client";
 import {
   DispatchSnapshotDto,
   DispatchLiveEventDto,
@@ -36,6 +36,7 @@ export class TrackingController {
 
   @Put("me/location")
   @Roles(Role.COURIER)
+  @AdminPages(AdminPage.COURIER_WORKSPACE)
   @ApiOperation({
     summary:
       "Publish courier GPS about every 15 seconds for the complete courier shift",
@@ -50,6 +51,7 @@ export class TrackingController {
 
   @Delete("me/location")
   @Roles(Role.COURIER)
+  @AdminPages(AdminPage.COURIER_WORKSPACE)
   @ApiOperation({ summary: "Stop sharing the authenticated courier location" })
   @ApiOkResponse({ type: StopCourierLocationResponseDto })
   stopSharing(@CurrentUser() courier: AuthUser) {
@@ -58,6 +60,7 @@ export class TrackingController {
 
   @Get("dispatch")
   @Roles(Role.OPERATOR, Role.ADMIN)
+  @AdminPages(AdminPage.COURIER_MAP)
   @ApiOperation({
     summary:
       "Get active couriers, their latest locations, delivery stops and customer details",
@@ -79,6 +82,7 @@ export class TrackingController {
 
   @Sse("dispatch/live")
   @Roles(Role.OPERATOR, Role.ADMIN)
+  @AdminPages(AdminPage.COURIER_MAP)
   @Header("Cache-Control", "no-cache, no-transform")
   @Header("X-Accel-Buffering", "no")
   @ApiOperation({

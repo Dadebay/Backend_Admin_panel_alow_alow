@@ -15,9 +15,14 @@ import {
   ApiOperation,
   ApiTags,
 } from "@nestjs/swagger";
-import { CurrentUser, Public, Roles } from "../common/auth.decorators";
+import {
+  AdminPages,
+  CurrentUser,
+  Public,
+  Roles,
+} from "../common/auth.decorators";
 import type { AuthUser } from "../common/auth.types";
-import { Role } from "../generated/prisma/client";
+import { AdminPage, Role } from "../generated/prisma/client";
 import {
   CreateDeliveryEtrapDto,
   CreateDeliveryWelayatDto,
@@ -80,6 +85,7 @@ export class DeliveryController {
   @Get("admin/config")
   @ApiBearerAuth()
   @Roles(Role.ADMIN)
+  @AdminPages(AdminPage.DELIVERY)
   @ApiOperation({ summary: "List the complete delivery price configuration" })
   @ApiOkResponse({ type: DeliveryConfigResponseDto })
   adminConfig() {
@@ -89,6 +95,7 @@ export class DeliveryController {
   @Patch("admin/settings")
   @ApiBearerAuth()
   @Roles(Role.ADMIN)
+  @AdminPages(AdminPage.DELIVERY)
   @ApiOperation({
     summary: "Update day/night fallback pricing and the night schedule",
   })
@@ -103,6 +110,7 @@ export class DeliveryController {
   @Post("admin/welayats")
   @ApiBearerAuth()
   @Roles(Role.ADMIN)
+  @AdminPages(AdminPage.DELIVERY)
   @ApiOperation({ summary: "Create a delivery welayat" })
   @ApiCreatedResponse({ type: DeliveryWelayatResponseDto })
   createWelayat(
@@ -115,6 +123,7 @@ export class DeliveryController {
   @Patch("admin/welayats/:id")
   @ApiBearerAuth()
   @Roles(Role.ADMIN)
+  @AdminPages(AdminPage.DELIVERY)
   @ApiOperation({ summary: "Update delivery welayat names and display order" })
   @ApiOkResponse({ type: DeliveryWelayatResponseDto })
   updateWelayat(
@@ -128,6 +137,7 @@ export class DeliveryController {
   @Post("admin/etraps")
   @ApiBearerAuth()
   @Roles(Role.ADMIN)
+  @AdminPages(AdminPage.DELIVERY)
   @ApiOperation({ summary: "Create a delivery etrap and its tariff" })
   @ApiCreatedResponse({ type: DeliveryEtrapResponseDto })
   createEtrap(
@@ -140,6 +150,7 @@ export class DeliveryController {
   @Patch("admin/etraps/:id")
   @ApiBearerAuth()
   @Roles(Role.ADMIN)
+  @AdminPages(AdminPage.DELIVERY)
   @ApiOperation({
     summary: "Update availability and delivery price for one etrap",
   })

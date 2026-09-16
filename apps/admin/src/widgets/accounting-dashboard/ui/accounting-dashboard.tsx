@@ -7,6 +7,7 @@ import {
   useAccountingSettings,
   useAccountingShifts,
 } from "@/src/entities/accounting";
+import { useMyAdminPageAccess } from "@/src/entities/admin-page-access";
 import { useAccountingActions } from "@/src/features/accounting-management";
 import { FormFieldError } from "@/src/shared/forms";
 import { useSession } from "@/src/shared/auth";
@@ -70,9 +71,15 @@ function actorName(actor: AccountingShift["handoff"] extends infer H
 
 export function AccountingDashboard() {
   const { session } = useSession();
+  const pageAccess = useMyAdminPageAccess();
   const role = session?.user.role;
-  const isAdmin = role === "ADMIN" || role === "SUPER_ADMIN";
-  const canSeeReport = role === "ACCOUNTANT" || role === "SUPER_ADMIN";
+  const hasExpandedAccess = Boolean(
+    pageAccess.data?.expandedPages.includes("ACCOUNTING"),
+  );
+  const isAdmin =
+    role === "ADMIN" || role === "SUPER_ADMIN" || hasExpandedAccess;
+  const canSeeReport =
+    role === "ACCOUNTANT" || role === "SUPER_ADMIN" || hasExpandedAccess;
   const isSuperAdmin = role === "SUPER_ADMIN";
   const today = ashgabatDate();
   const [range, setRange] = useState<AccountingRangeValues>({
@@ -82,7 +89,11 @@ export function AccountingDashboard() {
   const [selectedShift, setSelectedShift] = useState<AccountingShift | null>(null);
   const settings = useAccountingSettings();
   const shifts = useAccountingShifts(range.fromDate, range.toDate);
-  const report = useAccountingReport(range.fromDate, range.toDate);
+  const report = useAccountingReport(
+    range.fromDate,
+    range.toDate,
+    hasExpandedAccess,
+  );
   const actions = useAccountingActions();
   const rangeForm = useForm<AccountingRangeValues>({
     resolver: zodResolver(accountingRangeSchema),

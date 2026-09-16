@@ -22,19 +22,13 @@ export const inventoryQueryKeys = {
     [...inventoryQueryKeys.all, "movements", userId] as const,
 };
 
-function inventoryAccess(role: string | undefined) {
-  return Boolean(
-    role && ["OPERATOR", "COOK", "ADMIN", "SUPER_ADMIN"].includes(role),
-  );
-}
-
 export function useInventoryIngredients() {
   const { session, authorizedRequest } = useSession();
   return useQuery({
     queryKey: inventoryQueryKeys.ingredients(session?.user.id ?? "anonymous"),
     queryFn: ({ signal }) =>
       authorizedRequest<Ingredient[]>("/inventory/ingredients", { signal }),
-    enabled: inventoryAccess(session?.user.role),
+    enabled: Boolean(session),
     staleTime: 20_000,
   });
 }
@@ -45,7 +39,7 @@ export function useInventoryRecipes() {
     queryKey: inventoryQueryKeys.recipes(session?.user.id ?? "anonymous"),
     queryFn: ({ signal }) =>
       authorizedRequest<Recipe[]>("/inventory/recipes", { signal }),
-    enabled: inventoryAccess(session?.user.role),
+    enabled: Boolean(session),
     staleTime: 20_000,
   });
 }
@@ -60,7 +54,7 @@ export function useInventoryStock(branchId: string | undefined) {
     ),
     queryFn: ({ signal }) =>
       authorizedRequest<StockItem[]>(`/inventory/stock${query}`, { signal }),
-    enabled: inventoryAccess(session?.user.role),
+    enabled: Boolean(session),
     staleTime: 15_000,
     gcTime: 300_000,
     refetchInterval: 15_000,
@@ -79,8 +73,7 @@ export function useInventoryMovements() {
       authorizedRequest<InventoryMovement[]>("/inventory/movements?limit=20", {
         signal,
       }),
-    enabled:
-      session?.user.role === "ADMIN" || session?.user.role === "SUPER_ADMIN",
+    enabled: Boolean(session),
     staleTime: 15_000,
     gcTime: 300_000,
     refetchInterval: 15_000,
@@ -99,7 +92,7 @@ export function useInventoryAlerts(branchId: string | undefined) {
     ),
     queryFn: ({ signal }) =>
       authorizedRequest<StockAlert[]>(`/inventory/alerts${query}`, { signal }),
-    enabled: inventoryAccess(session?.user.role),
+    enabled: Boolean(session),
     staleTime: 15_000,
   });
 }

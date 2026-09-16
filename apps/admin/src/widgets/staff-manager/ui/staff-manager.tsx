@@ -5,6 +5,7 @@ import { useForm } from "react-hook-form";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { PencilEdit02Icon, PowerIcon } from "@hugeicons/core-free-icons";
 import { roleLabels, type Role } from "@/src/entities/order";
+import { useMyAdminPageAccess } from "@/src/entities/admin-page-access";
 import { useRecentLogins, useStaff, type Staff } from "@/src/entities/staff";
 import { useStaffActions } from "@/src/features/staff-management";
 import { useSession } from "@/src/shared/auth";
@@ -26,6 +27,7 @@ const ALL_ROLES_TAB = "ALL" as const;
 
 export function StaffManager() {
   const { session } = useSession();
+  const pageAccess = useMyAdminPageAccess();
   const staff = useStaff();
   const recentLogins = useRecentLogins();
   const actions = useStaffActions();
@@ -54,7 +56,9 @@ export function StaffManager() {
     },
   });
   const canEdit = Boolean(
-    session && ["ADMIN", "SUPER_ADMIN"].includes(session.user.role),
+    session &&
+      (["ADMIN", "SUPER_ADMIN"].includes(session.user.role) ||
+        pageAccess.data?.allowedPages.includes("STAFF")),
   );
 
   const formRef = useRef<HTMLFormElement>(null);

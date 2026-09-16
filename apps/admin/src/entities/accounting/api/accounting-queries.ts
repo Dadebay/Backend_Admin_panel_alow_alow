@@ -46,10 +46,16 @@ export function useAccountingShifts(fromDate: string, toDate: string) {
   });
 }
 
-export function useAccountingReport(fromDate: string, toDate: string) {
+export function useAccountingReport(
+  fromDate: string,
+  toDate: string,
+  hasExpandedAccess = false,
+) {
   const { session, authorizedRequest } = useSession();
   const canView = Boolean(
-    session && ["ACCOUNTANT", "SUPER_ADMIN"].includes(session.user.role),
+    session &&
+      (["ACCOUNTANT", "SUPER_ADMIN"].includes(session.user.role) ||
+        hasExpandedAccess),
   );
   const search = new URLSearchParams({ fromDate, toDate });
   return useQuery({

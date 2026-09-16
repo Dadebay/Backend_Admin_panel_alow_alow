@@ -14,9 +14,9 @@ import {
   ApiOperation,
   ApiTags,
 } from "@nestjs/swagger";
-import { CurrentUser, Roles } from "../common/auth.decorators";
+import { AdminPages, CurrentUser, Roles } from "../common/auth.decorators";
 import type { AuthUser } from "../common/auth.types";
-import { Role } from "../generated/prisma/client";
+import { AdminPage, Role } from "../generated/prisma/client";
 import {
   AccountingRangeQueryDto,
   ConfirmCashHandoffDto,
@@ -39,6 +39,7 @@ export class AccountingController {
 
   @Get("settings")
   @Roles(Role.ACCOUNTANT, Role.ADMIN)
+  @AdminPages(AdminPage.ACCOUNTING)
   @ApiOperation({
     summary: "Get the configurable Ashgabat cash shift schedule",
   })
@@ -62,6 +63,7 @@ export class AccountingController {
 
   @Get("shifts")
   @Roles(Role.ACCOUNTANT, Role.ADMIN)
+  @AdminPages(AdminPage.ACCOUNTING)
   @ApiOperation({ summary: "List shift totals and cash handoff state" })
   @ApiOkResponse({ type: [AccountingShiftResponseDto] })
   shifts(@Query() query: AccountingRangeQueryDto) {
@@ -70,6 +72,7 @@ export class AccountingController {
 
   @Post("handoffs")
   @Roles(Role.ADMIN)
+  @AdminPages(AdminPage.ACCOUNTING)
   @ApiOperation({
     summary: "Submit one completed shift cash packet to accounting",
   })
@@ -80,6 +83,7 @@ export class AccountingController {
 
   @Patch("handoffs/:id/confirm")
   @Roles(Role.ACCOUNTANT)
+  @AdminPages(AdminPage.ACCOUNTING)
   @ApiOperation({
     summary: "Confirm a submitted packet and reconcile every included order",
   })
@@ -94,6 +98,7 @@ export class AccountingController {
 
   @Get("report")
   @Roles(Role.ACCOUNTANT)
+  @AdminPages(AdminPage.ACCOUNTING)
   @ApiOperation({
     summary:
       "Get cash totals, handoffs, daily series and super-admin product analytics",

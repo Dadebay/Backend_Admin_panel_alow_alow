@@ -14,9 +14,14 @@ import {
   ApiOperation,
   ApiTags,
 } from "@nestjs/swagger";
-import { CurrentUser, Public, Roles } from "../common/auth.decorators";
+import {
+  AdminPages,
+  CurrentUser,
+  Public,
+  Roles,
+} from "../common/auth.decorators";
 import type { AuthUser } from "../common/auth.types";
-import { Role } from "../generated/prisma/client";
+import { AdminPage, Role } from "../generated/prisma/client";
 import {
   AdminAppVersionResponseDto,
   PublicAppVersionResponseDto,
@@ -48,6 +53,7 @@ export class AppVersionsController {
 
   @Get("admin/versions")
   @Roles(Role.ADMIN)
+  @AdminPages(AdminPage.APP_VERSIONS)
   @ApiBearerAuth()
   @ApiOperation({ summary: "List configured mobile platform versions" })
   @ApiOkResponse({ type: AdminAppVersionResponseDto, isArray: true })
@@ -57,6 +63,7 @@ export class AppVersionsController {
 
   @Put("admin/versions/:platform")
   @Roles(Role.ADMIN)
+  @AdminPages(AdminPage.APP_VERSIONS)
   @ApiBearerAuth()
   @ApiOperation({
     summary:

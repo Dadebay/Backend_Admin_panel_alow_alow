@@ -347,7 +347,7 @@ export function AdminDashboard() {
           </div>
         )}
         {canOpenOrders && canReceiveNewOrderAlerts(session.user.role) && <ReceiptQueue />}
-        {canOpenInventory && (session.user.role === "ADMIN" || session.user.role === "SUPER_ADMIN") && (
+        {canOpenInventory && (
           <div style={{ minHeight: 90 }}><Suspense fallback={null}><InventoryNotifications /></Suspense></div>
         )}
         <Suspense

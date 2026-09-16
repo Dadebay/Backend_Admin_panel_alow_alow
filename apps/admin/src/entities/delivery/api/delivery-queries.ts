@@ -59,14 +59,11 @@ export function useDeliveryQuote(
 
 export function useAdminDeliveryConfig() {
   const { session, authorizedRequest } = useSession();
-  const canView = Boolean(
-    session && ["ADMIN", "SUPER_ADMIN"].includes(session.user.role),
-  );
   return useQuery({
     queryKey: deliveryQueryKeys.adminConfig(session?.user.id ?? "anonymous"),
     queryFn: ({ signal }) =>
       authorizedRequest<DeliveryConfig>("/delivery/admin/config", { signal }),
-    enabled: canView,
+    enabled: Boolean(session),
     staleTime: 30_000,
   });
 }

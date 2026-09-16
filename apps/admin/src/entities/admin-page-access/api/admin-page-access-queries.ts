@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { canAccessWebSession, useSession } from "@/src/shared/auth";
 import type {
   AdminPageAccessMatrix,
-  AdminRolePageAccess,
+  AdminUserPageAccess,
 } from "../model/types";
 
 export const adminPageAccessQueryKeys = {
@@ -22,7 +22,7 @@ export function useMyAdminPageAccess() {
       session?.user.id ?? "anonymous",
     ),
     queryFn: ({ signal }) =>
-      authorizedRequest<AdminRolePageAccess>("/admin-page-access/me", {
+      authorizedRequest<AdminUserPageAccess>("/admin-page-access/me", {
         signal,
       }),
     enabled: canLoad,

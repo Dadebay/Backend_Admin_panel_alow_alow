@@ -21,8 +21,8 @@ import {
   ApiTags,
 } from "@nestjs/swagger";
 import type { Response } from "express";
-import { Public, Roles } from "../common/auth.decorators";
-import { Role } from "../generated/prisma/client";
+import { AdminPages, Public, Roles } from "../common/auth.decorators";
+import { AdminPage, Role } from "../generated/prisma/client";
 import { MediaService } from "./media.service";
 import { MediaUploadResponseDto } from "./media.dto";
 
@@ -34,6 +34,7 @@ export class MediaController {
   @Post("images")
   @ApiBearerAuth()
   @Roles(Role.ADMIN, Role.OPERATOR)
+  @AdminPages(AdminPage.CATALOG, AdminPage.MARKETING, AdminPage.ORDERS)
   @ApiConsumes("multipart/form-data")
   @ApiCreatedResponse({ type: MediaUploadResponseDto })
   @ApiBody({
@@ -80,6 +81,7 @@ export class MediaController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiBearerAuth()
   @Roles(Role.ADMIN)
+  @AdminPages(AdminPage.CATALOG, AdminPage.MARKETING)
   async remove(@Param("filename") filename: string) {
     await this.media.deleteImage(filename);
   }

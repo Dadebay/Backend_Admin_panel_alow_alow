@@ -97,10 +97,7 @@ export function useCouriers() {
     queryKey: orderQueryKeys.couriers(session?.user.id ?? "anonymous"),
     queryFn: ({ signal }) =>
       authorizedRequest<Courier[]>("/staff/couriers", { signal }),
-    enabled: Boolean(
-      session &&
-        ["OPERATOR", "ADMIN", "SUPER_ADMIN"].includes(session.user.role),
-    ),
+    enabled: Boolean(session),
     staleTime: 30_000,
   });
 }

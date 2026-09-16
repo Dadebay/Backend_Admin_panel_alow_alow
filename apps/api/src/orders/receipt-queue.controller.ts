@@ -13,9 +13,9 @@ import {
   ApiOperation,
   ApiTags,
 } from "@nestjs/swagger";
-import { CurrentUser, Roles } from "../common/auth.decorators";
+import { AdminPages, CurrentUser, Roles } from "../common/auth.decorators";
 import type { AuthUser } from "../common/auth.types";
-import { Role } from "../generated/prisma/client";
+import { AdminPage, Role } from "../generated/prisma/client";
 import {
   ReceiptActionResponseDto,
   ClaimReceiptDto,
@@ -31,6 +31,7 @@ import { ReceiptQueueService } from "./receipt-queue.service";
 @ApiTags("receipt-queue")
 @ApiBearerAuth()
 @Roles(Role.OPERATOR, Role.ADMIN)
+@AdminPages(AdminPage.ORDERS)
 @Controller("receipt-print-tasks")
 export class ReceiptQueueController {
   constructor(private readonly queue: ReceiptQueueService) {}

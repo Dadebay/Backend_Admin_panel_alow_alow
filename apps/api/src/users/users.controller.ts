@@ -14,9 +14,9 @@ import {
   ApiOkResponse,
   ApiTags,
 } from "@nestjs/swagger";
-import { CurrentUser, Roles } from "../common/auth.decorators";
+import { AdminPages, CurrentUser, Roles } from "../common/auth.decorators";
 import type { AuthUser } from "../common/auth.types";
-import { Role } from "../generated/prisma/client";
+import { AdminPage, Role } from "../generated/prisma/client";
 import { CreateStaffDto, LoginAttemptsQueryDto, UpdateStaffDto } from "./users.dto";
 import {
   CourierSummaryResponseDto,
@@ -35,6 +35,7 @@ export class UsersController {
 
   @Get("login-attempts")
   @Roles(Role.ADMIN, Role.SUPER_ADMIN)
+  @AdminPages(AdminPage.LOGIN_ATTEMPTS)
   @ApiOkResponse({ type: LoginAttemptsResponseDto })
   loginAttempts(@Query() query: LoginAttemptsQueryDto) {
     return this.users.loginAttempts(query);
@@ -42,6 +43,7 @@ export class UsersController {
 
   @Get()
   @Roles(Role.ADMIN, Role.OPERATOR, Role.ACCOUNTANT)
+  @AdminPages(AdminPage.STAFF)
   @ApiOkResponse({ type: [StaffResponseDto] })
   list(@Query("role") role?: Role) {
     return this.users.list(role);
@@ -49,6 +51,7 @@ export class UsersController {
 
   @Get("couriers")
   @Roles(Role.ADMIN, Role.OPERATOR)
+  @AdminPages(AdminPage.ORDERS, AdminPage.COURIER_MAP)
   @ApiOkResponse({ type: [CourierSummaryResponseDto] })
   couriers() {
     return this.users.couriers();
@@ -56,6 +59,7 @@ export class UsersController {
 
   @Get("recent-logins")
   @Roles(Role.ADMIN)
+  @AdminPages(AdminPage.STAFF)
   @ApiOkResponse({ type: [RecentLoginResponseDto] })
   recentLogins() {
     return this.users.recentLogins();
@@ -63,6 +67,7 @@ export class UsersController {
 
   @Post()
   @Roles(Role.ADMIN)
+  @AdminPages(AdminPage.STAFF)
   @ApiCreatedResponse({ type: StaffMutationResponseDto })
   create(
     @CurrentUser() actor: AuthUser,
@@ -73,6 +78,7 @@ export class UsersController {
 
   @Patch(":id")
   @Roles(Role.ADMIN)
+  @AdminPages(AdminPage.STAFF)
   @ApiOkResponse({ type: StaffMutationResponseDto })
   update(
     @CurrentUser() actor: AuthUser,

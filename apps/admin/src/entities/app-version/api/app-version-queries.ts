@@ -13,9 +13,7 @@ export function useAppVersions() {
     queryKey: appVersionQueryKeys.admin(session?.user.id ?? "anonymous"),
     queryFn: ({ signal }) =>
       authorizedRequest<AppVersion[]>("/app/admin/versions", { signal }),
-    enabled: Boolean(
-      session && ["ADMIN", "SUPER_ADMIN"].includes(session.user.role),
-    ),
+    enabled: Boolean(session),
     staleTime: 30_000,
     gcTime: 5 * 60_000,
     retry: 1,

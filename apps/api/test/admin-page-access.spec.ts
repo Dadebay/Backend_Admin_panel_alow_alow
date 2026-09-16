@@ -6,13 +6,14 @@ import {
   availableAdminPages,
   defaultAdminPages,
   effectiveAdminPages,
+  expandedAdminPages,
   isConfigurableAdminPageRole,
 } from "../src/users/admin-page-access.policy";
 
 describe("admin page access policy", () => {
   it("keeps the super administrator immutable with every page", () => {
     expect(effectiveAdminPages(Role.SUPER_ADMIN, [])).toEqual(
-      OPERATIONS_ADMIN_PAGES,
+      ADMIN_PAGES,
     );
     expect(isConfigurableAdminPageRole(Role.SUPER_ADMIN)).toBe(false);
   });
@@ -33,7 +34,7 @@ describe("admin page access policy", () => {
     expect(defaultAdminPages(Role.CUSTOMER)).toEqual([]);
   });
 
-  it("allows stored policies to narrow but never expand a role ceiling", () => {
+  it("allows an individual policy to grant any admin page across roles", () => {
     expect(
       effectiveAdminPages(Role.ADMIN, [
         AdminPage.ORDERS,
@@ -45,16 +46,21 @@ describe("admin page access policy", () => {
         AdminPage.ACCOUNTING,
         AdminPage.ORDERS,
       ]),
-    ).toEqual([AdminPage.ACCOUNTING]);
-    expect(availableAdminPages(Role.ACCOUNTANT)).toEqual([
-      AdminPage.ACCOUNTING,
-    ]);
+    ).toEqual([AdminPage.ORDERS, AdminPage.ACCOUNTING]);
+    expect(availableAdminPages(Role.ACCOUNTANT)).toEqual(ADMIN_PAGES);
     expect(
       effectiveAdminPages(Role.COURIER, [
         AdminPage.COURIER_WORKSPACE,
         AdminPage.ORDERS,
       ]),
-    ).toEqual([AdminPage.COURIER_WORKSPACE]);
+    ).toEqual([AdminPage.ORDERS, AdminPage.COURIER_WORKSPACE]);
     expect(ADMIN_PAGES).toContain(AdminPage.COURIER_WORKSPACE);
+    expect(
+      expandedAdminPages(Role.COURIER, [
+        AdminPage.COURIER_WORKSPACE,
+        AdminPage.STAFF,
+      ]),
+    ).toEqual([AdminPage.STAFF]);
+    expect(expandedAdminPages(Role.COOK, [AdminPage.ORDERS])).toEqual([]);
   });
 });

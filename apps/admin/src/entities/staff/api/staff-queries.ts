@@ -15,26 +15,18 @@ export function useStaff() {
     queryKey: staffQueryKeys.list(session?.user.id ?? "anonymous"),
     queryFn: ({ signal }) =>
       authorizedRequest<Staff[]>("/staff", { signal }),
-    enabled: Boolean(
-      session &&
-        ["OPERATOR", "ACCOUNTANT", "ADMIN", "SUPER_ADMIN"].includes(
-          session.user.role,
-        ),
-    ),
+    enabled: Boolean(session),
     staleTime: 30_000,
   });
 }
 
 export function useRecentLogins() {
   const { session, authorizedRequest } = useSession();
-  const canView = Boolean(
-    session && ["ADMIN", "SUPER_ADMIN"].includes(session.user.role),
-  );
   return useQuery({
     queryKey: staffQueryKeys.recentLogins(session?.user.id ?? "anonymous"),
     queryFn: ({ signal }) =>
       authorizedRequest<RecentLogin[]>("/staff/recent-logins", { signal }),
-    enabled: canView,
+    enabled: Boolean(session),
     staleTime: 15_000,
   });
 }

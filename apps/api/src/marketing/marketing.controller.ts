@@ -15,9 +15,14 @@ import {
   ApiOperation,
   ApiTags,
 } from "@nestjs/swagger";
-import { CurrentUser, Public, Roles } from "../common/auth.decorators";
+import {
+  AdminPages,
+  CurrentUser,
+  Public,
+  Roles,
+} from "../common/auth.decorators";
 import type { AuthUser } from "../common/auth.types";
-import { Role } from "../generated/prisma/client";
+import { AdminPage, Role } from "../generated/prisma/client";
 import {
   CreateBannerDto,
   CreatePromoCodeDto,
@@ -46,6 +51,7 @@ export class MarketingController {
   @Get("admin/banners")
   @ApiBearerAuth()
   @Roles(Role.ADMIN, Role.OPERATOR)
+  @AdminPages(AdminPage.MARKETING)
   @ApiOkResponse({ type: [BannerResponseDto] })
   allBanners() {
     return this.marketing.allBanners();
@@ -54,6 +60,7 @@ export class MarketingController {
   @Post("banners")
   @ApiBearerAuth()
   @Roles(Role.ADMIN)
+  @AdminPages(AdminPage.MARKETING)
   @ApiCreatedResponse({ type: BannerResponseDto })
   createBanner(
     @CurrentUser() actor: AuthUser,
@@ -65,6 +72,7 @@ export class MarketingController {
   @Patch("banners/:id")
   @ApiBearerAuth()
   @Roles(Role.ADMIN)
+  @AdminPages(AdminPage.MARKETING)
   @ApiOkResponse({ type: BannerResponseDto })
   updateBanner(
     @CurrentUser() actor: AuthUser,
@@ -77,6 +85,7 @@ export class MarketingController {
   @Delete("banners/:id")
   @ApiBearerAuth()
   @Roles(Role.ADMIN)
+  @AdminPages(AdminPage.MARKETING)
   @ApiOperation({ summary: "Permanently delete a banner record" })
   @ApiOkResponse({ type: BannerResponseDto })
   deleteBanner(
@@ -89,6 +98,7 @@ export class MarketingController {
   @Get("promos")
   @ApiBearerAuth()
   @Roles(Role.ADMIN, Role.OPERATOR, Role.ACCOUNTANT)
+  @AdminPages(AdminPage.MARKETING)
   @ApiOkResponse({ type: [PromoCodeResponseDto] })
   promos() {
     return this.marketing.promoCodes();
@@ -97,6 +107,7 @@ export class MarketingController {
   @Post("promos")
   @ApiBearerAuth()
   @Roles(Role.ADMIN)
+  @AdminPages(AdminPage.MARKETING)
   @ApiCreatedResponse({ type: PromoCodeResponseDto })
   createPromo(
     @CurrentUser() actor: AuthUser,
@@ -108,6 +119,7 @@ export class MarketingController {
   @Patch("promos/:id")
   @ApiBearerAuth()
   @Roles(Role.ADMIN)
+  @AdminPages(AdminPage.MARKETING)
   @ApiOkResponse({ type: PromoCodeResponseDto })
   updatePromo(
     @CurrentUser() actor: AuthUser,

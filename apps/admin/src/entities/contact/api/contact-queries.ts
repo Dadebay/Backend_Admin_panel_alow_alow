@@ -9,15 +9,11 @@ export const contactQueryKeys = {
 
 export function useContactSettings() {
   const { session, authorizedRequest } = useSession();
-  const canManage = Boolean(
-    session && ["ADMIN", "SUPER_ADMIN"].includes(session.user.role),
-  );
-
   return useQuery({
     queryKey: contactQueryKeys.detail(session?.user.id ?? "anonymous"),
     queryFn: ({ signal }) =>
       authorizedRequest<ContactSettings>("/contacts", { signal }),
-    enabled: canManage,
+    enabled: Boolean(session),
     staleTime: 60_000,
   });
 }

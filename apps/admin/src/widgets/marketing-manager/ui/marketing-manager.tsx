@@ -8,6 +8,7 @@ import {
   type Banner,
   type Promo,
 } from "@/src/entities/marketing";
+import { useMyAdminPageAccess } from "@/src/entities/admin-page-access";
 import { useAdminCategories, useAdminProducts } from "@/src/entities/catalog";
 import { useCatalogActions } from "@/src/features/catalog-management";
 import { useMarketingActions } from "@/src/features/marketing-management";
@@ -46,6 +47,7 @@ function imageFileFromDrop(event: { dataTransfer: DataTransfer }) {
 
 export function MarketingManager() {
   const { session } = useSession();
+  const pageAccess = useMyAdminPageAccess();
   const banners = useAdminBanners();
   const promos = useAdminPromos();
   const marketing = useMarketingActions();
@@ -102,7 +104,9 @@ export function MarketingManager() {
     },
   });
   const canEdit = Boolean(
-    session && ["ADMIN", "SUPER_ADMIN"].includes(session.user.role),
+    session &&
+      (["ADMIN", "SUPER_ADMIN"].includes(session.user.role) ||
+        pageAccess.data?.allowedPages.includes("MARKETING")),
   );
 
   const bannerColumns = useMemo<ColumnDef<Banner, unknown>[]>(

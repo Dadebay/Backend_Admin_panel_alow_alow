@@ -30,17 +30,24 @@ const administratorViews = [
   "app-versions",
 ];
 
-test("every operations employee role may enter its page-controlled portal", () => {
-  for (const role of ["OPERATOR", "COOK", "ACCOUNTANT", "ADMIN", "SUPER_ADMIN"]) {
+test("every staff role may enter its page-controlled portal", () => {
+  for (const role of [
+    "OPERATOR",
+    "COOK",
+    "COURIER",
+    "ACCOUNTANT",
+    "ADMIN",
+    "SUPER_ADMIN",
+  ]) {
     assert.equal(canAccessAdminPortal(role), true, role);
   }
-  for (const role of ["CUSTOMER", "COURIER"]) {
+  for (const role of ["CUSTOMER"]) {
     assert.equal(canAccessAdminPortal(role), false, role);
     assert.deepEqual(views(role), [], role);
   }
 });
 
-test("couriers may keep a dedicated web session without entering the admin portal", () => {
+test("couriers may use both their dedicated workspace and granted admin pages", () => {
   for (const role of [
     "OPERATOR",
     "COOK",
@@ -54,7 +61,11 @@ test("couriers may keep a dedicated web session without entering the admin porta
   for (const role of ["CUSTOMER"]) {
     assert.equal(canAccessWebSession(role), false, role);
   }
-  assert.equal(canAccessAdminPortal("COURIER"), false);
+  assert.equal(canAccessAdminPortal("COURIER"), true);
+  assert.deepEqual(
+    navigationForRole("COURIER", ["ORDERS", "STAFF"]).map(({ id }) => id),
+    ["orders", "staff"],
+  );
 });
 
 test("accountant navigation contains only shift accounting", () => {
@@ -71,7 +82,7 @@ test("administrators retain all management sections represented outside the full
   assert.deepEqual(views("SUPER_ADMIN"), [...administratorViews, "access"]);
 });
 
-test("server-provided page access narrows navigation without expanding role capabilities", () => {
+test("server-provided page access controls and expands individual navigation", () => {
   assert.deepEqual(
     navigationForRole("ADMIN", ["ORDERS", "CATALOG"]).map(({ id }) => id),
     ["orders", "catalog"],
@@ -80,7 +91,7 @@ test("server-provided page access narrows navigation without expanding role capa
     navigationForRole("ACCOUNTANT", ["ORDERS", "ACCOUNTING"]).map(
       ({ id }) => id,
     ),
-    ["accounting"],
+    ["orders", "accounting"],
   );
   assert.deepEqual(
     navigationForRole("OPERATOR", ["ORDERS"]).map(({ id }) => id),

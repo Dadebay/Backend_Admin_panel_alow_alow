@@ -16,9 +16,9 @@ import {
   ApiOperation,
   ApiTags,
 } from "@nestjs/swagger";
-import { CurrentUser, Roles } from "../common/auth.decorators";
+import { AdminPages, CurrentUser, Roles } from "../common/auth.decorators";
 import type { AuthUser } from "../common/auth.types";
-import { Role } from "../generated/prisma/client";
+import { AdminPage, Role } from "../generated/prisma/client";
 import {
   AdjustInventoryStockDto,
   CreateIngredientDto,
@@ -44,6 +44,7 @@ export class InventoryController {
   constructor(private readonly inventory: InventoryService) {}
 
   @Get("ingredients")
+  @AdminPages(AdminPage.MEAL_CONFIG, AdminPage.ORDERS)
   @ApiOperation({ summary: "List recipe ingredients" })
   @ApiOkResponse({ type: [InventoryIngredientResponseDto] })
   listIngredients() {
@@ -52,6 +53,7 @@ export class InventoryController {
 
   @Post("ingredients")
   @Roles(Role.ADMIN)
+  @AdminPages(AdminPage.MEAL_CONFIG)
   @ApiOperation({ summary: "Create an ingredient" })
   @ApiCreatedResponse({ type: InventoryIngredientResponseDto })
   createIngredient(
@@ -63,6 +65,7 @@ export class InventoryController {
 
   @Patch("ingredients/:id")
   @Roles(Role.ADMIN)
+  @AdminPages(AdminPage.MEAL_CONFIG)
   @ApiOperation({ summary: "Update an ingredient" })
   @ApiOkResponse({ type: InventoryIngredientResponseDto })
   updateIngredient(
@@ -74,6 +77,7 @@ export class InventoryController {
   }
 
   @Get("recipes")
+  @AdminPages(AdminPage.MEAL_CONFIG, AdminPage.ORDERS)
   @ApiOperation({ summary: "List configured product recipes" })
   @ApiOkResponse({ type: [InventoryRecipeResponseDto] })
   listRecipes() {
@@ -81,6 +85,7 @@ export class InventoryController {
   }
 
   @Get("recipes/:productId")
+  @AdminPages(AdminPage.MEAL_CONFIG, AdminPage.ORDERS)
   @ApiOperation({ summary: "Get a product recipe" })
   @ApiOkResponse({ type: InventoryRecipeResponseDto })
   getRecipe(@Param("productId", ParseUUIDPipe) productId: string) {
@@ -89,6 +94,7 @@ export class InventoryController {
 
   @Put("recipes/:productId")
   @Roles(Role.ADMIN)
+  @AdminPages(AdminPage.MEAL_CONFIG)
   @ApiOperation({ summary: "Create or replace a product recipe" })
   @ApiOkResponse({ type: InventoryRecipeResponseDto })
   upsertRecipe(
@@ -100,6 +106,7 @@ export class InventoryController {
   }
 
   @Get("stock")
+  @AdminPages(AdminPage.MEAL_CONFIG, AdminPage.ORDERS)
   @ApiOperation({ summary: "List stock by branch and ingredient" })
   @ApiOkResponse({ type: [InventoryStockResponseDto] })
   listStock(@Query() query: InventoryStockQueryDto) {
@@ -107,6 +114,7 @@ export class InventoryController {
   }
 
   @Get("alerts")
+  @AdminPages(AdminPage.MEAL_CONFIG, AdminPage.ORDERS)
   @ApiOperation({ summary: "List ingredients at or below reorder point" })
   @ApiOkResponse({ type: [InventoryAlertResponseDto] })
   listAlerts(@Query() query: InventoryStockQueryDto) {
@@ -114,6 +122,7 @@ export class InventoryController {
   }
 
   @Get("movements")
+  @AdminPages(AdminPage.MEAL_CONFIG, AdminPage.ORDERS)
   @ApiOperation({
     summary:
       "List recent stock decreases for the in-app inventory notification feed",
@@ -125,6 +134,7 @@ export class InventoryController {
 
   @Post("stock/:ingredientId/adjust")
   @Roles(Role.ADMIN)
+  @AdminPages(AdminPage.MEAL_CONFIG)
   @ApiOperation({ summary: "Adjust ingredient stock" })
   @ApiCreatedResponse({ type: InventoryStockResponseDto })
   adjustStock(

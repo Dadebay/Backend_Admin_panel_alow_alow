@@ -19,9 +19,9 @@ import {
   ApiOperation,
   ApiTags,
 } from "@nestjs/swagger";
-import { CurrentUser, Roles } from "../common/auth.decorators";
+import { AdminPages, CurrentUser, Roles } from "../common/auth.decorators";
 import type { AuthUser } from "../common/auth.types";
-import { Role } from "../generated/prisma/client";
+import { AdminPage, Role } from "../generated/prisma/client";
 import {
   CreateNotificationCampaignDto,
   ListMyNotificationsQueryDto,
@@ -114,6 +114,7 @@ export class NotificationsController {
 
   @Get("admin/campaigns")
   @Roles(Role.ADMIN)
+  @AdminPages(AdminPage.NOTIFICATIONS)
   @ApiOperation({ summary: "List push campaigns and delivery totals" })
   @ApiOkResponse({ type: NotificationCampaignListResponseDto })
   campaigns(@Query() query: ListNotificationCampaignsQueryDto) {
@@ -122,6 +123,7 @@ export class NotificationsController {
 
   @Post("admin/campaigns")
   @Roles(Role.ADMIN)
+  @AdminPages(AdminPage.NOTIFICATIONS)
   @ApiOperation({
     summary:
       "Create and queue a customer or public guest-inclusive topic campaign",
@@ -136,6 +138,7 @@ export class NotificationsController {
 
   @Post("admin/campaigns/:id/retry")
   @Roles(Role.ADMIN)
+  @AdminPages(AdminPage.NOTIFICATIONS)
   @ApiOkResponse({ type: NotificationCampaignResponseDto })
   retryCampaign(
     @CurrentUser() actor: AuthUser,

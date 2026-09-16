@@ -7,13 +7,13 @@ const ADMIN_PORTAL_ROLES = new Set<AdminPortalRole>([
   "OPERATOR",
   "COOK",
   "ACCOUNTANT",
+  "COURIER",
   "ADMIN",
   "SUPER_ADMIN",
 ]);
 
 const WEB_SESSION_ROLES = new Set<AdminPortalRole>([
   ...ADMIN_PORTAL_ROLES,
-  "COURIER",
 ]);
 
 export function canAccessAdminPortal(role: AdminPortalRole) {

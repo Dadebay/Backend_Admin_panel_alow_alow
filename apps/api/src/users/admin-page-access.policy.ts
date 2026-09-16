@@ -12,7 +12,7 @@ const DEFAULT_PAGES_BY_ROLE: Partial<Record<Role, readonly AdminPage[]>> = {
   [Role.OPERATOR]: [AdminPage.ORDERS, AdminPage.COURIER_MAP],
   [Role.COOK]: [AdminPage.ORDERS],
   [Role.COURIER]: [AdminPage.COURIER_WORKSPACE],
-  [Role.SUPER_ADMIN]: OPERATIONS_ADMIN_PAGES,
+  [Role.SUPER_ADMIN]: ADMIN_PAGES,
 };
 
 export const CONFIGURABLE_ADMIN_PAGE_ROLES = [
@@ -33,7 +33,7 @@ export function defaultAdminPages(role: Role): AdminPage[] {
 }
 
 export function availableAdminPages(role: Role): AdminPage[] {
-  return defaultAdminPages(role);
+  return role === Role.CUSTOMER ? [] : [...ADMIN_PAGES];
 }
 
 export function isConfigurableAdminPageRole(
@@ -52,8 +52,16 @@ export function effectiveAdminPages(
   if (!isConfigurableAdminPageRole(role)) return [];
   if (storedPages === null) return defaultAdminPages(role);
 
-  const available = new Set(availableAdminPages(role));
-  return ADMIN_PAGES.filter(
-    (page) => available.has(page) && storedPages.includes(page),
+  return ADMIN_PAGES.filter((page) => storedPages.includes(page));
+}
+
+export function expandedAdminPages(
+  role: Role,
+  storedPages: readonly AdminPage[] | null,
+): AdminPage[] {
+  if (storedPages === null || !isConfigurableAdminPageRole(role)) return [];
+  const defaults = new Set(defaultAdminPages(role));
+  return effectiveAdminPages(role, storedPages).filter(
+    (page) => !defaults.has(page),
   );
 }

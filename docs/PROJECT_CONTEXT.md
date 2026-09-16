@@ -233,24 +233,27 @@ their own staff account as the customer of an ordinary order.
 Only `SUPER_ADMIN` may manage another `SUPER_ADMIN`, and the system must retain
 at least one active `SUPER_ADMIN`.
 
-`SUPER_ADMIN` owns the `/access` role-page matrix for every employee web role:
-`ADMIN`, `OPERATOR`, `COOK`, `COURIER`, and `ACCOUNTANT`. It may enable or
-disable the pages already backed by each role's API capabilities: all
-operations pages for `ADMIN`; orders and the courier map for `OPERATOR`; orders
-for `COOK`; the isolated courier workspace for `COURIER`; and accounting for
-`ACCOUNTANT`. Page visibility never expands action-level API authority.
-`SUPER_ADMIN` always retains every operations-admin page and cannot be edited
-in the matrix. `CUSTOMER` is a mobile customer rather than an employee web role
-and is excluded. Stored role policies are versioned for conflict detection and
-every successful change creates an audit record.
+`SUPER_ADMIN` owns the `/access` employee-page matrix. Access is stored per
+employee, not per role: each `ADMIN`, `OPERATOR`, `COOK`, `COURIER`, or
+`ACCOUNTANT` may be granted any operations-admin page independently from peers
+with the same role. A granted page controls both navigation/direct-route entry
+and the page's protected API endpoints. The underlying order workflow and
+entity-level rules (for example courier ownership and transition rules) remain
+authoritative even when the page is granted. `SUPER_ADMIN` always retains every
+page, including the courier workspace, and cannot be edited. `CUSTOMER` is a
+mobile customer rather than an employee web role and is excluded. Stored user
+policies are versioned for conflict detection and every successful change
+creates an audit record. New employees without an explicit policy retain the
+safe defaults for their base role until `SUPER_ADMIN` customizes them.
 
-The React/Vite operations admin accepts role-page-controlled admin navigation
-for `OPERATOR`, `COOK`, `ACCOUNTANT`, `ADMIN`, and `SUPER_ADMIN`. `CUSTOMER`
-cannot retain a web session. `COURIER` may retain a session only for the
-role-page-controlled isolated `/courier` shift screen, where the courier
-publishes their own GPS and works with backend-scoped orders; that role still
-cannot enter any operations-admin route. The dedicated screen is a production
-fallback when a native courier client is not yet publishing location.
+The React/Vite operations admin accepts employee-page-controlled navigation for
+every staff role, including `COURIER`. `CUSTOMER` cannot retain a web session.
+A courier with an operations page enters the normal admin shell and sees only
+the pages assigned to that employee. A courier with only
+`COURIER_WORKSPACE` continues to land on the isolated `/courier` shift screen,
+where GPS and assigned-order behavior remain backend-scoped. The dedicated
+screen is a production fallback when a native courier client is not yet
+publishing location.
 
 Every operations-admin section owns a canonical browser URL and is composed
 through React Router's declarative `BrowserRouter` layout. `/` redirects an
@@ -1993,3 +1996,16 @@ implementation with current main and corrects the misleading website GPS help.
 Mobile clients continue using the existing authenticated whole-shift tracking
 API. No tracking API, permissions, location TTL, database schema or mobile build
 is changed by this frontend release.
+
+## Individual employee page access — 2026-09-16
+
+The earlier role-wide `/access` matrix was rejected because it could only
+narrow a role's pre-existing pages. It is superseded by a per-employee policy:
+`SUPER_ADMIN` can find any staff member and grant any admin page, including
+giving one courier or operator pages their peers do not have. The authenticated
+user policy is loaded into the backend request identity, page metadata is
+enforced by the global authorization guard, and the same policy drives React
+navigation and direct-route protection. A courier with an assigned admin page
+can enter the normal admin shell; a courier with only the courier workspace
+keeps the dedicated shift route. Legacy role policies are copied to individual
+rows during migration so existing production choices are preserved.

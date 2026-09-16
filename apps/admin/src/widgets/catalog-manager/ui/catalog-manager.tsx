@@ -15,6 +15,7 @@ import {
   type Category,
   type Product,
 } from "@/src/entities/catalog";
+import { useMyAdminPageAccess } from "@/src/entities/admin-page-access";
 import { useCatalogActions } from "@/src/features/catalog-management";
 import { resolveApiUrl } from "@/src/shared/api/api-client";
 import { useSession } from "@/src/shared/auth";
@@ -69,6 +70,7 @@ function imageFilesFromDrop(event: { dataTransfer: DataTransfer }) {
 
 export function CatalogManager() {
   const { session } = useSession();
+  const pageAccess = useMyAdminPageAccess();
   const categories = useAdminCategories();
   const products = useAdminProducts();
   const receiptPrinters = useReceiptPrinters();
@@ -160,7 +162,9 @@ export function CatalogManager() {
     name: "pricingType",
   });
   const canEdit = Boolean(
-    session && ["ADMIN", "SUPER_ADMIN"].includes(session.user.role),
+    session &&
+      (["ADMIN", "SUPER_ADMIN"].includes(session.user.role) ||
+        pageAccess.data?.allowedPages.includes("CATALOG")),
   );
   const hasSearch = Boolean(catalogSearch.trim());
   const filteredCategories = useMemo(

@@ -9,18 +9,11 @@ export const branchQueryKeys = {
 
 export function useBranches() {
   const { session, authorizedRequest } = useSession();
-  const canView = Boolean(
-    session &&
-      ["OPERATOR", "COOK", "COURIER", "ACCOUNTANT", "ADMIN", "SUPER_ADMIN"].includes(
-        session.user.role,
-      ),
-  );
-
   return useQuery({
     queryKey: branchQueryKeys.list(session?.user.id ?? "anonymous"),
     queryFn: ({ signal }) =>
       authorizedRequest<Branch[]>("/branches", { signal }),
-    enabled: canView,
+    enabled: Boolean(session),
     staleTime: 30_000,
   });
 }

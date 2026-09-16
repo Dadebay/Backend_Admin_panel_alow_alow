@@ -15,6 +15,7 @@ import {
   type Branch,
   type CreateBranch,
 } from "@/src/entities/branch";
+import { useMyAdminPageAccess } from "@/src/entities/admin-page-access";
 import { useBranchActions } from "@/src/features/branch-management";
 import { useSession } from "@/src/shared/auth";
 import { FormFieldError } from "@/src/shared/forms";
@@ -30,6 +31,7 @@ const BranchLocationPicker = lazy(() => import("./branch-location-picker"));
 
 export function BranchManager() {
   const { session } = useSession();
+  const pageAccess = useMyAdminPageAccess();
   const branches = useBranches();
   const actions = useBranchActions();
   const [editing, setEditing] = useState<Branch | null>(null);
@@ -54,7 +56,9 @@ export function BranchManager() {
   });
   const formRef = useRef<HTMLFormElement>(null);
   const canEdit = Boolean(
-    session && ["ADMIN", "SUPER_ADMIN"].includes(session.user.role),
+    session &&
+      (["ADMIN", "SUPER_ADMIN"].includes(session.user.role) ||
+        pageAccess.data?.allowedPages.includes("BRANCHES")),
   );
   const pending =
     actions.createBranch.isPending || actions.updateBranch.isPending;

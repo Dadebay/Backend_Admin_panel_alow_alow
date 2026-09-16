@@ -9,6 +9,10 @@ import { Reflector } from "@nestjs/core";
 import type { Request } from "express";
 import { PrismaService } from "../prisma/prisma.service";
 import { IS_PUBLIC_KEY } from "./auth.decorators";
+import {
+  effectiveAdminPages,
+  expandedAdminPages,
+} from "../users/admin-page-access.policy";
 
 type AccessPayload = {
   sub: string;
@@ -53,7 +57,13 @@ export class JwtAuthGuard implements CanActivate {
       }
       const user = await this.prisma.user.findUnique({
         where: { id: payload.sub },
-        select: { id: true, phone: true, role: true, isActive: true },
+        select: {
+          id: true,
+          phone: true,
+          role: true,
+          isActive: true,
+          adminPageAccess: { select: { allowedPages: true } },
+        },
       });
       if (!user?.isActive) {
         throw new UnauthorizedException("Account is inactive");
@@ -72,7 +82,19 @@ export class JwtAuthGuard implements CanActivate {
           throw new UnauthorizedException("Session is revoked or expired");
         }
       }
-      request.user = { id: user.id, phone: user.phone, role: user.role };
+      request.user = {
+        id: user.id,
+        phone: user.phone,
+        role: user.role,
+        adminPages: effectiveAdminPages(
+          user.role,
+          user.adminPageAccess?.allowedPages ?? null,
+        ),
+        expandedAdminPages: expandedAdminPages(
+          user.role,
+          user.adminPageAccess?.allowedPages ?? null,
+        ),
+      };
       return true;
     } catch (error) {
       if (error instanceof UnauthorizedException) throw error;

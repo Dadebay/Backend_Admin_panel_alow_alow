@@ -17,9 +17,9 @@ import {
   ApiOperation,
   ApiTags,
 } from "@nestjs/swagger";
-import { CurrentUser, Roles } from "../common/auth.decorators";
+import { AdminPages, CurrentUser, Roles } from "../common/auth.decorators";
 import type { AuthUser } from "../common/auth.types";
-import { Role } from "../generated/prisma/client";
+import { AdminPage, Role } from "../generated/prisma/client";
 import {
   AdminEditOrderDto,
   AssignCourierDto,
@@ -53,6 +53,7 @@ export class OrdersController {
   @Post("quote")
   @HttpCode(HttpStatus.OK)
   @Roles(Role.CUSTOMER, Role.ADMIN)
+  @AdminPages(AdminPage.ORDERS, AdminPage.MEAL_CONFIG)
   @ApiOperation({
     summary:
       "Preview authoritative variant prices, promo discount and delivery totals without creating an order",
@@ -72,6 +73,7 @@ export class OrdersController {
 
   @Get("assisted/customers")
   @Roles(Role.OPERATOR, Role.ADMIN)
+  @AdminPages(AdminPage.ORDERS)
   @ApiOperation({
     summary: "Find customers by phone for an operator-assisted order",
   })
@@ -82,6 +84,7 @@ export class OrdersController {
 
   @Post("assisted")
   @Roles(Role.OPERATOR, Role.ADMIN)
+  @AdminPages(AdminPage.ORDERS)
   @ApiOperation({
     summary:
       "Create a cash order for a caller without issuing a customer session",
@@ -95,6 +98,15 @@ export class OrdersController {
   }
 
   @Get()
+  @Roles(
+    Role.CUSTOMER,
+    Role.OPERATOR,
+    Role.COOK,
+    Role.COURIER,
+    Role.ACCOUNTANT,
+    Role.ADMIN,
+  )
+  @AdminPages(AdminPage.ORDERS, AdminPage.COURIER_WORKSPACE)
   @ApiOperation({ summary: "List orders visible to the current role" })
   @ApiOkResponse({ type: OrderListResponseDto })
   list(@CurrentUser() user: AuthUser, @Query() query: ListOrdersQueryDto) {
@@ -103,6 +115,7 @@ export class OrdersController {
 
   @Get("courier/route")
   @Roles(Role.COURIER)
+  @AdminPages(AdminPage.COURIER_WORKSPACE)
   @ApiOperation({
     summary: "Get assigned stops and a real driving route for the courier",
   })
@@ -113,6 +126,7 @@ export class OrdersController {
 
   @Get("couriers/:courierId/route")
   @Roles(Role.OPERATOR, Role.ADMIN)
+  @AdminPages(AdminPage.COURIER_MAP)
   @ApiOperation({
     summary: "Get the same stops and road route shown to a selected courier",
   })
@@ -123,6 +137,7 @@ export class OrdersController {
 
   @Get(":id/receipt-print-plan")
   @Roles(Role.OPERATOR, Role.ADMIN)
+  @AdminPages(AdminPage.ORDERS)
   @ApiOperation({
     summary:
       "Build an order or cancellation receipt for the main and snapshotted kitchen printers",
@@ -133,6 +148,15 @@ export class OrdersController {
   }
 
   @Get(":id")
+  @Roles(
+    Role.CUSTOMER,
+    Role.OPERATOR,
+    Role.COOK,
+    Role.COURIER,
+    Role.ACCOUNTANT,
+    Role.ADMIN,
+  )
+  @AdminPages(AdminPage.ORDERS, AdminPage.COURIER_WORKSPACE)
   @ApiOperation({ summary: "Get order details and transition history" })
   @ApiOkResponse({ type: OrderResponseDto })
   get(@CurrentUser() user: AuthUser, @Param("id", ParseUUIDPipe) id: string) {
@@ -141,6 +165,7 @@ export class OrdersController {
 
   @Patch(":id/transition")
   @Roles(Role.OPERATOR, Role.COOK, Role.COURIER, Role.ADMIN)
+  @AdminPages(AdminPage.ORDERS, AdminPage.COURIER_WORKSPACE)
   @ApiOperation({
     summary:
       "Move an order through the role-gated workflow; courier pickup is OUT_FOR_DELIVERY and completion is DELIVERED",
@@ -156,6 +181,7 @@ export class OrdersController {
 
   @Patch(":id/assign-courier")
   @Roles(Role.OPERATOR, Role.ADMIN)
+  @AdminPages(AdminPage.ORDERS)
   @ApiOperation({
     summary:
       "Assign a ready order or correct its courier before delivery starts",
@@ -171,6 +197,7 @@ export class OrdersController {
 
   @Patch(":id/admin-edit")
   @Roles(Role.ADMIN)
+  @AdminPages(AdminPage.ORDERS)
   @ApiOperation({
     summary:
       "Edit administrator-managed order content and recalculate authoritative totals",
@@ -186,6 +213,7 @@ export class OrdersController {
 
   @Patch(":id/confirm-packing")
   @Roles(Role.ADMIN)
+  @AdminPages(AdminPage.ORDERS)
   @ApiOperation({
     summary:
       "Check every order line and atomically finish cooking when needed before courier handoff",
@@ -201,6 +229,7 @@ export class OrdersController {
 
   @Patch(":id/cancel")
   @Roles(Role.CUSTOMER, Role.OPERATOR, Role.ADMIN)
+  @AdminPages(AdminPage.ORDERS)
   @ApiOperation({
     summary:
       "Cancel an own order within 15 minutes as customer or an active unsettled order as administrator",

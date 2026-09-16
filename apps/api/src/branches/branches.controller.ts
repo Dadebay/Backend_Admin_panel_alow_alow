@@ -14,9 +14,9 @@ import {
   ApiOperation,
   ApiTags,
 } from "@nestjs/swagger";
-import { CurrentUser, Roles } from "../common/auth.decorators";
+import { AdminPages, CurrentUser, Roles } from "../common/auth.decorators";
 import type { AuthUser } from "../common/auth.types";
-import { Role } from "../generated/prisma/client";
+import { AdminPage, Role } from "../generated/prisma/client";
 import { CreateBranchDto, UpdateBranchDto } from "./branches.dto";
 import { BranchResponseDto } from "./branches-response.dto";
 import { BranchesService } from "./branches.service";
@@ -37,6 +37,7 @@ export class BranchesController {
 
   @Post()
   @Roles(Role.ADMIN)
+  @AdminPages(AdminPage.BRANCHES)
   @ApiOperation({ summary: "Create a delivery branch" })
   @ApiCreatedResponse({ type: BranchResponseDto })
   create(@CurrentUser() actor: AuthUser, @Body() dto: CreateBranchDto) {
@@ -45,6 +46,7 @@ export class BranchesController {
 
   @Patch(":id")
   @Roles(Role.ADMIN)
+  @AdminPages(AdminPage.BRANCHES)
   @ApiOperation({ summary: "Update or deactivate a delivery branch" })
   @ApiOkResponse({ type: BranchResponseDto })
   update(

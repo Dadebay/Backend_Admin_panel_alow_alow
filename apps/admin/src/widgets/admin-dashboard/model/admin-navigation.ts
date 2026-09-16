@@ -145,9 +145,10 @@ export const adminNavigation: AdminNavigationItem[] = [
 
 export function navigationForRole(role: Role, allowedPages?: AdminPage[]) {
   return adminNavigation.filter((item) => {
-    if (!item.roles.includes(role)) return false;
-    if (role === "SUPER_ADMIN" || allowedPages === undefined) return true;
-    return item.page !== null && allowedPages.includes(item.page);
+    if (item.page === null) return item.roles.includes(role);
+    if (role === "SUPER_ADMIN") return true;
+    if (allowedPages === undefined) return item.roles.includes(role);
+    return allowedPages.includes(item.page);
   });
 }
 

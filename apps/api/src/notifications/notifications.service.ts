@@ -14,6 +14,7 @@ import type { AppEnv } from "../config/env";
 import { toApiResponse } from "../common/api-response";
 import type { AuthUser } from "../common/auth.types";
 import {
+  AdminPage,
   NotificationAudience,
   NotificationCampaignStatus,
   Prisma,
@@ -275,7 +276,11 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
   }
 
   private assertCampaignAdministrator(actor: AuthUser) {
-    if (actor.role !== Role.ADMIN && actor.role !== Role.SUPER_ADMIN) {
+    if (
+      actor.role !== Role.ADMIN &&
+      actor.role !== Role.SUPER_ADMIN &&
+      !actor.expandedAdminPages.includes(AdminPage.NOTIFICATIONS)
+    ) {
       throw new ForbiddenException("Only administrators may send campaigns");
     }
   }

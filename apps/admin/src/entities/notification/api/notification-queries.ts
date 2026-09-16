@@ -10,10 +10,6 @@ export const notificationQueryKeys = {
 
 export function useNotificationCampaigns(page: number) {
   const { session, authorizedRequest } = useSession();
-  const canManage = Boolean(
-    session && ["ADMIN", "SUPER_ADMIN"].includes(session.user.role),
-  );
-
   return useQuery({
     queryKey: notificationQueryKeys.list(session?.user.id ?? "anonymous", page),
     queryFn: ({ signal }) =>
@@ -21,7 +17,7 @@ export function useNotificationCampaigns(page: number) {
         `/notifications/admin/campaigns?page=${page}&limit=25`,
         { signal },
       ),
-    enabled: canManage,
+    enabled: Boolean(session),
     staleTime: 15_000,
     refetchInterval: (query) =>
       query.state.data?.items.some(({ status }) =>

@@ -3,7 +3,6 @@ import { useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import {
   adminPageLabels,
-  adminPageValues,
   useAdminPageAccessMatrix,
   type AdminRolePageAccess,
 } from "@/src/entities/admin-page-access";
@@ -58,16 +57,22 @@ function RoleAccessForm({
 
   if (!access.editable) {
     return (
-      <article className="editor-card page-access-role-card is-locked">
+      <article
+        className="editor-card page-access-role-card is-locked"
+        data-testid="page-access-role-super-admin"
+      >
         <div className="page-access-role-head">
           <div>
             <h2>{roleLabels[access.role]}</h2>
-            <p>Полный доступ защищён и не может быть отключён.</p>
+            <p>
+              Это роль SUPER_ADMIN — владельцы системы с защищённым полным
+              доступом.
+            </p>
           </div>
           <span className="page-access-badge">Всегда разрешено</span>
         </div>
         <div className="page-access-grid">
-          {adminPageValues.map((page) => (
+          {access.availablePages.map((page) => (
             <div className="page-access-option is-checked is-disabled" key={page}>
               <span aria-hidden="true">✓</span>
               <strong>{adminPageLabels[page]}</strong>
@@ -78,7 +83,6 @@ function RoleAccessForm({
     );
   }
 
-  const available = new Set(access.availablePages);
   return (
     <form
       className="editor-card page-access-role-card"
@@ -90,10 +94,7 @@ function RoleAccessForm({
       <div className="page-access-role-head">
         <div>
           <h2>{roleLabels[access.role]}</h2>
-          <p>
-            Можно отключить только страницы, уже поддерживаемые полномочиями
-            этой роли.
-          </p>
+          <p>Выберите рабочие страницы для всех сотрудников этой роли.</p>
         </div>
         <span className="page-access-badge">
           {selectedPages.length} из {access.availablePages.length}
@@ -103,23 +104,21 @@ function RoleAccessForm({
       <fieldset className="page-access-fieldset">
         <legend className="sr-only">Страницы роли {roleLabels[access.role]}</legend>
         <div className="page-access-grid">
-          {adminPageValues.map((page) => {
-            const canUsePage = available.has(page);
+          {access.availablePages.map((page) => {
             return (
               <label
-                className={`page-access-option ${canUsePage ? "" : "is-disabled"}`}
+                className="page-access-option"
                 key={page}
               >
                 <input
                   type="checkbox"
                   value={page}
                   data-testid={`page-access-toggle-${access.role.toLowerCase()}-${page.toLowerCase()}`}
-                  disabled={!canUsePage || actions.updateRoleAccess.isPending}
+                  disabled={actions.updateRoleAccess.isPending}
                   {...register("allowedPages")}
                 />
                 <span aria-hidden="true" />
                 <strong>{adminPageLabels[page]}</strong>
-                {!canUsePage && <small>Не поддерживается ролью</small>}
               </label>
             );
           })}
@@ -155,8 +154,9 @@ export function PageAccessManager() {
         <div>
           <h1>Доступ к страницам</h1>
           <p>
-            Управляйте видимостью и прямым входом в разделы для каждой
-            веб-роли. Права на API и действия остаются защищены сервером.
+            Главный администратор управляет рабочими страницами администратора,
+            оператора, повара, курьера и бухгалтера. Права на действия внутри
+            страниц остаются защищены сервером.
           </p>
         </div>
       </header>

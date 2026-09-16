@@ -2,17 +2,30 @@ import { AdminPage, Role } from "../generated/prisma/client";
 
 export const ADMIN_PAGES = Object.values(AdminPage);
 
-const ADMIN_DEFAULT_PAGES: AdminPage[] = [...ADMIN_PAGES];
+export const OPERATIONS_ADMIN_PAGES = ADMIN_PAGES.filter(
+  (page) => page !== AdminPage.COURIER_WORKSPACE,
+);
 
 const DEFAULT_PAGES_BY_ROLE: Partial<Record<Role, readonly AdminPage[]>> = {
   [Role.ACCOUNTANT]: [AdminPage.ACCOUNTING],
-  [Role.ADMIN]: ADMIN_DEFAULT_PAGES,
-  [Role.SUPER_ADMIN]: ADMIN_DEFAULT_PAGES,
+  [Role.ADMIN]: OPERATIONS_ADMIN_PAGES,
+  [Role.OPERATOR]: [AdminPage.ORDERS, AdminPage.COURIER_MAP],
+  [Role.COOK]: [AdminPage.ORDERS],
+  [Role.COURIER]: [AdminPage.COURIER_WORKSPACE],
+  [Role.SUPER_ADMIN]: OPERATIONS_ADMIN_PAGES,
 };
 
 export const CONFIGURABLE_ADMIN_PAGE_ROLES = [
-  Role.ACCOUNTANT,
   Role.ADMIN,
+  Role.OPERATOR,
+  Role.COOK,
+  Role.COURIER,
+  Role.ACCOUNTANT,
+] as const;
+
+export const ADMIN_PAGE_ACCESS_MATRIX_ROLES = [
+  Role.SUPER_ADMIN,
+  ...CONFIGURABLE_ADMIN_PAGE_ROLES,
 ] as const;
 
 export function defaultAdminPages(role: Role): AdminPage[] {

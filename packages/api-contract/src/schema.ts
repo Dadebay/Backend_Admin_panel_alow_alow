@@ -3183,8 +3183,8 @@ export interface components {
         AdminRolePageAccessResponseDto: {
             /** @enum {string} */
             role: "CUSTOMER" | "OPERATOR" | "COOK" | "COURIER" | "ACCOUNTANT" | "ADMIN" | "SUPER_ADMIN";
-            allowedPages: ("LOGIN_ATTEMPTS" | "ORDERS" | "MEAL_CONFIG" | "ACCOUNTING" | "COURIER_MAP" | "BRANCHES" | "DELIVERY" | "CATALOG" | "MARKETING" | "NOTIFICATIONS" | "STAFF" | "CONTACTS" | "APP_VERSIONS")[];
-            availablePages: ("LOGIN_ATTEMPTS" | "ORDERS" | "MEAL_CONFIG" | "ACCOUNTING" | "COURIER_MAP" | "BRANCHES" | "DELIVERY" | "CATALOG" | "MARKETING" | "NOTIFICATIONS" | "STAFF" | "CONTACTS" | "APP_VERSIONS")[];
+            allowedPages: ("LOGIN_ATTEMPTS" | "ORDERS" | "MEAL_CONFIG" | "ACCOUNTING" | "COURIER_MAP" | "COURIER_WORKSPACE" | "BRANCHES" | "DELIVERY" | "CATALOG" | "MARKETING" | "NOTIFICATIONS" | "STAFF" | "CONTACTS" | "APP_VERSIONS")[];
+            availablePages: ("LOGIN_ATTEMPTS" | "ORDERS" | "MEAL_CONFIG" | "ACCOUNTING" | "COURIER_MAP" | "COURIER_WORKSPACE" | "BRANCHES" | "DELIVERY" | "CATALOG" | "MARKETING" | "NOTIFICATIONS" | "STAFF" | "CONTACTS" | "APP_VERSIONS")[];
             editable: boolean;
             version: number;
         };
@@ -3192,7 +3192,7 @@ export interface components {
             roles: components["schemas"]["AdminRolePageAccessResponseDto"][];
         };
         UpdateAdminPageAccessDto: {
-            allowedPages: ("LOGIN_ATTEMPTS" | "ORDERS" | "MEAL_CONFIG" | "ACCOUNTING" | "COURIER_MAP" | "BRANCHES" | "DELIVERY" | "CATALOG" | "MARKETING" | "NOTIFICATIONS" | "STAFF" | "CONTACTS" | "APP_VERSIONS")[];
+            allowedPages: ("LOGIN_ATTEMPTS" | "ORDERS" | "MEAL_CONFIG" | "ACCOUNTING" | "COURIER_MAP" | "COURIER_WORKSPACE" | "BRANCHES" | "DELIVERY" | "CATALOG" | "MARKETING" | "NOTIFICATIONS" | "STAFF" | "CONTACTS" | "APP_VERSIONS")[];
             /** @description Current access-policy version */
             version: number;
         };

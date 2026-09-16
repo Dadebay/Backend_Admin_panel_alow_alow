@@ -130,7 +130,7 @@ export function AdminDashboard() {
         </div>
         <OtpLoginCard
           title="Вход сотрудника"
-          description="Вход доступен администраторам и бухгалтерам."
+          description="Вход доступен сотрудникам с разрешённой рабочей страницей."
         />
       </main>
     );
@@ -143,7 +143,7 @@ export function AdminDashboard() {
           <h1>Нет доступа к админке</h1>
           <p>
             Для роли «{roleLabels[session.user.role]}» вход закрыт. Веб-админка
-            доступна только администраторам и бухгалтерам.
+            доступна только рабочим ролям сотрудников.
           </p>
           {session.user.role === "COURIER" && (
             <Link

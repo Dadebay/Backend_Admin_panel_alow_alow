@@ -21,6 +21,7 @@ import {
   type AdminView,
 } from "@/src/widgets/admin-dashboard";
 import { useMyAdminPageAccess } from "@/src/entities/admin-page-access";
+import { roleLabels } from "@/src/entities/order";
 import { useSession } from "@/src/shared/auth";
 import { AppProviders } from "../providers";
 
@@ -125,6 +126,72 @@ function NotFound() {
   );
 }
 
+function PageAccessLoadError() {
+  const pageAccess = useMyAdminPageAccess();
+  const { logout } = useSession();
+  return (
+    <main className="login-page" data-testid="admin-page-access-error">
+      <section className="access-card">
+        <h1>Не удалось проверить доступ</h1>
+        <p>Рабочие страницы закрыты до загрузки серверной матрицы прав.</p>
+        <button
+          className="primary-button"
+          type="button"
+          onClick={() => void pageAccess.refetch()}
+        >
+          Повторить
+        </button>
+        <button
+          className="secondary-button"
+          type="button"
+          onClick={() => void logout()}
+        >
+          Выйти
+        </button>
+      </section>
+    </main>
+  );
+}
+
+function NoPageAccess() {
+  const { session, ready, logout } = useSession();
+  if (!ready) return <RouteFallback />;
+  if (!session) return <Navigate replace to="/" />;
+  return (
+    <main className="login-page" data-testid="admin-no-page-access">
+      <section className="access-card">
+        <h1>Нет доступных рабочих страниц</h1>
+        <p>
+          Для роли «{roleLabels[session.user.role]}» главный администратор
+          отключил все рабочие страницы.
+        </p>
+        <button
+          className="secondary-button"
+          type="button"
+          onClick={() => void logout()}
+        >
+          Выйти
+        </button>
+      </section>
+    </main>
+  );
+}
+
+function CourierRoute() {
+  const { session, ready } = useSession();
+  const pageAccess = useMyAdminPageAccess();
+  if (!ready) return <RouteFallback />;
+  if (!session || session.user.role !== "COURIER") {
+    return <CourierTrackingScreen />;
+  }
+  if (pageAccess.isPending) return <RouteFallback />;
+  if (pageAccess.isError || !pageAccess.data) return <PageAccessLoadError />;
+  if (!pageAccess.data.allowedPages.includes("COURIER_WORKSPACE")) {
+    return <Navigate replace to="/access-denied" />;
+  }
+  return <CourierTrackingScreen />;
+}
+
 function RoleProtectedView({
   navigationItem,
   children,
@@ -137,7 +204,7 @@ function RoleProtectedView({
 
   if (!session) return null;
   if (pageAccess.isPending) return <RouteFallback />;
-  if (pageAccess.isError || !pageAccess.data) return null;
+  if (pageAccess.isError || !pageAccess.data) return <PageAccessLoadError />;
   const allowedNavigation = navigationForRole(
     session.user.role,
     pageAccess.data.allowedPages,
@@ -161,19 +228,20 @@ function RootRedirect() {
   const { session, ready } = useSession();
   const pageAccess = useMyAdminPageAccess();
   if (!ready) return <RouteFallback />;
-  if (
-    session &&
-    session.user.role !== "COURIER" &&
-    pageAccess.isPending
-  ) {
+  if (session && pageAccess.isPending) {
     return <RouteFallback />;
+  }
+  if (session && (pageAccess.isError || !pageAccess.data)) {
+    return <PageAccessLoadError />;
   }
   return (
     <Navigate
       replace
       to={
         session?.user.role === "COURIER"
-          ? "/courier"
+          ? pageAccess.data?.allowedPages.includes("COURIER_WORKSPACE")
+            ? "/courier"
+            : "/access-denied"
           : session
             ? defaultAdminPathForRole(
                 session.user.role,
@@ -189,7 +257,8 @@ function AdminRoutes() {
   return (
     <Routes>
       <Route path="/" element={<RootRedirect />} />
-      <Route path="/courier" element={<CourierTrackingScreen />} />
+      <Route path="/courier" element={<CourierRoute />} />
+      <Route path="/access-denied" element={<NoPageAccess />} />
       <Route element={<AdminDashboard />}>
         {adminNavigation.map((navigationItem) => {
           const Component = adminRouteComponents[navigationItem.id];
@@ -205,22 +274,6 @@ function AdminRoutes() {
             />
           );
         })}
-        <Route
-          path="/access-denied"
-          element={
-            <section className="admin-section" data-testid="admin-no-page-access">
-              <header className="section-head">
-                <div>
-                  <h1>Нет доступных разделов</h1>
-                  <p>
-                    Для вашей роли отключён доступ ко всем страницам. Обратитесь
-                    к главному администратору.
-                  </p>
-                </div>
-              </header>
-            </section>
-          }
-        />
       </Route>
       <Route path="*" element={<NotFound />} />
     </Routes>

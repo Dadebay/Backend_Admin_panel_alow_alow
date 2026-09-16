@@ -4,7 +4,7 @@ import test from "node:test";
 import { adminPageValues } from "../src/entities/admin-page-access/model/types.ts";
 
 test("page access registry covers every configurable backend page exactly once", () => {
-  assert.equal(adminPageValues.length, 13);
+  assert.equal(adminPageValues.length, 14);
   assert.equal(new Set(adminPageValues).size, adminPageValues.length);
   assert.deepEqual(adminPageValues, [
     "LOGIN_ATTEMPTS",
@@ -12,6 +12,7 @@ test("page access registry covers every configurable backend page exactly once",
     "MEAL_CONFIG",
     "ACCOUNTING",
     "COURIER_MAP",
+    "COURIER_WORKSPACE",
     "BRANCHES",
     "DELIVERY",
     "CATALOG",
@@ -58,4 +59,6 @@ test("super-admin access screen uses the real API, versioned updates and accessi
   assert.match(managerSource, /type="checkbox"/);
   assert.match(managerSource, /page-access-save-\$\{access\.role/);
   assert.match(managerSource, /Доступ для роли/);
+  assert.match(managerSource, /администратора,\s*оператора, повара, курьера/);
+  assert.doesNotMatch(managerSource, /Не поддерживается ролью/);
 });

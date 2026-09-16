@@ -9,12 +9,11 @@ import { PrismaService } from "../prisma/prisma.service";
 import type { UpdateAdminPageAccessDto } from "./admin-page-access.dto";
 import {
   ADMIN_PAGES,
+  ADMIN_PAGE_ACCESS_MATRIX_ROLES,
   availableAdminPages,
   effectiveAdminPages,
   isConfigurableAdminPageRole,
 } from "./admin-page-access.policy";
-
-const MATRIX_ROLES = [Role.SUPER_ADMIN, Role.ADMIN, Role.ACCOUNTANT];
 
 @Injectable()
 export class AdminPageAccessService {
@@ -29,11 +28,11 @@ export class AdminPageAccessService {
 
   async matrix() {
     const policies = await this.prisma.adminRolePageAccess.findMany({
-      where: { role: { in: MATRIX_ROLES } },
+      where: { role: { in: [...ADMIN_PAGE_ACCESS_MATRIX_ROLES] } },
     });
     const byRole = new Map(policies.map((policy) => [policy.role, policy]));
     return {
-      roles: MATRIX_ROLES.map((role) => {
+      roles: ADMIN_PAGE_ACCESS_MATRIX_ROLES.map((role) => {
         const policy = byRole.get(role);
         return this.toResponse(
           role,
@@ -47,7 +46,7 @@ export class AdminPageAccessService {
   async update(actor: AuthUser, role: Role, dto: UpdateAdminPageAccessDto) {
     if (!isConfigurableAdminPageRole(role)) {
       throw new BadRequestException(
-        "Page access can be configured only for ADMIN and ACCOUNTANT",
+        "Page access can be configured only for staff web roles",
       );
     }
 

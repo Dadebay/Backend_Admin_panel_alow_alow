@@ -233,22 +233,24 @@ their own staff account as the customer of an ordinary order.
 Only `SUPER_ADMIN` may manage another `SUPER_ADMIN`, and the system must retain
 at least one active `SUPER_ADMIN`.
 
-`SUPER_ADMIN` owns the `/access` role-page matrix. The matrix may narrow the
-existing browser-page access of `ADMIN` and `ACCOUNTANT`, but it cannot expand a
-role beyond the API capabilities already granted in code. `SUPER_ADMIN` always
-retains every operations-admin page and cannot be edited in the matrix.
-`CUSTOMER`, `OPERATOR`, `COOK`, and `COURIER` cannot be granted operations-admin
-pages through this setting; the courier's isolated `/courier` screen remains a
-separate policy. Stored role policies are versioned for conflict detection and
+`SUPER_ADMIN` owns the `/access` role-page matrix for every employee web role:
+`ADMIN`, `OPERATOR`, `COOK`, `COURIER`, and `ACCOUNTANT`. It may enable or
+disable the pages already backed by each role's API capabilities: all
+operations pages for `ADMIN`; orders and the courier map for `OPERATOR`; orders
+for `COOK`; the isolated courier workspace for `COURIER`; and accounting for
+`ACCOUNTANT`. Page visibility never expands action-level API authority.
+`SUPER_ADMIN` always retains every operations-admin page and cannot be edited
+in the matrix. `CUSTOMER` is a mobile customer rather than an employee web role
+and is excluded. Stored role policies are versioned for conflict detection and
 every successful change creates an audit record.
 
-The React/Vite operations admin accepts admin-navigation access only for
-`ACCOUNTANT`, `ADMIN`, and `SUPER_ADMIN`. `CUSTOMER`, `OPERATOR`, and `COOK`
+The React/Vite operations admin accepts role-page-controlled admin navigation
+for `OPERATOR`, `COOK`, `ACCOUNTANT`, `ADMIN`, and `SUPER_ADMIN`. `CUSTOMER`
 cannot retain a web session. `COURIER` may retain a session only for the
-isolated `/courier` shift screen, where the courier publishes their own GPS and
-works with backend-scoped orders; that role still cannot enter any operations-
-admin route. The dedicated screen is a production fallback when a native
-courier client is not yet publishing location.
+role-page-controlled isolated `/courier` shift screen, where the courier
+publishes their own GPS and works with backend-scoped orders; that role still
+cannot enter any operations-admin route. The dedicated screen is a production
+fallback when a native courier client is not yet publishing location.
 
 Every operations-admin section owns a canonical browser URL and is composed
 through React Router's declarative `BrowserRouter` layout. `/` redirects an

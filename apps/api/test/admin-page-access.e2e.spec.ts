@@ -13,7 +13,14 @@ import {
 } from "../src/generated/prisma/client";
 import { PrismaService } from "../src/prisma/prisma.service";
 
-type ActorName = "accountant" | "admin" | "customer" | "superAdmin";
+type ActorName =
+  | "accountant"
+  | "admin"
+  | "cook"
+  | "courier"
+  | "customer"
+  | "operator"
+  | "superAdmin";
 type PageAccessResponse = {
   role: Role;
   allowedPages: AdminPage[];
@@ -46,7 +53,10 @@ describe("admin role page access", () => {
     const roles = {
       accountant: Role.ACCOUNTANT,
       admin: Role.ADMIN,
+      cook: Role.COOK,
+      courier: Role.COURIER,
       customer: Role.CUSTOMER,
+      operator: Role.OPERATOR,
       superAdmin: Role.SUPER_ADMIN,
     } satisfies Record<ActorName, Role>;
     users = Object.fromEntries(
@@ -88,7 +98,7 @@ describe("admin role page access", () => {
     await app.close();
   });
 
-  it("returns safe defaults only to portal roles", async () => {
+  it("returns safe defaults to every employee web role", async () => {
     await request(server).get("/api/v1/admin-page-access/me").expect(401);
     await request(server)
       .get("/api/v1/admin-page-access/me")
@@ -107,13 +117,67 @@ describe("admin role page access", () => {
       version: 0,
     });
 
+    const operator = await request(server)
+      .get("/api/v1/admin-page-access/me")
+      .set(bearer(tokens.operator))
+      .expect(200);
+    expect(operator.body).toMatchObject({
+      role: Role.OPERATOR,
+      allowedPages: [AdminPage.ORDERS, AdminPage.COURIER_MAP],
+      availablePages: [AdminPage.ORDERS, AdminPage.COURIER_MAP],
+      editable: true,
+      version: 0,
+    });
+
+    const cook = await request(server)
+      .get("/api/v1/admin-page-access/me")
+      .set(bearer(tokens.cook))
+      .expect(200);
+    expect(cook.body).toMatchObject({
+      role: Role.COOK,
+      allowedPages: [AdminPage.ORDERS],
+      availablePages: [AdminPage.ORDERS],
+      editable: true,
+      version: 0,
+    });
+
+    const courier = await request(server)
+      .get("/api/v1/admin-page-access/me")
+      .set(bearer(tokens.courier))
+      .expect(200);
+    expect(courier.body).toMatchObject({
+      role: Role.COURIER,
+      allowedPages: [AdminPage.COURIER_WORKSPACE],
+      availablePages: [AdminPage.COURIER_WORKSPACE],
+      editable: true,
+      version: 0,
+    });
+
     const superAdmin = await request(server)
       .get("/api/v1/admin-page-access/me")
       .set(bearer(tokens.superAdmin))
       .expect(200);
     const superAdminBody = superAdmin.body as PageAccessResponse;
     expect(superAdminBody.editable).toBe(false);
-    expect(superAdminBody.allowedPages).toEqual(Object.values(AdminPage));
+    expect(superAdminBody.allowedPages).toEqual(
+      Object.values(AdminPage).filter(
+        (page) => page !== AdminPage.COURIER_WORKSPACE,
+      ),
+    );
+
+    const matrix = await request(server)
+      .get("/api/v1/admin-page-access")
+      .set(bearer(tokens.superAdmin))
+      .expect(200);
+    const matrixBody = matrix.body as { roles: PageAccessResponse[] };
+    expect(matrixBody.roles.map(({ role }) => role)).toEqual([
+      Role.SUPER_ADMIN,
+      Role.ADMIN,
+      Role.OPERATOR,
+      Role.COOK,
+      Role.COURIER,
+      Role.ACCOUNTANT,
+    ]);
   });
 
   it("lets only a super administrator update a role with optimistic concurrency", async () => {
@@ -165,6 +229,27 @@ describe("admin role page access", () => {
         },
       }),
     ).toBe(1);
+  });
+
+  it("lets the super administrator configure every employee web role", async () => {
+    for (const role of [
+      Role.OPERATOR,
+      Role.COOK,
+      Role.COURIER,
+      Role.ACCOUNTANT,
+    ]) {
+      const saved = await request(server)
+        .put(`/api/v1/admin-page-access/${role}`)
+        .set(bearer(tokens.superAdmin))
+        .send({ allowedPages: [], version: 0 })
+        .expect(200);
+      expect(saved.body).toMatchObject({
+        role,
+        allowedPages: [],
+        editable: true,
+        version: 1,
+      });
+    }
   });
 
   it("rejects role expansion and immutable role changes", async () => {

@@ -42,7 +42,7 @@ export const adminNavigation: AdminNavigationItem[] = [
     label: "Заказы",
     icon: "orders",
     path: "/orders",
-    roles: ["ADMIN", "SUPER_ADMIN"],
+    roles: ["OPERATOR", "COOK", "ADMIN", "SUPER_ADMIN"],
     page: "ORDERS",
   },
   {
@@ -66,7 +66,7 @@ export const adminNavigation: AdminNavigationItem[] = [
     label: "Карта курьеров",
     icon: "map",
     path: "/couriers/map",
-    roles: ["ADMIN", "SUPER_ADMIN"],
+    roles: ["OPERATOR", "ADMIN", "SUPER_ADMIN"],
     page: "COURIER_MAP",
   },
   {

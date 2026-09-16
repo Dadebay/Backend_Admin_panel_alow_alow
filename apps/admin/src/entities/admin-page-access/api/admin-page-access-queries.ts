@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { canAccessAdminPortal, useSession } from "@/src/shared/auth";
+import { canAccessWebSession, useSession } from "@/src/shared/auth";
 import type {
   AdminPageAccessMatrix,
   AdminRolePageAccess,
@@ -15,7 +15,7 @@ export const adminPageAccessQueryKeys = {
 export function useMyAdminPageAccess() {
   const { session, authorizedRequest } = useSession();
   const canLoad = Boolean(
-    session && canAccessAdminPortal(session.user.role),
+    session && canAccessWebSession(session.user.role),
   );
   return useQuery({
     queryKey: adminPageAccessQueryKeys.mine(

@@ -30,21 +30,28 @@ const administratorViews = [
   "app-versions",
 ];
 
-test("only accountants and administrators may enter the admin portal", () => {
-  for (const role of ["ACCOUNTANT", "ADMIN", "SUPER_ADMIN"]) {
+test("every operations employee role may enter its page-controlled portal", () => {
+  for (const role of ["OPERATOR", "COOK", "ACCOUNTANT", "ADMIN", "SUPER_ADMIN"]) {
     assert.equal(canAccessAdminPortal(role), true, role);
   }
-  for (const role of ["CUSTOMER", "OPERATOR", "COOK", "COURIER"]) {
+  for (const role of ["CUSTOMER", "COURIER"]) {
     assert.equal(canAccessAdminPortal(role), false, role);
     assert.deepEqual(views(role), [], role);
   }
 });
 
 test("couriers may keep a dedicated web session without entering the admin portal", () => {
-  for (const role of ["ACCOUNTANT", "ADMIN", "SUPER_ADMIN", "COURIER"]) {
+  for (const role of [
+    "OPERATOR",
+    "COOK",
+    "COURIER",
+    "ACCOUNTANT",
+    "ADMIN",
+    "SUPER_ADMIN",
+  ]) {
     assert.equal(canAccessWebSession(role), true, role);
   }
-  for (const role of ["CUSTOMER", "OPERATOR", "COOK"]) {
+  for (const role of ["CUSTOMER"]) {
     assert.equal(canAccessWebSession(role), false, role);
   }
   assert.equal(canAccessAdminPortal("COURIER"), false);
@@ -52,6 +59,11 @@ test("couriers may keep a dedicated web session without entering the admin porta
 
 test("accountant navigation contains only shift accounting", () => {
   assert.deepEqual(views("ACCOUNTANT"), ["accounting"]);
+});
+
+test("operator and cook navigation matches their supported workspaces", () => {
+  assert.deepEqual(views("OPERATOR"), ["orders", "map"]);
+  assert.deepEqual(views("COOK"), ["orders"]);
 });
 
 test("administrators retain all management sections represented outside the full-flow board", () => {
@@ -70,6 +82,11 @@ test("server-provided page access narrows navigation without expanding role capa
     ),
     ["accounting"],
   );
+  assert.deepEqual(
+    navigationForRole("OPERATOR", ["ORDERS"]).map(({ id }) => id),
+    ["orders"],
+  );
+  assert.deepEqual(navigationForRole("COOK", []).map(({ id }) => id), []);
   assert.deepEqual(
     navigationForRole("SUPER_ADMIN", []).map(({ id }) => id),
     [...administratorViews, "access"],
@@ -122,6 +139,8 @@ test("the courier screen is isolated from admin navigation and accepts courier s
   );
   assert.match(appSource, /path="\/courier"/);
   assert.match(appSource, /CourierTrackingScreen/);
+  assert.match(appSource, /COURIER_WORKSPACE/);
+  assert.match(appSource, /path="\/access-denied"/);
   assert.match(
     appSource,
     /defaultAdminPathForRole\(\s*session\.user\.role,/,

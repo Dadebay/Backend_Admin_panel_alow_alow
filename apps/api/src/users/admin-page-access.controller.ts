@@ -28,7 +28,14 @@ export class AdminPageAccessController {
   constructor(private readonly pageAccess: AdminPageAccessService) {}
 
   @Get("me")
-  @Roles(Role.ACCOUNTANT, Role.ADMIN, Role.SUPER_ADMIN)
+  @Roles(
+    Role.OPERATOR,
+    Role.COOK,
+    Role.COURIER,
+    Role.ACCOUNTANT,
+    Role.ADMIN,
+    Role.SUPER_ADMIN,
+  )
   @ApiOkResponse({ type: AdminRolePageAccessResponseDto })
   mine(@CurrentUser() actor: AuthUser) {
     return this.pageAccess.mine(actor.role);

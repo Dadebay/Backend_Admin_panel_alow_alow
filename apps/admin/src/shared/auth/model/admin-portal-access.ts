@@ -4,6 +4,8 @@ type SessionUser = components["schemas"]["AuthSessionUserDto"];
 export type AdminPortalRole = SessionUser["role"];
 
 const ADMIN_PORTAL_ROLES = new Set<AdminPortalRole>([
+  "OPERATOR",
+  "COOK",
   "ACCOUNTANT",
   "ADMIN",
   "SUPER_ADMIN",

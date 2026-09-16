@@ -153,7 +153,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
           body: JSON.stringify({ refreshToken: response.refreshToken }),
         }).catch(() => undefined);
         throw new ApiError(
-          "Веб-доступ разрешён администраторам, бухгалтерам и курьерам.",
+          "Веб-доступ разрешён только сотрудникам A7-tagam.",
           403,
         );
       }

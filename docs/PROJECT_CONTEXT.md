@@ -721,6 +721,12 @@ heights; visual density must not be reduced to the previous pale compact map.
   map coordinates plus subtotal, reverse-geocodes the coordinates on the
   server, returns the official address line and configured fee, and proposes
   an enabled etrap only when one multilingual name matches unambiguously.
+  Exact normalized name tokens take priority; when no exact token matches, one
+  unique alphabetic prefix variant of at least five characters (for example,
+  `bitarap` and `bitaraplyk`) may resolve the same configured area. Ambiguous
+  prefix matches remain unresolved. Numbered stages and microdistricts match
+  only through an explicit number-plus-area expression; a bare house number
+  must never select a tariff zone.
   Unknown/ambiguous locations return the authoritative fallback quote with
   `matched=false`; assisted checkout accepts that quote without a second
   district selector. The map coordinates are the source of truth: changing

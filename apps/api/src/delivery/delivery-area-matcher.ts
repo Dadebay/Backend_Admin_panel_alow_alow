@@ -2,15 +2,19 @@ const DELIVERY_ADDRESS_STOP_WORDS = new Set([
   "asgabat",
   "city",
   "district",
+  "etap",
   "etrap",
   "etraby",
   "etrapca",
   "koc",
   "kocesi",
   "mkr",
+  "microdistrict",
+  "mikrorayon",
   "nci",
   "nji",
   "njy",
+  "nobatdaky",
   "pr",
   "prospekt",
   "rayon",
@@ -22,6 +26,7 @@ const DELIVERY_ADDRESS_STOP_WORDS = new Set([
   "tapgyr",
   "turkmenistan",
   "ul",
+  "этап",
 ]);
 
 export type DeliveryAreaCandidate = {
@@ -43,15 +48,96 @@ function foldDeliveryAddress(value: string) {
 }
 
 function significantDeliveryAddressTokens(value: string) {
-  return (foldDeliveryAddress(value).match(/[\p{L}\p{N}]+/gu) ?? []).filter(
-    (token) => token.length >= 4 && !DELIVERY_ADDRESS_STOP_WORDS.has(token),
-  );
+  const folded = foldDeliveryAddress(value);
+  const canonicalTokens: string[] = [];
+  const numberedAreaPatterns = [
+    {
+      kind: "stage",
+      pattern:
+        /(\d{1,3})(?:\s*-\s*[\p{L}]{2,6})?\s+(?:nobatdaky|tapgyr|etap|этап)(?=$|[^\p{L}\p{N}])/gu,
+    },
+    {
+      kind: "microdistrict",
+      pattern:
+        /(\d{1,3})(?:\s*-\s*[\p{L}]{2,6})?\s+(?:etrapca|mkr|microdistrict|mikrorayon|мкр|микрорайон)(?=$|[^\p{L}\p{N}])/gu,
+    },
+  ];
+  for (const { kind, pattern } of numberedAreaPatterns) {
+    for (const match of folded.matchAll(pattern)) {
+      canonicalTokens.push(`${kind}:${Number(match[1])}`);
+    }
+  }
+
+  return [
+    ...(folded.match(/[\p{L}\p{N}]+/gu) ?? []).filter(
+      (token) => token.length >= 4 && !DELIVERY_ADDRESS_STOP_WORDS.has(token),
+    ),
+    ...canonicalTokens,
+  ];
+}
+
+function scoreDeliveryAreaName(
+  addressTokens: ReadonlySet<string>,
+  name: string,
+  matches: (addressToken: string, candidateToken: string) => boolean,
+) {
+  return significantDeliveryAddressTokens(name).reduce((score, token) => {
+    const matchedLength = [...addressTokens].reduce(
+      (best, addressToken) =>
+        matches(addressToken, token)
+          ? Math.max(best, Math.min(token.length, addressToken.length))
+          : best,
+      0,
+    );
+    return score + matchedLength;
+  }, 0);
+}
+
+function rankDeliveryAreas<T extends DeliveryAreaCandidate>(
+  candidates: readonly T[],
+  addressTokens: ReadonlySet<string>,
+  matches: (addressToken: string, candidateToken: string) => boolean,
+) {
+  return candidates
+    .map((candidate) => ({
+      candidate,
+      score: [candidate.nameRu, candidate.nameTk, candidate.nameEn]
+        .filter((name): name is string => Boolean(name))
+        .reduce(
+          (best, name) =>
+            Math.max(
+              best,
+              scoreDeliveryAreaName(addressTokens, name, matches),
+            ),
+          0,
+        ),
+    }))
+    .filter(({ score }) => score > 0)
+    .sort((left, right) => right.score - left.score);
+}
+
+function selectUnambiguousDeliveryArea<T>(
+  ranked: readonly { candidate: T; score: number }[],
+) {
+  const best = ranked[0];
+  if (!best || best.score === ranked[1]?.score) return null;
+  return best.candidate;
+}
+
+function isDeliveryTokenPrefixVariant(left: string, right: string) {
+  if (left === right || !/^\p{L}+$/u.test(left) || !/^\p{L}+$/u.test(right)) {
+    return false;
+  }
+  const shorter = left.length <= right.length ? left : right;
+  const longer = left.length <= right.length ? right : left;
+  return shorter.length >= 5 && longer.startsWith(shorter);
 }
 
 /**
- * Matches only an unambiguous configured area name. Coordinates are not
- * treated as polygons: when geocoding does not name exactly one area, callers
- * keep the fallback quote and require an explicit area selection.
+ * Matches only an unambiguous configured area name. Exact normalized tokens
+ * always win. When there is no exact match, a unique alphabetic prefix variant
+ * such as `bitarap` / `bitaraplyk` is accepted. Coordinates are not treated as
+ * polygons: unresolved or ambiguous addresses keep the fallback quote.
  */
 export function findDeliveryAreaForAddress<T extends DeliveryAreaCandidate>(
   candidates: readonly T[],
@@ -61,24 +147,20 @@ export function findDeliveryAreaForAddress<T extends DeliveryAreaCandidate>(
   const addressTokens = new Set(significantDeliveryAddressTokens(addressLine));
   if (!addressTokens.size) return null;
 
-  const matches = candidates
-    .map((candidate) => {
-      const score = [candidate.nameRu, candidate.nameTk, candidate.nameEn]
-        .filter((name): name is string => Boolean(name))
-        .reduce((best, name) => {
-          const tokens = new Set(significantDeliveryAddressTokens(name));
-          const matchedScore = [...tokens].reduce(
-            (sum, token) => sum + (addressTokens.has(token) ? token.length : 0),
-            0,
-          );
-          return Math.max(best, matchedScore);
-        }, 0);
-      return { candidate, score };
-    })
-    .filter(({ score }) => score > 0)
-    .sort((left, right) => right.score - left.score);
+  const exactMatches = rankDeliveryAreas(
+    candidates,
+    addressTokens,
+    (addressToken, candidateToken) => addressToken === candidateToken,
+  );
+  if (exactMatches.length) {
+    return selectUnambiguousDeliveryArea(exactMatches);
+  }
 
-  const best = matches[0];
-  if (!best || best.score === matches[1]?.score) return null;
-  return best.candidate;
+  return selectUnambiguousDeliveryArea(
+    rankDeliveryAreas(
+      candidates,
+      addressTokens,
+      isDeliveryTokenPrefixVariant,
+    ),
+  );
 }

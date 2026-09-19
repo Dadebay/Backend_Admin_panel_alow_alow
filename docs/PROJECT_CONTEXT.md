@@ -226,9 +226,13 @@ Prisma access in React, or duplicate backend policies in client state.
 Only `ADMIN` and `SUPER_ADMIN` may create or retry a customer notification
 campaign. `OPERATOR`, `COOK`, `COURIER`, and `ACCOUNTANT` cannot send broadcasts.
 
-Only `OPERATOR`, `ADMIN`, and `SUPER_ADMIN` may create a phone-assisted order.
-The regular customer order endpoint accepts only `CUSTOMER`; staff cannot use
-their own staff account as the customer of an ordinary order.
+Every active authenticated role may quote and create a personal
+cash-on-delivery order through the regular order API and may manage its own
+saved delivery addresses. The order keeps the account as its `customerId`
+without changing the account's role or granting additional operational access.
+Only `OPERATOR`, `ADMIN`, and `SUPER_ADMIN` may create a phone-assisted order
+for another person; that trusted workflow remains separate from personal
+ordering.
 
 Only `SUPER_ADMIN` may manage another `SUPER_ADMIN`, and the system must retain
 at least one active `SUPER_ADMIN`.

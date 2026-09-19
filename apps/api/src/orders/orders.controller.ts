@@ -52,11 +52,9 @@ export class OrdersController {
 
   @Post("quote")
   @HttpCode(HttpStatus.OK)
-  @Roles(Role.CUSTOMER, Role.ADMIN)
-  @AdminPages(AdminPage.ORDERS, AdminPage.MEAL_CONFIG)
   @ApiOperation({
     summary:
-      "Preview authoritative variant prices, promo discount and delivery totals without creating an order",
+      "Preview an authenticated user's authoritative order totals without creating an order",
   })
   @ApiOkResponse({ type: OrderQuoteResponseDto })
   quote(@CurrentUser() user: AuthUser, @Body() dto: QuoteOrderDto) {
@@ -64,8 +62,9 @@ export class OrdersController {
   }
 
   @Post()
-  @Roles(Role.CUSTOMER)
-  @ApiOperation({ summary: "Create a cash-on-delivery order" })
+  @ApiOperation({
+    summary: "Create a personal cash-on-delivery order for the current user",
+  })
   @ApiCreatedResponse({ type: OrderResponseDto })
   create(@CurrentUser() user: AuthUser, @Body() dto: CreateOrderDto) {
     return this.orders.create(user, dto);

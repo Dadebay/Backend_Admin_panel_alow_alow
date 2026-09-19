@@ -860,7 +860,7 @@
             "bearer": []
           }
         ],
-        "summary": "Preview authoritative variant prices, promo discount and delivery totals without creating an order",
+        "summary": "Preview an authenticated user's authoritative order totals without creating an order",
         "tags": [
           "orders"
         ]
@@ -897,7 +897,7 @@
             "bearer": []
           }
         ],
-        "summary": "Create a cash-on-delivery order",
+        "summary": "Create a personal cash-on-delivery order for the current user",
         "tags": [
           "orders"
         ]
@@ -3700,7 +3700,7 @@
             "bearer": []
           }
         ],
-        "summary": "Search Turkmenistan OSM names after an explicit user submit",
+        "summary": "Search Turkmenistan OSM names for an authenticated delivery-address form",
         "tags": [
           "geocoding"
         ]

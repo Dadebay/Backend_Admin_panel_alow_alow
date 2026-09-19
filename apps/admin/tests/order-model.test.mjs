@@ -5,6 +5,7 @@ import {
   canAdministratorEditOrder,
   canEditCourierAssignment,
   nextOrderStatus,
+  orderPaymentBreakdown,
   orderTransitionActionLabel,
   previousOrderStatus,
   orderStatuses,
@@ -98,6 +99,27 @@ test("frontend renders a complete five-star review scale", () => {
   assert.equal(ratingStars(5), "★★★★★");
   assert.equal(ratingStars(4), "★★★★☆");
   assert.equal(ratingStars(1), "★☆☆☆☆");
+});
+
+test("order payment separates discounted food, delivery, and total", () => {
+  assert.deepEqual(
+    orderPaymentBreakdown({
+      subtotal: 140,
+      discount: 10,
+      deliveryFee: 15,
+      total: 145,
+    }),
+    { food: 130, delivery: 15, total: 145 },
+  );
+  assert.deepEqual(
+    orderPaymentBreakdown({
+      subtotal: 150,
+      discount: 0,
+      deliveryFee: 0,
+      total: 150,
+    }),
+    { food: 150, delivery: 0, total: 150 },
+  );
 });
 
 test("full-flow staff roles see the complete order kanban", () => {

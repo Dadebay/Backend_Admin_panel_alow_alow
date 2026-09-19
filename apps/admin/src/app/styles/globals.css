@@ -4468,6 +4468,64 @@ textarea[aria-invalid="true"] {
   font-weight: 700;
 }
 
+.order-payment-breakdown {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+  margin: 0;
+}
+
+.order-payment-breakdown > div {
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.order-payment-breakdown dt {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.order-payment-breakdown dd {
+  margin: 0;
+  color: var(--brand-navy);
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.order-payment-breakdown .order-payment-total {
+  margin-top: 2px;
+  padding-top: 5px;
+  border-top: 1px solid var(--line);
+}
+
+.order-payment-breakdown .order-payment-total :is(dt, dd) {
+  color: var(--brand-navy);
+  font-weight: 800;
+}
+
+.amount-cell .order-payment-breakdown {
+  min-width: 150px;
+}
+
+.order-kanban-finance .order-payment-breakdown {
+  grid-column: 1 / -1;
+  padding: 9px 10px;
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--brand-cream) 92%, white);
+}
+
+.order-detail-payment-breakdown dd {
+  font-size: 12px;
+}
+
+.order-detail-section-payment {
+  width: min(260px, 100%);
+}
+
 .primary-cell small,
 .order-items-cell,
 .muted {
@@ -4571,12 +4629,6 @@ textarea[aria-invalid="true"] {
 .order-detail-section-head h3 {
   margin: 4px 0 0;
   font-size: 16px;
-}
-
-.order-details-total {
-  color: var(--brand-navy);
-  font-size: 16px;
-  white-space: nowrap;
 }
 
 .order-detail-items {

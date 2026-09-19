@@ -29,7 +29,34 @@ test("kanban exposes stable automation hooks for lanes, cards, and actions", asy
   assert.match(source, /data-testid=\{`order-kanban-edit-\$\{order\.id\}`\}/);
   assert.match(source, /data-testid=\{`order-kanban-print-\$\{order\.id\}`\}/);
   assert.match(source, /<OrderPackingChecklist/);
+  assert.match(source, /testId=\{`order-kanban-payment-\$\{order\.id\}`\}/);
   assert.match(source, /canOpenDetails &&/);
+});
+
+test("order views show food, delivery, and total as separate amounts", async () => {
+  const [board, detail, payment] = await Promise.all([
+    readFile(boardUrl, "utf8"),
+    readFile(
+      new URL(
+        "../src/widgets/order-board/ui/order-detail-dialog.tsx",
+        import.meta.url,
+      ),
+      "utf8",
+    ),
+    readFile(
+      new URL(
+        "../src/entities/order/ui/order-payment-breakdown.tsx",
+        import.meta.url,
+      ),
+      "utf8",
+    ),
+  ]);
+
+  assert.match(board, /testId=\{`order-table-payment-/);
+  assert.match(detail, /data-testid=\{`order-detail-payment-/);
+  assert.match(payment, /<dt>Еда<\/dt>/);
+  assert.match(payment, /<dt>Доставка<\/dt>/);
+  assert.match(payment, /<dt>Итого<\/dt>/);
 });
 
 test("cooking and ready orders expose packing controls before courier handoff", async () => {

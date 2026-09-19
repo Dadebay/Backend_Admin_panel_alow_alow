@@ -461,6 +461,11 @@ grouped by a configurable shift. The singleton schedule uses
 day. Only `SUPER_ADMIN` may change the two names and boundaries. A setting
 change never rewrites an already submitted packet because every `CashHandoff`
 snapshots its shift name, start, end, expected amount and order count.
+The customer and courier still use the complete order total, but the amount
+recorded for accounting is only the discounted food subtotal
+(`total - deliveryFee`). Delivery is displayed separately and is excluded from
+shift handoffs, accounting summaries, daily revenue and the accounting average.
+Already submitted handoff snapshots remain unchanged.
 
 After a shift ends, `ADMIN` or `SUPER_ADMIN` submits all unclaimed confirmed
 cash settlements whose `operatorTakenAt` falls inside the interval. One unique

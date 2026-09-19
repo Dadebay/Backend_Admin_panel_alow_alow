@@ -9,6 +9,7 @@ import {
   canEditCourierAssignment,
   kanbanQueueStatusesForRole,
   nextOrderStatus,
+  OrderPaymentBreakdown,
   orderTransitionActionLabel,
   previousOrderStatus,
   orderItemLabel,
@@ -333,12 +334,11 @@ export function OrderBoard({
         header: "Оплата",
         cell: ({ row }) => (
           <div className="amount-cell">
-            <strong>{Number(row.original.total).toFixed(2)} TMT</strong>
-            <small>
-              Наличными
-              {Number(row.original.deliveryFee) > 0 &&
-                ` · доставка ${Number(row.original.deliveryFee).toFixed(2)}`}
-            </small>
+            <OrderPaymentBreakdown
+              order={row.original}
+              testId={`order-table-payment-${row.original.id}`}
+            />
+            <small>Наличными</small>
           </div>
         ),
       },

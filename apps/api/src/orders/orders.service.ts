@@ -1063,7 +1063,7 @@ export class OrdersService {
           data: {
             orderId: order.id,
             courierId: order.courierId,
-            amount: order.total,
+            amount: order.total.minus(order.deliveryFee),
             operatorTakenAt: new Date(),
             status: CashSettlementStatus.CONFIRMED,
           },

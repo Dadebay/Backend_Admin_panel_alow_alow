@@ -128,3 +128,14 @@ export function orderItemLabel(
     ? `${item.productName} · ${item.variantName}`
     : item.productName;
 }
+
+export function orderPaymentBreakdown(
+  order: Pick<Order, "subtotal" | "discount" | "deliveryFee" | "total">,
+) {
+  return {
+    food:
+      Math.round((Number(order.subtotal) - Number(order.discount)) * 100) / 100,
+    delivery: Number(order.deliveryFee),
+    total: Number(order.total),
+  };
+}

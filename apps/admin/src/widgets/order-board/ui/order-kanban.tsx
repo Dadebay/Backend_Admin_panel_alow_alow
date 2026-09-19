@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import {
+  OrderPaymentBreakdown,
   canCancel,
   canEditCourierAssignment,
   canAdministratorEditOrder,
@@ -248,10 +249,10 @@ function OrderCard({
 
         <div className="order-kanban-finance">
           {fields.has("cash") && (
-            <div>
-              <span>Наличными</span>
-              <strong>{Number(order.total).toFixed(2)} TMT</strong>
-            </div>
+            <OrderPaymentBreakdown
+              order={order}
+              testId={`order-kanban-payment-${order.id}`}
+            />
           )}
           {fields.has("courier") && order.courier && (
             <div>

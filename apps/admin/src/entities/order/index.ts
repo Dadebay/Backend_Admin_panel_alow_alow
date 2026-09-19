@@ -6,6 +6,7 @@ export {
   orderTransitionActionLabel,
   previousOrderStatus,
   orderItemLabel,
+  orderPaymentBreakdown,
   orderStatuses,
   ratingStars,
   roleLabels,
@@ -32,6 +33,7 @@ export {
   orderKanbanLanes,
   roleCanUseOrderTable,
 } from "./model/kanban";
+export { OrderPaymentBreakdown } from "./ui/order-payment-breakdown";
 export type {
   OrderCardField,
   OrderKanbanLane,

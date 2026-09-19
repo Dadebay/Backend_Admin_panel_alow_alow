@@ -46,6 +46,10 @@ test("the screen exposes distinct admin, accountant and super-admin duties", asy
   assert.match(source, /zodResolver\(accountingRangeSchema\)/);
   assert.match(source, /zodResolver\(accountingSettingsSchema\)/);
   assert.match(source, /zodResolver\(cashHandoffSchema\)/);
+  assert.match(source, /Деньги за еду по сменам/);
+  assert.match(source, /Доставка в/);
+  assert.match(source, /бухгалтерскую сумму не входит/);
+  assert.match(source, /Еда по системе/);
 });
 
 test("shift accounting collapses to one column on phones", async () => {

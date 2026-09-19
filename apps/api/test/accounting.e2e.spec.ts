@@ -310,4 +310,33 @@ describe("shift cash handoffs and accounting reports", () => {
       revenue: 250,
     });
   });
+
+  it("records only discounted food for accounting while the customer pays delivery", async () => {
+    const order = await prisma.order.create({
+      data: {
+        customerId: users.customer.id,
+        courierId: users.courier.id,
+        status: OrderStatus.DELIVERED,
+        subtotal: 120,
+        discount: 20,
+        deliveryFee: 15,
+        total: 115,
+        address: "Food-only accounting test address",
+        latitude: 37.95,
+        longitude: 58.38,
+      },
+    });
+
+    const response = await request(server)
+      .patch(`/api/v1/orders/${order.id}/transition`)
+      .set(bearer(tokens.courier))
+      .send({ status: OrderStatus.CASH_RETURNED, version: order.version })
+      .expect(200);
+    expect((response.body as { total: number }).total).toBe(115);
+
+    const settlement = await prisma.cashSettlement.findUniqueOrThrow({
+      where: { orderId: order.id },
+    });
+    expect(Number(settlement.amount)).toBe(100);
+  });
 });

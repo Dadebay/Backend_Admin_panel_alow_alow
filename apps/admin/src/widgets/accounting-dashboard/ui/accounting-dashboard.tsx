@@ -164,9 +164,10 @@ export function AccountingDashboard() {
     >
       <header className="section-head">
         <div>
-          <h1>Деньги по сменам</h1>
+          <h1>Деньги за еду по сменам</h1>
           <p>
-            Администратор сдаёт пакет за смену, бухгалтер подтверждает сумму.
+            Администратор сдаёт стоимость еды после скидок. Доставка в
+            бухгалтерскую сумму не входит.
           </p>
         </div>
       </header>
@@ -203,16 +204,16 @@ export function AccountingDashboard() {
           {report.data && (
             <>
               <div className="accounting-metrics" data-testid="accounting-summary">
-                <article><span>Получено наличными</span><strong>{money(report.data.summary.collectedAmount)}</strong><small>{report.data.summary.completedOrders} заказов</small></article>
-                <article><span>Передано бухгалтеру</span><strong>{money(report.data.summary.submittedAmount)}</strong><small>в пакетах смен</small></article>
-                <article><span>Подтверждено</span><strong>{money(report.data.summary.confirmedAmount)}</strong><small>сверено бухгалтером</small></article>
-                <article className={report.data.summary.outstandingAmount ? "needs-action" : ""}><span>Осталось сдать</span><strong>{money(report.data.summary.outstandingAmount)}</strong><small>завершённые заказы</small></article>
-                <article><span>Средний чек</span><strong>{money(report.data.summary.averageOrderAmount)}</strong><small>без отмен</small></article>
+                <article><span>Получено за еду</span><strong>{money(report.data.summary.collectedAmount)}</strong><small>{report.data.summary.completedOrders} заказов · без доставки</small></article>
+                <article><span>Передано бухгалтеру</span><strong>{money(report.data.summary.submittedAmount)}</strong><small>только еда</small></article>
+                <article><span>Подтверждено</span><strong>{money(report.data.summary.confirmedAmount)}</strong><small>еда, сверенная бухгалтером</small></article>
+                <article className={report.data.summary.outstandingAmount ? "needs-action" : ""}><span>Осталось сдать</span><strong>{money(report.data.summary.outstandingAmount)}</strong><small>за еду, без доставки</small></article>
+                <article><span>Средний заказ еды</span><strong>{money(report.data.summary.averageOrderAmount)}</strong><small>после скидок, без доставки</small></article>
                 <article><span>Отказы</span><strong>{report.data.summary.cancelledOrders}</strong><small>{report.data.summary.cancellationRate}% от завершённых и отменённых</small></article>
               </div>
 
               <section className="editor-card accounting-chart" data-testid="accounting-daily-report">
-                <div className="editor-title"><div><h2>Выручка по дням</h2><p>Часовой пояс Asia/Ashgabat</p></div></div>
+                <div className="editor-title"><div><h2>Выручка от еды по дням</h2><p>Без доставки · часовой пояс Asia/Ashgabat</p></div></div>
                 <div className="accounting-bars">
                   {report.data.daily.map((day) => (
                     <div className="accounting-bar-row" key={day.date}>
@@ -237,8 +238,8 @@ export function AccountingDashboard() {
         <section className="editor-card accounting-shifts" data-testid="accounting-shifts">
           <div className="editor-title">
             <div>
-              <h2>{isAdmin ? "Суммы к сдаче" : "Пакеты на подтверждение"}</h2>
-              <p>Границы смен берутся из настроек и не меняют уже созданные пакеты.</p>
+              <h2>{isAdmin ? "Суммы за еду к сдаче" : "Пакеты еды на подтверждение"}</h2>
+              <p>Доставка исключена. Границы смен не меняют уже созданные пакеты.</p>
             </div>
           </div>
           <div className="accounting-shift-grid">
@@ -253,7 +254,7 @@ export function AccountingDashboard() {
                   <span>{stateLabels[shift.state]}</span>
                 </div>
                 <dl>
-                  <div><dt>По системе</dt><dd>{money(shift.expectedAmount)}</dd></div>
+                  <div><dt>Еда по системе</dt><dd>{money(shift.expectedAmount)}</dd></div>
                   <div><dt>Заказов</dt><dd>{shift.settlementCount}</dd></div>
                 </dl>
                 {shift.handoff && (

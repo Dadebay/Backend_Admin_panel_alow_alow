@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { formatBranchDistance } from "@/src/entities/branch";
 import {
+  OrderPaymentBreakdown,
   orderItemLabel,
   ratingStars,
   roleLabels,
@@ -69,15 +70,14 @@ function OrderDetails({ order }: { order: Order }) {
           <span>Статус</span>
           <strong>{statusLabels[order.status]}</strong>
         </article>
-        <article>
-          <span>Сумма</span>
-          <strong>{Number(order.total).toFixed(2)} TMT</strong>
-          <small>
-            Наличными
-            {Number(order.deliveryFee) > 0
-              ? ` · доставка ${Number(order.deliveryFee).toFixed(2)} TMT`
-              : ""}
-          </small>
+        <article data-testid={`order-detail-payment-${order.id}`}>
+          <span>Оплата</span>
+          <OrderPaymentBreakdown
+            className="order-detail-payment-breakdown"
+            order={order}
+            testId={`order-detail-payment-breakdown-${order.id}`}
+          />
+          <small>Наличными</small>
         </article>
         <article>
           <span>Клиент</span>
@@ -128,9 +128,11 @@ function OrderDetails({ order }: { order: Order }) {
             <span className="eyebrow">СОСТАВ ЗАКАЗА</span>
             <h3 id="items-title">{order.items.length} позиций</h3>
           </div>
-          <strong className="order-details-total">
-            {Number(order.total).toFixed(2)} TMT
-          </strong>
+          <OrderPaymentBreakdown
+            className="order-detail-section-payment"
+            order={order}
+            testId={`order-detail-items-payment-${order.id}`}
+          />
         </div>
         <ul className="order-detail-items">
           {order.items.map((item) => (

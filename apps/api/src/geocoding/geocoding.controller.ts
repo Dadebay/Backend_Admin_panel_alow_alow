@@ -5,8 +5,7 @@ import {
   ApiOperation,
   ApiTags,
 } from "@nestjs/swagger";
-import { AdminPages, Public, Roles } from "../common/auth.decorators";
-import { AdminPage, Role } from "../generated/prisma/client";
+import { Public } from "../common/auth.decorators";
 import {
   ReverseGeocodeQueryDto,
   ReverseGeocodeResponseDto,
@@ -36,10 +35,9 @@ export class GeocodingController {
 
   @Get("search")
   @ApiBearerAuth()
-  @Roles(Role.CUSTOMER, Role.OPERATOR, Role.ADMIN)
-  @AdminPages(AdminPage.ORDERS)
   @ApiOperation({
-    summary: "Search Turkmenistan OSM names after an explicit user submit",
+    summary:
+      "Search Turkmenistan OSM names for an authenticated delivery-address form",
   })
   @ApiOkResponse({ type: SearchGeocodeResponseDto })
   async search(

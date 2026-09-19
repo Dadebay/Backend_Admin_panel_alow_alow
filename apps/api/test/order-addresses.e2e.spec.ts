@@ -252,7 +252,7 @@ describe("checkout address reuse and capacity", () => {
     expect(await countAddresses()).toBe(changes.length);
   });
 
-  it("does not reuse another customer's address and keeps order roles enforced", async () => {
+  it("does not reuse another user's address and lets every role place a personal order", async () => {
     const foreign = await prisma.user.create({
       data: { phone: "+99361009200", role: Role.CUSTOMER },
     });
@@ -268,15 +268,30 @@ describe("checkout address reuse and capacity", () => {
     const response = await order().expect(201);
     expect((response.body as OrderResponseDto).addressId).not.toBe(saved.id);
     expect(await countAddresses()).toBe(1);
-    // SUPER_ADMIN retains the existing global RolesGuard override.
-    for (const role of [
-      Role.OPERATOR,
-      Role.COOK,
-      Role.COURIER,
-      Role.ACCOUNTANT,
-      Role.ADMIN,
-    ]) {
-      await order({}, staffTokens.get(role) ?? "").expect(403);
+    for (const role of Object.values(Role)) {
+      const staffToken = staffTokens.get(role) ?? "";
+      const staffAddress = await request(server)
+        .post("/api/v1/users/me/addresses")
+        .set(auth(staffToken))
+        .send({
+          ...location,
+          address: `${role} personal destination`,
+          label: "Personal",
+        })
+        .expect(201);
+      const created = await request(server)
+        .post("/api/v1/orders")
+        .set(auth(staffToken))
+        .send({
+          items: body().items,
+          addressId: (staffAddress.body as { id: string }).id,
+        })
+        .expect(201);
+      expect(created.body).toMatchObject({
+        addressId: (staffAddress.body as { id: string }).id,
+        source: "CUSTOMER_APP",
+        status: "COOKING",
+      });
     }
     await request(server).post("/api/v1/orders").send(body()).expect(401);
     expect(

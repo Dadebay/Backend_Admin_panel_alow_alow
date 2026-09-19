@@ -352,7 +352,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Preview authoritative variant prices, promo discount and delivery totals without creating an order */
+        /** Preview an authenticated user's authoritative order totals without creating an order */
         post: operations["OrdersController_quote_v1"];
         delete?: never;
         options?: never;
@@ -370,7 +370,7 @@ export interface paths {
         /** List orders visible to the current role */
         get: operations["OrdersController_list_v1"];
         put?: never;
-        /** Create a cash-on-delivery order */
+        /** Create a personal cash-on-delivery order for the current user */
         post: operations["OrdersController_create_v1"];
         delete?: never;
         options?: never;
@@ -1439,7 +1439,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Search Turkmenistan OSM names after an explicit user submit */
+        /** Search Turkmenistan OSM names for an authenticated delivery-address form */
         get: operations["GeocodingController_search_v1"];
         put?: never;
         post?: never;

@@ -11,16 +11,14 @@ import {
   Post,
 } from "@nestjs/common";
 import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
-import { CurrentUser, Roles } from "../common/auth.decorators";
+import { CurrentUser } from "../common/auth.decorators";
 import type { AuthUser } from "../common/auth.types";
-import { Role } from "../generated/prisma/client";
 import { CreateAddressDto, UpdateAddressDto } from "./addresses.dto";
 import { AddressesService } from "./addresses.service";
 
 @ApiTags("addresses")
 @ApiBearerAuth()
 @Controller("users/me/addresses")
-@Roles(Role.CUSTOMER, Role.ADMIN)
 export class AddressesController {
   constructor(private readonly addresses: AddressesService) {}
 

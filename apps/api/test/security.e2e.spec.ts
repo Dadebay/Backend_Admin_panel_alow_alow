@@ -746,27 +746,25 @@ describe("backend security and critical workflow", () => {
     const orderCountBefore = await prisma.order.count();
 
     await request(server).post("/api/v1/orders/quote").send(body).expect(401);
-    for (const role of ["operator", "cook", "courier", "accountant"] as const) {
-      await request(server)
+    let quote: OrderQuoteResponse | undefined;
+    for (const actor of [
+      "customer",
+      "operator",
+      "cook",
+      "courier",
+      "accountant",
+      "admin",
+      "superAdmin",
+    ] as const) {
+      const response = await request(server)
         .post("/api/v1/orders/quote")
-        .set(bearer(tokens[role]))
-        .send(body)
-        .expect(403);
-    }
-    for (const role of ["admin", "superAdmin"] as const) {
-      await request(server)
-        .post("/api/v1/orders/quote")
-        .set(bearer(tokens[role]))
+        .set(bearer(tokens[actor]))
         .send(body)
         .expect(200);
+      if (actor === "customer") quote = response.body as OrderQuoteResponse;
     }
-
-    const response = await request(server)
-      .post("/api/v1/orders/quote")
-      .set(bearer(tokens.customer))
-      .send(body)
-      .expect(200);
-    const quote = response.body as OrderQuoteResponse;
+    expect(quote).toBeDefined();
+    if (!quote) throw new Error("Customer order quote was not captured");
 
     expect(quote).toMatchObject({
       promo: {
@@ -2827,7 +2825,7 @@ describe("backend security and critical workflow", () => {
       .post("/api/v1/orders")
       .set(bearer(tokens.admin))
       .send(body)
-      .expect(403);
+      .expect(400);
 
     const createdResponse = await request(server)
       .post("/api/v1/orders/assisted")

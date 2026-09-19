@@ -370,9 +370,9 @@ model ContactSettings {
 
 model DeliverySettings {
   id                                 String   @id @default("default") @db.VarChar(40)
-  fallbackPrice                      Decimal  @default(15) @db.Decimal(12, 2)
+  fallbackPrice                      Decimal  @default(25) @db.Decimal(12, 2)
   fallbackFreeDeliveryThreshold      Decimal? @default(150) @db.Decimal(12, 2)
-  fallbackNightPrice                 Decimal  @default(15) @db.Decimal(12, 2)
+  fallbackNightPrice                 Decimal  @default(25) @db.Decimal(12, 2)
   fallbackNightFreeDeliveryThreshold Decimal? @default(150) @db.Decimal(12, 2)
   nightTariffEnabled                 Boolean  @default(false)
   nightStartsAt                      String   @default("23:00") @db.VarChar(5)

@@ -378,6 +378,12 @@ describe("backend security and critical workflow", () => {
     });
     productId = product.id;
 
+    // Other suites may leave active branches in the shared test database.
+    // Keep routing assertions deterministic for this suite's own fixtures.
+    await prisma.branch.updateMany({
+      where: { isActive: true },
+      data: { isActive: false },
+    });
     const nearestBranch = await prisma.branch.create({
       data: {
         name: "Nearest test branch",
@@ -456,6 +462,10 @@ describe("backend security and critical workflow", () => {
       .get("/api/v1/delivery/config")
       .expect(200);
     const config = publicConfig.body as DeliveryConfigResponse;
+    expect(config).toMatchObject({
+      fallbackPrice: 25,
+      fallbackNightPrice: 25,
+    });
     const ashgabat = config.welayats.find((welayat) => welayat.id === 1);
     expect(ashgabat).toBeDefined();
     expect(ashgabat?.etraps).toEqual(
@@ -695,7 +705,7 @@ describe("backend security and critical workflow", () => {
     await request(server)
       .patch("/api/v1/delivery/admin/settings")
       .set(bearer(tokens.admin))
-      .send({ fallbackPrice: 15, fallbackFreeDeliveryThreshold: 150 })
+      .send({ fallbackPrice: 25, fallbackFreeDeliveryThreshold: 150 })
       .expect(200);
   });
 
@@ -2242,8 +2252,8 @@ describe("backend security and critical workflow", () => {
     expect(plan.summary).toEqual({
       subtotal: 135,
       discount: 0,
-      deliveryFee: 15,
-      total: 150,
+      deliveryFee: 25,
+      total: 160,
       deliveryAreaName: null,
     });
     expect(plan.mainJob?.printerIp).toBe("192.168.123.99");
@@ -2581,12 +2591,30 @@ describe("backend security and critical workflow", () => {
     expect((promoted.body as User).role).toBe(Role.SUPER_ADMIN);
 
     await prisma.user.delete({ where: { id: candidate.id } });
-
-    await request(server)
-      .patch(`/api/v1/staff/${users.superAdmin.id}`)
-      .set(bearer(tokens.superAdmin))
-      .send({ role: Role.ADMIN })
-      .expect(400);
+    const otherActiveSuperAdmins = await prisma.user.findMany({
+      where: {
+        id: { not: users.superAdmin.id },
+        role: Role.SUPER_ADMIN,
+        isActive: true,
+      },
+      select: { id: true },
+    });
+    await prisma.user.updateMany({
+      where: { id: { in: otherActiveSuperAdmins.map(({ id }) => id) } },
+      data: { isActive: false },
+    });
+    try {
+      await request(server)
+        .patch(`/api/v1/staff/${users.superAdmin.id}`)
+        .set(bearer(tokens.superAdmin))
+        .send({ role: Role.ADMIN })
+        .expect(400);
+    } finally {
+      await prisma.user.updateMany({
+        where: { id: { in: otherActiveSuperAdmins.map(({ id }) => id) } },
+        data: { isActive: true },
+      });
+    }
   });
 
   it("creates staff through the admin API without allowing role escalation", async () => {

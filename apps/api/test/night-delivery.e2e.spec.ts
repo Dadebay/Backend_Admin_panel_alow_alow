@@ -182,9 +182,9 @@ describe("night delivery HTTP pricing", () => {
     vi.useRealTimers();
   });
 
-  it("preserves existing prices and keeps night pricing disabled on migration", () => {
+  it("uses the fallback default and keeps night pricing disabled on migration", () => {
     expect(original.nightTariffEnabled).toBe(false);
-    expect(Number(original.fallbackNightPrice)).toBe(15);
+    expect(Number(original.fallbackNightPrice)).toBe(25);
   });
 
   it("uses the separate district night price and night free threshold", async () => {

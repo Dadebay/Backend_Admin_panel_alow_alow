@@ -70,10 +70,21 @@ function significantDeliveryAddressTokens(value: string) {
 
   return [
     ...(folded.match(/[\p{L}\p{N}]+/gu) ?? []).filter(
-      (token) => token.length >= 4 && !DELIVERY_ADDRESS_STOP_WORDS.has(token),
+      (token) =>
+        (token.length >= 4 || /^\p{L}$/u.test(token)) &&
+        !DELIVERY_ADDRESS_STOP_WORDS.has(token),
     ),
     ...canonicalTokens,
   ];
+}
+
+type DeliveryAreaMatchScore = {
+  matchedTokenCount: number;
+  matchedCharacterCount: number;
+};
+
+function isMeaningfulDeliveryToken(token: string) {
+  return token.length >= 4 || token.includes(":");
 }
 
 function scoreDeliveryAreaName(
@@ -81,7 +92,9 @@ function scoreDeliveryAreaName(
   name: string,
   matches: (addressToken: string, candidateToken: string) => boolean,
 ) {
-  return significantDeliveryAddressTokens(name).reduce((score, token) => {
+  const matchedTokens = [
+    ...new Set(significantDeliveryAddressTokens(name)),
+  ].flatMap((token) => {
     const matchedLength = [...addressTokens].reduce(
       (best, addressToken) =>
         matches(addressToken, token)
@@ -89,8 +102,32 @@ function scoreDeliveryAreaName(
           : best,
       0,
     );
-    return score + matchedLength;
-  }, 0);
+    return matchedLength ? [{ token, matchedLength }] : [];
+  });
+
+  // A one-letter suffix such as W/A/B may disambiguate a matched area name,
+  // but must never identify an area by itself.
+  if (!matchedTokens.some(({ token }) => isMeaningfulDeliveryToken(token))) {
+    return { matchedTokenCount: 0, matchedCharacterCount: 0 };
+  }
+
+  return {
+    matchedTokenCount: matchedTokens.length,
+    matchedCharacterCount: matchedTokens.reduce(
+      (total, { matchedLength }) => total + matchedLength,
+      0,
+    ),
+  };
+}
+
+function compareDeliveryAreaMatchScores(
+  left: DeliveryAreaMatchScore,
+  right: DeliveryAreaMatchScore,
+) {
+  return (
+    left.matchedTokenCount - right.matchedTokenCount ||
+    left.matchedCharacterCount - right.matchedCharacterCount
+  );
 }
 
 function rankDeliveryAreas<T extends DeliveryAreaCandidate>(
@@ -104,23 +141,32 @@ function rankDeliveryAreas<T extends DeliveryAreaCandidate>(
       score: [candidate.nameRu, candidate.nameTk, candidate.nameEn]
         .filter((name): name is string => Boolean(name))
         .reduce(
-          (best, name) =>
-            Math.max(
-              best,
-              scoreDeliveryAreaName(addressTokens, name, matches),
-            ),
-          0,
+          (best, name) => {
+            const score = scoreDeliveryAreaName(addressTokens, name, matches);
+            return compareDeliveryAreaMatchScores(score, best) > 0
+              ? score
+              : best;
+          },
+          { matchedTokenCount: 0, matchedCharacterCount: 0 },
         ),
     }))
-    .filter(({ score }) => score > 0)
-    .sort((left, right) => right.score - left.score);
+    .filter(({ score }) => score.matchedTokenCount > 0)
+    .sort((left, right) =>
+      compareDeliveryAreaMatchScores(right.score, left.score),
+    );
 }
 
 function selectUnambiguousDeliveryArea<T>(
-  ranked: readonly { candidate: T; score: number }[],
+  ranked: readonly { candidate: T; score: DeliveryAreaMatchScore }[],
 ) {
   const best = ranked[0];
-  if (!best || best.score === ranked[1]?.score) return null;
+  if (
+    !best ||
+    (ranked[1] &&
+      compareDeliveryAreaMatchScores(best.score, ranked[1].score) === 0)
+  ) {
+    return null;
+  }
   return best.candidate;
 }
 
@@ -157,10 +203,6 @@ export function findDeliveryAreaForAddress<T extends DeliveryAreaCandidate>(
   }
 
   return selectUnambiguousDeliveryArea(
-    rankDeliveryAreas(
-      candidates,
-      addressTokens,
-      isDeliveryTokenPrefixVariant,
-    ),
+    rankDeliveryAreas(candidates, addressTokens, isDeliveryTokenPrefixVariant),
   );
 }

@@ -22,6 +22,31 @@ describe("delivery area matcher", () => {
     );
   });
 
+  it("prefers the area with more matching name tokens", () => {
+    const howdanCandidates = [
+      { id: 74, nameRu: "Гаудан А", nameTk: "Howdan A", nameEn: null },
+      { id: 75, nameRu: "Гаудан Б", nameTk: "Howdan B", nameEn: null },
+      { id: 76, nameRu: "Гаудан В", nameTk: "Howdan W", nameEn: null },
+      ...candidates,
+    ];
+
+    expect(
+      findDeliveryAreaForAddress(howdanCandidates, "Köpetdag etraby, Howdan W")
+        ?.id,
+    ).toBe(76);
+  });
+
+  it("uses a one-letter suffix only to disambiguate a meaningful area name", () => {
+    const howdanCandidates = [
+      { id: 74, nameRu: "Гаудан А", nameTk: "Howdan A", nameEn: null },
+      { id: 75, nameRu: "Гаудан Б", nameTk: "Howdan B", nameEn: null },
+      { id: 76, nameRu: "Гаудан В", nameTk: "Howdan W", nameEn: null },
+    ];
+
+    expect(findDeliveryAreaForAddress(howdanCandidates, "W")).toBeNull();
+    expect(findDeliveryAreaForAddress(howdanCandidates, "Howdan")).toBeNull();
+  });
+
   it("uses a unique shorter alphabetic prefix when no exact token matches", () => {
     expect(
       findDeliveryAreaForAddress(

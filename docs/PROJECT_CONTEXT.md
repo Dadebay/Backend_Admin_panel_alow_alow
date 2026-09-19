@@ -693,11 +693,12 @@ heights; visual density must not be reduced to the previous pale compact map.
   etrap, persists a supplied match on the saved address, computes the current
   fee from database configuration, and snapshots the Russian welayat/etrap
   names plus fee on the order. An address without an unambiguous configured
-  match uses the separately configurable fallback tariff, initially 15 TMT and
+  match uses the separately configurable fallback tariff, 25 TMT by default and
   free from 150 TMT; the operator does not duplicate the address choice with a
   mandatory manual tariff-zone selection.
 - Delivery has independently configurable day and night prices and free-delivery
-  thresholds per etrap, plus independent day/night fallback prices. A null
+  thresholds per etrap, plus independent day/night fallback prices. Both
+  unmatched-location fallback prices default to 25 TMT. A null
   threshold means that tariff stays paid at every order subtotal. The singleton
   configuration enables/disables night pricing and sets `nightStartsAt` /
   `nightEndsAt` in `HH:mm`, using `Asia/Ashgabat`. The start is inclusive and
@@ -1403,6 +1404,14 @@ post-success plan and loopback dispatch; there is no new dependency, poller or
 eager route load.
 
 ## Decision log
+
+- 2026-09-19: automatic delivery-area matching ranks candidates by the number
+  of matched normalized name tokens before matched character length. A
+  one-letter area suffix such as `W`, `A`, or `B` may disambiguate an already
+  matched meaningful name but cannot match by itself. Unresolved locations use
+  25 TMT as both the day and night fallback price; the independently
+  configurable free-delivery thresholds remain unchanged, and existing orders
+  keep their snapshotted delivery fee.
 
 - 2026-09-04: the customer removed all API request-rate limits and OTP resend
   cooldown/hourly quotas. The former throttler dependency and decorators are

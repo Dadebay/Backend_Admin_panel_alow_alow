@@ -120,6 +120,7 @@ type lanPrinter struct {
 
 type agentServer struct {
 	dispatches      *dispatchStore
+	desktopStatus   *desktopStatus
 	dispatchGate    chan struct{}
 	lastPrinterSend map[string]time.Time
 	cooldown        time.Duration
@@ -158,6 +159,7 @@ func main() {
 	networkWorker := flag.String("network-worker", "", "internal elevated network operation")
 	openSettings := flag.Bool("open", false, "open optional local network diagnostics")
 	dispatchDirectory := flag.String("dispatch-dir", "", "persistent receipt delivery journal directory")
+	apiBaseURL := flag.String("api-url", defaultAPIBaseURL, "A7-tagam API base URL")
 	logDirectory := flag.String("log-dir", "", "override the per-user diagnostic log directory")
 	exportLogs := flag.Bool("export-logs", false, "collect diagnostic logs into a ZIP and exit without printing")
 	exportOutput := flag.String("export-output", "", "output ZIP path for -export-logs; defaults to a timestamped file")
@@ -240,6 +242,10 @@ func main() {
 		dialTimeout: 3 * time.Second,
 		ioTimeout:   8 * time.Second,
 	})
+	statusView := newDesktopStatus(version, *listenAddress)
+	directAPIToken := os.Getenv("A7_TAGAM_RECEIPT_AGENT_TOKEN")
+	statusView.apiConfigured(strings.TrimSpace(directAPIToken) != "")
+	handler.(*agentServer).desktopStatus = statusView
 	handler.(*agentServer).network = manager
 	handler.(*agentServer).logger = diagnostics
 	if *connectPrinters {
@@ -265,12 +271,6 @@ func main() {
 
 	shutdownContext, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	go func() {
-		<-shutdownContext.Done()
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		_ = server.Shutdown(ctx)
-	}()
 
 	listener, err := net.Listen("tcp", *listenAddress)
 	if err != nil {
@@ -303,10 +303,50 @@ func main() {
 	}
 	defer store.Close()
 	handler.(*agentServer).dispatches = store
+	statusView.stationIdentified(store.agentID)
+	desktop, err := startDesktopWindow(
+		statusView,
+		"http://"+*listenAddress+"/network",
+		*logDirectory,
+	)
+	if err != nil {
+		listener.Close()
+		log.Fatal("Не удалось открыть окно программы печати: ", err)
+	}
+	defer desktop.Close()
+	statusView.listening()
+	workerDone := make(chan struct{})
+	if strings.TrimSpace(directAPIToken) != "" {
+		worker, workerErr := newDirectAPIWorker(*apiBaseURL, directAPIToken, store.agentID, handler.(*agentServer), statusView, diagnostics)
+		if workerErr != nil {
+			listener.Close()
+			log.Fatal("Не удалось настроить прямую связь с API: ", workerErr)
+		}
+		go func() {
+			defer close(workerDone)
+			worker.run(shutdownContext)
+		}()
+		log.Print("Прямая печать через API включена. Браузер и пользовательский токен не используются.")
+	} else {
+		close(workerDone)
+		log.Print("Прямая печать не настроена: задайте A7_TAGAM_RECEIPT_AGENT_TOKEN. Браузер для получения очереди не используется.")
+	}
+	go func() {
+		select {
+		case <-shutdownContext.Done():
+			statusView.stopping()
+		case <-desktop.StopRequested():
+			statusView.stopping()
+			stop()
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = server.Shutdown(ctx)
+	}()
 	log.Printf("A7-tagam print agent %s listening on http://%s", version, *listenAddress)
-	log.Print("Готов принимать задания из A7-tagam. Аппараты и блюда определяются настройками сайта.")
-	log.Print("Оставьте это окно и сайт A7-tagam открытыми. Задания поступают из очереди печати.")
-	diagnostics.Info("agent_listening", "network_preparation", *connectPrinters, "interface", *networkInterface)
+	log.Print("Готов принимать задания из API A7-tagam. Аппараты и блюда определяются серверными настройками.")
+	log.Print("Оставьте открытым только это окно. Сайт для печати не требуется.")
+	diagnostics.Info("agent_listening", "agent_id", store.agentID, "direct_api", strings.TrimSpace(directAPIToken) != "", "network_preparation", *connectPrinters, "interface", *networkInterface)
 	log.Printf("При необходимости — диагностика и откат: http://%s/network", *listenAddress)
 	go manager.restore()
 	if *openSettings {
@@ -314,6 +354,11 @@ func main() {
 	}
 	if err := server.Serve(listener); !errors.Is(err, http.ErrServerClosed) {
 		log.Fatal(err)
+	}
+	select {
+	case <-workerDone:
+	case <-time.After(15 * time.Second):
+		diagnostics.Warn("receipt_api_shutdown_timeout")
 	}
 }
 

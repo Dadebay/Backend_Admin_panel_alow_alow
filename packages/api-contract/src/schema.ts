@@ -684,6 +684,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/receipt-agent/tasks/claim": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Lease one receipt to the configured standalone print agent */
+        post: operations["ReceiptAgentController_claim_v1"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/receipt-agent/tasks/{id}/heartbeat": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Extend the standalone print agent lease */
+        post: operations["ReceiptAgentController_heartbeat_v1"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/receipt-agent/tasks/{id}/outcome": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Record standalone agent byte-delivery result */
+        post: operations["ReceiptAgentController_outcome_v1"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/inventory/ingredients": {
         parameters: {
             query?: never;
@@ -2810,6 +2861,8 @@ export interface components {
             items: components["schemas"]["ReceiptTaskResponseDto"][];
             pending: number;
             needsAttention: number;
+            /** @enum {string} */
+            consumerMode: "DIRECT_AGENT" | "BROWSER_BRIDGE";
         };
         ClaimReceiptDto: {
             /**
@@ -2862,7 +2915,7 @@ export interface components {
             /** @enum {string} */
             outcome: "DELIVERED" | "RETRY" | "UNCERTAIN" | "FAILED";
             /** @enum {string} */
-            errorCode?: "AGENT_UNAVAILABLE" | "PRINTER_UNAVAILABLE" | "DELIVERY_UNCERTAIN" | "NO_PRINTERS" | "JOURNAL_UNAVAILABLE";
+            errorCode?: "AGENT_UNAVAILABLE" | "PRINTER_UNAVAILABLE" | "DELIVERY_UNCERTAIN" | "NO_PRINTERS" | "JOURNAL_UNAVAILABLE" | "INVALID_PLAN";
         };
         ReprintReceiptDto: {
             /**
@@ -2870,6 +2923,18 @@ export interface components {
              * @description A new key means an intentional new paper copy; reuse on HTTP retry
              */
             idempotencyKey: string;
+        };
+        ReceiptAgentLeaseDto: {
+            /** Format: uuid */
+            claimToken: string;
+        };
+        ReceiptAgentOutcomeDto: {
+            /** Format: uuid */
+            claimToken: string;
+            /** @enum {string} */
+            outcome: "DELIVERED" | "RETRY" | "UNCERTAIN" | "FAILED";
+            /** @enum {string} */
+            errorCode?: "AGENT_UNAVAILABLE" | "PRINTER_UNAVAILABLE" | "DELIVERY_UNCERTAIN" | "NO_PRINTERS" | "JOURNAL_UNAVAILABLE" | "INVALID_PLAN";
         };
         InventoryIngredientResponseDto: {
             /** Format: uuid */
@@ -5025,6 +5090,87 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["ReprintReceiptDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReceiptTaskResponseDto"];
+                };
+            };
+        };
+    };
+    ReceiptAgentController_claim_v1: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Persistent UUID shown by the visible print agent */
+                "X-Receipt-Agent-Id": string;
+                "x-receipt-agent-id": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReceiptClaimResultDto"];
+                };
+            };
+        };
+    };
+    ReceiptAgentController_heartbeat_v1: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Persistent UUID shown by the visible print agent */
+                "X-Receipt-Agent-Id": string;
+                "x-receipt-agent-id": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReceiptAgentLeaseDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReceiptActionResponseDto"];
+                };
+            };
+        };
+    };
+    ReceiptAgentController_outcome_v1: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Persistent UUID shown by the visible print agent */
+                "X-Receipt-Agent-Id": string;
+                "x-receipt-agent-id": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReceiptAgentOutcomeDto"];
             };
         };
         responses: {

@@ -1774,6 +1774,177 @@
         ]
       }
     },
+    "/api/v1/receipt-agent/tasks/claim": {
+      "post": {
+        "operationId": "ReceiptAgentController_claim_v1",
+        "parameters": [
+          {
+            "name": "X-Receipt-Agent-Id",
+            "in": "header",
+            "description": "Persistent UUID shown by the visible print agent",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "x-receipt-agent-id",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReceiptClaimResultDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Lease one receipt to the configured standalone print agent",
+        "tags": [
+          "receipt-agent"
+        ]
+      }
+    },
+    "/api/v1/receipt-agent/tasks/{id}/heartbeat": {
+      "post": {
+        "operationId": "ReceiptAgentController_heartbeat_v1",
+        "parameters": [
+          {
+            "name": "X-Receipt-Agent-Id",
+            "in": "header",
+            "description": "Persistent UUID shown by the visible print agent",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "x-receipt-agent-id",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReceiptAgentLeaseDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReceiptActionResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Extend the standalone print agent lease",
+        "tags": [
+          "receipt-agent"
+        ]
+      }
+    },
+    "/api/v1/receipt-agent/tasks/{id}/outcome": {
+      "post": {
+        "operationId": "ReceiptAgentController_outcome_v1",
+        "parameters": [
+          {
+            "name": "X-Receipt-Agent-Id",
+            "in": "header",
+            "description": "Persistent UUID shown by the visible print agent",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "x-receipt-agent-id",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReceiptAgentOutcomeDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReceiptTaskResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Record standalone agent byte-delivery result",
+        "tags": [
+          "receipt-agent"
+        ]
+      }
+    },
     "/api/v1/inventory/ingredients": {
       "get": {
         "operationId": "InventoryController_listIngredients_v1",
@@ -7949,12 +8120,20 @@
           },
           "needsAttention": {
             "type": "number"
+          },
+          "consumerMode": {
+            "type": "string",
+            "enum": [
+              "DIRECT_AGENT",
+              "BROWSER_BRIDGE"
+            ]
           }
         },
         "required": [
           "items",
           "pending",
-          "needsAttention"
+          "needsAttention",
+          "consumerMode"
         ]
       },
       "ClaimReceiptDto": {
@@ -8121,7 +8300,8 @@
               "PRINTER_UNAVAILABLE",
               "DELIVERY_UNCERTAIN",
               "NO_PRINTERS",
-              "JOURNAL_UNAVAILABLE"
+              "JOURNAL_UNAVAILABLE",
+              "INVALID_PLAN"
             ]
           }
         },
@@ -8142,6 +8322,51 @@
         },
         "required": [
           "idempotencyKey"
+        ]
+      },
+      "ReceiptAgentLeaseDto": {
+        "type": "object",
+        "properties": {
+          "claimToken": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "claimToken"
+        ]
+      },
+      "ReceiptAgentOutcomeDto": {
+        "type": "object",
+        "properties": {
+          "claimToken": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "DELIVERED",
+              "RETRY",
+              "UNCERTAIN",
+              "FAILED"
+            ]
+          },
+          "errorCode": {
+            "type": "string",
+            "enum": [
+              "AGENT_UNAVAILABLE",
+              "PRINTER_UNAVAILABLE",
+              "DELIVERY_UNCERTAIN",
+              "NO_PRINTERS",
+              "JOURNAL_UNAVAILABLE",
+              "INVALID_PLAN"
+            ]
+          }
+        },
+        "required": [
+          "claimToken",
+          "outcome"
         ]
       },
       "InventoryIngredientResponseDto": {

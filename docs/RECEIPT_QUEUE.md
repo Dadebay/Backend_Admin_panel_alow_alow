@@ -1,7 +1,7 @@
 # Durable receipt queue — 2026-09-04
 
-Implemented and verified locally in API, admin and Go agent.
-Production push/deployment authorized by the user on 2026-09-04; rollout pending.
+The standalone-agent revision is implemented in API, admin and Go agent.
+Production push/deployment was authorized by the user on 2026-09-19.
 The Windows investigation is preserved in [the handoff](RECEIPT_PRINTING_WINDOWS_HANDOFF.md).
 
 ## Delivery contract
@@ -18,20 +18,21 @@ The Windows investigation is preserved in [the handoff](RECEIPT_PRINTING_WINDOWS
   Main-printer selection is resolved at enqueue time; kitchen routes remain
   order-line snapshots. Retrying never regenerates the payload. An explicit
   new reprint obtains current main settings and a new dispatch identity.
-- An operations consumer requires local health capabilities `receipt-layout-v2`
-  and `dispatch-journal-v1`. PostgreSQL serializes claim selection with a row
+- The standalone EXE claims directly from NestJS with the dedicated
+  `RECEIPT_AGENT_API_TOKEN` and sends its persistent journal station UUID in
+  `X-Receipt-Agent-Id`. It never reads a browser JWT. PostgreSQL serializes claim selection with a row
   lock; there is at most one active lease. The lease lasts 180 seconds with
-  30-second heartbeats. Claims carry a random token, authenticated actor and
-  persistent Go `agentId`; stale/foreign tokens cannot change the outcome.
+  30-second heartbeats. Claims carry a random lease token and persistent Go
+  `agentId`; stale/foreign tokens cannot change the outcome.
 - Once claimed, the task stays bound to that installation. Lease recovery never
   sends an old potentially completed task to another workstation. Replacing an
   EXE under the same OS account preserves identity; deleting its journal or
   switching OS accounts does not. Queue UI identifies tasks waiting for their
   original workstation.
-- Browser/server/agent outages preserve tasks. Definitively unsent copies retry
+- API/network/agent outages preserve tasks. Definitively unsent copies retry
   indefinitely with exponential delay capped at 60 seconds. The five-second
-  visible-tab poll resumes pending work on first load, including work created
-  while the browser was closed. Site and local agent must both be open to send.
+  three-second EXE poll resumes pending work without a browser. Only the visible
+  print agent, internet connection and printer LAN must be available.
 - Go serializes entire dispatches, fsyncs a `started` record before each copy,
   then a `sent` or definitely-unsent `retryable` result. A completed copy is
   returned from its journal without printer I/O. A request with the same ID but
@@ -55,17 +56,30 @@ The Windows investigation is preserved in [the handoff](RECEIPT_PRINTING_WINDOWS
 
 ## API
 
-All paths are under `/api/v1`, require an active staff session, and allow only
-`OPERATOR`, `ADMIN` or `SUPER_ADMIN`:
+Staff management paths under `/api/v1` require an active `OPERATOR`, `ADMIN` or
+`SUPER_ADMIN` session:
 
 | Method / path | Purpose |
 | --- | --- |
-| GET `/receipt-print-tasks` | First 50 outstanding tasks, pending and attention counts; no receipt/customer payload |
+| GET `/receipt-print-tasks` | First 50 outstanding tasks, counts and `consumerMode`; no receipt/customer payload |
 | POST `/receipt-print-tasks/claim` | Atomically claim one eligible task for `stationId` |
 | POST `/receipt-print-tasks/:id/heartbeat` | Renew matching actor/station/claim token |
 | POST `/receipt-print-tasks/:id/outcome` | Record `DELIVERED`, `RETRY`, `UNCERTAIN` or `FAILED` |
 | POST `/receipt-print-tasks/:id/retry` | Move a safe pending/failed task's retry time to now; cannot reset uncertainty |
 | POST `/receipt-print-tasks/orders/:orderId/reprint` | Audited, intentional new dispatch, deduplicated by request key |
+
+The EXE has a separate least-privilege bearer key and only these paths:
+
+| Method / path | Purpose |
+| --- | --- |
+| POST `/receipt-agent/tasks/claim` | Claim one task for the station UUID sent by the EXE |
+| POST `/receipt-agent/tasks/:id/heartbeat` | Renew that station's matching lease token |
+| POST `/receipt-agent/tasks/:id/outcome` | Record the transport outcome with `PRINT_AGENT` audit metadata |
+
+Setting `RECEIPT_AGENT_API_TOKEN` enables direct mode. The key must contain at
+least 12 characters and is compared in constant time. The station header must
+be a UUID v4. Direct mode makes the staff/browser claim endpoint return no task,
+while queue listing, safe retry and deliberate reprint remain available.
 
 The preexisting receipt-plan endpoint remains available for compatibility.
 `NewOrderAlert` is now notification-only; no client seen-ID list or cancellation

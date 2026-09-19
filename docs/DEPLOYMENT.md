@@ -44,6 +44,8 @@ production acknowledgement.
 - `deploy/deploy-production.sh`: pull, migrate, health-check and rollback.
 - `deploy/sync-test-otp-env.sh`: validates and atomically installs the optional
   encrypted test-OTP secret bundle without printing its values.
+- `deploy/sync-receipt-agent-env.sh`: validates and atomically installs the
+  dedicated print-agent key without printing it.
 - `deploy/prepare-production-host.sh`: one-time directories, Redis TLS and host
   sysctl preparation.
 - `deploy/production.env.example`: key names/placeholders only.
@@ -88,8 +90,9 @@ sudo chmod 600 /opt/alowalow/production/.env.production
 ```
 
 Required categories are PostgreSQL, TLS Redis, JWT/OTP pepper, Android pull SMS,
-Firebase FCM, MinIO/S3 and Nominatim. Real values never enter Git, GitHub build
-variables, the React bundle or documentation.
+Firebase FCM, MinIO/S3 and Nominatim. Direct receipt printing additionally uses
+`RECEIPT_AGENT_API_TOKEN`; the EXE sends its station UUID automatically. Real
+values never enter Git, GitHub build variables, the React bundle or documentation.
 
 The active production settings include:
 
@@ -145,12 +148,14 @@ DEPLOY_SSH_HOST
 DEPLOY_SSH_USER
 DEPLOY_SSH_PRIVATE_KEY
 DEPLOY_SSH_KNOWN_HOSTS
+RECEIPT_AGENT_API_TOKEN
 LONG_LIVED_TEST_OTP_PHONES
 LONG_LIVED_TEST_OTP_CODE
 LONG_LIVED_TEST_OTP_EXPIRES_AT
 ```
 
-The three `LONG_LIVED_TEST_OTP_*` secrets are temporary and must be supplied as
+`RECEIPT_AGENT_API_TOKEN` is atomically copied to the protected VDS env before
+deployment and never enters an image. The three `LONG_LIVED_TEST_OTP_*` secrets are temporary and must be supplied as
 a complete set. They are copied only to the protected VDS env, never to an
 image or frontend artifact. Remove them and clear the corresponding VDS env
 fields after the approved test window.
@@ -186,10 +191,11 @@ The workflow then:
 7. Waits for service health checks.
 8. Restores the previous digest manifest if the new release is unhealthy.
 
-The receipt print agent is not deployed to the VDS. CI uploads four separate
-artifacts built from `apps/print-agent`: Windows x64/ARM64 and macOS
-Intel/Apple Silicon. A workstation runs the matching executable on loopback
-`127.0.0.1:17873`; the production admin origin is allowlisted by default. Its
+The receipt print agent is not deployed to the VDS. CI uploads platform
+artifacts built from `apps/print-agent`. A workstation runs the matching visible
+executable, claims directly from `https://a7-tagam.com.tm/api/v1` with the
+dedicated user-environment key and sends its persistent station UUID. The
+browser may remain closed. Loopback `127.0.0.1:17873` remains for diagnostics. Its
 wired adapter must have a persistent address in the same subnet as the private
 LAN printers and no gateway. Printer endpoints remain catalog data managed
 through the admin registry: name, private IPv4 address, port, transport and

@@ -48,7 +48,8 @@ flowchart LR
   API --> GEO["Private Nominatim volume"]
   GH["GitHub Actions"] -->|"immutable GHCR digests over SSH"| VDS["A7-tagam VDS"]
   VDS --- N
-  U -->|"HTTP loopback :17873"| PA["Windows/macOS receipt print agent"]
+  PA["Visible Windows/macOS receipt print agent"] -->|"HTTPS, dedicated print key + automatic station ID"| API
+  U -.->|"optional diagnostics :17873"| PA
   PA -->|"private LAN RAW TCP :9100 or J-Speed HTTP :80"| RP["Registered receipt printers"]
 ```
 
@@ -147,8 +148,10 @@ Plain HTTP on the domain or server IP redirects to the canonical HTTPS domain.
 | `127.0.0.1:8080` | TileServer GL | host Nginx only |
 | Docker network only | PostgreSQL, Redis, MinIO, OSRM, Nominatim | not public |
 
-The optional receipt print agent is a workstation runtime, not a VDS service.
-It binds only to `127.0.0.1:17873` on Windows or macOS. It sends bounded print
+The receipt print agent is a workstation runtime, not a VDS service. It claims
+the durable queue directly over production HTTPS using a dedicated key and its
+automatic persistent station ID; the browser is not involved. It also binds
+`127.0.0.1:17873` on Windows or macOS for local diagnostics. It sends bounded print
 requests to explicitly configured private printer IPv4 addresses over LAN port
 80; neither the VDS nor Nginx exposes or routes that private traffic. The wired
 workstation adapter uses the printer subnet without a gateway, while Wi-Fi may
@@ -229,6 +232,7 @@ GitHub Environment `production` encrypted secrets:
 | `DEPLOY_SSH_USER` | non-root deployment user |
 | `DEPLOY_SSH_PRIVATE_KEY` | dedicated ED25519 private key |
 | `DEPLOY_SSH_KNOWN_HOSTS` | verified host key for port 22 |
+| `RECEIPT_AGENT_API_TOKEN` | dedicated print-agent key, atomically installed in the protected VDS env |
 | `LONG_LIVED_TEST_OTP_PHONES` | temporary encrypted production test allowlist |
 | `LONG_LIVED_TEST_OTP_CODE` | temporary encrypted reusable test code |
 | `LONG_LIVED_TEST_OTP_EXPIRES_AT` | approved ISO expiry for the temporary exception |
@@ -251,10 +255,10 @@ accepts only `main`. There is no active DEV Environment or DEV deploy job.
 ## Where application secrets live
 
 Real runtime values live in `/opt/alowalow/production/.env.production` with
-mode `600`. The only application values also held by GitHub are the three
-temporary encrypted test-OTP Environment secrets described above; they are
-available only to the protected production deploy job. Frontend builds never
-receive backend secrets.
+mode `600`. The application values also held by GitHub are the print-agent key
+and the three temporary encrypted test-OTP Environment secrets described above;
+they are available only to the protected production deploy job. Frontend builds
+never receive backend secrets.
 
 The VDS env contains these secret categories:
 
@@ -264,6 +268,8 @@ The VDS env contains these secret categories:
 - Android SMS gateway: `SMS_PROVIDER`, `SMS_GATEWAY_DEVICE_ID`,
   `SMS_GATEWAY_AUTH_REQUIRED`, `SMS_GATEWAY_DEVICE_TOKEN`,
   `SMS_GATEWAY_ENCRYPTION_KEY`;
+- receipt agent: `RECEIPT_AGENT_API_TOKEN`; the EXE sends its persistent station
+  UUID automatically;
 - S3/MinIO: `MINIO_*`, `S3_*`;
 - Firebase push: `FCM_SERVICE_ACCOUNT_BASE64`, `PUSH_PROVIDER`;
 - routing/geocoding provider origins and private Nominatim password;

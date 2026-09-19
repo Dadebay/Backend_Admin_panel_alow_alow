@@ -446,10 +446,12 @@ jobs:
           TEST_OTP_PHONES: ${{ secrets.LONG_LIVED_TEST_OTP_PHONES }}
           TEST_OTP_CODE: ${{ secrets.LONG_LIVED_TEST_OTP_CODE }}
           TEST_OTP_EXPIRES_AT: ${{ secrets.LONG_LIVED_TEST_OTP_EXPIRES_AT }}
+          RECEIPT_AGENT_API_TOKEN: ${{ secrets.RECEIPT_AGENT_API_TOKEN }}
         run: |
           test -n "$SSH_HOST"
           test -n "$SSH_USER"
           test -n "$GHCR_TOKEN"
+          test -n "$RECEIPT_AGENT_API_TOKEN"
           case "$SSH_PORT" in
             ''|*[!0-9]*) echo "SSH_PORT must be numeric" >&2; exit 1 ;;
           esac
@@ -467,8 +469,9 @@ jobs:
               'docker logout ghcr.io >/dev/null 2>&1 || true'
           }
           runtime_secret_file=/tmp/alowalow-test-otp.env
+          receipt_agent_secret_file=/tmp/alowalow-receipt-agent.env
           cleanup() {
-            rm -f "$runtime_secret_file"
+            rm -f "$runtime_secret_file" "$receipt_agent_secret_file"
             cleanup_registry_login
           }
           trap cleanup EXIT
@@ -483,6 +486,8 @@ jobs:
               printf 'LONG_LIVED_TEST_OTP_EXPIRES_AT=%s\n' "$TEST_OTP_EXPIRES_AT"
             } > "$runtime_secret_file"
           fi
+          umask 077
+          printf 'RECEIPT_AGENT_API_TOKEN=%s\n' "$RECEIPT_AGENT_API_TOKEN" > "$receipt_agent_secret_file"
           printf '%s' "$GHCR_TOKEN" \
             | "${ssh_command[@]}" "${SSH_USER}@${SSH_HOST}" \
               "docker login ghcr.io --username '$GITHUB_ACTOR' --password-stdin"
@@ -496,6 +501,8 @@ jobs:
             "${SSH_USER}@${SSH_HOST}:/opt/alowalow/production/deploy-production.sh"
           "${scp_command[@]}" deploy/sync-test-otp-env.sh \
             "${SSH_USER}@${SSH_HOST}:/opt/alowalow/production/sync-test-otp-env.sh"
+          "${scp_command[@]}" deploy/sync-receipt-agent-env.sh \
+            "${SSH_USER}@${SSH_HOST}:/opt/alowalow/production/sync-receipt-agent-env.sh"
           "${scp_command[@]}" deploy/nginx/alowalow-http-temporary.conf \
             "${SSH_USER}@${SSH_HOST}:/opt/alowalow/production/alowalow-http-temporary.conf"
           "${scp_command[@]}" deploy/nginx/alowalow-production.conf \
@@ -508,6 +515,10 @@ jobs:
             "${ssh_command[@]}" "${SSH_USER}@${SSH_HOST}" \
               'sh /opt/alowalow/production/sync-test-otp-env.sh'
           fi
+          "${scp_command[@]}" "$receipt_agent_secret_file" \
+            "${SSH_USER}@${SSH_HOST}:/opt/alowalow/production/.receipt-agent.pending.env"
+          "${ssh_command[@]}" "${SSH_USER}@${SSH_HOST}" \
+            'sh /opt/alowalow/production/sync-receipt-agent-env.sh'
           "${ssh_command[@]}" "${SSH_USER}@${SSH_HOST}" \
             'sh /opt/alowalow/production/deploy-production.sh'
           "${ssh_command[@]}" "${SSH_USER}@${SSH_HOST}" '

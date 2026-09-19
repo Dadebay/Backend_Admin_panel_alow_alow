@@ -4,6 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
 import { randomUUID } from "node:crypto";
 import {
   AdminPage,
@@ -13,12 +14,15 @@ import {
   type ReceiptPrintTask,
 } from "../generated/prisma/client";
 import type { AuthUser } from "../common/auth.types";
+import type { AppEnv } from "../config/env";
 import { PrismaService } from "../prisma/prisma.service";
 import { OrdersService } from "./orders.service";
 import { ReceiptPrintPlanResponseDto } from "./orders-response.dto";
 import {
   type ReceiptOutcomeDto,
   type ReceiptLeaseDto,
+  type ReceiptAgentLeaseDto,
+  type ReceiptAgentOutcomeDto,
 } from "./receipt-queue.dto";
 
 export const RECEIPT_LEASE_MS = 180_000;
@@ -32,7 +36,12 @@ export class ReceiptQueueService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly orders: OrdersService,
+    private readonly config: ConfigService<AppEnv, true>,
   ) {}
+
+  private directAgentEnabled() {
+    return Boolean(this.config.get("RECEIPT_AGENT_API_TOKEN", { infer: true }));
+  }
 
   private authorize(actor: AuthUser) {
     if (
@@ -84,10 +93,28 @@ export class ReceiptQueueService {
         where: { status: { in: ["FAILED", "UNCERTAIN"] } },
       }),
     ]);
-    return { items: items.map((t) => this.view(t)), pending, needsAttention };
+    return {
+      items: items.map((t) => this.view(t)),
+      pending,
+      needsAttention,
+      consumerMode: this.directAgentEnabled()
+        ? ("DIRECT_AGENT" as const)
+        : ("BROWSER_BRIDGE" as const),
+    };
   }
   async claim(actor: AuthUser, stationId: string) {
     this.authorize(actor);
+    // Once the dedicated print key is configured, the browser may still
+    // inspect/retry the queue but can no longer become a second worker.
+    if (this.directAgentEnabled()) return { task: null };
+    return this.claimFor(stationId, actor.id);
+  }
+
+  claimAgent(stationId: string) {
+    return this.claimFor(stationId, stationId);
+  }
+
+  private async claimFor(stationId: string, claimedBy: string) {
     return this.prisma.$transaction(async (tx) => {
       await this.lock(tx);
       const now = new Date();
@@ -118,7 +145,7 @@ export class ReceiptQueueService {
         data: {
           status: "PROCESSING",
           stationId,
-          claimedBy: actor.id,
+          claimedBy,
           claimToken: randomUUID(),
           leaseExpiresAt: new Date(now.getTime() + RECEIPT_LEASE_MS),
           attempts: { increment: 1 },
@@ -138,12 +165,25 @@ export class ReceiptQueueService {
   }
   async heartbeat(actor: AuthUser, id: string, dto: ReceiptLeaseDto) {
     this.authorize(actor);
+    return this.heartbeatFor(actor.id, id, dto.stationId, dto.claimToken);
+  }
+
+  heartbeatAgent(stationId: string, id: string, dto: ReceiptAgentLeaseDto) {
+    return this.heartbeatFor(stationId, id, stationId, dto.claimToken);
+  }
+
+  private async heartbeatFor(
+    claimedBy: string,
+    id: string,
+    stationId: string,
+    claimToken: string,
+  ) {
     const result = await this.prisma.receiptPrintTask.updateMany({
       where: {
         id,
-        stationId: dto.stationId,
-        claimToken: dto.claimToken,
-        claimedBy: actor.id,
+        stationId,
+        claimToken,
+        claimedBy,
         status: "PROCESSING",
         leaseExpiresAt: { gt: new Date() },
       },
@@ -157,6 +197,20 @@ export class ReceiptQueueService {
   }
   async acknowledge(actor: AuthUser, id: string, dto: ReceiptOutcomeDto) {
     this.authorize(actor);
+    return this.acknowledgeFor(actor.id, actor.id, id, dto.stationId, dto);
+  }
+
+  acknowledgeAgent(stationId: string, id: string, dto: ReceiptAgentOutcomeDto) {
+    return this.acknowledgeFor(stationId, null, id, stationId, dto);
+  }
+
+  private async acknowledgeFor(
+    claimedBy: string,
+    auditActorId: string | null,
+    id: string,
+    stationId: string,
+    dto: ReceiptAgentOutcomeDto,
+  ) {
     return this.prisma.$transaction(async (tx) => {
       await this.lock(tx);
       const task = await tx.receiptPrintTask.findUnique({
@@ -165,8 +219,8 @@ export class ReceiptQueueService {
       });
       if (!task) throw new NotFoundException("Receipt task not found");
       if (
-        task.claimedBy !== actor.id ||
-        task.stationId !== dto.stationId ||
+        task.claimedBy !== claimedBy ||
+        task.stationId !== stationId ||
         task.claimToken !== dto.claimToken
       )
         throw new ConflictException("Receipt lease belongs to another worker");
@@ -197,14 +251,15 @@ export class ReceiptQueueService {
       });
       await tx.auditLog.create({
         data: {
-          actorId: actor.id,
+          actorId: auditActorId,
           action: "receipt.delivery_result",
           entityType: "ReceiptPrintTask",
           entityId: id,
           metadata: {
             status,
             attempt: task.attempts,
-            stationId: dto.stationId,
+            stationId,
+            authType: auditActorId ? "STAFF_JWT" : "PRINT_AGENT",
             paperConfirmed: false,
           },
         },

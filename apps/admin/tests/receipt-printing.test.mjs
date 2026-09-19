@@ -38,6 +38,14 @@ const dashboardUrl = new URL(
   "../src/widgets/admin-dashboard/ui/admin-dashboard.tsx",
   import.meta.url,
 );
+const receiptQueueHookUrl = new URL(
+  "../src/features/receipt-printing/api/use-receipt-queue.ts",
+  import.meta.url,
+);
+const receiptQueueUiUrl = new URL(
+  "../src/features/receipt-printing/ui/receipt-queue.tsx",
+  import.meta.url,
+);
 
 test("printing enters the durable queue and notification observation never prints", async () => {
   const [feature, board, kanban, alert, dashboard] = await Promise.all(
@@ -48,7 +56,10 @@ test("printing enters the durable queue and notification observation never print
   assert.match(feature, /receipt-print-tasks\/orders/);
   assert.match(feature, /idempotencyKey:\s*key/);
   assert.doesNotMatch(feature, /receipt-print-plan/);
-  assert.doesNotMatch(alert, /claimAutomaticReceiptPrint|printReceipt|useReceiptPrinting/);
+  assert.doesNotMatch(
+    alert,
+    /claimAutomaticReceiptPrint|printReceipt|useReceiptPrinting/,
+  );
   assert.doesNotMatch(board, /receiptPrinting\.mutate\(cancelledOrder\.id\)/);
   assert.match(board, /Чек добавлен в очередь/);
   assert.match(board, /data-testid=\{`order-table-print-\$\{order\.id\}`\}/);
@@ -61,6 +72,20 @@ test("printing enters the durable queue and notification observation never print
     dashboard,
     /showOperationalBanners\s*&&\s*canReceiveNewOrderAlerts\(session\.user\.role\)\s*&&\s*\(\s*<ReceiptQueue/,
   );
+});
+
+test("direct agent mode removes the browser from receipt delivery", async () => {
+  const [hook, ui] = await Promise.all([
+    readFile(receiptQueueHookUrl, "utf8"),
+    readFile(receiptQueueUiUrl, "utf8"),
+  ]);
+  assert.match(hook, /consumerMode === "DIRECT_AGENT"/);
+  assert.match(
+    hook,
+    /enabled: Boolean\(session\) && queue\.isSuccess && !directMode/,
+  );
+  assert.match(hook, /busy\.current \|\|\s*directMode/);
+  assert.match(ui, /Сайт можно закрыть/);
 });
 
 test("catalog manages printer endpoints and assigns them by ID", async () => {

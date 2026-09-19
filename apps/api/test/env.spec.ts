@@ -131,6 +131,24 @@ describe("security environment configuration", () => {
     ).toThrow("SMS_GATEWAY_ENCRYPTION_KEY");
   });
 
+  it("accepts one dedicated receipt-agent key", () => {
+    expect(validateEnv(productionSecrets)).toMatchObject({
+      RECEIPT_AGENT_API_TOKEN: "",
+    });
+    expect(() =>
+      validateEnv({
+        ...productionSecrets,
+        RECEIPT_AGENT_API_TOKEN: "short",
+      }),
+    ).toThrow("at least 12 characters");
+    expect(
+      validateEnv({
+        ...productionSecrets,
+        RECEIPT_AGENT_API_TOKEN: "test-key-123",
+      }),
+    ).toMatchObject({ RECEIPT_AGENT_API_TOKEN: "test-key-123" });
+  });
+
   it("allows an allowlisted test OTP in development and an acknowledged short production window", () => {
     const development = validateEnv({
       ...productionSecrets,

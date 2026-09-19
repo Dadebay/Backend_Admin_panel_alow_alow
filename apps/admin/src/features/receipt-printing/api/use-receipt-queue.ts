@@ -27,6 +27,7 @@ export function useReceiptQueue() {
     refetchIntervalInBackground: false,
     refetchOnWindowFocus: true,
   });
+  const directMode = queue.data?.consumerMode === "DIRECT_AGENT";
   const agent = useQuery({
     queryKey: ["receipt-agent", RECEIPT_PRINT_AGENT_URL],
     queryFn: ({ signal }) =>
@@ -34,6 +35,7 @@ export function useReceiptQueue() {
         RECEIPT_PRINT_AGENT_URL,
         AbortSignal.any([signal, AbortSignal.timeout(3_000)]),
       ),
+    enabled: Boolean(session) && queue.isSuccess && !directMode,
     staleTime: 3_000,
     gcTime: 60_000,
     retry: false,
@@ -58,6 +60,7 @@ export function useReceiptQueue() {
   useEffect(() => {
     if (
       busy.current ||
+      directMode ||
       queue.isError ||
       agent.isError ||
       !queue.data?.pending ||
@@ -79,6 +82,7 @@ export function useReceiptQueue() {
     queue.dataUpdatedAt,
     queue.data?.pending,
     queue.isError,
+    directMode,
     agent.dataUpdatedAt,
     agent.data,
     agent.isError,
@@ -94,5 +98,5 @@ export function useReceiptQueue() {
     onSuccess: () =>
       queryClient.invalidateQueries({ queryKey: receiptQueueKey }),
   });
-  return { queue, agent, worker, retry };
+  return { queue, agent, worker, retry, directMode };
 }

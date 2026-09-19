@@ -36,6 +36,12 @@ func (s *agentServer) deliver(ctx context.Context, origin string, p printRequest
 		r.Retryable = true
 		return r, http.StatusServiceUnavailable
 	}
+	if s.desktopStatus != nil {
+		s.desktopStatus.dispatchReceived(p.OrderNumber, p.DocumentType, len(p.Jobs))
+		defer func() {
+			s.desktopStatus.dispatchCompleted(p.OrderNumber, len(r.Printed), len(r.Failed), r.Uncertain)
+		}()
+	}
 	var journal *dispatchJournal
 	if s.dispatches != nil {
 		r.AgentID = s.dispatches.agentID
@@ -100,6 +106,9 @@ func (s *agentServer) deliver(ctx context.Context, origin string, p printRequest
 		if journal != nil && journal.states[i].State == "sent" {
 			r.Replayed = true
 			r.Printed = append(r.Printed, printedPrinter{PrinterIP: job.PrinterIP, PrinterPort: job.PrinterPort, Transport: job.Transport, Chunks: journal.states[i].Chunks})
+			if s.desktopStatus != nil {
+				s.desktopStatus.copyReplayed(p.OrderNumber, i+1, len(p.Jobs), job)
+			}
 			continue
 		}
 		// The cooldown also spans separate orders, not only adjacent copies.
@@ -134,6 +143,9 @@ func (s *agentServer) deliver(ctx context.Context, origin string, p printRequest
 		if s.logger != nil {
 			copyContext.Value(printLogContextKey{}).(*printLogContext).logger.Info("printer_started")
 		}
+		if s.desktopStatus != nil {
+			s.desktopStatus.copyStarted(p.OrderNumber, p.DocumentType, i+1, len(p.Jobs), job)
+		}
 		chunks, err := s.printer.Print(copyContext, job)
 		s.lastPrinterSend[key] = time.Now()
 		state := "sent"
@@ -154,6 +166,9 @@ func (s *agentServer) deliver(ctx context.Context, origin string, p printRequest
 			}
 		}
 		if err != nil {
+			if s.desktopStatus != nil {
+				s.desktopStatus.copyFailed(p.OrderNumber, i+1, len(p.Jobs), job)
+			}
 			r.Failed = append(r.Failed, failedPrinter{PrinterIP: job.PrinterIP, PrinterPort: job.PrinterPort, Transport: job.Transport, Message: err.Error()})
 			if !safeToRetry(err) {
 				r.Uncertain = true
@@ -162,6 +177,9 @@ func (s *agentServer) deliver(ctx context.Context, origin string, p printRequest
 			}
 			r.Retryable = true
 		} else {
+			if s.desktopStatus != nil {
+				s.desktopStatus.copySucceeded(p.OrderNumber, i+1, len(p.Jobs), job)
+			}
 			if s.logger != nil {
 				copyContext.Value(printLogContextKey{}).(*printLogContext).logger.Info("printer_sent", "chunks", chunks, "paper_confirmed", false)
 			}

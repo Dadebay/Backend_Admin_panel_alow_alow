@@ -14,7 +14,7 @@ const labels: Record<
   UNCERTAIN: "Проверьте бумажный чек",
 };
 export function ReceiptQueue() {
-  const { queue, agent, worker, retry } = useReceiptQueue();
+  const { queue, agent, worker, retry, directMode } = useReceiptQueue();
   const reprint = useReceiptPrinting();
   const failure = retry.error ?? reprint.error;
   return (
@@ -31,13 +31,15 @@ export function ReceiptQueue() {
       </summary>
       <div className="receipt-queue-content">
         <p role="status" data-testid="receipt-queue-agent-status">
-          {agent.isError
-            ? "Нет связи с программой печати или требуется её обновление. Очередь сохранена на сервере."
-            : worker.isPending
-              ? "Передаём чек аппаратам…"
-              : worker.isError
-                ? "Связь прервалась. Сохранённое задание будет проверено повторно."
-                : "Оставьте сайт и программу печати открытыми. После восстановления связи очередь продолжится автоматически."}
+          {directMode
+            ? "Программа печати получает чеки напрямую через API. Сайт можно закрыть."
+            : agent.isError
+              ? "Нет связи с программой печати или требуется её обновление. Очередь сохранена на сервере."
+              : worker.isPending
+                ? "Передаём чек аппаратам…"
+                : worker.isError
+                  ? "Связь прервалась. Сохранённое задание будет проверено повторно."
+                  : "Оставьте сайт и программу печати открытыми. После восстановления связи очередь продолжится автоматически."}
         </p>
         {queue.isError && (
           <button
@@ -62,11 +64,13 @@ export function ReceiptQueue() {
             <span>
               {labels[task.status]} · попыток: {task.attempts}
             </span>
-            {task.stationId && task.stationId !== agent.data?.agentId && (
-              <small>
-                Ожидает программу на компьютере, который начал отправку.
-              </small>
-            )}
+            {!directMode &&
+              task.stationId &&
+              task.stationId !== agent.data?.agentId && (
+                <small>
+                  Ожидает программу на компьютере, который начал отправку.
+                </small>
+              )}
             {task.lastError === "NO_PRINTERS" && (
               <small>Укажите аппарат в настройках и создайте новый чек.</small>
             )}

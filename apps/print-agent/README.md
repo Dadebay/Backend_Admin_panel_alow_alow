@@ -1,7 +1,8 @@
 # A7-tagam receipt print agent
 
-The print agent is the loopback-only bridge between the HTTPS operations admin
-and private LAN receipt printers. The backend sends one complete administrator
+The visible print agent is a standalone HTTPS queue worker and private-LAN
+printer bridge. It does not need the operations website or its user token.
+The backend sends one complete administrator
 copy plus kitchen copies grouped by immutable snapshotted printer endpoint; the agent
 validates that plan and renders one continuous non-fiscal receipt per copy.
 The 80 mm layout (576 printable dots at 203 dpi) has the A7-tagam logo,
@@ -21,19 +22,21 @@ Concurrent dispatches are serialized so their strips cannot interleave.
 The transport must support ESC/POS `GS v 0` raster printing on 80 mm paper.
 Paper movement, density and cutter behavior require a physical device check.
 
-The executable shares one Go codebase with Windows/macOS network helpers. It binds only to
-`127.0.0.1:17873`, accepts the production admin origin plus local Vite origins,
+The executable shares one Go codebase with Windows/macOS network helpers. It
+claims from `https://a7-tagam.com.tm/api/v1` using the dedicated key read from
+`A7_TAGAM_RECEIPT_AGENT_TOKEN` and sends its persistent station ID automatically.
+The key is never embedded or logged. It also binds `127.0.0.1:17873` for local
+health, diagnostics and compatibility, accepts the production admin origin plus local Vite origins,
 and refuses public printer IP addresses and invalid ports. Every job supplies
 its own IP, port and transport: standard LAN X-printers normally use `RAW_TCP`
 on port `9100`, while legacy J-Speed WebConfig devices use `JSPEED_HTTP` on
 port `80`. It accepts two sequential jobs for the same endpoint when the main
-and kitchen copies share one physical printer. It does not
-contain an A7-tagam token or call the production API itself.
+and kitchen copies share one physical printer. It does not contain a compiled token.
 
 ## Run locally
 
 ```bash
-go run ./apps/print-agent
+A7_TAGAM_RECEIPT_AGENT_TOKEN='<dedicated-test-key>' go run ./apps/print-agent
 curl http://127.0.0.1:17873/health
 ```
 
@@ -41,8 +44,9 @@ Keep normal internet access on Wi-Fi. Give the wired LAN adapter a persistent
 address in the printer subnet, for example `192.168.123.10/24` when printers
 use `192.168.123.x`; do not configure a gateway on that adapter.
 
-For daily use, start the agent and keep A7-tagam open on the same workstation.
-The agent does not open a browser page on either Windows or macOS. A7-tagam
+For daily use, start the visible agent; the A7-tagam website may remain closed.
+Its close action requires a separate stop confirmation. The agent does not open
+a browser page on either Windows or macOS. A7-tagam
 supplies each printer endpoint and its assigned items with every print job;
 there is no second printer registry to maintain in Go. The optional network
 page is not needed while accepting orders. Previously saved network additions
@@ -50,7 +54,7 @@ are restored at startup when necessary.
 
 On the Windows workstation with an already configured static Ethernet address,
 the prepared **A7-tagam-Print.exe** directly enables `-connect-printers` mode.
-Run this one file and keep its console open; do not start another copy before
+Run this one file and keep its visible status window open; do not start another copy before
 printing from A7-tagam. Its workstation settings are embedded when building
 with `WINDOWS_CONNECT_INTERFACE=Ethernet` and
 `WINDOWS_CONNECT_RESERVED=192.168.123.10,192.168.0.240`. Generic builds without
@@ -62,10 +66,9 @@ print plan; there is no second printer list to enter. Before sending any receipt
 bytes, it checks whether the selected Ethernet covers those subnets. A missing
 subnet uses the existing elevated, reversible additional-address setup and
 native Windows confirmation. The first request returns a clear setup-in-progress
-message without sending receipt bytes. After the console says
-«Подключение готово», staff allow the queue to retry that order. This keeps the existing
-eight-second website timeout from causing a late or duplicate receipt; UAC does
-not hold an HTTP print request open. Errors and cancellation never queue a print.
+message without sending receipt bytes. After the window says
+«Подключение готово», the direct worker retries that order. UAC does not hold an
+API lease open. Errors and cancellation never queue a print.
 The prepared Windows executable enables this mode locally; a website request
 cannot enable it or select an interface/mask. This package selects `Ethernet`
 with `/24`, matching this workstation's confirmed configuration, and reserves
@@ -276,11 +279,12 @@ covered with injected network drivers; they were not exercised on the live
 LAN to avoid interrupting working printing. Native Windows 10 execution/UAC
 and actual physical receipt output remain unverified on this Mac.
 
-## Durable receipt delivery — 2026-09-04
+## Durable receipt delivery — direct-agent revision 2026-09-19
 
-The updated admin consumes `/receipt-print-tasks` and requires both
-`receipt-layout-v2` and `dispatch-journal-v1`. Health returns a persistent
-`agentId`; queue requests include that ID and the server's stable `dispatchId`.
+The EXE consumes `/receipt-agent/tasks` directly with a separate bearer key.
+It sends the persistent `agentId` from `dispatch-journal-v1` in every request,
+and every task retains the server's stable `dispatchId`. Once direct mode is
+configured, the old staff/browser endpoint cannot claim a task.
 A different expected agent ID is rejected before printer I/O. A matching
 already-completed dispatch returns its saved result. Reusing a dispatch ID with
 other content is a conflict. Main and kitchen copies remain distinct even if
@@ -291,7 +295,7 @@ The append-only journal is fsynced before each copy and after its outcome.
 Definitively zero-byte failures can retry; partial/unknown sends and incomplete
 journal records return `uncertain: true` and must not be resent automatically.
 `printed` means bytes handed to the transport, never confirmed paper output.
-A lost browser response does not cancel an accepted physical send. Retries use
+A lost API outcome response does not cancel an accepted physical send. Retries use
 the same dispatch ID and consult the journal after the original finishes.
 
 Journal locations (separate from rotating support logs):
@@ -306,6 +310,7 @@ closed. Records contain fingerprints/outcomes, not customer or receipt content,
 and have no automatic time-based eviction. `-dispatch-dir` is available for
 isolated tests. Changing it in normal operation changes the station identity.
 
-The site and agent must stay open for automatic delivery. Closing them preserves
-pending tasks in PostgreSQL; reopening resumes them. Queue protocol, tests and
-coordinated rollout: `docs/RECEIPT_QUEUE.md` at repository root.
+Only the visible agent must stay open for automatic delivery. Closing the site
+does not stop printing. Closing the agent preserves pending tasks in PostgreSQL;
+reopening it resumes them. Queue protocol, tests and coordinated rollout:
+`docs/RECEIPT_QUEUE.md` at repository root.

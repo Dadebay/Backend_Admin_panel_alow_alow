@@ -18,6 +18,7 @@ import { configureApp } from "../src/bootstrap";
 import { Role } from "../src/generated/prisma/client";
 import { PrismaService } from "../src/prisma/prisma.service";
 import { OrdersService } from "../src/orders/orders.service";
+import { ReceiptQueueService } from "../src/orders/receipt-queue.service";
 import type {
   ReceiptClaimResponseDto,
   ReceiptClaimResultDto,
@@ -245,6 +246,30 @@ describe("durable receipt queue", () => {
     await outcome(task, "DELIVERED").expect(201);
     await outcome(task, "DELIVERED").expect(201);
     expect((await claim())?.id).not.toBe(task.id);
+  });
+  it("supports the standalone agent identity without a user session", async () => {
+    await create();
+    const queue = app.get(ReceiptQueueService);
+    const task = (await queue.claimAgent(station)).task!;
+    expect(task.stationId).toBe(station);
+    await expect(
+      queue.heartbeatAgent(station, task.id, {
+        claimToken: task.claimToken,
+      }),
+    ).resolves.toEqual({ ok: true });
+    await queue.acknowledgeAgent(station, task.id, {
+      claimToken: task.claimToken,
+      outcome: "DELIVERED",
+    });
+    const audit = await prisma.auditLog.findFirstOrThrow({
+      where: { entityId: task.id, action: "receipt.delivery_result" },
+      orderBy: { createdAt: "desc" },
+    });
+    expect(audit.actorId).toBeNull();
+    expect(audit.metadata).toMatchObject({
+      stationId: station,
+      authType: "PRINT_AGENT",
+    });
   });
   it("keeps the identity through indefinite offline retries and expired leases", async () => {
     await create();

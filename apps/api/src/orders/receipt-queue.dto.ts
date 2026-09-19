@@ -16,6 +16,37 @@ export class ReceiptLeaseDto extends ClaimReceiptDto {
   @IsUUID()
   claimToken: string;
 }
+export class ReceiptAgentLeaseDto {
+  @ApiProperty({ format: "uuid" })
+  @IsUUID()
+  claimToken: string;
+}
+export class ReceiptAgentOutcomeDto extends ReceiptAgentLeaseDto {
+  @ApiProperty({ enum: ["DELIVERED", "RETRY", "UNCERTAIN", "FAILED"] })
+  @IsIn(["DELIVERED", "RETRY", "UNCERTAIN", "FAILED"])
+  outcome: "DELIVERED" | "RETRY" | "UNCERTAIN" | "FAILED";
+
+  @ApiPropertyOptional({
+    enum: [
+      "AGENT_UNAVAILABLE",
+      "PRINTER_UNAVAILABLE",
+      "DELIVERY_UNCERTAIN",
+      "NO_PRINTERS",
+      "JOURNAL_UNAVAILABLE",
+      "INVALID_PLAN",
+    ],
+  })
+  @IsOptional()
+  @IsIn([
+    "AGENT_UNAVAILABLE",
+    "PRINTER_UNAVAILABLE",
+    "DELIVERY_UNCERTAIN",
+    "NO_PRINTERS",
+    "JOURNAL_UNAVAILABLE",
+    "INVALID_PLAN",
+  ])
+  errorCode?: string;
+}
 export class ReceiptOutcomeDto extends ReceiptLeaseDto {
   @ApiProperty({ enum: ["DELIVERED", "RETRY", "UNCERTAIN", "FAILED"] })
   @IsIn(["DELIVERED", "RETRY", "UNCERTAIN", "FAILED"])
@@ -28,6 +59,7 @@ export class ReceiptOutcomeDto extends ReceiptLeaseDto {
       "DELIVERY_UNCERTAIN",
       "NO_PRINTERS",
       "JOURNAL_UNAVAILABLE",
+      "INVALID_PLAN",
     ],
   })
   @IsOptional()
@@ -37,6 +69,7 @@ export class ReceiptOutcomeDto extends ReceiptLeaseDto {
     "DELIVERY_UNCERTAIN",
     "NO_PRINTERS",
     "JOURNAL_UNAVAILABLE",
+    "INVALID_PLAN",
   ])
   errorCode?: string;
 }
@@ -78,6 +111,8 @@ export class ReceiptQueueResponseDto {
   items: ReceiptTaskResponseDto[];
   @ApiProperty() pending: number;
   @ApiProperty() needsAttention: number;
+  @ApiProperty({ enum: ["DIRECT_AGENT", "BROWSER_BRIDGE"] })
+  consumerMode: "DIRECT_AGENT" | "BROWSER_BRIDGE";
 }
 
 export class ReceiptActionResponseDto {

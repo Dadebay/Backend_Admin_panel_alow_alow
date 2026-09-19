@@ -23,6 +23,7 @@ export type AppEnv = {
   SMS_GATEWAY_AUTH_REQUIRED: boolean;
   SMS_GATEWAY_ALLOW_UNAUTHENTICATED_LOCAL: boolean;
   SMS_GATEWAY_ENCRYPTION_KEY: string;
+  RECEIPT_AGENT_API_TOKEN: string;
   PUSH_PROVIDER: "fcm" | "console";
   FCM_SERVICE_ACCOUNT_BASE64: string;
   PUSH_DISPATCH_INTERVAL_MS: number;
@@ -142,6 +143,7 @@ export function validateEnv(source: Record<string, unknown>): AppEnv {
     false,
   );
   const smsGatewayEncryptionKey = text("SMS_GATEWAY_ENCRYPTION_KEY", "");
+  const receiptAgentApiToken = text("RECEIPT_AGENT_API_TOKEN", "");
   const pushProvider = text("PUSH_PROVIDER", isProduction ? "fcm" : "console");
   const fcmServiceAccountBase64 = text("FCM_SERVICE_ACCOUNT_BASE64", "");
 
@@ -307,6 +309,11 @@ export function validateEnv(source: Record<string, unknown>): AppEnv {
   ) {
     throw new Error(
       "SMS_GATEWAY_ENCRYPTION_KEY must be a base64-encoded 32-byte key for Android pull SMS",
+    );
+  }
+  if (receiptAgentApiToken && receiptAgentApiToken.length < 12) {
+    throw new Error(
+      "RECEIPT_AGENT_API_TOKEN must contain at least 12 characters",
     );
   }
   if (!["fcm", "console"].includes(pushProvider)) {
@@ -475,6 +482,7 @@ export function validateEnv(source: Record<string, unknown>): AppEnv {
     SMS_GATEWAY_AUTH_REQUIRED: smsGatewayAuthRequired,
     SMS_GATEWAY_ALLOW_UNAUTHENTICATED_LOCAL: allowUnauthenticatedLocalGateway,
     SMS_GATEWAY_ENCRYPTION_KEY: smsGatewayEncryptionKey,
+    RECEIPT_AGENT_API_TOKEN: receiptAgentApiToken,
     PUSH_PROVIDER: pushProvider as AppEnv["PUSH_PROVIDER"],
     FCM_SERVICE_ACCOUNT_BASE64: fcmServiceAccountBase64,
     PUSH_DISPATCH_INTERVAL_MS: pushDispatchIntervalMs,

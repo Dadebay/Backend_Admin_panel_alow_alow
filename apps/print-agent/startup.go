@@ -90,5 +90,5 @@ func runningAgentNotice(health agentHealth, expectedVersion string, wanted netwo
 	if health.Version != expectedVersion || !matching {
 		return "Уже открыта другая версия или режим A7-tagam Print. Закройте прежнее окно программы и снова запустите этот A7-tagam-Print.exe. Новая версия пока не запущена.", false
 	}
-	return "A7-tagam Print уже работает. Оставьте первое окно программы открытым. Оставьте сайт A7-tagam открытым для обработки очереди печати.", true
+	return "A7-tagam Print уже работает. Оставьте первое окно программы открытым. Сайт для печати не требуется.", true
 }

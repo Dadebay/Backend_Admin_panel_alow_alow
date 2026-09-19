@@ -1,4 +1,6 @@
 import { ReceiptQueueController } from "./receipt-queue.controller";
+import { ReceiptAgentController } from "./receipt-agent.controller";
+import { ReceiptAgentGuard } from "./receipt-agent.guard";
 import { ReceiptQueueService } from "./receipt-queue.service";
 import { Module } from "@nestjs/common";
 import { InventoryModule } from "../inventory/inventory.module";
@@ -21,7 +23,11 @@ import { OrdersService } from "./orders.service";
     NotificationsModule,
     DeliveryModule,
   ],
-  controllers: [OrdersController, ReceiptQueueController],
-  providers: [OrdersService, ReceiptQueueService],
+  controllers: [
+    OrdersController,
+    ReceiptQueueController,
+    ReceiptAgentController,
+  ],
+  providers: [OrdersService, ReceiptQueueService, ReceiptAgentGuard],
 })
 export class OrdersModule {}

@@ -314,6 +314,15 @@ use the existing explicit permission button and are silent to avoid a second
 OS chime. Visual alerts remain available when sound or system notices are blocked.
 Receipt printing continues through its independent durable queue.
 
+The visible receipt-printing EXE consumes that queue directly from NestJS over
+HTTPS every three seconds using a dedicated `RECEIPT_AGENT_API_TOKEN`; the site
+and browser JWT are not required. It sends the persistent UUID from its local
+dispatch journal automatically, renews a three-minute lease every 30 seconds,
+and reports the transport outcome. Configuring the key disables legacy browser
+claims, preventing two consumers. Lost connections preserve the server task and
+stable `dispatchId`; the local journal suppresses duplicate paper after API loss
+or EXE restart. Main and kitchen copies remain intentionally separate.
+
 The budget planner and recipe/stock configurator (`/meal-config`) are an
 `ADMIN`/`SUPER_ADMIN` only screen. The budget section builds an authoritative
 quote from `/orders/quote`, which permits customers and administrators while

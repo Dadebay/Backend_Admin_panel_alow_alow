@@ -176,6 +176,9 @@ transport before enabling unattended deployment; never move SSH back to 443.
 Every push to `main` must first pass backend/admin lint, builds, tests, coverage,
 dependency audits, Swagger contract verification, receipt-agent Go tests and
 Windows/macOS cross-builds, and hardened container checks.
+Coverage, admin-build and desktop-agent artifact uploads are convenience
+outputs rather than deployment inputs; storage-quota failures do not override
+successful quality gates or block immutable image publication.
 The isolated backend job starts its digest-pinned MinIO server and client from
 the official `quay.io/minio` repositories; production still pulls the same
 upstream digests through `nexus.telecom.tm`.

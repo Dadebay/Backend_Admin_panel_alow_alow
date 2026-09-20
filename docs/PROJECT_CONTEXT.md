@@ -210,11 +210,15 @@ Prisma access in React, or duplicate backend policies in client state.
 ## Roles
 
 - `CUSTOMER`: own addresses, orders, cancellation where allowed, rating.
-- `OPERATOR`: monitors orders that enter the kitchen automatically, assigns
-  packed orders to couriers, receives returned cash, and may create a cash
-  order for a caller through the assisted-order API/admin form.
-- `COOK`: claims an unowned `COOKING` order by marking it `READY`.
-- `COURIER`: handles only assigned orders and returns collected cash.
+- `OPERATOR`: monitors orders that enter the kitchen automatically, may create
+  a cash order for a caller through the assisted-order API/admin form, and
+  assigns or reassigns packed orders to couriers before pickup. The operator
+  cannot cancel orders or change their workflow status.
+- `COOK`: sees unowned `COOKING` orders and orders already associated with that
+  cook for kitchen awareness. The current transition policy grants `COOK` no
+  status mutation; packing confirmation is an administrator action.
+- `COURIER`: handles only assigned orders, confirms pickup and delivery, and
+  confirms collected cash was returned.
 - `ACCOUNTANT`: sees the dedicated shift/cash workspace, verifies submitted
   cash packets and performs final reconciliation for every included order.
 - `ADMIN`: operational administration, audited correction of active orders,
@@ -787,8 +791,9 @@ heights; visual density must not be reduced to the previous pale compact map.
   requested reprint uses the saved comment; previously queued receipts retain
   their original immutable snapshot, so an edit does not silently change or
   redispatch an old print task.
-- Courier returns cash to operator; operator confirms receipt; accountant
-  reconciles.
+- The assigned courier, `ADMIN`, or `SUPER_ADMIN` confirms
+  `DELIVERED → CASH_RETURNED`; the accountant then reconciles the order as
+  part of a submitted shift cash packet.
 - Customer may submit one rating/comment after delivery.
 
 ## Catalog and marketing
@@ -1133,9 +1138,10 @@ Current status:
   composition, quantities, catalog additions, address search/map, delivery
   etrap/details, note, and courier. Backend recalculation and audit remain the
   authority. Admin cards also expose one-step rollback and late cancellation;
-  operators keep forward-only transitions and early cancellation. The admin
-  rollback action disappears after courier pickup, and the backend rejects any
-  attempted backward transition from `OUT_FOR_DELIVERY` or `DELIVERED`;
+  operators may assign or reassign a courier before pickup but cannot cancel
+  orders or change workflow statuses. The admin rollback action disappears
+  after courier pickup, and the backend rejects any attempted backward
+  transition from `OUT_FOR_DELIVERY` or `DELIVERED`;
 - Swagger response DTOs generate the TypeScript contract used by the frontend;
 - TanStack Query owns server state and TanStack Table renders admin lists;
 - React Hook Form owns all admin form state and Zod schemas validate values
@@ -1842,9 +1848,10 @@ eager route load.
   coverage, post-delivery movement, print-plan grouping, and manual QA.
 - 2026-08-21: administrators gained audited, version-locked pre-pickup order
   editing, canonical one-step pre-pickup rollback, and cancellation through
-  `DELIVERED`.
-  Operators remain forward-only and may cancel only before cooking. Courier
-  pickup/completion were documented on the existing transition endpoint.
+  `DELIVERED`. Operators remain limited to assisted order creation and courier
+  assignment or reassignment before pickup; they cannot cancel orders or
+  change workflow statuses. Courier pickup/completion were documented on the
+  existing transition endpoint.
 - 2026-08-21: assisted official-address search became a 350 ms debounced
   autocomplete while Enter and the search button remain immediate. Selecting
   an address or marker now owns tariff resolution completely: an unambiguous
@@ -1880,12 +1887,13 @@ eager route load.
   1366 px landscape width. A pinned internal close control remains reachable at
   every scroll position and restores keyboard focus to the menu trigger.
 - 2026-08-25: the order workflow was reduced to eight statuses. Customer-app
-  and assisted orders now start directly in `COOKING`; the first cook moving an
-  unowned order to `READY` claims it. Cash return is itself the completed state,
-  sets `completedAt`, confirms the order-specific settlement, and moves
-  directly to accountant reconciliation. Customers and operators cannot cancel
-  an order after immediate cooking begins; administrators retain cancellation
-  through `DELIVERED` and the two safe pre-pickup rollback steps.
+  and assisted orders now start directly in `COOKING`. Generic
+  `COOKING → READY` transitions are denied; `ADMIN` or `SUPER_ADMIN` uses the
+  packing-confirmation action to atomically complete that step. Cash return is
+  itself the completed state, sets `completedAt`, confirms the order-specific
+  settlement, and moves directly to accountant reconciliation. Customers and
+  operators cannot cancel; administrators retain cancellation through
+  `DELIVERED` and the two safe pre-pickup rollback steps.
 - 2026-08-25: the admin order board was reduced to two active lanes. The
   `kitchen` lane combines `COOKING` and `READY`; the `courier` lane covers
   assignment through delivery. Cash-returned, reconciled and cancelled orders
@@ -2042,3 +2050,15 @@ enforced by the global authorization guard, and the same policy drives React
 navigation and direct-route protection. The individual-access table introduced
 by the superseded release is retained only as inactive legacy data; it is not
 read or written by the application.
+
+## Order-role policy alignment — 2026-09-20
+
+The current backend policy is the accepted role contract. `COOK` has read-only
+order visibility and no order-status transition. Only `ADMIN` and `SUPER_ADMIN`
+may confirm packing, which moves `COOKING` to `READY`. `OPERATOR` may create an
+assisted order and assign or reassign its courier before pickup, but may not
+cancel an order or change any workflow status. `DELIVERED → CASH_RETURNED` is
+performed by the assigned `COURIER`, `ADMIN`, or `SUPER_ADMIN`, not by
+`OPERATOR`. This supersedes earlier narrative language that described cook
+claiming, operator workflow transitions, operator cancellation, or operator
+cash confirmation.

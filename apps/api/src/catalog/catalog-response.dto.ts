@@ -231,6 +231,28 @@ export class CatalogAdminCategoryResponseDto extends CatalogAdminCategorySummary
   products: CatalogAdminProductResponseDto[];
 }
 
+export class CatalogAdminCategoryListItemResponseDto extends CatalogAdminCategorySummaryResponseDto {
+  @ApiProperty({ minimum: 0 })
+  productCount: number;
+}
+
+export class CatalogAdminProductPageResponseDto {
+  @ApiProperty({ type: [CatalogAdminProductResponseDto] })
+  items: CatalogAdminProductResponseDto[];
+
+  @ApiProperty({ minimum: 1 })
+  page: number;
+
+  @ApiProperty({ minimum: 1, maximum: 100 })
+  pageSize: number;
+
+  @ApiProperty({ minimum: 0 })
+  total: number;
+
+  @ApiProperty({ minimum: 0 })
+  totalPages: number;
+}
+
 export class ReceiptPrintSettingsResponseDto {
   @ApiProperty({ type: String, format: "uuid", nullable: true })
   mainPrinterId: string | null;

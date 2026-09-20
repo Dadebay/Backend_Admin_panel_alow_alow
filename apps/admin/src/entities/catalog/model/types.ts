@@ -1,7 +1,13 @@
 import type { components } from "@alowalow/api-contract";
 
 export type Category = components["schemas"]["CatalogAdminCategoryResponseDto"];
+export type CategorySummary =
+  components["schemas"]["CatalogAdminCategorySummaryResponseDto"];
+export type CategoryListItem =
+  components["schemas"]["CatalogAdminCategoryListItemResponseDto"];
 export type Product = components["schemas"]["CatalogAdminProductResponseDto"];
+export type ProductPage =
+  components["schemas"]["CatalogAdminProductPageResponseDto"];
 export type ReceiptPrintSettings =
   components["schemas"]["ReceiptPrintSettingsResponseDto"];
 export type ReceiptPrinter = components["schemas"]["ReceiptPrinterResponseDto"];

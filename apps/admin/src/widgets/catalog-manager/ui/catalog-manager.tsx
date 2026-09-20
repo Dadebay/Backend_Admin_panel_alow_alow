@@ -5,14 +5,13 @@ import { useFieldArray, useForm, useWatch } from "react-hook-form";
 import {
   canAddProductImages,
   filterCatalogCategories,
-  filterCatalogProducts,
   groupProductsByCategory,
   MAX_PRODUCT_IMAGES,
-  useAdminCategories,
-  useAdminProducts,
+  useAdminCategorySummaries,
+  useAdminProductPage,
   useReceiptPrinters,
   useReceiptPrintSettings,
-  type Category,
+  type CategoryListItem,
   type Product,
 } from "@/src/entities/catalog";
 import { useMyAdminPageAccess } from "@/src/entities/admin-page-access";
@@ -43,6 +42,9 @@ import {
   buildCategoryPrinterUpdate,
   buildCategoryVisibilityUpdate,
 } from "../model/category-receipt-route";
+import { CATALOG_PRODUCT_PAGE_SIZE } from "../model/catalog-pagination";
+import { useDebouncedCatalogSearch } from "../model/use-debounced-catalog-search";
+import { CatalogPagination } from "./catalog-pagination";
 import { CategoryReceiptRoutes } from "./category-receipt-routes";
 import { ProductReceiptRoute } from "./product-receipt-route";
 import { ReceiptPrinterRegistry } from "./receipt-printer-registry";
@@ -71,18 +73,32 @@ function imageFilesFromDrop(event: { dataTransfer: DataTransfer }) {
 export function CatalogManager() {
   const { session } = useSession();
   const pageAccess = useMyAdminPageAccess();
-  const categories = useAdminCategories();
-  const products = useAdminProducts();
-  const receiptPrinters = useReceiptPrinters();
-  const receiptPrintSettings = useReceiptPrintSettings();
-  const actions = useCatalogActions();
-  const [categoryEdit, setCategoryEdit] = useState<Category | null>(null);
-  const [productEdit, setProductEdit] = useState<Product | null>(null);
-  const [showCategoryForm, setShowCategoryForm] = useState(false);
-  const [showProductForm, setShowProductForm] = useState(false);
   const [catalogSearch, setCatalogSearch] = useState("");
   const [catalogTab, setCatalogTab] = useState<CatalogTab>("categories");
   const [productCategoryFilter, setProductCategoryFilter] = useState("");
+  const [productPage, setProductPage] = useState(1);
+  const debouncedCatalogSearch = useDebouncedCatalogSearch(catalogSearch);
+  const categories = useAdminCategorySummaries();
+  const products = useAdminProductPage(
+    {
+      page: productPage,
+      limit: CATALOG_PRODUCT_PAGE_SIZE,
+      ...(productCategoryFilter ? { categoryId: productCategoryFilter } : {}),
+      ...(debouncedCatalogSearch.trim()
+        ? { query: debouncedCatalogSearch.trim() }
+        : {}),
+    },
+    catalogTab === "products",
+  );
+  const receiptPrinters = useReceiptPrinters();
+  const receiptPrintSettings = useReceiptPrintSettings();
+  const actions = useCatalogActions();
+  const [categoryEdit, setCategoryEdit] = useState<CategoryListItem | null>(
+    null,
+  );
+  const [productEdit, setProductEdit] = useState<Product | null>(null);
+  const [showCategoryForm, setShowCategoryForm] = useState(false);
+  const [showProductForm, setShowProductForm] = useState(false);
   const [expandedProductGroups, setExpandedProductGroups] = useState<
     Set<string> | "all" | null
   >(null);
@@ -163,25 +179,26 @@ export function CatalogManager() {
   });
   const canEdit = Boolean(
     session &&
-      (["ADMIN", "SUPER_ADMIN"].includes(session.user.role) ||
-        pageAccess.data?.allowedPages.includes("CATALOG")),
+    (["ADMIN", "SUPER_ADMIN"].includes(session.user.role) ||
+      pageAccess.data?.allowedPages.includes("CATALOG")),
   );
   const hasSearch = Boolean(catalogSearch.trim());
   const filteredCategories = useMemo(
     () => filterCatalogCategories(categories.data ?? [], catalogSearch),
     [catalogSearch, categories.data],
   );
-  const filteredProducts = useMemo(
-    () =>
-      filterCatalogProducts(products.data ?? [], {
-        categoryId: productCategoryFilter,
-        query: catalogSearch,
-      }),
-    [catalogSearch, productCategoryFilter, products.data],
-  );
+  const productItems = products.data?.items;
   const productGroups = useMemo(
-    () => groupProductsByCategory(filteredProducts),
-    [filteredProducts],
+    () => groupProductsByCategory(productItems ?? []),
+    [productItems],
+  );
+  const totalProductCount = useMemo(
+    () =>
+      (categories.data ?? []).reduce(
+        (total, category) => total + category.productCount,
+        0,
+      ),
+    [categories.data],
   );
 
   const expandedProductGroupCount =
@@ -206,7 +223,7 @@ export function CatalogManager() {
     });
   }
 
-  const categoryColumns = useMemo<ColumnDef<Category, unknown>[]>(
+  const categoryColumns = useMemo<ColumnDef<CategoryListItem, unknown>[]>(
     () => [
       {
         header: "Категория",
@@ -226,7 +243,7 @@ export function CatalogManager() {
             <div className="primary-cell">
               <strong>{row.original.name}</strong>
               <small>
-                {row.original.products.length} блюд · порядок{" "}
+                {row.original.productCount} блюд · порядок{" "}
                 {row.original.sortOrder}
               </small>
               <small
@@ -317,11 +334,15 @@ export function CatalogManager() {
                     kind: "category",
                     id: row.original.id,
                     name: row.original.name,
-                    productCount: row.original.products.length,
+                    productCount: row.original.productCount,
                   });
                 }}
               >
-                <HugeiconsIcon icon={Delete02Icon} size={15} strokeWidth={1.8} />
+                <HugeiconsIcon
+                  icon={Delete02Icon}
+                  size={15}
+                  strokeWidth={1.8}
+                />
               </button>
             </div>
           ),
@@ -500,7 +521,11 @@ export function CatalogManager() {
                   });
                 }}
               >
-                <HugeiconsIcon icon={Delete02Icon} size={15} strokeWidth={1.8} />
+                <HugeiconsIcon
+                  icon={Delete02Icon}
+                  size={15}
+                  strokeWidth={1.8}
+                />
               </button>
             </div>
           ),
@@ -630,6 +655,9 @@ export function CatalogManager() {
       await actions.deleteCategory.mutateAsync(catalogDelete.id);
     } else {
       await actions.deleteProduct.mutateAsync(catalogDelete.id);
+      if (products.data?.items.length === 1 && productPage > 1) {
+        setProductPage((current) => current - 1);
+      }
     }
     setCatalogDelete(null);
   }
@@ -658,7 +686,7 @@ export function CatalogManager() {
       label: "Категории",
       count: categories.data?.length ?? 0,
     },
-    { id: "products", label: "Блюда", count: products.data?.length ?? 0 },
+    { id: "products", label: "Блюда", count: totalProductCount },
     {
       id: "printers",
       label: "Чековые аппараты",
@@ -764,10 +792,13 @@ export function CatalogManager() {
               <span className="visually-hidden">Поиск</span>
               <span aria-hidden="true">⌕</span>
               <input
+                data-testid="catalog-search-input"
                 value={catalogSearch}
                 onChange={(event) => {
                   setCatalogSearch(event.target.value);
-                  if (event.target.value.trim()) setExpandedProductGroups("all");
+                  setProductPage(1);
+                  if (event.target.value.trim())
+                    setExpandedProductGroups("all");
                 }}
                 placeholder="Название или описание…"
               />
@@ -775,7 +806,11 @@ export function CatalogManager() {
                 <button
                   type="button"
                   aria-label="Очистить поиск"
-                  onClick={() => setCatalogSearch("")}
+                  data-testid="catalog-search-clear"
+                  onClick={() => {
+                    setCatalogSearch("");
+                    setProductPage(1);
+                  }}
                 >
                   ×
                 </button>
@@ -786,9 +821,11 @@ export function CatalogManager() {
                 <span>Категория</span>
                 <select
                   aria-label="Фильтр по категории"
+                  data-testid="catalog-product-category-filter"
                   value={productCategoryFilter}
                   onChange={(event) => {
                     setProductCategoryFilter(event.target.value);
+                    setProductPage(1);
                     if (event.target.value) setExpandedProductGroups("all");
                   }}
                 >
@@ -804,7 +841,6 @@ export function CatalogManager() {
           </section>
         )}
       </div>
-
 
       {catalogDelete && (
         <ConfirmDeleteDialog
@@ -845,168 +881,176 @@ export function CatalogManager() {
 
       {catalogTab === "printers" && (
         <>
-        <ReceiptPrinterRegistry
-          printers={receiptPrinters.data ?? []}
-          canEdit={canEdit}
-          isLoading={receiptPrinters.isPending}
-          isPending={
-            actions.createReceiptPrinter.isPending ||
-            actions.updateReceiptPrinter.isPending ||
-            actions.deleteReceiptPrinter.isPending
-          }
-          error={errorMessage(
-            receiptPrinters.error ||
-              actions.createReceiptPrinter.error ||
-              actions.updateReceiptPrinter.error ||
-              actions.deleteReceiptPrinter.error,
-          )}
-          onRetry={() => void receiptPrinters.refetch()}
-          onCreate={(body) => actions.createReceiptPrinter.mutateAsync(body)}
-          onUpdate={(id, body) =>
-            actions.updateReceiptPrinter.mutateAsync({ id, body })
-          }
-          onDelete={(id) => actions.deleteReceiptPrinter.mutateAsync(id)}
-        />
+          <ReceiptPrinterRegistry
+            printers={receiptPrinters.data ?? []}
+            canEdit={canEdit}
+            isLoading={receiptPrinters.isPending}
+            isPending={
+              actions.createReceiptPrinter.isPending ||
+              actions.updateReceiptPrinter.isPending ||
+              actions.deleteReceiptPrinter.isPending
+            }
+            error={errorMessage(
+              receiptPrinters.error ||
+                actions.createReceiptPrinter.error ||
+                actions.updateReceiptPrinter.error ||
+                actions.deleteReceiptPrinter.error,
+            )}
+            onRetry={() => void receiptPrinters.refetch()}
+            onCreate={(body) => actions.createReceiptPrinter.mutateAsync(body)}
+            onUpdate={(id, body) =>
+              actions.updateReceiptPrinter.mutateAsync({ id, body })
+            }
+            onDelete={(id) => actions.deleteReceiptPrinter.mutateAsync(id)}
+          />
 
-        <form
-          className="table-card receipt-print-settings-card"
-          data-testid="receipt-print-settings-form"
-          noValidate
-          onSubmit={handleReceiptPrintSettingsSubmit(submitReceiptPrintSettings)}
-        >
-          <div className="receipt-print-settings-copy">
-            <h2>Главный чековый аппарат</h2>
-            <p>
-              Получает один полный чек со всеми блюдами. Кухонные копии ниже
-              маршрутизируются отдельно по категориям.
-            </p>
-          </div>
-          <div className="receipt-print-settings-controls">
-            <label>
-              <span>Главный аппарат</span>
-              <select
-                data-testid="main-receipt-printer-select"
-                {...registerReceiptPrintSettings("mainPrinterId")}
-                aria-invalid={Boolean(receiptPrintSettingsErrors.mainPrinterId)}
-                disabled={!canEdit || receiptPrintSettings.isPending}
-              >
-                <option value="">Не печатать главный чек</option>
-                {(receiptPrinters.data ?? []).map((printer) => (
-                  <option
-                    key={printer.id}
-                    value={printer.id}
-                    disabled={
-                      !printer.isActive &&
-                      printer.id !== receiptPrintSettings.data?.mainPrinterId
-                    }
-                  >
-                    {printer.name} · {printer.ipAddress}:{printer.port}
-                    {printer.isActive ? "" : " · отключён"}
-                  </option>
-                ))}
-              </select>
-              <FormFieldError
-                message={receiptPrintSettingsErrors.mainPrinterId?.message}
-              />
-            </label>
-            <div className="receipt-print-settings-actions">
-              {receiptPrintSettings.isError && (
-                <button
-                  aria-label="Повторить загрузку"
-                  title="Повторить загрузку"
-                  className="text-button compact icon-action-button"
-                  data-testid="main-receipt-printer-retry"
-                  type="button"
-                  onClick={() => void receiptPrintSettings.refetch()}
-                >
-                  <HugeiconsIcon
-                    icon={Refresh01Icon}
-                    size={16}
-                    strokeWidth={1.8}
-                  />
-                </button>
-              )}
-              {canEdit && (
-                <>
-                  <button
-                    aria-label="Убрать аппарат"
-                    title="Убрать аппарат"
-                    className="text-button compact icon-action-button"
-                    data-testid="main-receipt-printer-clear"
-                    disabled={
-                      (!receiptPrintSettings.data?.mainPrinterId &&
-                        !receiptPrintSettings.data?.mainPrinterIp) ||
-                      actions.updateReceiptPrintSettings.isPending
-                    }
-                    type="button"
-                    onClick={() =>
-                      actions.updateReceiptPrintSettings.mutate({
-                        mainPrinterId: null,
-                      })
-                    }
-                  >
-                    <HugeiconsIcon
-                      icon={PrinterOffIcon}
-                      size={16}
-                      strokeWidth={1.8}
-                    />
-                  </button>
-                  <button
-                    aria-label="Сохранить аппарат"
-                    title="Сохранить аппарат"
-                    className="primary-button compact icon-action-button"
-                    data-testid="main-receipt-printer-save"
-                    disabled={actions.updateReceiptPrintSettings.isPending}
-                  >
-                    <HugeiconsIcon
-                      icon={FloppyDiskIcon}
-                      size={16}
-                      strokeWidth={1.8}
-                    />
-                  </button>
-                </>
-              )}
+          <form
+            className="table-card receipt-print-settings-card"
+            data-testid="receipt-print-settings-form"
+            noValidate
+            onSubmit={handleReceiptPrintSettingsSubmit(
+              submitReceiptPrintSettings,
+            )}
+          >
+            <div className="receipt-print-settings-copy">
+              <h2>Главный чековый аппарат</h2>
+              <p>
+                Получает один полный чек со всеми блюдами. Кухонные копии ниже
+                маршрутизируются отдельно по категориям.
+              </p>
             </div>
-          </div>
-        </form>
+            <div className="receipt-print-settings-controls">
+              <label>
+                <span>Главный аппарат</span>
+                <select
+                  data-testid="main-receipt-printer-select"
+                  {...registerReceiptPrintSettings("mainPrinterId")}
+                  aria-invalid={Boolean(
+                    receiptPrintSettingsErrors.mainPrinterId,
+                  )}
+                  disabled={!canEdit || receiptPrintSettings.isPending}
+                >
+                  <option value="">Не печатать главный чек</option>
+                  {(receiptPrinters.data ?? []).map((printer) => (
+                    <option
+                      key={printer.id}
+                      value={printer.id}
+                      disabled={
+                        !printer.isActive &&
+                        printer.id !== receiptPrintSettings.data?.mainPrinterId
+                      }
+                    >
+                      {printer.name} · {printer.ipAddress}:{printer.port}
+                      {printer.isActive ? "" : " · отключён"}
+                    </option>
+                  ))}
+                </select>
+                <FormFieldError
+                  message={receiptPrintSettingsErrors.mainPrinterId?.message}
+                />
+              </label>
+              <div className="receipt-print-settings-actions">
+                {receiptPrintSettings.isError && (
+                  <button
+                    aria-label="Повторить загрузку"
+                    title="Повторить загрузку"
+                    className="text-button compact icon-action-button"
+                    data-testid="main-receipt-printer-retry"
+                    type="button"
+                    onClick={() => void receiptPrintSettings.refetch()}
+                  >
+                    <HugeiconsIcon
+                      icon={Refresh01Icon}
+                      size={16}
+                      strokeWidth={1.8}
+                    />
+                  </button>
+                )}
+                {canEdit && (
+                  <>
+                    <button
+                      aria-label="Убрать аппарат"
+                      title="Убрать аппарат"
+                      className="text-button compact icon-action-button"
+                      data-testid="main-receipt-printer-clear"
+                      disabled={
+                        (!receiptPrintSettings.data?.mainPrinterId &&
+                          !receiptPrintSettings.data?.mainPrinterIp) ||
+                        actions.updateReceiptPrintSettings.isPending
+                      }
+                      type="button"
+                      onClick={() =>
+                        actions.updateReceiptPrintSettings.mutate({
+                          mainPrinterId: null,
+                        })
+                      }
+                    >
+                      <HugeiconsIcon
+                        icon={PrinterOffIcon}
+                        size={16}
+                        strokeWidth={1.8}
+                      />
+                    </button>
+                    <button
+                      aria-label="Сохранить аппарат"
+                      title="Сохранить аппарат"
+                      className="primary-button compact icon-action-button"
+                      data-testid="main-receipt-printer-save"
+                      disabled={actions.updateReceiptPrintSettings.isPending}
+                    >
+                      <HugeiconsIcon
+                        icon={FloppyDiskIcon}
+                        size={16}
+                        strokeWidth={1.8}
+                      />
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+          </form>
 
-        <CategoryReceiptRoutes
-          categories={categories.data ?? []}
-          printers={receiptPrinters.data ?? []}
-          canEdit={canEdit}
-          isLoading={categories.isPending}
-          isPending={
-            actions.updateCategory.isPending || actions.deleteCategory.isPending
-          }
-          onRetry={() => void categories.refetch()}
-          onSave={async (category, values) => {
-            await actions.updateCategory.mutateAsync({
-              id: category.id,
-              body: buildCategoryPrinterUpdate(category, values.receiptPrinterId),
-            });
-          }}
-          onClear={async (category) => {
-            await actions.updateCategory.mutateAsync({
-              id: category.id,
-              body: buildCategoryPrinterUpdate(category, ""),
-            });
-          }}
-          onDelete={(category) => {
-            actions.deleteCategory.reset();
-            setCatalogDelete({
-              kind: "category",
-              id: category.id,
-              name: category.name,
-              productCount: category.products.length,
-            });
-          }}
-          onToggleActive={(category) => {
-            actions.updateCategory.mutate({
-              id: category.id,
-              body: buildCategoryVisibilityUpdate(category),
-            });
-          }}
-        />
+          <CategoryReceiptRoutes
+            categories={categories.data ?? []}
+            printers={receiptPrinters.data ?? []}
+            canEdit={canEdit}
+            isLoading={categories.isPending}
+            isPending={
+              actions.updateCategory.isPending ||
+              actions.deleteCategory.isPending
+            }
+            onRetry={() => void categories.refetch()}
+            onSave={async (category, values) => {
+              await actions.updateCategory.mutateAsync({
+                id: category.id,
+                body: buildCategoryPrinterUpdate(
+                  category,
+                  values.receiptPrinterId,
+                ),
+              });
+            }}
+            onClear={async (category) => {
+              await actions.updateCategory.mutateAsync({
+                id: category.id,
+                body: buildCategoryPrinterUpdate(category, ""),
+              });
+            }}
+            onDelete={(category) => {
+              actions.deleteCategory.reset();
+              setCatalogDelete({
+                kind: "category",
+                id: category.id,
+                name: category.name,
+                productCount: category.productCount,
+              });
+            }}
+            onToggleActive={(category) => {
+              actions.updateCategory.mutate({
+                id: category.id,
+                body: buildCategoryVisibilityUpdate(category),
+              });
+            }}
+          />
         </>
       )}
 
@@ -1727,9 +1771,9 @@ export function CatalogManager() {
               </div>
               <div className="catalog-accordion-actions">
                 <span>
-                  {filteredProducts.length}
+                  {products.data?.total ?? 0}
                   {hasSearch || productCategoryFilter
-                    ? ` / ${products.data?.length ?? 0}`
+                    ? ` / ${totalProductCount}`
                     : ""}
                 </span>
                 <button
@@ -1789,7 +1833,9 @@ export function CatalogManager() {
                           >
                             <span className="catalog-product-group-title">
                               <strong>{group.name}</strong>
-                              {!group.isActive && <small>Категория скрыта</small>}
+                              {!group.isActive && (
+                                <small>Категория скрыта</small>
+                              )}
                             </span>
                             <span className="catalog-product-group-meta">
                               <span>{group.products.length}</span>
@@ -1823,6 +1869,19 @@ export function CatalogManager() {
                 <div className="async-state">Подходящих блюд нет</div>
               )}
             </AsyncPanel>
+            {products.data && (
+              <CatalogPagination
+                page={products.data.page}
+                pageSize={products.data.pageSize}
+                total={products.data.total}
+                totalPages={products.data.totalPages}
+                isFetching={products.isFetching}
+                onPageChange={(page) => {
+                  setProductPage(page);
+                  setExpandedProductGroups(null);
+                }}
+              />
+            )}
           </article>
         )}
       </div>

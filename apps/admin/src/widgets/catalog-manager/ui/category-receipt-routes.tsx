@@ -8,7 +8,7 @@ import {
   ViewIcon,
   ViewOffIcon,
 } from "@hugeicons/core-free-icons";
-import type { Category, ReceiptPrinter } from "@/src/entities/catalog";
+import type { CategoryListItem, ReceiptPrinter } from "@/src/entities/catalog";
 import { FormFieldError } from "@/src/shared/forms";
 import {
   categoryReceiptRouteFormSchema,
@@ -25,17 +25,17 @@ function CategoryReceiptRouteRow({
   onDelete,
   onToggleActive,
 }: {
-  category: Category;
+  category: CategoryListItem;
   printers: ReceiptPrinter[];
   canEdit: boolean;
   isPending: boolean;
   onSave: (
-    category: Category,
+    category: CategoryListItem,
     values: CategoryReceiptRouteFormValues,
   ) => Promise<void>;
-  onClear: (category: Category) => Promise<void>;
-  onDelete: (category: Category) => void;
-  onToggleActive: (category: Category) => void;
+  onClear: (category: CategoryListItem) => Promise<void>;
+  onDelete: (category: CategoryListItem) => void;
+  onToggleActive: (category: CategoryListItem) => void;
 }) {
   const {
     register,
@@ -57,7 +57,7 @@ function CategoryReceiptRouteRow({
       <div className="category-printer-route-name">
         <strong>{category.name}</strong>
         <small>
-          {category.products.length} блюд ·{" "}
+          {category.productCount} блюд ·{" "}
           <span
             className={
               category.isActive
@@ -175,19 +175,19 @@ export function CategoryReceiptRoutes({
   onDelete,
   onToggleActive,
 }: {
-  categories: Category[];
+  categories: CategoryListItem[];
   printers: ReceiptPrinter[];
   canEdit: boolean;
   isPending: boolean;
   isLoading: boolean;
   onRetry: () => void;
   onSave: (
-    category: Category,
+    category: CategoryListItem,
     values: CategoryReceiptRouteFormValues,
   ) => Promise<void>;
-  onClear: (category: Category) => Promise<void>;
-  onDelete: (category: Category) => void;
-  onToggleActive: (category: Category) => void;
+  onClear: (category: CategoryListItem) => Promise<void>;
+  onDelete: (category: CategoryListItem) => void;
+  onToggleActive: (category: CategoryListItem) => void;
 }) {
   return (
     <section

@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   catalogQueryKeys,
-  type Category,
+  type CategorySummary,
   type CreateCategory,
   type CreateProduct,
   type CreateReceiptPrinter,
@@ -39,7 +39,7 @@ export function useCatalogActions() {
   });
   const createCategory = useMutation({
     mutationFn: (body: CreateCategory) =>
-      authorizedRequest<Category>("/catalog/categories", {
+      authorizedRequest<CategorySummary>("/catalog/categories", {
         method: "POST",
         body: JSON.stringify(body),
       }),
@@ -47,7 +47,7 @@ export function useCatalogActions() {
   });
   const updateCategory = useMutation({
     mutationFn: ({ id, body }: { id: string; body: UpdateCategory }) =>
-      authorizedRequest<Category>(`/catalog/categories/${id}`, {
+      authorizedRequest<CategorySummary>(`/catalog/categories/${id}`, {
         method: "PATCH",
         body: JSON.stringify(body),
       }),

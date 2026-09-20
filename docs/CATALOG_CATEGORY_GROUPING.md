@@ -9,24 +9,28 @@ operations catalog and phone-assisted order flow.
 
 ## Scope
 
-The same catalog response powers two different staff workflows:
+The catalog API supports two different staff workflows without forcing both to
+download the complete administrator payload:
 
-- `/catalog` is an administrative view. It includes active and hidden products
-  and categories so administrators can repair or re-enable them.
+- `/catalog` first loads lightweight category summaries with `productCount`.
+  It requests products only after the `Блюда` tab opens, 40 records at a time,
+  while retaining active and hidden records for repair or re-enabling.
 - `Заказ по звонку` is an order-entry view. It includes only products that can
   currently be ordered and never offers a product from a hidden category.
 
-Visual grouping is a frontend projection of the existing cached catalog
-response and does not add its own request or routing decision. Category records
-now also own the default kitchen-printer IP, while a product may override that
+The paginated administrator endpoint owns text/category filtering and stable
+category/product ordering. Visual grouping remains a frontend projection of
+the current page and does not add its own routing decision. Category records
+also own the default kitchen-printer IP, while a product may override that
 default. The backend remains authoritative for availability, variants, prices,
 effective receipt-printer routes, immutable order snapshots, and final totals.
 
 The `/catalog` product groups are an accessible accordion. The first visible
 group opens by default, every category header is a keyboard-operable button,
 and administrators may expand or collapse all groups. Starting a text search
-or selecting a category expands the resulting groups so matches are not hidden.
-Only expanded groups mount their product tables.
+or selecting a category resets to page one and expands the resulting groups so
+matches are not hidden. Page changes return groups to the safe first-group-open
+state. Only expanded groups mount their product tables.
 
 Printer routing has a separate quick-settings block above the catalog search.
 It renders one private-LAN IPv4 field per category and saves only that
@@ -75,8 +79,10 @@ logic back into React components.
 
 Search is trimmed and case-insensitive. It uses literal substring matching, not
 a regular expression, so punctuation such as `[`, `*`, or `.` cannot break the
-filter. A category button does not clear the current text query; both filters
-remain visible and active until the user changes them.
+filter. Administrator search is debounced by 300 ms and executed by PostgreSQL
+over product name, slug, description, effective printer IP and category name.
+A category selection does not clear the current text query; both filters remain
+visible and active until the user changes them.
 
 ## Stable UI selectors
 
@@ -88,6 +94,10 @@ Tests and QA automation may rely on these selectors:
 - `catalog-product-group-panel-{categoryId}`
 - `catalog-product-groups-collapse`
 - `catalog-product-groups-expand`
+- `catalog-product-pagination`
+- `catalog-product-pagination-range`
+- `catalog-product-previous-page`
+- `catalog-product-next-page`
 - `category-printer-routes`
 - `category-printer-route-{categoryId}`
 - `category-printer-ip-{categoryId}`
@@ -120,6 +130,12 @@ Backend IDs, not array indexes or localized labels, are the stable suffixes.
 - preservation of object identity and variants;
 - a large-menu case with 1,000 products across 50 categories;
 - stable component selectors and responsive CSS hooks.
+
+`apps/admin/tests/catalog-pagination.test.mjs` covers page ranges, final/empty
+pages, delayed product loading, query wiring and stable pagination controls.
+`apps/api/test/security.e2e.spec.ts` verifies lightweight category counts,
+three consecutive product pages without duplicates, server-side search,
+validation bounds, authorization and the unchanged legacy list endpoint.
 
 Run the focused test with:
 
@@ -159,7 +175,10 @@ products, missing images, long names, and at least 50 products.
    remains visible and marked hidden in admin but disappears, together with all
    its products, from the customer catalog; show it again from the same row.
 7. Combine search with a category and verify both filters apply.
-8. Confirm hidden records remain editable and a no-match query shows the empty
+8. Move forward and backward through several 40-item pages. Confirm the range,
+   total and enabled buttons are correct, page changes do not duplicate rows,
+   and search/category changes return to page one.
+9. Confirm hidden records remain editable and a no-match query shows the empty
    state.
 
 ### Phone-assisted order
@@ -181,12 +200,15 @@ products, missing images, long names, and at least 50 products.
 
 ## Performance and maintenance limits
 
-Filtering and grouping are linear in the number of returned products, followed
-by sorting only the category groups. They are memoized by the owning widgets
-and reuse the TanStack Query response. If the global catalog grows enough to
-make a 1,000-item local projection measurable in production, move catalog
-pagination/filtering to the backend before adding another client cache or state
-owner.
+The administrator category response must not contain nested products. The
+product tab uses server-side pagination/filtering with a maximum API page size
+of 100 and a UI page size of 40. TanStack Query retains the previous page while
+the next page loads, and catalog mutations invalidate both summary and page
+queries. The legacy full-list endpoints remain compatible for existing order,
+marketing and inventory workflows until they receive their own measured
+pagination designs. Production Nginx compresses JSON, JavaScript and CSS so a
+slow domestic link does not transfer the raw responses measured before this
+change.
 
 When changing this behavior:
 

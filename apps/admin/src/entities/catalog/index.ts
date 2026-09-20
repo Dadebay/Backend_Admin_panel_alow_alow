@@ -1,6 +1,8 @@
 export {
   catalogQueryKeys,
   useAdminCategories,
+  useAdminCategorySummaries,
+  useAdminProductPage,
   useAdminProducts,
   useReceiptPrinters,
   useReceiptPrintSettings,
@@ -18,10 +20,13 @@ export {
 } from "./model/product-groups";
 export type {
   Category,
+  CategoryListItem,
+  CategorySummary,
   CreateCategory,
   CreateProduct,
   MediaUpload,
   Product,
+  ProductPage,
   ReceiptPrinter,
   ReceiptPrintSettings,
   CreateReceiptPrinter,

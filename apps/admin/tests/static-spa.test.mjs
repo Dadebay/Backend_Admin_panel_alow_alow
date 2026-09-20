@@ -15,7 +15,10 @@ test("builds a static React entry document", async () => {
     html,
     /Администрирование заказов, кухни, курьеров, каталога, промокодов и наличных/,
   );
-  assert.match(html, /<script type="module" crossorigin src="\/assets\/.+\.js">/);
+  assert.match(
+    html,
+    /<script type="module" crossorigin src="\/assets\/.+\.js">/,
+  );
   assert.doesNotMatch(html, /_next|__next|vinext|react-server-dom/);
 });
 
@@ -45,5 +48,20 @@ test("Nginx serves browser routes through the SPA entry document", async () => {
   );
 
   assert.match(config, /try_files \$uri \$uri\/ \/index\.html;/);
+  assert.match(config, /gzip on;/);
+  assert.match(config, /gzip_types[^;]*application\/javascript[^;]*text\/css/);
   assert.doesNotMatch(config, /proxy_pass|fastcgi_pass/);
+});
+
+test("production gateway compresses static assets and JSON API responses", async () => {
+  const config = await readFile(
+    new URL("../../../deploy/nginx/alowalow-production.conf", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(config, /gzip on;/);
+  assert.match(config, /gzip_proxied any;/);
+  assert.match(config, /gzip_types[^;]*application\/json/);
+  assert.match(config, /gzip_types[^;]*application\/javascript/);
+  assert.match(config, /gzip_types[^;]*text\/css/);
 });

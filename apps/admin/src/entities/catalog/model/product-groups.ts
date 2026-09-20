@@ -1,4 +1,10 @@
-import type { Category, Product } from "./types";
+import type { Product } from "./types";
+
+type FilterableCategory = {
+  name: string;
+  slug: string;
+  receiptPrinterIp?: string | null;
+};
 
 type GroupableCategory = {
   id: string;
@@ -23,8 +29,8 @@ function normalizedSearch(value: string | undefined) {
   return value?.trim().toLocaleLowerCase("ru-RU") ?? "";
 }
 
-export function filterCatalogCategories(
-  categories: readonly Category[],
+export function filterCatalogCategories<TCategory extends FilterableCategory>(
+  categories: readonly TCategory[],
   query = "",
 ) {
   const search = normalizedSearch(query);

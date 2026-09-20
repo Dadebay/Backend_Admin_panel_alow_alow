@@ -265,10 +265,9 @@ test("phone order searches only order-entry fields and composes category filter"
   const soup = product({ id: "soup", category: soups, name: "Palaw çorbasy" });
   const products = [palaw, soup];
 
-  assert.deepEqual(
-    filterOrderableProducts(products, { query: "  GYZGYN  " }),
-    [palaw],
-  );
+  assert.deepEqual(filterOrderableProducts(products, { query: "  GYZGYN  " }), [
+    palaw,
+  ]);
   assert.deepEqual(
     filterOrderableProducts(products, {
       categoryId: "soups",
@@ -353,7 +352,8 @@ test("catalog and phone order expose stable grouped navigation hooks", async () 
   assert.match(catalog, /data-testid="catalog-product-groups-collapse"/);
   assert.match(catalog, /data-testid="catalog-product-groups-expand"/);
   assert.match(catalog, /aria-expanded=\{isExpanded\}/);
-  assert.match(catalog, /filterCatalogProducts/);
+  assert.match(catalog, /useAdminProductPage/);
+  assert.match(catalog, /<CatalogPagination/);
   assert.match(assisted, /data-testid="assisted-product-categories"/);
   assert.match(assisted, /data-testid="assisted-product-category-all"/);
   assert.match(assisted, /assisted-product-group-\$\{group\.id\}/);
@@ -366,10 +366,7 @@ test("catalog and phone order expose stable grouped navigation hooks", async () 
     styles,
     /@media \(max-width: 620px\)[\s\S]*\.assisted-product-group article\s*\{[\s\S]*grid-template-columns: minmax\(0, 1fr\)/,
   );
-  assert.match(
-    styles,
-    /\.catalog-product-group-toggle:focus-visible\s*\{/,
-  );
+  assert.match(styles, /\.catalog-product-group-toggle:focus-visible\s*\{/);
 });
 
 test("maintenance documentation records behavior matrix and worst-case QA", async () => {

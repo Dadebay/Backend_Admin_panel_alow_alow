@@ -32,6 +32,39 @@ function normalizeOptionalIp(value: unknown) {
   return typeof value === "string" ? value.trim() || null : value;
 }
 
+function normalizeOptionalSearch(value: unknown) {
+  return typeof value === "string" ? value.trim() : value;
+}
+
+export class ListAdminCatalogProductsQueryDto {
+  @ApiPropertyOptional({ default: 1, minimum: 1 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  page = 1;
+
+  @ApiPropertyOptional({ default: 40, minimum: 1, maximum: 100 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  limit = 40;
+
+  @ApiPropertyOptional({ format: "uuid" })
+  @IsOptional()
+  @IsUUID()
+  categoryId?: string;
+
+  @ApiPropertyOptional({ maxLength: 160 })
+  @IsOptional()
+  @Transform(({ value }) => normalizeOptionalSearch(value))
+  @IsString()
+  @MaxLength(160)
+  query?: string;
+}
+
 export class CreateCategoryDto {
   @ApiProperty()
   @IsString()

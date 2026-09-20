@@ -33,6 +33,7 @@ import {
   CreateCategoryDto,
   CreateProductDto,
   CreateReceiptPrinterDto,
+  ListAdminCatalogProductsQueryDto,
   UpdateCategoryDto,
   UpdateProductDto,
   UpdateReceiptPrinterDto,
@@ -41,7 +42,9 @@ import {
 import { CatalogService } from "./catalog.service";
 import {
   CatalogAdminCategoryResponseDto,
+  CatalogAdminCategoryListItemResponseDto,
   CatalogAdminCategorySummaryResponseDto,
+  CatalogAdminProductPageResponseDto,
   CatalogAdminProductResponseDto,
   CatalogCategoryResponseDto,
   CatalogProductImageResponseDto,
@@ -79,6 +82,18 @@ export class CatalogController {
   @ApiOkResponse({ type: [CatalogAdminCategoryResponseDto] })
   adminCategories() {
     return this.catalog.categories(true);
+  }
+
+  @Get("admin/category-summaries")
+  @ApiBearerAuth()
+  @Roles(Role.ADMIN, Role.OPERATOR)
+  @AdminPages(AdminPage.CATALOG, AdminPage.MEAL_CONFIG, AdminPage.ORDERS)
+  @ApiOperation({
+    summary: "List lightweight administrator category summaries",
+  })
+  @ApiOkResponse({ type: [CatalogAdminCategoryListItemResponseDto] })
+  adminCategorySummaries() {
+    return this.catalog.categorySummaries();
   }
 
   @Get("admin/receipt-print-settings")
@@ -209,6 +224,18 @@ export class CatalogController {
   @ApiOkResponse({ type: [CatalogAdminProductResponseDto] })
   adminProducts(@Query("categoryId") categoryId?: string) {
     return this.catalog.products(categoryId, true);
+  }
+
+  @Get("admin/products/page")
+  @ApiBearerAuth()
+  @Roles(Role.ADMIN, Role.OPERATOR)
+  @AdminPages(AdminPage.CATALOG, AdminPage.MEAL_CONFIG, AdminPage.ORDERS)
+  @ApiOperation({
+    summary: "List administrator products with pagination and filtering",
+  })
+  @ApiOkResponse({ type: CatalogAdminProductPageResponseDto })
+  adminProductPage(@Query() query: ListAdminCatalogProductsQueryDto) {
+    return this.catalog.productPage(query);
   }
 
   @Post("products")

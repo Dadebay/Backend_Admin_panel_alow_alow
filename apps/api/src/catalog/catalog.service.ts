@@ -13,6 +13,7 @@ import {
   CreateCategoryDto,
   CreateProductDto,
   CreateReceiptPrinterDto,
+  ListAdminCatalogProductsQueryDto,
   ProductVariantInputDto,
   UpdateCategoryDto,
   UpdateProductDto,
@@ -297,6 +298,22 @@ export class CatalogService {
     );
   }
 
+  async categorySummaries() {
+    const categories = await this.prisma.category.findMany({
+      include: {
+        receiptPrinter: true,
+        _count: { select: { products: true } },
+      },
+      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+    });
+    return toApiResponse(
+      categories.map(({ _count, ...category }) => ({
+        ...categoryResponse(category, true),
+        productCount: _count.products,
+      })),
+    );
+  }
+
   async products(categoryId?: string, includeInactive = false) {
     const products = await this.prisma.product.findMany({
       where: {
@@ -313,6 +330,78 @@ export class CatalogService {
       orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
     });
     return products.map((product) => productResponse(product, includeInactive));
+  }
+
+  async productPage(query: ListAdminCatalogProductsQueryDto) {
+    const search = query.query?.trim();
+    const where = {
+      ...(query.categoryId ? { categoryId: query.categoryId } : {}),
+      ...(search
+        ? {
+            OR: [
+              { name: { contains: search, mode: "insensitive" as const } },
+              { slug: { contains: search, mode: "insensitive" as const } },
+              {
+                description: {
+                  contains: search,
+                  mode: "insensitive" as const,
+                },
+              },
+              { receiptPrinterIp: { contains: search } },
+              {
+                receiptPrinter: {
+                  is: { ipAddress: { contains: search } },
+                },
+              },
+              {
+                category: {
+                  is: {
+                    OR: [
+                      {
+                        name: {
+                          contains: search,
+                          mode: "insensitive" as const,
+                        },
+                      },
+                      { receiptPrinterIp: { contains: search } },
+                      {
+                        receiptPrinter: {
+                          is: { ipAddress: { contains: search } },
+                        },
+                      },
+                    ],
+                  },
+                },
+              },
+            ],
+          }
+        : {}),
+    } satisfies Prisma.ProductWhereInput;
+    const page = query.page;
+    const pageSize = query.limit;
+    const [total, products] = await this.prisma.$transaction([
+      this.prisma.product.count({ where }),
+      this.prisma.product.findMany({
+        where,
+        include: productRelations,
+        orderBy: [
+          { category: { sortOrder: "asc" } },
+          { category: { name: "asc" } },
+          { sortOrder: "asc" },
+          { name: "asc" },
+          { id: "asc" },
+        ],
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+    ]);
+    return {
+      items: products.map((product) => productResponse(product, true)),
+      page,
+      pageSize,
+      total,
+      totalPages: Math.ceil(total / pageSize),
+    };
   }
 
   createCategory(actor: AuthUser, dto: CreateCategoryDto) {

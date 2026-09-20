@@ -145,6 +145,14 @@ type PublicCatalogCategoryResponse = {
   products: Array<Record<string, unknown>>;
 };
 
+type AdminCatalogProductPageResponse = {
+  items: CatalogProductResponse[];
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+};
+
 type ReceiptPrintPlanResponse = {
   orderId: string;
   orderNumber: number;
@@ -1675,6 +1683,117 @@ describe("backend security and critical workflow", () => {
       actorId: users.admin.id,
       metadata: { changedFields: ["isActive"] },
     });
+  });
+
+  it("paginates and filters the administrator catalog without changing legacy lists", async () => {
+    const slug = "catalog-pagination-test";
+    await prisma.product.deleteMany({ where: { category: { slug } } });
+    await prisma.category.deleteMany({ where: { slug } });
+    const category = await prisma.category.create({
+      data: {
+        name: "Catalog pagination test",
+        slug,
+        products: {
+          create: Array.from({ length: 5 }, (_, index) => ({
+            name: `Pagination meal ${index + 1}`,
+            slug: `pagination-meal-${index + 1}`,
+            description: `Page fixture ${index + 1}`,
+            price: 20 + index,
+            sortOrder: index + 1,
+          })),
+        },
+      },
+    });
+
+    try {
+      await request(server)
+        .get("/api/v1/catalog/admin/category-summaries")
+        .expect(401);
+      await request(server)
+        .get("/api/v1/catalog/admin/products/page")
+        .expect(401);
+
+      const summaries = await request(server)
+        .get("/api/v1/catalog/admin/category-summaries")
+        .set(bearer(tokens.admin))
+        .expect(200);
+      const summary = (summaries.body as Array<Record<string, unknown>>).find(
+        ({ id }) => id === category.id,
+      );
+      expect(summary).toMatchObject({
+        id: category.id,
+        productCount: 5,
+      });
+      expect(summary).not.toHaveProperty("products");
+
+      const firstPage = await request(server)
+        .get(
+          `/api/v1/catalog/admin/products/page?categoryId=${category.id}&page=1&limit=2`,
+        )
+        .set(bearer(tokens.admin))
+        .expect(200);
+      const secondPage = await request(server)
+        .get(
+          `/api/v1/catalog/admin/products/page?categoryId=${category.id}&page=2&limit=2`,
+        )
+        .set(bearer(tokens.admin))
+        .expect(200);
+      const lastPage = await request(server)
+        .get(
+          `/api/v1/catalog/admin/products/page?categoryId=${category.id}&page=3&limit=2`,
+        )
+        .set(bearer(tokens.admin))
+        .expect(200);
+      const pages = [firstPage, secondPage, lastPage].map(
+        ({ body }) => body as AdminCatalogProductPageResponse,
+      );
+
+      expect(pages.map(({ page }) => page)).toEqual([1, 2, 3]);
+      expect(pages[0]).toMatchObject({
+        pageSize: 2,
+        total: 5,
+        totalPages: 3,
+      });
+      expect(pages.map(({ items }) => items.map(({ name }) => name))).toEqual([
+        ["Pagination meal 1", "Pagination meal 2"],
+        ["Pagination meal 3", "Pagination meal 4"],
+        ["Pagination meal 5"],
+      ]);
+      expect(
+        new Set(pages.flatMap(({ items }) => items.map(({ id }) => id))).size,
+      ).toBe(5);
+
+      const filtered = await request(server)
+        .get(
+          `/api/v1/catalog/admin/products/page?categoryId=${category.id}&query=meal%204&page=1&limit=2`,
+        )
+        .set(bearer(tokens.admin))
+        .expect(200);
+      expect(filtered.body).toMatchObject({ total: 1, totalPages: 1 });
+      expect(
+        (filtered.body as AdminCatalogProductPageResponse).items.map(
+          ({ name }) => name,
+        ),
+      ).toEqual(["Pagination meal 4"]);
+
+      const legacy = await request(server)
+        .get(`/api/v1/catalog/admin/products?categoryId=${category.id}`)
+        .set(bearer(tokens.admin))
+        .expect(200);
+      expect(legacy.body).toHaveLength(5);
+
+      await request(server)
+        .get("/api/v1/catalog/admin/products/page?page=0")
+        .set(bearer(tokens.admin))
+        .expect(400);
+      await request(server)
+        .get("/api/v1/catalog/admin/products/page?limit=101")
+        .set(bearer(tokens.admin))
+        .expect(400);
+    } finally {
+      await prisma.product.deleteMany({ where: { categoryId: category.id } });
+      await prisma.category.delete({ where: { id: category.id } });
+    }
   });
 
   it("permanently deletes unused catalog records and preserves order history", async () => {
@@ -4044,10 +4163,7 @@ describe("backend security and critical workflow", () => {
     await redis.delete(cooldownKey);
     await redis.delete(hourlyKey);
     const replacement = await otp.issue(phone);
-    expect(await redis.getMany([cooldownKey, hourlyKey])).toEqual([
-      null,
-      null,
-    ]);
+    expect(await redis.getMany([cooldownKey, hourlyKey])).toEqual([null, null]);
     await otp.cancel(phone, replacement.requestId);
     await expect(otp.verify(phone, replacement.code)).resolves.toBe(
       "unavailable",

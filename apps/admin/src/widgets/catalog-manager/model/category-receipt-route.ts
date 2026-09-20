@@ -1,9 +1,10 @@
-import type { Category, UpdateCategory } from "@/src/entities/catalog";
+import type { UpdateCategory } from "@/src/entities/catalog";
 
-type CategoryRouteSource = Pick<
-  Category,
-  "isActive" | "receiptPrinterId" | "sortOrder"
->;
+type CategoryRouteSource = {
+  isActive: boolean;
+  receiptPrinterId: string | null;
+  sortOrder: number;
+};
 
 export function buildCategoryPrinterUpdate(
   category: CategoryRouteSource,

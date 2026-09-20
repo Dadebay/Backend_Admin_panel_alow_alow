@@ -191,6 +191,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/catalog/admin/category-summaries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List lightweight administrator category summaries */
+        get: operations["CatalogController_adminCategorySummaries_v1"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/catalog/admin/receipt-print-settings": {
         parameters: {
             query?: never;
@@ -302,6 +319,23 @@ export interface paths {
             cookie?: never;
         };
         get: operations["CatalogController_adminProducts_v1"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/catalog/admin/products/page": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List administrator products with pagination and filtering */
+        get: operations["CatalogController_adminProductPage_v1"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2084,6 +2118,25 @@ export interface components {
             receiptPrinter: components["schemas"]["ReceiptPrinterResponseDto"] | null;
             products: components["schemas"]["CatalogAdminProductResponseDto"][];
         };
+        CatalogAdminCategoryListItemResponseDto: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            slug: string;
+            imageUrl: string | null;
+            sortOrder: number;
+            isActive: boolean;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+            /** Format: uuid */
+            receiptPrinterId: string | null;
+            /** @example 192.168.1.51 */
+            receiptPrinterIp: string | null;
+            receiptPrinter: components["schemas"]["ReceiptPrinterResponseDto"] | null;
+            productCount: number;
+        };
         ReceiptPrintSettingsResponseDto: {
             /** Format: uuid */
             mainPrinterId: string | null;
@@ -2188,6 +2241,14 @@ export interface components {
             /** @enum {string} */
             transport?: "RAW_TCP" | "JSPEED_HTTP";
             isActive?: boolean;
+        };
+        Object: Record<string, never>;
+        CatalogAdminProductPageResponseDto: {
+            items: components["schemas"]["CatalogAdminProductResponseDto"][];
+            page: number;
+            pageSize: number;
+            total: number;
+            totalPages: number;
         };
         ProductVariantInputDto: {
             /**
@@ -2575,7 +2636,6 @@ export interface components {
             savedAddress: components["schemas"]["OrderSavedAddressResponseDto"] | null;
             transitions: components["schemas"]["OrderTransitionResponseDto"][];
         };
-        Object: Record<string, never>;
         AssistedCustomerAddressResponseDto: {
             /** Format: uuid */
             id: string;
@@ -4322,6 +4382,25 @@ export interface operations {
             };
         };
     };
+    CatalogController_adminCategorySummaries_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogAdminCategoryListItemResponseDto"][];
+                };
+            };
+        };
+    };
     CatalogController_receiptPrintSettings_v1: {
         parameters: {
             query?: never;
@@ -4527,6 +4606,30 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CatalogAdminProductResponseDto"][];
+                };
+            };
+        };
+    };
+    CatalogController_adminProductPage_v1: {
+        parameters: {
+            query?: {
+                page?: components["schemas"]["Object"];
+                limit?: components["schemas"]["Object"];
+                categoryId?: string;
+                query?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogAdminProductPageResponseDto"];
                 };
             };
         };

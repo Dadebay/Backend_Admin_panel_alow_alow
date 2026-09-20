@@ -2062,3 +2062,15 @@ performed by the assigned `COURIER`, `ADMIN`, or `SUPER_ADMIN`, not by
 `OPERATOR`. This supersedes earlier narrative language that described cook
 claiming, operator workflow transitions, operator cancellation, or operator
 cash confirmation.
+
+## Catalog transfer and pagination — 2026-09-20
+
+The operations catalog no longer downloads the complete catalog twice. Its
+initial category request returns category/printer fields plus `productCount`
+without nested products. The product request starts only when the `Блюда` tab
+opens and uses server-owned literal text/category filtering with 40-item pages.
+Hidden records, variants, image editing, printer inheritance, deletion checks
+and mutation invalidation remain available. Existing full-list catalog routes
+remain backward compatible for assisted ordering, marketing, inventory and
+other consumers while they are migrated independently. The production gateway
+and static admin container gzip JSON, JavaScript and CSS responses.

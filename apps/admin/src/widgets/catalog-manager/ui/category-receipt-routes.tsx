@@ -57,7 +57,7 @@ function CategoryReceiptRouteRow({
       <div className="category-printer-route-name">
         <strong>{category.name}</strong>
         <small>
-          {category.productCount} блюд ·{" "}
+          {category.cafe.name} · {category.productCount} блюд ·{" "}
           <span
             className={
               category.isActive

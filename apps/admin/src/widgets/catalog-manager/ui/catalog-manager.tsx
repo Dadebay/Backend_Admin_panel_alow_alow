@@ -7,6 +7,7 @@ import {
   filterCatalogCategories,
   groupProductsByCategory,
   MAX_PRODUCT_IMAGES,
+  useAdminCafes,
   useAdminCategorySummaries,
   useAdminProductPage,
   useReceiptPrinters,
@@ -45,6 +46,7 @@ import {
 import { CATALOG_PRODUCT_PAGE_SIZE } from "../model/catalog-pagination";
 import { useDebouncedCatalogSearch } from "../model/use-debounced-catalog-search";
 import { CatalogPagination } from "./catalog-pagination";
+import { CafeCatalogSection } from "./cafe-catalog-section";
 import { CategoryReceiptRoutes } from "./category-receipt-routes";
 import { ProductReceiptRoute } from "./product-receipt-route";
 import { ReceiptPrinterRegistry } from "./receipt-printer-registry";
@@ -58,7 +60,7 @@ type CatalogDeleteTarget =
     }
   | { kind: "product"; id: string; name: string };
 
-type CatalogTab = "categories" | "products" | "printers";
+type CatalogTab = "cafes" | "categories" | "products" | "printers";
 
 function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : "";
@@ -74,15 +76,18 @@ export function CatalogManager() {
   const { session } = useSession();
   const pageAccess = useMyAdminPageAccess();
   const [catalogSearch, setCatalogSearch] = useState("");
-  const [catalogTab, setCatalogTab] = useState<CatalogTab>("categories");
+  const [catalogTab, setCatalogTab] = useState<CatalogTab>("cafes");
+  const [catalogCafeFilter, setCatalogCafeFilter] = useState("");
   const [productCategoryFilter, setProductCategoryFilter] = useState("");
   const [productPage, setProductPage] = useState(1);
   const debouncedCatalogSearch = useDebouncedCatalogSearch(catalogSearch);
+  const cafes = useAdminCafes();
   const categories = useAdminCategorySummaries();
   const products = useAdminProductPage(
     {
       page: productPage,
       limit: CATALOG_PRODUCT_PAGE_SIZE,
+      ...(catalogCafeFilter ? { cafeId: catalogCafeFilter } : {}),
       ...(productCategoryFilter ? { categoryId: productCategoryFilter } : {}),
       ...(debouncedCatalogSearch.trim()
         ? { query: debouncedCatalogSearch.trim() }
@@ -119,6 +124,7 @@ export function CatalogManager() {
     resolver: zodResolver(categoryFormSchema),
     mode: "onBlur",
     defaultValues: {
+      cafeId: "",
       name: "",
       receiptPrinterId: "",
       sortOrder: 0,
@@ -184,8 +190,12 @@ export function CatalogManager() {
   );
   const hasSearch = Boolean(catalogSearch.trim());
   const filteredCategories = useMemo(
-    () => filterCatalogCategories(categories.data ?? [], catalogSearch),
-    [catalogSearch, categories.data],
+    () =>
+      filterCatalogCategories(categories.data ?? [], catalogSearch).filter(
+        (category) =>
+          !catalogCafeFilter || category.cafeId === catalogCafeFilter,
+      ),
+    [catalogCafeFilter, catalogSearch, categories.data],
   );
   const productItems = products.data?.items;
   const productGroups = useMemo(
@@ -243,8 +253,8 @@ export function CatalogManager() {
             <div className="primary-cell">
               <strong>{row.original.name}</strong>
               <small>
-                {row.original.productCount} блюд · порядок{" "}
-                {row.original.sortOrder}
+                {row.original.cafe.name} · {row.original.productCount} блюд ·
+                порядок {row.original.sortOrder}
               </small>
               <small
                 title={
@@ -284,6 +294,7 @@ export function CatalogManager() {
                 onClick={() => {
                   setCategoryEdit(row.original);
                   resetCategory({
+                    cafeId: row.original.cafeId,
                     name: row.original.name,
                     receiptPrinterId: row.original.receiptPrinterId ?? "",
                     sortOrder: row.original.sortOrder,
@@ -547,6 +558,7 @@ export function CatalogManager() {
       imageUrl = (await actions.uploadImage.mutateAsync(file)).url;
     }
     const body = {
+      cafeId: values.cafeId,
       name: values.name,
       receiptPrinterId: values.receiptPrinterId || null,
       sortOrder: values.sortOrder,
@@ -682,6 +694,11 @@ export function CatalogManager() {
 
   const catalogTabs: { id: CatalogTab; label: string; count: number }[] = [
     {
+      id: "cafes",
+      label: "Кафе",
+      count: cafes.data?.length ?? 0,
+    },
+    {
       id: "categories",
       label: "Категории",
       count: categories.data?.length ?? 0,
@@ -699,7 +716,7 @@ export function CatalogManager() {
       <header className="section-head" data-testid="catalog-header">
         <div>
           <h1>Каталог кафе</h1>
-          <p>Категории, блюда, цены и изображения.</p>
+          <p>Кафе, вложенные категории, блюда, цены и изображения.</p>
         </div>
         {canEdit && (
           <div
@@ -713,6 +730,7 @@ export function CatalogManager() {
                 setCatalogTab("categories");
                 setCategoryEdit(null);
                 resetCategory({
+                  cafeId: catalogCafeFilter || cafes.data?.[0]?.id || "",
                   name: "",
                   receiptPrinterId: "",
                   sortOrder: 0,
@@ -734,7 +752,11 @@ export function CatalogManager() {
                 setSelectedProductFiles([]);
                 setProductImageError("");
                 resetProduct({
-                  categoryId: categories.data?.[0]?.id ?? "",
+                  categoryId:
+                    (categories.data ?? []).find(
+                      ({ cafeId }) =>
+                        !catalogCafeFilter || cafeId === catalogCafeFilter,
+                    )?.id ?? "",
                   name: "",
                   description: "",
                   price: 0,
@@ -782,9 +804,11 @@ export function CatalogManager() {
         {catalogTab !== "printers" && (
           <section
             className={
-              catalogTab === "products"
-                ? "catalog-search-panel"
-                : "catalog-search-panel catalog-search-panel--single"
+              catalogTab === "cafes"
+                ? "catalog-search-panel catalog-search-panel--single"
+                : catalogTab === "products"
+                  ? "catalog-search-panel catalog-search-panel--triple"
+                  : "catalog-search-panel"
             }
             aria-label="Поиск по каталогу"
           >
@@ -816,6 +840,29 @@ export function CatalogManager() {
                 </button>
               )}
             </label>
+            {(catalogTab === "categories" || catalogTab === "products") && (
+              <label className="catalog-category-filter">
+                <span>Кафе</span>
+                <select
+                  aria-label="Фильтр по кафе"
+                  data-testid="catalog-cafe-filter"
+                  value={catalogCafeFilter}
+                  onChange={(event) => {
+                    setCatalogCafeFilter(event.target.value);
+                    setProductCategoryFilter("");
+                    setProductPage(1);
+                    setExpandedProductGroups(null);
+                  }}
+                >
+                  <option value="">Все кафе</option>
+                  {(cafes.data ?? []).map((cafe) => (
+                    <option key={cafe.id} value={cafe.id}>
+                      {cafe.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
             {catalogTab === "products" && (
               <label className="catalog-category-filter">
                 <span>Категория</span>
@@ -830,11 +877,17 @@ export function CatalogManager() {
                   }}
                 >
                   <option value="">Все категории</option>
-                  {(categories.data ?? []).map((category) => (
-                    <option key={category.id} value={category.id}>
-                      {category.name}
-                    </option>
-                  ))}
+                  {(categories.data ?? [])
+                    .filter(
+                      (category) =>
+                        !catalogCafeFilter ||
+                        category.cafeId === catalogCafeFilter,
+                    )
+                    .map((category) => (
+                      <option key={category.id} value={category.id}>
+                        {category.cafe.name} · {category.name}
+                      </option>
+                    ))}
                 </select>
               </label>
             )}
@@ -877,6 +930,10 @@ export function CatalogManager() {
           }}
           onConfirm={() => void deleteSelectedCatalogItem()}
         />
+      )}
+
+      {catalogTab === "cafes" && (
+        <CafeCatalogSection canEdit={canEdit} search={catalogSearch} />
       )}
 
       {catalogTab === "printers" && (
@@ -1096,6 +1153,24 @@ export function CatalogManager() {
             </div>
             <div className="form-grid">
               <label>
+                <span>Кафе</span>
+                <select
+                  data-testid="category-cafe"
+                  {...registerCategory("cafeId")}
+                  aria-invalid={Boolean(categoryErrors.cafeId)}
+                >
+                  <option value="">Выберите кафе</option>
+                  {(cafes.data ?? []).map((cafe) => (
+                    <option key={cafe.id} value={cafe.id}>
+                      {cafe.name}
+                      {cafe.isActive ? "" : " · скрыто"}
+                    </option>
+                  ))}
+                </select>
+                <small>Смена кафе переносит категорию вместе со всеми блюдами.</small>
+                <FormFieldError message={categoryErrors.cafeId?.message} />
+              </label>
+              <label>
                 <span>Название</span>
                 <input
                   data-testid="category-name"
@@ -1234,7 +1309,7 @@ export function CatalogManager() {
                 >
                   {(categories.data ?? []).map((category) => (
                     <option key={category.id} value={category.id}>
-                      {category.name}
+                      {category.cafe.name} · {category.name}
                     </option>
                   ))}
                 </select>
@@ -1833,6 +1908,9 @@ export function CatalogManager() {
                           >
                             <span className="catalog-product-group-title">
                               <strong>{group.name}</strong>
+                              <small>
+                                {group.products[0]?.category?.cafe.name}
+                              </small>
                               {!group.isActive && (
                                 <small>Категория скрыта</small>
                               )}

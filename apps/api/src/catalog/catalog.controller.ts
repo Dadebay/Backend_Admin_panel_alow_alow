@@ -30,10 +30,14 @@ import type { AuthUser } from "../common/auth.types";
 import { AdminPage, Role } from "../generated/prisma/client";
 import {
   AddProductImageDto,
+  CreateCafeDto,
   CreateCategoryDto,
   CreateProductDto,
   CreateReceiptPrinterDto,
   ListAdminCatalogProductsQueryDto,
+  ListCatalogCategoriesQueryDto,
+  ListCatalogProductsQueryDto,
+  UpdateCafeDto,
   UpdateCategoryDto,
   UpdateProductDto,
   UpdateReceiptPrinterDto,
@@ -41,6 +45,7 @@ import {
 } from "./catalog.dto";
 import { CatalogService } from "./catalog.service";
 import {
+  CatalogAdminCafeResponseDto,
   CatalogAdminCategoryResponseDto,
   CatalogAdminCategoryListItemResponseDto,
   CatalogAdminCategorySummaryResponseDto,
@@ -49,6 +54,7 @@ import {
   CatalogCategoryResponseDto,
   CatalogProductImageResponseDto,
   CatalogProductResponseDto,
+  CatalogCafeResponseDto,
   ReceiptPrintSettingsResponseDto,
   ReceiptPrinterResponseDto,
 } from "./catalog-response.dto";
@@ -58,20 +64,38 @@ import {
 export class CatalogController {
   constructor(private readonly catalog: CatalogService) {}
 
+  @Get("cafes")
+  @Public()
+  @ApiOperation({ summary: "List public cafes for customer catalog selection" })
+  @ApiOkResponse({ type: [CatalogCafeResponseDto] })
+  cafes() {
+    return this.catalog.cafes();
+  }
+
   @Get("categories")
   @Public()
   @ApiOperation({ summary: "List public categories with products" })
   @ApiOkResponse({ type: [CatalogCategoryResponseDto] })
-  categories() {
-    return this.catalog.categories();
+  categories(@Query() query: ListCatalogCategoriesQueryDto) {
+    return this.catalog.categories(false, query.cafeId);
   }
 
   @Get("products")
   @Public()
   @ApiOperation({ summary: "List public products" })
   @ApiOkResponse({ type: [CatalogProductResponseDto] })
-  products(@Query("categoryId") categoryId?: string) {
-    return this.catalog.products(categoryId);
+  products(@Query() query: ListCatalogProductsQueryDto) {
+    return this.catalog.products(query, false);
+  }
+
+  @Get("admin/cafes")
+  @ApiBearerAuth()
+  @Roles(Role.ADMIN, Role.OPERATOR)
+  @AdminPages(AdminPage.CATALOG, AdminPage.MEAL_CONFIG, AdminPage.ORDERS)
+  @ApiOperation({ summary: "List cafes including hidden records" })
+  @ApiOkResponse({ type: [CatalogAdminCafeResponseDto] })
+  adminCafes() {
+    return this.catalog.cafes(true);
   }
 
   @Get("admin/categories")
@@ -80,8 +104,8 @@ export class CatalogController {
   @AdminPages(AdminPage.CATALOG, AdminPage.MEAL_CONFIG, AdminPage.ORDERS)
   @ApiOperation({ summary: "List categories including hidden records" })
   @ApiOkResponse({ type: [CatalogAdminCategoryResponseDto] })
-  adminCategories() {
-    return this.catalog.categories(true);
+  adminCategories(@Query() query: ListCatalogCategoriesQueryDto) {
+    return this.catalog.categories(true, query.cafeId);
   }
 
   @Get("admin/category-summaries")
@@ -92,8 +116,47 @@ export class CatalogController {
     summary: "List lightweight administrator category summaries",
   })
   @ApiOkResponse({ type: [CatalogAdminCategoryListItemResponseDto] })
-  adminCategorySummaries() {
-    return this.catalog.categorySummaries();
+  adminCategorySummaries(@Query() query: ListCatalogCategoriesQueryDto) {
+    return this.catalog.categorySummaries(query.cafeId);
+  }
+
+  @Post("cafes")
+  @ApiBearerAuth()
+  @Roles(Role.ADMIN)
+  @AdminPages(AdminPage.CATALOG)
+  @ApiCreatedResponse({ type: CatalogAdminCafeResponseDto })
+  createCafe(@CurrentUser() actor: AuthUser, @Body() dto: CreateCafeDto) {
+    return this.catalog.createCafe(actor, dto);
+  }
+
+  @Patch("cafes/:id")
+  @ApiBearerAuth()
+  @Roles(Role.ADMIN)
+  @AdminPages(AdminPage.CATALOG)
+  @ApiOkResponse({ type: CatalogAdminCafeResponseDto })
+  updateCafe(
+    @CurrentUser() actor: AuthUser,
+    @Param("id", ParseUUIDPipe) id: string,
+    @Body() dto: UpdateCafeDto,
+  ) {
+    return this.catalog.updateCafe(actor, id, dto);
+  }
+
+  @Delete("cafes/:id")
+  @ApiBearerAuth()
+  @Roles(Role.ADMIN)
+  @AdminPages(AdminPage.CATALOG)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: "Permanently delete an unused non-default cafe" })
+  @ApiNoContentResponse({ description: "Cafe deleted" })
+  @ApiConflictResponse({
+    description: "Cafe is the compatibility default or contains order history",
+  })
+  deleteCafe(
+    @CurrentUser() actor: AuthUser,
+    @Param("id", ParseUUIDPipe) id: string,
+  ) {
+    return this.catalog.deleteCafe(actor, id);
   }
 
   @Get("admin/receipt-print-settings")
@@ -222,8 +285,8 @@ export class CatalogController {
   @Roles(Role.ADMIN, Role.OPERATOR)
   @AdminPages(AdminPage.CATALOG, AdminPage.MEAL_CONFIG, AdminPage.ORDERS)
   @ApiOkResponse({ type: [CatalogAdminProductResponseDto] })
-  adminProducts(@Query("categoryId") categoryId?: string) {
-    return this.catalog.products(categoryId, true);
+  adminProducts(@Query() query: ListCatalogProductsQueryDto) {
+    return this.catalog.products(query, true);
   }
 
   @Get("admin/products/page")

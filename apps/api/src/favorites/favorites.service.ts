@@ -21,7 +21,7 @@ export class FavoritesService {
       where: {
         id: productId,
         isActive: true,
-        category: { isActive: true },
+        category: { isActive: true, cafe: { isActive: true } },
         OR: [
           { pricingType: ProductPricingType.FIXED },
           {

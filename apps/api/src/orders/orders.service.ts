@@ -544,7 +544,7 @@ export class OrdersService {
       where: {
         id: { in: productIds },
         isActive: true,
-        category: { isActive: true },
+        category: { isActive: true, cafe: { isActive: true } },
       },
       include: {
         images: { orderBy: { sortOrder: "asc" }, take: 1 },
@@ -554,7 +554,7 @@ export class OrdersService {
           },
         },
         receiptPrinter: true,
-        category: { include: { receiptPrinter: true } },
+        category: { include: { cafe: true, receiptPrinter: true } },
       },
     });
     if (products.length !== productIds.length) {

@@ -142,7 +142,19 @@ type CatalogProductResponse = {
 
 type PublicCatalogCategoryResponse = {
   id: string;
+  cafeId: string;
   products: Array<Record<string, unknown>>;
+};
+
+type CatalogCafeResponse = {
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  imageUrl: string | null;
+  sortOrder: number;
+  isActive: boolean;
+  categoryCount?: number;
 };
 
 type AdminCatalogProductPageResponse = {
@@ -1598,6 +1610,201 @@ describe("backend security and critical workflow", () => {
         where: { productId: variantProduct.id, isActive: true },
       }),
     ).toBe(0);
+  });
+
+  it("scopes categories to cafes while allowing one order to mix cafe products", async () => {
+    await request(server)
+      .post("/api/v1/catalog/cafes")
+      .set(bearer(tokens.operator))
+      .send({ name: "Forbidden cafe" })
+      .expect(403);
+    await request(server).get("/api/v1/catalog/admin/cafes").expect(401);
+    await request(server)
+      .get("/api/v1/catalog/categories?cafeId=not-a-uuid")
+      .expect(400);
+
+    const firstCafeResponse = await request(server)
+      .post("/api/v1/catalog/cafes")
+      .set(bearer(tokens.admin))
+      .send({
+        name: "Multi cafe burgers",
+        description: "First virtual kitchen brand",
+        imageUrl: mediaUrl(151),
+        sortOrder: 151,
+      })
+      .expect(201);
+    const secondCafeResponse = await request(server)
+      .post("/api/v1/catalog/cafes")
+      .set(bearer(tokens.admin))
+      .send({
+        name: "Multi cafe pizza",
+        description: "Second virtual kitchen brand",
+        imageUrl: mediaUrl(152),
+        sortOrder: 152,
+      })
+      .expect(201);
+    const firstCafe = firstCafeResponse.body as CatalogCafeResponse;
+    const secondCafe = secondCafeResponse.body as CatalogCafeResponse;
+    expect(firstCafe).toMatchObject({
+      slug: "multi-cafe-burgers",
+      categoryCount: 0,
+      imageUrl: mediaUrl(151),
+    });
+
+    const firstCategoryResponse = await request(server)
+      .post("/api/v1/catalog/categories")
+      .set(bearer(tokens.admin))
+      .send({ cafeId: firstCafe.id, name: "Multi cafe burgers menu" })
+      .expect(201);
+    const secondCategoryResponse = await request(server)
+      .post("/api/v1/catalog/categories")
+      .set(bearer(tokens.admin))
+      .send({ cafeId: secondCafe.id, name: "Multi cafe pizza menu" })
+      .expect(201);
+    const firstCategoryId = (firstCategoryResponse.body as { id: string }).id;
+    const secondCategoryId = (secondCategoryResponse.body as { id: string }).id;
+    expect(firstCategoryResponse.body).toMatchObject({
+      cafeId: firstCafe.id,
+      cafe: { id: firstCafe.id, name: firstCafe.name },
+    });
+
+    const firstProductResponse = await request(server)
+      .post("/api/v1/catalog/products")
+      .set(bearer(tokens.admin))
+      .send({
+        categoryId: firstCategoryId,
+        name: "Multi cafe burger meal",
+        description: "Burger from the first cafe",
+        price: 31,
+      })
+      .expect(201);
+    const secondProductResponse = await request(server)
+      .post("/api/v1/catalog/products")
+      .set(bearer(tokens.admin))
+      .send({
+        categoryId: secondCategoryId,
+        name: "Multi cafe pizza meal",
+        description: "Pizza from the second cafe",
+        price: 44,
+      })
+      .expect(201);
+    const firstProduct = firstProductResponse.body as CatalogProductResponse;
+    const secondProduct = secondProductResponse.body as CatalogProductResponse;
+
+    const publicCafes = await request(server)
+      .get("/api/v1/catalog/cafes")
+      .expect(200);
+    expect(publicCafes.body).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: firstCafe.id, imageUrl: mediaUrl(151) }),
+        expect.objectContaining({ id: secondCafe.id, imageUrl: mediaUrl(152) }),
+      ]),
+    );
+
+    const [firstCategories, secondCategories, firstProducts] =
+      await Promise.all([
+        request(server)
+          .get(`/api/v1/catalog/categories?cafeId=${firstCafe.id}`)
+          .expect(200),
+        request(server)
+          .get(`/api/v1/catalog/categories?cafeId=${secondCafe.id}`)
+          .expect(200),
+        request(server)
+          .get(`/api/v1/catalog/products?cafeId=${firstCafe.id}`)
+          .expect(200),
+      ]);
+    expect(
+      (firstCategories.body as PublicCatalogCategoryResponse[]).map(
+        ({ id }) => id,
+      ),
+    ).toEqual([firstCategoryId]);
+    expect(
+      (secondCategories.body as PublicCatalogCategoryResponse[]).map(
+        ({ id }) => id,
+      ),
+    ).toEqual([secondCategoryId]);
+    expect(
+      (firstProducts.body as CatalogProductResponse[]).map(({ id }) => id),
+    ).toEqual([firstProduct.id]);
+
+    const mixedOrder = await request(server)
+      .post("/api/v1/orders")
+      .set(bearer(tokens.customer))
+      .send({
+        items: [
+          { productId: firstProduct.id, quantity: 1 },
+          { productId: secondProduct.id, quantity: 2 },
+        ],
+        address: "Multi cafe delivery street",
+        latitude: 37.95025,
+        longitude: 58.38025,
+      })
+      .expect(201);
+    expect(
+      (mixedOrder.body as OrderResponse).items?.map(
+        ({ productId }) => productId,
+      ),
+    ).toEqual([firstProduct.id, secondProduct.id]);
+    expect(mixedOrder.body).toMatchObject({ branchId: nearestBranchId });
+
+    await request(server)
+      .patch(`/api/v1/catalog/categories/${firstCategoryId}`)
+      .set(bearer(tokens.operator))
+      .send({ cafeId: secondCafe.id })
+      .expect(403);
+    const movedCategory = await request(server)
+      .patch(`/api/v1/catalog/categories/${firstCategoryId}`)
+      .set(bearer(tokens.admin))
+      .send({ cafeId: secondCafe.id })
+      .expect(200);
+    expect(movedCategory.body).toMatchObject({
+      cafeId: secondCafe.id,
+      cafe: { id: secondCafe.id, name: secondCafe.name },
+    });
+    const [emptiedFirstCafe, expandedSecondCafe] = await Promise.all([
+      request(server)
+        .get(`/api/v1/catalog/categories?cafeId=${firstCafe.id}`)
+        .expect(200),
+      request(server)
+        .get(`/api/v1/catalog/categories?cafeId=${secondCafe.id}`)
+        .expect(200),
+    ]);
+    expect(emptiedFirstCafe.body).toEqual([]);
+    expect(
+      (expandedSecondCafe.body as PublicCatalogCategoryResponse[]).map(
+        ({ id }) => id,
+      ),
+    ).toEqual([firstCategoryId, secondCategoryId]);
+    await request(server)
+      .patch(`/api/v1/catalog/categories/${firstCategoryId}`)
+      .set(bearer(tokens.admin))
+      .send({ cafeId: firstCafe.id })
+      .expect(200);
+
+    await request(server)
+      .patch(`/api/v1/catalog/cafes/${secondCafe.id}`)
+      .set(bearer(tokens.admin))
+      .send({ isActive: false })
+      .expect(200);
+    const hiddenCafeCategories = await request(server)
+      .get(`/api/v1/catalog/categories?cafeId=${secondCafe.id}`)
+      .expect(200);
+    expect(hiddenCafeCategories.body).toEqual([]);
+    await request(server)
+      .post("/api/v1/orders/quote")
+      .set(bearer(tokens.customer))
+      .send({ items: [{ productId: secondProduct.id, quantity: 1 }] })
+      .expect(400);
+
+    const adminCafes = await request(server)
+      .get("/api/v1/catalog/admin/cafes")
+      .set(bearer(tokens.admin))
+      .expect(200);
+    expect(
+      (adminCafes.body as CatalogCafeResponse[]).find(
+        ({ id }) => id === secondCafe.id,
+      ),
+    ).toMatchObject({ isActive: false, categoryCount: 1 });
   });
 
   it("hides a category without losing its kitchen printer route", async () => {

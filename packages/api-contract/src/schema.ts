@@ -140,6 +140,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/catalog/cafes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List public cafes for customer catalog selection */
+        get: operations["CatalogController_cafes_v1"];
+        put?: never;
+        post: operations["CatalogController_createCafe_v1"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/catalog/categories": {
         parameters: {
             query?: never;
@@ -168,6 +185,23 @@ export interface paths {
         get: operations["CatalogController_products_v1"];
         put?: never;
         post: operations["CatalogController_createProduct_v1"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/catalog/admin/cafes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List cafes including hidden records */
+        get: operations["CatalogController_adminCafes_v1"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -206,6 +240,23 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/v1/catalog/cafes/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Permanently delete an unused non-default cafe */
+        delete: operations["CatalogController_deleteCafe_v1"];
+        options?: never;
+        head?: never;
+        patch: operations["CatalogController_updateCafe_v1"];
         trace?: never;
     };
     "/api/v1/catalog/admin/receipt-print-settings": {
@@ -1955,6 +2006,20 @@ export interface components {
             idempotent: boolean;
             status: components["schemas"]["SmsGatewayJobStatus"];
         };
+        CatalogCafeResponseDto: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            slug: string;
+            description: string | null;
+            imageUrl: string | null;
+            sortOrder: number;
+            isActive: boolean;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
         CatalogProductImageResponseDto: {
             /** Format: uuid */
             id: string;
@@ -1996,6 +2061,8 @@ export interface components {
         CatalogCategorySummaryResponseDto: {
             /** Format: uuid */
             id: string;
+            /** Format: uuid */
+            cafeId: string;
             name: string;
             slug: string;
             imageUrl: string | null;
@@ -2005,6 +2072,7 @@ export interface components {
             createdAt: string;
             /** Format: date-time */
             updatedAt: string;
+            cafe: components["schemas"]["CatalogCafeResponseDto"];
         };
         CatalogProductResponseDto: {
             /** Format: uuid */
@@ -2034,6 +2102,8 @@ export interface components {
         CatalogCategoryResponseDto: {
             /** Format: uuid */
             id: string;
+            /** Format: uuid */
+            cafeId: string;
             name: string;
             slug: string;
             imageUrl: string | null;
@@ -2043,7 +2113,23 @@ export interface components {
             createdAt: string;
             /** Format: date-time */
             updatedAt: string;
+            cafe: components["schemas"]["CatalogCafeResponseDto"];
             products: components["schemas"]["CatalogProductResponseDto"][];
+        };
+        CatalogAdminCafeResponseDto: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            slug: string;
+            description: string | null;
+            imageUrl: string | null;
+            sortOrder: number;
+            isActive: boolean;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+            categoryCount: number;
         };
         ReceiptPrinterResponseDto: {
             /** Format: uuid */
@@ -2102,6 +2188,8 @@ export interface components {
         CatalogAdminCategoryResponseDto: {
             /** Format: uuid */
             id: string;
+            /** Format: uuid */
+            cafeId: string;
             name: string;
             slug: string;
             imageUrl: string | null;
@@ -2111,6 +2199,7 @@ export interface components {
             createdAt: string;
             /** Format: date-time */
             updatedAt: string;
+            cafe: components["schemas"]["CatalogCafeResponseDto"];
             /** Format: uuid */
             receiptPrinterId: string | null;
             /** @example 192.168.1.51 */
@@ -2121,6 +2210,8 @@ export interface components {
         CatalogAdminCategoryListItemResponseDto: {
             /** Format: uuid */
             id: string;
+            /** Format: uuid */
+            cafeId: string;
             name: string;
             slug: string;
             imageUrl: string | null;
@@ -2130,12 +2221,33 @@ export interface components {
             createdAt: string;
             /** Format: date-time */
             updatedAt: string;
+            cafe: components["schemas"]["CatalogCafeResponseDto"];
             /** Format: uuid */
             receiptPrinterId: string | null;
             /** @example 192.168.1.51 */
             receiptPrinterIp: string | null;
             receiptPrinter: components["schemas"]["ReceiptPrinterResponseDto"] | null;
             productCount: number;
+        };
+        CreateCafeDto: {
+            name: string;
+            /** @description Optional technical identifier; generated from the name on create and preserved on update when omitted */
+            slug?: string;
+            description?: string | null;
+            /** @description WebP path returned by POST /media/images */
+            imageUrl?: string | null;
+            sortOrder?: number;
+            isActive?: boolean;
+        };
+        UpdateCafeDto: {
+            name?: string;
+            /** @description Optional technical identifier; generated from the name on create and preserved on update when omitted */
+            slug?: string;
+            description?: string | null;
+            /** @description WebP path returned by POST /media/images */
+            imageUrl?: string | null;
+            sortOrder?: number;
+            isActive?: boolean;
         };
         ReceiptPrintSettingsResponseDto: {
             /** Format: uuid */
@@ -2147,6 +2259,11 @@ export interface components {
             updatedAt: string | null;
         };
         CreateCategoryDto: {
+            /**
+             * Format: uuid
+             * @description Owning cafe. Older clients may omit it and use the migration-created A7-tagam cafe.
+             */
+            cafeId?: string;
             name: string;
             /** @description Optional technical identifier; generated from the name on create and preserved on update when omitted */
             slug?: string;
@@ -2169,6 +2286,8 @@ export interface components {
         CatalogAdminCategorySummaryResponseDto: {
             /** Format: uuid */
             id: string;
+            /** Format: uuid */
+            cafeId: string;
             name: string;
             slug: string;
             imageUrl: string | null;
@@ -2178,6 +2297,7 @@ export interface components {
             createdAt: string;
             /** Format: date-time */
             updatedAt: string;
+            cafe: components["schemas"]["CatalogCafeResponseDto"];
             /** Format: uuid */
             receiptPrinterId: string | null;
             /** @example 192.168.1.51 */
@@ -2185,6 +2305,11 @@ export interface components {
             receiptPrinter: components["schemas"]["ReceiptPrinterResponseDto"] | null;
         };
         UpdateCategoryDto: {
+            /**
+             * Format: uuid
+             * @description Owning cafe. Older clients may omit it and use the migration-created A7-tagam cafe.
+             */
+            cafeId?: string;
             name?: string;
             /** @description Optional technical identifier; generated from the name on create and preserved on update when omitted */
             slug?: string;
@@ -4277,9 +4402,53 @@ export interface operations {
             };
         };
     };
-    CatalogController_categories_v1: {
+    CatalogController_cafes_v1: {
         parameters: {
             query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogCafeResponseDto"][];
+                };
+            };
+        };
+    };
+    CatalogController_createCafe_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateCafeDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogAdminCafeResponseDto"];
+                };
+            };
+        };
+    };
+    CatalogController_categories_v1: {
+        parameters: {
+            query?: {
+                cafeId?: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -4321,8 +4490,9 @@ export interface operations {
     };
     CatalogController_products_v1: {
         parameters: {
-            query: {
-                categoryId: string;
+            query?: {
+                cafeId?: string;
+                categoryId?: string;
             };
             header?: never;
             path?: never;
@@ -4363,9 +4533,30 @@ export interface operations {
             };
         };
     };
-    CatalogController_adminCategories_v1: {
+    CatalogController_adminCafes_v1: {
         parameters: {
             query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogAdminCafeResponseDto"][];
+                };
+            };
+        };
+    };
+    CatalogController_adminCategories_v1: {
+        parameters: {
+            query?: {
+                cafeId?: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -4384,7 +4575,9 @@ export interface operations {
     };
     CatalogController_adminCategorySummaries_v1: {
         parameters: {
-            query?: never;
+            query?: {
+                cafeId?: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -4397,6 +4590,58 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CatalogAdminCategoryListItemResponseDto"][];
+                };
+            };
+        };
+    };
+    CatalogController_deleteCafe_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Cafe deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Cafe is the compatibility default or contains order history */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    CatalogController_updateCafe_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateCafeDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogAdminCafeResponseDto"];
                 };
             };
         };
@@ -4591,8 +4836,9 @@ export interface operations {
     };
     CatalogController_adminProducts_v1: {
         parameters: {
-            query: {
-                categoryId: string;
+            query?: {
+                cafeId?: string;
+                categoryId?: string;
             };
             header?: never;
             path?: never;
@@ -4613,9 +4859,10 @@ export interface operations {
     CatalogController_adminProductPage_v1: {
         parameters: {
             query?: {
+                cafeId?: string;
+                categoryId?: string;
                 page?: components["schemas"]["Object"];
                 limit?: components["schemas"]["Object"];
-                categoryId?: string;
                 query?: string;
             };
             header?: never;

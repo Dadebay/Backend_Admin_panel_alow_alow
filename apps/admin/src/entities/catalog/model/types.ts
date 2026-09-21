@@ -1,6 +1,7 @@
 import type { components } from "@alowalow/api-contract";
 
 export type Category = components["schemas"]["CatalogAdminCategoryResponseDto"];
+export type Cafe = components["schemas"]["CatalogAdminCafeResponseDto"];
 export type CategorySummary =
   components["schemas"]["CatalogAdminCategorySummaryResponseDto"];
 export type CategoryListItem =
@@ -13,6 +14,8 @@ export type ReceiptPrintSettings =
 export type ReceiptPrinter = components["schemas"]["ReceiptPrinterResponseDto"];
 export type CreateCategory = components["schemas"]["CreateCategoryDto"];
 export type UpdateCategory = components["schemas"]["UpdateCategoryDto"];
+export type CreateCafe = components["schemas"]["CreateCafeDto"];
+export type UpdateCafe = components["schemas"]["UpdateCafeDto"];
 export type CreateProduct = components["schemas"]["CreateProductDto"];
 export type UpdateProduct = components["schemas"]["UpdateProductDto"];
 export type UpdateReceiptPrintSettings =

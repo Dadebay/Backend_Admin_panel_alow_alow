@@ -6,6 +6,10 @@ import {
   PromoType,
   Role,
 } from "../src/generated/prisma/client";
+import {
+  DEFAULT_CAFE_ID,
+  INITIAL_SECONDARY_CAFE_ID,
+} from "../src/catalog/catalog.constants";
 
 const adapter = new PrismaPg({
   connectionString:
@@ -87,9 +91,43 @@ async function main() {
     },
   });
 
+  await prisma.cafe.upsert({
+    where: { id: DEFAULT_CAFE_ID },
+    create: {
+      id: DEFAULT_CAFE_ID,
+      name: "Han tagam",
+      slug: "han-tagam",
+      description: "Основное кафе Han tagam",
+      sortOrder: 0,
+      isActive: true,
+    },
+    update: {
+      name: "Han tagam",
+      slug: "han-tagam",
+      isActive: true,
+    },
+  });
+
+  await prisma.cafe.upsert({
+    where: { id: INITIAL_SECONDARY_CAFE_ID },
+    create: {
+      id: INITIAL_SECONDARY_CAFE_ID,
+      name: "Panda",
+      slug: "panda",
+      description: "Кафе Panda",
+      sortOrder: 10,
+      isActive: true,
+    },
+    update: {
+      name: "Panda",
+      slug: "panda",
+    },
+  });
+
   const burgers = await prisma.category.upsert({
     where: { slug: "burgers" },
     create: {
+      cafeId: DEFAULT_CAFE_ID,
       name: "Бургеры",
       slug: "burgers",
       sortOrder: 10,
@@ -99,6 +137,7 @@ async function main() {
   const pizza = await prisma.category.upsert({
     where: { slug: "pizza" },
     create: {
+      cafeId: DEFAULT_CAFE_ID,
       name: "Пицца",
       slug: "pizza",
       sortOrder: 20,
@@ -108,6 +147,7 @@ async function main() {
   const turkmenCuisine = await prisma.category.upsert({
     where: { slug: "turkmen-yemekleri" },
     create: {
+      cafeId: DEFAULT_CAFE_ID,
       name: "Türkmen yemekleri",
       slug: "turkmen-yemekleri",
       sortOrder: 30,
@@ -133,10 +173,13 @@ async function main() {
     ["turkmen-yemekleri", turkmenCuisine.id],
   ]);
 
-  for (const category of extraCategories) {
+  for (const [index, category] of extraCategories.entries()) {
     const savedCategory = await prisma.category.upsert({
       where: { slug: category.slug },
-      create: category,
+      create: {
+        ...category,
+        cafeId: index < 2 ? DEFAULT_CAFE_ID : INITIAL_SECONDARY_CAFE_ID,
+      },
       update: { ...category, isActive: true },
     });
     categoryIds.set(category.slug, savedCategory.id);

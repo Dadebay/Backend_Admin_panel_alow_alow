@@ -3,6 +3,7 @@ import { useSession } from "@/src/shared/auth";
 import type {
   Category,
   CategoryListItem,
+  Cafe,
   Product,
   ProductPage,
   ReceiptPrinter,
@@ -11,6 +12,8 @@ import type {
 
 export const catalogQueryKeys = {
   all: ["catalog"] as const,
+  cafes: (userId: string) =>
+    [...catalogQueryKeys.all, "cafes", userId] as const,
   categories: (userId: string) =>
     [...catalogQueryKeys.all, "categories", userId] as const,
   categorySummaries: (userId: string) =>
@@ -29,6 +32,7 @@ export type AdminProductPageParams = {
   page: number;
   limit: number;
   categoryId?: string;
+  cafeId?: string;
   query?: string;
 };
 
@@ -38,8 +42,20 @@ function adminProductPagePath(params: AdminProductPageParams) {
     limit: String(params.limit),
   });
   if (params.categoryId) search.set("categoryId", params.categoryId);
+  if (params.cafeId) search.set("cafeId", params.cafeId);
   if (params.query) search.set("query", params.query);
   return `/catalog/admin/products/page?${search.toString()}`;
+}
+
+export function useAdminCafes() {
+  const { session, authorizedRequest } = useSession();
+  return useQuery({
+    queryKey: catalogQueryKeys.cafes(session?.user.id ?? "anonymous"),
+    queryFn: ({ signal }) =>
+      authorizedRequest<Cafe[]>("/catalog/admin/cafes", { signal }),
+    enabled: Boolean(session),
+    staleTime: 60_000,
+  });
 }
 
 export function useAdminCategories() {

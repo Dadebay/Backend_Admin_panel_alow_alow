@@ -4,6 +4,7 @@ type FilterableCategory = {
   name: string;
   slug: string;
   receiptPrinterIp?: string | null;
+  cafe?: { name: string };
 };
 
 type GroupableCategory = {
@@ -11,6 +12,7 @@ type GroupableCategory = {
   name: string;
   sortOrder: number;
   isActive: boolean;
+  cafe?: { name: string; isActive: boolean };
 };
 
 type GroupableProduct = {
@@ -37,7 +39,7 @@ export function filterCatalogCategories<TCategory extends FilterableCategory>(
   if (!search) return [...categories];
 
   return categories.filter((category) =>
-    `${category.name} ${category.slug} ${category.receiptPrinterIp ?? ""}`
+    `${category.cafe?.name ?? ""} ${category.name} ${category.slug} ${category.receiptPrinterIp ?? ""}`
       .toLocaleLowerCase("ru-RU")
       .includes(search),
   );
@@ -53,7 +55,7 @@ export function filterCatalogProducts(
     if (categoryId && product.categoryId !== categoryId) return false;
     if (!search) return true;
 
-    return `${product.name} ${product.slug} ${product.description} ${product.receiptPrinterIp ?? ""} ${product.effectiveReceiptPrinterIp ?? ""} ${product.category?.name ?? ""}`
+    return `${product.name} ${product.slug} ${product.description} ${product.receiptPrinterIp ?? ""} ${product.effectiveReceiptPrinterIp ?? ""} ${product.category?.cafe?.name ?? ""} ${product.category?.name ?? ""}`
       .toLocaleLowerCase("ru-RU")
       .includes(search);
   });
@@ -66,7 +68,12 @@ export function filterOrderableProducts(
   const search = normalizedSearch(query);
 
   return products.filter((product) => {
-    if (!product.isActive || product.category?.isActive === false) return false;
+    if (
+      !product.isActive ||
+      product.category?.isActive === false ||
+      product.category?.cafe?.isActive === false
+    )
+      return false;
     if (
       product.pricingType === "VARIANT" &&
       !product.variants?.some(({ isActive }) => isActive)
@@ -79,7 +86,10 @@ export function filterOrderableProducts(
     return (
       product.name.toLocaleLowerCase("ru-RU").includes(search) ||
       product.category?.name.toLocaleLowerCase("ru-RU").includes(search) ===
-        true
+        true ||
+      product.category?.cafe?.name
+        .toLocaleLowerCase("ru-RU")
+        .includes(search) === true
     );
   });
 }

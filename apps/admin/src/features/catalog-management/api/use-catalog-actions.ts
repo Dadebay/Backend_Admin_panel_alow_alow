@@ -1,7 +1,9 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   catalogQueryKeys,
+  type Cafe,
   type CategorySummary,
+  type CreateCafe,
   type CreateCategory,
   type CreateProduct,
   type CreateReceiptPrinter,
@@ -10,6 +12,7 @@ import {
   type ReceiptPrinter,
   type ReceiptPrintSettings,
   type UpdateCategory,
+  type UpdateCafe,
   type UpdateProduct,
   type UpdateReceiptPrinter,
   type UpdateReceiptPrintSettings,
@@ -36,6 +39,27 @@ export function useCatalogActions() {
   const uploadImages = useMutation({
     mutationFn: (files: File[]) =>
       Promise.all(files.map((file) => uploadImageFile(file))),
+  });
+  const createCafe = useMutation({
+    mutationFn: (body: CreateCafe) =>
+      authorizedRequest<Cafe>("/catalog/cafes", {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    onSuccess: refresh,
+  });
+  const updateCafe = useMutation({
+    mutationFn: ({ id, body }: { id: string; body: UpdateCafe }) =>
+      authorizedRequest<Cafe>(`/catalog/cafes/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(body),
+      }),
+    onSuccess: refresh,
+  });
+  const deleteCafe = useMutation({
+    mutationFn: (id: string) =>
+      authorizedRequest<void>(`/catalog/cafes/${id}`, { method: "DELETE" }),
+    onSuccess: refresh,
   });
   const createCategory = useMutation({
     mutationFn: (body: CreateCategory) =>
@@ -120,6 +144,9 @@ export function useCatalogActions() {
   return {
     uploadImage,
     uploadImages,
+    createCafe,
+    updateCafe,
+    deleteCafe,
     createCategory,
     updateCategory,
     deleteCategory,

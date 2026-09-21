@@ -102,6 +102,7 @@ test("branch and staff forms trim values and validate required fields", () => {
 test("catalog forms accept display names without a technical slug", () => {
   assert.equal(
     categoryFormSchema.safeParse({
+      cafeId: "2d807991-e99f-4f17-9b9f-cc2fb7478820",
       name: "Пицца",
       receiptPrinterId: "2d807991-e99f-4f17-9b9f-cc2fb7478820",
       sortOrder: 0,
@@ -111,6 +112,7 @@ test("catalog forms accept display names without a technical slug", () => {
   );
   assert.equal(
     categoryFormSchema.safeParse({
+      cafeId: "2d807991-e99f-4f17-9b9f-cc2fb7478820",
       name: "Блюда русской кухни",
       receiptPrinterId: "",
       sortOrder: 0,
@@ -216,6 +218,7 @@ test("receipt routing forms accept registered printer IDs", () => {
   );
   assert.equal(
     categoryFormSchema.safeParse({
+      cafeId: "2d807991-e99f-4f17-9b9f-cc2fb7478820",
       name: "Супы",
       receiptPrinterId: "",
       sortOrder: 0,

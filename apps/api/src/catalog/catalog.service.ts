@@ -10,17 +10,21 @@ import { Prisma, ProductPricingType } from "../generated/prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import {
   AddProductImageDto,
+  CreateCafeDto,
   CreateCategoryDto,
   CreateProductDto,
   CreateReceiptPrinterDto,
   ListAdminCatalogProductsQueryDto,
+  ListCatalogProductsQueryDto,
   ProductVariantInputDto,
+  UpdateCafeDto,
   UpdateCategoryDto,
   UpdateProductDto,
   UpdateReceiptPrinterDto,
   UpdateReceiptPrintSettingsDto,
 } from "./catalog.dto";
 import { availableCatalogSlug, catalogSlug } from "./catalog-slug";
+import { DEFAULT_CAFE_ID } from "./catalog.constants";
 
 const MAX_PRODUCT_IMAGES = 10;
 const orderablePricingWhere = {
@@ -38,7 +42,7 @@ const productRelations = {
     include: { images: { orderBy: { sortOrder: "asc" as const } } },
     orderBy: [{ sortOrder: "asc" as const }, { name: "asc" as const }],
   },
-  category: { include: { receiptPrinter: true } },
+  category: { include: { cafe: true, receiptPrinter: true } },
   receiptPrinter: true,
 } satisfies Prisma.ProductInclude;
 
@@ -229,6 +233,17 @@ async function assertActivePrinterReference(
   }
 }
 
+async function assertCafeReference(
+  tx: Prisma.TransactionClient,
+  cafeId: string,
+) {
+  const cafe = await tx.cafe.findUnique({
+    where: { id: cafeId },
+    select: { id: true },
+  });
+  if (!cafe) throw new BadRequestException("Cafe is missing");
+}
+
 function mainPrinterReferenceData(input: UpdateReceiptPrintSettingsDto) {
   if (input.mainPrinterId === undefined && input.mainPrinterIp === undefined) {
     throw new BadRequestException(
@@ -273,10 +288,30 @@ function rethrowGeneratedSlugConflict(error: unknown): never {
 export class CatalogService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async categories(includeInactive = false) {
-    const categories = await this.prisma.category.findMany({
+  async cafes(includeInactive = false) {
+    const cafes = await this.prisma.cafe.findMany({
       where: includeInactive ? {} : { isActive: true },
+      include: { _count: { select: { categories: true } } },
+      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+    });
+    return toApiResponse(
+      cafes.map(({ _count, ...cafe }) => ({
+        ...cafe,
+        ...(includeInactive ? { categoryCount: _count.categories } : {}),
+      })),
+    );
+  }
+
+  async categories(includeInactive = false, cafeId?: string) {
+    const categories = await this.prisma.category.findMany({
+      where: {
+        ...(cafeId ? { cafeId } : {}),
+        ...(includeInactive
+          ? {}
+          : { isActive: true, cafe: { isActive: true } }),
+      },
       include: {
+        cafe: true,
         receiptPrinter: true,
         products: {
           where: includeInactive
@@ -286,7 +321,12 @@ export class CatalogService {
           orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
         },
       },
-      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+      orderBy: [
+        { cafe: { sortOrder: "asc" } },
+        { cafe: { name: "asc" } },
+        { sortOrder: "asc" },
+        { name: "asc" },
+      ],
     });
     return toApiResponse(
       categories.map(({ products, ...category }) => ({
@@ -298,13 +338,20 @@ export class CatalogService {
     );
   }
 
-  async categorySummaries() {
+  async categorySummaries(cafeId?: string) {
     const categories = await this.prisma.category.findMany({
+      where: cafeId ? { cafeId } : {},
       include: {
+        cafe: true,
         receiptPrinter: true,
         _count: { select: { products: true } },
       },
-      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+      orderBy: [
+        { cafe: { sortOrder: "asc" } },
+        { cafe: { name: "asc" } },
+        { sortOrder: "asc" },
+        { name: "asc" },
+      ],
     });
     return toApiResponse(
       categories.map(({ _count, ...category }) => ({
@@ -314,15 +361,21 @@ export class CatalogService {
     );
   }
 
-  async products(categoryId?: string, includeInactive = false) {
+  async products(query: ListCatalogProductsQueryDto, includeInactive = false) {
     const products = await this.prisma.product.findMany({
       where: {
-        ...(categoryId ? { categoryId } : {}),
+        ...(query.categoryId ? { categoryId: query.categoryId } : {}),
         ...(includeInactive
-          ? {}
+          ? query.cafeId
+            ? { category: { cafeId: query.cafeId } }
+            : {}
           : {
               isActive: true,
-              category: { isActive: true },
+              category: {
+                isActive: true,
+                cafe: { isActive: true },
+                ...(query.cafeId ? { cafeId: query.cafeId } : {}),
+              },
               ...orderablePricingWhere,
             }),
       },
@@ -336,6 +389,7 @@ export class CatalogService {
     const search = query.query?.trim();
     const where = {
       ...(query.categoryId ? { categoryId: query.categoryId } : {}),
+      ...(query.cafeId ? { category: { is: { cafeId: query.cafeId } } } : {}),
       ...(search
         ? {
             OR: [
@@ -404,8 +458,154 @@ export class CatalogService {
     };
   }
 
+  createCafe(actor: AuthUser, dto: CreateCafeDto) {
+    const { slug: requestedSlug, description, ...cafeData } = dto;
+    return this.prisma
+      .$transaction(async (tx) => {
+        const name = cafeData.name.trim();
+        const slugBase = catalogSlug(requestedSlug || name, 140);
+        const matchingSlugs = await tx.cafe.findMany({
+          where: { slug: { startsWith: slugBase } },
+          select: { slug: true },
+        });
+        const cafe = await tx.cafe.create({
+          data: {
+            ...cafeData,
+            name,
+            description: description?.trim() || null,
+            slug: availableCatalogSlug(
+              slugBase,
+              matchingSlugs.map(({ slug }) => slug),
+              140,
+            ),
+          },
+        });
+        await tx.auditLog.create({
+          data: {
+            actorId: actor.id,
+            action: "catalog.cafe.created",
+            entityType: "Cafe",
+            entityId: cafe.id,
+            metadata: { name: cafe.name, slug: cafe.slug },
+          },
+        });
+        return toApiResponse({ ...cafe, categoryCount: 0 });
+      })
+      .catch(rethrowGeneratedSlugConflict);
+  }
+
+  updateCafe(actor: AuthUser, id: string, dto: UpdateCafeDto) {
+    const {
+      slug: requestedSlug,
+      description,
+      name: requestedName,
+      ...data
+    } = dto;
+    return this.prisma
+      .$transaction(async (tx) => {
+        const existing = await tx.cafe.findUnique({ where: { id } });
+        if (!existing) throw new NotFoundException("Cafe not found");
+
+        let slug: string | undefined;
+        if (requestedSlug !== undefined) {
+          const slugBase = catalogSlug(
+            requestedSlug || requestedName || existing.name,
+            140,
+          );
+          const matchingSlugs = await tx.cafe.findMany({
+            where: { id: { not: id }, slug: { startsWith: slugBase } },
+            select: { slug: true },
+          });
+          slug = availableCatalogSlug(
+            slugBase,
+            matchingSlugs.map(({ slug: value }) => value),
+            140,
+          );
+        }
+
+        const cafe = await tx.cafe.update({
+          where: { id },
+          data: {
+            ...data,
+            ...(requestedName === undefined
+              ? {}
+              : { name: requestedName.trim() }),
+            ...(description === undefined
+              ? {}
+              : { description: description?.trim() || null }),
+            ...(slug === undefined ? {} : { slug }),
+          },
+          include: { _count: { select: { categories: true } } },
+        });
+        await tx.auditLog.create({
+          data: {
+            actorId: actor.id,
+            action: "catalog.cafe.updated",
+            entityType: "Cafe",
+            entityId: cafe.id,
+            metadata: { changedFields: Object.keys(dto) },
+          },
+        });
+        const { _count, ...response } = cafe;
+        return toApiResponse({ ...response, categoryCount: _count.categories });
+      })
+      .catch(rethrowGeneratedSlugConflict);
+  }
+
+  async deleteCafe(actor: AuthUser, id: string): Promise<void> {
+    if (id === DEFAULT_CAFE_ID) {
+      throw new ConflictException(
+        "Основное кафе Han tagam нельзя удалить: оно сохраняет совместимость старых клиентов. Его можно скрыть.",
+      );
+    }
+    const conflictMessage =
+      "Кафе содержит блюда из истории заказов. Скройте кафе вместо удаления.";
+    try {
+      await this.prisma.$transaction(async (tx) => {
+        const cafe = await tx.cafe.findUnique({
+          where: { id },
+          include: {
+            categories: { select: { id: true } },
+          },
+        });
+        if (!cafe) throw new NotFoundException("Cafe not found");
+        const categoryIds = cafe.categories.map(
+          ({ id: categoryId }) => categoryId,
+        );
+        const orderItemCount = await tx.orderItem.count({
+          where: { product: { category: { cafeId: id } } },
+        });
+        if (orderItemCount > 0) throw new ConflictException(conflictMessage);
+
+        await tx.product.deleteMany({
+          where: { categoryId: { in: categoryIds } },
+        });
+        await tx.category.deleteMany({ where: { cafeId: id } });
+        await tx.cafe.delete({ where: { id } });
+        await tx.auditLog.create({
+          data: {
+            actorId: actor.id,
+            action: "catalog.cafe.deleted",
+            entityType: "Cafe",
+            entityId: id,
+            metadata: {
+              name: cafe.name,
+              slug: cafe.slug,
+              categoryCount: cafe.categories.length,
+              retainedMediaObjects: true,
+            },
+          },
+        });
+      });
+    } catch (error) {
+      if (error instanceof ConflictException) throw error;
+      rethrowDeleteConstraint(error, conflictMessage);
+    }
+  }
+
   createCategory(actor: AuthUser, dto: CreateCategoryDto) {
     const {
+      cafeId = DEFAULT_CAFE_ID,
       receiptPrinterId,
       receiptPrinterIp,
       slug: requestedSlug,
@@ -413,6 +613,7 @@ export class CatalogService {
     } = dto;
     return this.prisma
       .$transaction(async (tx) => {
+        await assertCafeReference(tx, cafeId);
         await assertActivePrinterReference(tx, receiptPrinterId);
         const slugBase = catalogSlug(requestedSlug || categoryData.name, 120);
         const matchingSlugs = await tx.category.findMany({
@@ -422,6 +623,7 @@ export class CatalogService {
         const category = await tx.category.create({
           data: {
             ...categoryData,
+            cafeId,
             slug: availableCatalogSlug(
               slugBase,
               matchingSlugs.map(({ slug }) => slug),
@@ -429,7 +631,7 @@ export class CatalogService {
             ),
             ...printerReferenceData({ receiptPrinterId, receiptPrinterIp }),
           },
-          include: { receiptPrinter: true },
+          include: { cafe: true, receiptPrinter: true },
         });
         await tx.auditLog.create({
           data: {
@@ -437,7 +639,11 @@ export class CatalogService {
             action: "catalog.category.created",
             entityType: "Category",
             entityId: category.id,
-            metadata: { name: category.name, slug: category.slug },
+            metadata: {
+              name: category.name,
+              slug: category.slug,
+              cafeId: category.cafeId,
+            },
           },
         });
         return toApiResponse(categoryResponse(category, true));
@@ -447,6 +653,7 @@ export class CatalogService {
 
   updateCategory(actor: AuthUser, id: string, dto: UpdateCategoryDto) {
     const {
+      cafeId,
       receiptPrinterId,
       receiptPrinterIp,
       slug: requestedSlug,
@@ -456,6 +663,7 @@ export class CatalogService {
       .$transaction(async (tx) => {
         const category = await tx.category.findUnique({ where: { id } });
         if (!category) throw new NotFoundException("Category not found");
+        if (cafeId !== undefined) await assertCafeReference(tx, cafeId);
         await assertActivePrinterReference(tx, receiptPrinterId);
         let slug: string | undefined;
         if (requestedSlug !== undefined) {
@@ -477,10 +685,11 @@ export class CatalogService {
           where: { id },
           data: {
             ...categoryData,
+            ...(cafeId === undefined ? {} : { cafeId }),
             ...(slug === undefined ? {} : { slug }),
             ...printerReferenceData({ receiptPrinterId, receiptPrinterIp }),
           },
-          include: { receiptPrinter: true },
+          include: { cafe: true, receiptPrinter: true },
         });
         await tx.auditLog.create({
           data: {

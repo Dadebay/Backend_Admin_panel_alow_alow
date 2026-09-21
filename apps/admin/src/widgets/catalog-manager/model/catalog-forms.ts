@@ -14,7 +14,20 @@ export const receiptPrinterIpSchema = z
     "Укажите локальный IP аппарата, например 192.168.1.50",
   );
 
+export const cafeFormSchema = z.object({
+  name: z
+    .string()
+    .trim()
+    .min(1, "Укажите название кафе")
+    .max(120, "Не больше 120 символов"),
+  description: z.string().trim().max(1000, "Не больше 1000 символов"),
+  sortOrder: z.number({ error: "Укажите порядок" }).int("Введите целое число"),
+  isActive: z.boolean(),
+  image: z.unknown().optional(),
+});
+
 export const categoryFormSchema = z.object({
+  cafeId: z.uuid("Выберите кафе"),
   name: z
     .string()
     .trim()
@@ -142,6 +155,7 @@ export const productFormSchema = z
   });
 
 export type CategoryFormValues = z.infer<typeof categoryFormSchema>;
+export type CafeFormValues = z.infer<typeof cafeFormSchema>;
 export type ProductFormValues = z.infer<typeof productFormSchema>;
 export type ReceiptPrintSettingsFormValues = z.infer<
   typeof receiptPrintSettingsFormSchema

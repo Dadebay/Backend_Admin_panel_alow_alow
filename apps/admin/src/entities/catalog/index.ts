@@ -1,5 +1,6 @@
 export {
   catalogQueryKeys,
+  useAdminCafes,
   useAdminCategories,
   useAdminCategorySummaries,
   useAdminProductPage,
@@ -19,10 +20,12 @@ export {
   type ProductCategoryGroup,
 } from "./model/product-groups";
 export type {
+  Cafe,
   Category,
   CategoryListItem,
   CategorySummary,
   CreateCategory,
+  CreateCafe,
   CreateProduct,
   MediaUpload,
   Product,
@@ -32,6 +35,7 @@ export type {
   CreateReceiptPrinter,
   UpdateReceiptPrinter,
   UpdateCategory,
+  UpdateCafe,
   UpdateProduct,
   UpdateReceiptPrintSettings,
 } from "./model/types";

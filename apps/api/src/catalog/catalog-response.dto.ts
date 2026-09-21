@@ -102,9 +102,46 @@ export class CatalogProductVariantResponseDto {
   images: CatalogProductVariantImageResponseDto[];
 }
 
+export class CatalogCafeResponseDto {
+  @ApiProperty({ format: "uuid" })
+  id: string;
+
+  @ApiProperty()
+  name: string;
+
+  @ApiProperty()
+  slug: string;
+
+  @ApiProperty({ type: String, nullable: true })
+  description: string | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  imageUrl: string | null;
+
+  @ApiProperty()
+  sortOrder: number;
+
+  @ApiProperty()
+  isActive: boolean;
+
+  @ApiProperty({ format: "date-time" })
+  createdAt: string;
+
+  @ApiProperty({ format: "date-time" })
+  updatedAt: string;
+}
+
+export class CatalogAdminCafeResponseDto extends CatalogCafeResponseDto {
+  @ApiProperty({ minimum: 0 })
+  categoryCount: number;
+}
+
 export class CatalogCategorySummaryResponseDto {
   @ApiProperty({ format: "uuid" })
   id: string;
+
+  @ApiProperty({ format: "uuid" })
+  cafeId: string;
 
   @ApiProperty()
   name: string;
@@ -126,6 +163,9 @@ export class CatalogCategorySummaryResponseDto {
 
   @ApiProperty({ format: "date-time" })
   updatedAt: string;
+
+  @ApiProperty({ type: CatalogCafeResponseDto })
+  cafe: CatalogCafeResponseDto;
 }
 
 export class CatalogProductResponseDto {

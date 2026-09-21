@@ -10056,6 +10056,13 @@ button:disabled {
 
 [data-testid="catalog-manager"]
   .catalog-toolbar
+  .catalog-search-panel--triple {
+  max-width: 720px;
+  grid-template-columns: minmax(190px, 1fr) repeat(2, minmax(145px, 0.55fr));
+}
+
+[data-testid="catalog-manager"]
+  .catalog-toolbar
   .catalog-search-panel--single {
   grid-template-columns: minmax(220px, 1fr);
 }
@@ -10071,8 +10078,78 @@ button:disabled {
 }
 
 @media (max-width: 760px) {
+  [data-testid="catalog-manager"] .catalog-toolbar {
+    align-items: stretch;
+  }
+
+  [data-testid="catalog-manager"] .catalog-toolbar .catalog-tabs {
+    width: 100%;
+    max-width: 100%;
+    flex: 1 1 100%;
+  }
+
   [data-testid="catalog-manager"] .catalog-toolbar .catalog-search-panel {
+    width: 100%;
     max-width: none;
+    flex-basis: 100%;
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 620px) {
+  [data-testid="catalog-manager"] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  [data-testid="catalog-manager"] > .section-head,
+  [data-testid="catalog-manager"] > .section-head > div:first-child,
+  [data-testid="cafes-catalog-section"] > .card-title > div:first-child {
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+
+  [data-testid="catalog-manager"] > .section-head {
+    width: auto;
+    align-items: stretch;
+    justify-self: stretch;
+  }
+
+  [data-testid="catalog-manager"] > .section-head > div:first-child,
+  [data-testid="catalog-manager"] .section-header-actions {
+    width: auto;
+    align-self: stretch;
+  }
+
+  [data-testid="cafes-catalog-section"] > .card-title > div:first-child {
+    width: 100%;
+  }
+
+  [data-testid="catalog-manager"] > .section-head p,
+  [data-testid="cafes-catalog-section"] > .card-title small {
+    overflow-wrap: anywhere;
+  }
+
+  [data-testid="catalog-manager"] .section-header-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    box-sizing: border-box;
+  }
+
+  [data-testid="catalog-manager"] .section-header-actions > button {
+    width: 100%;
+    min-width: 0;
+    padding-inline: 10px;
+  }
+
+  [data-testid="cafes-catalog-section"] > .card-title {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  [data-testid="cafes-catalog-section"] > .card-title .header-actions {
+    justify-content: space-between;
   }
 }
 

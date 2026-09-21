@@ -36,7 +36,21 @@ function normalizeOptionalSearch(value: unknown) {
   return typeof value === "string" ? value.trim() : value;
 }
 
-export class ListAdminCatalogProductsQueryDto {
+export class ListCatalogCategoriesQueryDto {
+  @ApiPropertyOptional({ format: "uuid" })
+  @IsOptional()
+  @IsUUID()
+  cafeId?: string;
+}
+
+export class ListCatalogProductsQueryDto extends ListCatalogCategoriesQueryDto {
+  @ApiPropertyOptional({ format: "uuid" })
+  @IsOptional()
+  @IsUUID()
+  categoryId?: string;
+}
+
+export class ListAdminCatalogProductsQueryDto extends ListCatalogProductsQueryDto {
   @ApiPropertyOptional({ default: 1, minimum: 1 })
   @IsOptional()
   @Type(() => Number)
@@ -52,11 +66,6 @@ export class ListAdminCatalogProductsQueryDto {
   @Max(100)
   limit = 40;
 
-  @ApiPropertyOptional({ format: "uuid" })
-  @IsOptional()
-  @IsUUID()
-  categoryId?: string;
-
   @ApiPropertyOptional({ maxLength: 160 })
   @IsOptional()
   @Transform(({ value }) => normalizeOptionalSearch(value))
@@ -65,7 +74,64 @@ export class ListAdminCatalogProductsQueryDto {
   query?: string;
 }
 
+export class CreateCafeDto {
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(120)
+  name: string;
+
+  @ApiPropertyOptional({
+    description:
+      "Optional technical identifier; generated from the name on create and preserved on update when omitted",
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(140)
+  slug?: string;
+
+  @ApiPropertyOptional({ type: String, nullable: true })
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
+  description?: string | null;
+
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    description: "WebP path returned by POST /media/images",
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
+  @Matches(MEDIA_IMAGE_PATH, {
+    message: "imageUrl must be a WebP path returned by the media API",
+  })
+  imageUrl?: string | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsInt()
+  sortOrder?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
+}
+
+export class UpdateCafeDto extends PartialType(CreateCafeDto) {}
+
 export class CreateCategoryDto {
+  @ApiPropertyOptional({
+    format: "uuid",
+    description:
+      "Owning cafe. Older clients may omit it and use the migration-created Han tagam cafe.",
+  })
+  @IsOptional()
+  @IsUUID()
+  cafeId?: string;
+
   @ApiProperty()
   @IsString()
   @MaxLength(100)

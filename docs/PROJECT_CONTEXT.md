@@ -104,6 +104,7 @@ alowalow/
 │   ├── INFRASTRUCTURE.md
 │   ├── MOBILE_DELIVERY_AND_COURIER_UPDATE.md
 │   ├── MOBILE_MAP_AND_ROUTING.md
+│   ├── MOBILE_MULTI_CAFE_CATALOG.md
 │   ├── NIGHT_DELIVERY_TARIFFS.md
 │   ├── MOBILE_TOPIC_BROADCAST.md
 │   ├── MOBILE_PUSH_NOTIFICATIONS.md
@@ -816,7 +817,36 @@ compatibility with existing API clients and seed/import tooling. Renaming an
 existing record without an explicit slug preserves its stored identifier.
 Branch creation, editing, activation, and
 deactivation are limited to `ADMIN` and `SUPER_ADMIN`; trusted operations roles
-may list branches. The catalog is currently global and shared by every branch.
+may list branches. The catalog supports multiple customer-facing cafes (virtual
+brands) that operate from the same physical branch network. Every category
+belongs to exactly one cafe, every product inherits that cafe through its
+category, and cafe/category/product visibility is enforced by the backend.
+Cafe records have a name, generated stable slug, optional description and
+private S3-backed image, ordering and active state. The migration creates
+`Han tagam` plus `Panda` and distributes existing
+categories between them in established category order, with a difference of at
+most one category. `Han tagam` remains the compatibility default for older
+category-creation clients that omit `cafeId`. Administrators may move a
+category, together with all of its products, to any cafe from the category
+editor.
+
+Public clients first load `GET /catalog/cafes`, then request
+`GET /catalog/categories?cafeId=...` (or products with the same filter). Omitting
+`cafeId` retains the legacy all-catalog response. One cart/order may combine
+products from any number of active cafes: they are prepared at the same assigned
+physical location, and the complete order is still routed once to the nearest
+active `Branch`. Hiding a cafe removes all of its categories/products from
+public catalog, quoting, ordering and new favorites without changing individual
+records or historical order snapshots. The operations catalog manages cafes
+and their images, then requires a cafe when administrators create or move a
+category. Mobile screen behavior and API examples are in
+`docs/MOBILE_MULTI_CAFE_CATALOG.md`.
+The accepted customer-mobile composition places the delivery address first,
+promotional banners second, a horizontal cafe selector third, and the selected
+cafe's menu below it. Cafe cards use a restrained warm-yellow/cream treatment
+with navy text and an orange selected-state accent; green, neon and
+high-saturation styling are explicitly excluded. Switching the cafe changes
+the visible menu without clearing the cart.
 Images are validated, converted to WebP, and stored privately in S3-compatible
 storage. Product availability, current price, promo limits, discount, delivery
 fee, final total, and branch assignment are validated by the backend.
@@ -1423,7 +1453,29 @@ catalog query/cache and cancellation printing adds only its bounded
 post-success plan and loopback dispatch; there is no new dependency, poller or
 eager route load.
 
+The 2026-09-21 multi-cafe build measures the current static SPA bootstrap at
+255.2 KB raw / 81.1 KB gzip, CSS at 209.4 KB / 37.3 KB gzip, and the lazy
+catalog manager at 68.4 KB / 15.6 KB gzip. The cafe manager remains inside the
+existing lazy catalog route and is absent from the initial HTML preload set.
+It reuses the catalog TanStack cache and existing on-demand media upload; cafe
+selection/filtering adds no poller, background request loop, dependency, or
+client-owned availability/pricing state.
+
 ## Decision log
+
+- 2026-09-21: the global customer catalog was partitioned into multiple cafes
+  without splitting physical preparation or delivery. Categories now belong to
+  one cafe, public/mobile clients can select a cafe before browsing its menu,
+  and cafe images use the existing private media pipeline. Mixed-cafe carts and
+  orders remain valid and receive one nearest-branch assignment. A hidden cafe
+  makes its whole menu unavailable for new quotes/orders/favorites. Existing
+  categories are initially divided approximately 50/50 between `Han tagam` and
+  `Panda`; administrators can move a category and all of
+  its products between cafes. Omitted filters and legacy category creates
+  remain backward compatible through the fixed `Han tagam` default. The mobile
+  home/catalog layout keeps address and banners above an inline cafe selector;
+  cafe cards use a calm warm-yellow/cream palette rather than green or bright
+  neon styling.
 
 - 2026-09-19: automatic delivery-area matching ranks candidates by the number
   of matched normalized name tokens before matched character length. A

@@ -2261,7 +2261,7 @@ export interface components {
         CreateCategoryDto: {
             /**
              * Format: uuid
-             * @description Owning cafe. Older clients may omit it and use the migration-created A7-tagam cafe.
+             * @description Owning cafe. Older clients may omit it and use the migration-created Han tagam cafe.
              */
             cafeId?: string;
             name: string;
@@ -2307,7 +2307,7 @@ export interface components {
         UpdateCategoryDto: {
             /**
              * Format: uuid
-             * @description Owning cafe. Older clients may omit it and use the migration-created A7-tagam cafe.
+             * @description Owning cafe. Older clients may omit it and use the migration-created Han tagam cafe.
              */
             cafeId?: string;
             name?: string;

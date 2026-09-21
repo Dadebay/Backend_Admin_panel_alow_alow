@@ -6297,7 +6297,7 @@
           "cafeId": {
             "type": "string",
             "format": "uuid",
-            "description": "Owning cafe. Older clients may omit it and use the migration-created A7-tagam cafe."
+            "description": "Owning cafe. Older clients may omit it and use the migration-created Han tagam cafe."
           },
           "name": {
             "type": "string"
@@ -6414,7 +6414,7 @@
           "cafeId": {
             "type": "string",
             "format": "uuid",
-            "description": "Owning cafe. Older clients may omit it and use the migration-created A7-tagam cafe."
+            "description": "Owning cafe. Older clients may omit it and use the migration-created Han tagam cafe."
           },
           "name": {
             "type": "string"

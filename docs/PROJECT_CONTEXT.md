@@ -105,6 +105,7 @@ alowalow/
 │   ├── MOBILE_DELIVERY_AND_COURIER_UPDATE.md
 │   ├── MOBILE_MAP_AND_ROUTING.md
 │   ├── MOBILE_MULTI_CAFE_CATALOG.md
+│   ├── MAP_DELIVERY_ZONES.md
 │   ├── NIGHT_DELIVERY_TARIFFS.md
 │   ├── MOBILE_TOPIC_BROADCAST.md
 │   ├── MOBILE_PUSH_NOTIFICATIONS.md
@@ -743,8 +744,10 @@ heights; visual density must not be reduced to the previous pale compact map.
   Mobile integration: `docs/NIGHT_DELIVERY_TARIFFS.md`.
 - `POST /delivery/quote` is the public location-pricing contract. It accepts
   map coordinates plus subtotal, reverse-geocodes the coordinates on the
-  server, returns the official address line and configured fee, and proposes
-  an enabled etrap only when one multilingual name matches unambiguously.
+  server and returns the official address line and configured fee. Delivery
+  supports an administrator-controlled transition from legacy text matching to
+  polygon pricing. While `mapPricingEnabled=false`, the endpoint proposes an
+  enabled etrap only when one multilingual name matches unambiguously.
   Exact normalized name tokens take priority; when no exact token matches, one
   unique alphabetic prefix variant of at least five characters (for example,
   `bitarap` and `bitaraplyk`) may resolve the same configured area. Ambiguous
@@ -756,6 +759,18 @@ heights; visual density must not be reduced to the previous pale compact map.
   district selector. The map coordinates are the source of truth: changing
   the marker triggers a new quote and replaces the visible official-address
   search value and stale tariff selection.
+- Every etrap may own one audited polygon of 3–64 ordered latitude/longitude
+  points. Administrators draw and inspect these boundaries on `/delivery`,
+  alongside the same day/night prices and availability controls. Enabled zones
+  may share a boundary but must not overlap; malformed, zero-area and
+  self-crossing polygons are rejected. Enabling coordinate pricing requires a
+  valid polygon for every enabled etrap. Once enabled, point-in-polygon lookup
+  is the only district source for location quotes and final order pricing;
+  reverse-geocoded text remains display data for the courier. Coordinates at
+  final customer/assisted order creation and administrator editing override a
+  stale or manipulated `deliveryEtrapId`, update the saved address reference,
+  and use the fallback tariff outside every configured zone. The rollout and
+  mobile contract live in `docs/MAP_DELIVERY_ZONES.md`.
 - Orders keep immutable snapshots of the address plus product/variant name,
   price, and the effective kitchen receipt-printer endpoint (IPv4 address,
   port and transport) resolved as `product override → category default`.
@@ -1087,7 +1102,11 @@ Current status:
 - administrators manage the complete delivery directory on the lazy
   `/delivery` screen: fallback pricing, creation and multilingual editing of
   welayats and etraps, display order, parent assignment, availability,
-  delivery price and free-delivery threshold. The phone-assisted order shows
+  delivery price, free-delivery threshold and map polygons. The screen shows
+  every configured zone on one map; selecting a polygon opens that district's
+  price/boundary editor, and the administrator explicitly activates
+  coordinate-only pricing after all enabled districts have valid zones. The
+  phone-assisted order shows
   the location quote and submits an automatically matched etrap when one
   exists; otherwise it uses the configured fallback without asking the
   operator to choose a district manually. The customer-facing endpoint exposes
@@ -1883,6 +1902,13 @@ client-owned availability/pricing state.
   delivery through `POST /delivery/quote`; the server returns the official
   address, configured price and unambiguous etrap match, and marker movement
   updates the visible search field instead of retaining the previous result.
+- 2026-09-22: delivery tariff ownership moved toward administrator-drawn map
+  polygons. Etraps store validated non-overlapping boundaries, the delivery
+  screen provides an overview and click-to-draw editor, and an explicit
+  versioned `mapPricingEnabled` switch preserves legacy text matching until all
+  active zones are ready. In map mode backend point-in-polygon resolution is
+  authoritative for quotes and final order pricing; address text no longer
+  chooses the tariff.
 - 2026-08-22: receipt routing gained an audited main-printer setting, category
   kitchen-printer defaults and product-level overrides. Every print plan now
   contains one complete administrator copy plus kitchen copies grouped by the

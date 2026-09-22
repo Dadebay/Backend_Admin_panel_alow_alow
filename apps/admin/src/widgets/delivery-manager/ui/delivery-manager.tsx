@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useForm } from "react-hook-form";
@@ -6,6 +14,7 @@ import {
   flattenDeliveryEtraps,
   useAdminDeliveryConfig,
   type DeliveryEtrapWithWelayat,
+  type DeliveryZonePoint,
   type DeliveryWelayat,
 } from "@/src/entities/delivery";
 import { useDeliveryActions } from "@/src/features/delivery-management";
@@ -25,12 +34,16 @@ import {
 
 import { NightDeliverySchedule } from "./night-delivery-schedule";
 
+const DeliveryZoneMap = lazy(() =>
+  import("./delivery-zone-map").then((module) => ({
+    default: module.DeliveryZoneMap,
+  })),
+);
+
 type WelayatEditor =
-  | { mode: "create" }
-  | { mode: "edit"; welayat: DeliveryWelayat };
+  { mode: "create" } | { mode: "edit"; welayat: DeliveryWelayat };
 type EtrapEditor =
-  | { mode: "create" }
-  | { mode: "edit"; etrap: DeliveryEtrapWithWelayat };
+  { mode: "create" } | { mode: "edit"; etrap: DeliveryEtrapWithWelayat };
 
 function money(value: number) {
   return `${value.toFixed(2)} TMT`;
@@ -45,6 +58,8 @@ export function DeliveryManager() {
     null,
   );
   const [etrapEditor, setEtrapEditor] = useState<EtrapEditor | null>(null);
+  const [zoneDraft, setZoneDraft] = useState<DeliveryZonePoint[]>([]);
+  const [zoneError, setZoneError] = useState("");
   const welayatFormRef = useRef<HTMLFormElement>(null);
   const etrapFormRef = useRef<HTMLFormElement>(null);
   const {
@@ -56,6 +71,7 @@ export function DeliveryManager() {
     resolver: zodResolver(deliverySettingsFormSchema),
     mode: "onBlur",
     defaultValues: {
+      mapPricingEnabled: false,
       fallbackPrice: "15.00",
       fallbackNightPrice: "15.00",
       fallbackNightFreeDeliveryThreshold: "150.00",
@@ -97,6 +113,7 @@ export function DeliveryManager() {
   useEffect(() => {
     if (!config.data) return;
     resetSettings({
+      mapPricingEnabled: config.data.mapPricingEnabled,
       fallbackPrice: config.data.fallbackPrice.toFixed(2),
       fallbackNightPrice: config.data.fallbackNightPrice.toFixed(2),
       fallbackNightFreeDeliveryThreshold:
@@ -181,6 +198,8 @@ export function DeliveryManager() {
       welayatId || String(config.data?.welayats[0]?.id ?? "");
     setWelayatEditor(null);
     setEtrapEditor({ mode: "create" });
+    setZoneDraft([]);
+    setZoneError("");
     resetEtrap({
       welayatId: initialWelayatId,
       nameEn: "",
@@ -201,6 +220,8 @@ export function DeliveryManager() {
     (etrap: DeliveryEtrapWithWelayat) => {
       setWelayatEditor(null);
       setEtrapEditor({ mode: "edit", etrap });
+      setZoneDraft(etrap.deliveryZone ? [...etrap.deliveryZone] : []);
+      setZoneError("");
       resetEtrap({
         welayatId: String(etrap.welayatId),
         nameEn: etrap.nameEn ?? "",
@@ -321,6 +342,20 @@ export function DeliveryManager() {
         ),
       },
       {
+        header: "Карта",
+        cell: ({ row }) => (
+          <span
+            className={`state-pill ${
+              row.original.deliveryZone ? "is-on" : "is-off"
+            }`}
+          >
+            {row.original.deliveryZone
+              ? `${row.original.deliveryZone.length} точек`
+              : "Без зоны"}
+          </span>
+        ),
+      },
+      {
         id: "actions",
         header: "",
         cell: ({ row }) => (
@@ -388,13 +423,32 @@ export function DeliveryManager() {
 
   async function saveEtrap(values: DeliveryEtrapFormValues) {
     if (!etrapEditor) return;
+    if (zoneDraft.length > 0 && zoneDraft.length < 3) {
+      setZoneError("Поставьте минимум 3 точки или очистите границу полностью.");
+      return;
+    }
+    if (
+      values.isDeliveryEnabled &&
+      config.data?.mapPricingEnabled &&
+      zoneDraft.length < 3
+    ) {
+      setZoneError(
+        "Для включённого района нужна граница, пока расчёт по карте активен.",
+      );
+      return;
+    }
+    setZoneError("");
+    const body = {
+      ...values,
+      deliveryZone: zoneDraft.length >= 3 ? zoneDraft : null,
+    };
     try {
       if (etrapEditor.mode === "create") {
-        await actions.createEtrap.mutateAsync(values);
+        await actions.createEtrap.mutateAsync(body);
       } else {
         await actions.updateEtrap.mutateAsync({
           id: etrapEditor.etrap.id,
-          body: { ...values, version: etrapEditor.etrap.version },
+          body: { ...body, version: etrapEditor.etrap.version },
         });
       }
       setEtrapEditor(null);
@@ -453,6 +507,62 @@ export function DeliveryManager() {
           Настройки доставки сохранены.
         </div>
       )}
+
+      <article
+        className="table-card delivery-zone-overview"
+        data-testid="delivery-zone-overview"
+      >
+        <div className="card-title delivery-zone-overview-title">
+          <div>
+            <h2>Тарифные зоны на карте</h2>
+            <small>
+              Нажмите на границу района, чтобы изменить её и назначить цену.
+              Текст адреса не участвует в расчёте после включения режима карты.
+            </small>
+          </div>
+          <span
+            className={`state-pill ${
+              config.data?.mapPricingEnabled ? "is-on" : "is-off"
+            }`}
+            data-testid="delivery-map-pricing-state"
+          >
+            {config.data?.mapPricingEnabled
+              ? "Расчёт по карте включён"
+              : "Подготовка зон"}
+          </span>
+        </div>
+        <AsyncPanel
+          pending={config.isPending}
+          error={config.error}
+          onRetry={() => void config.refetch()}
+        >
+          <Suspense
+            fallback={
+              <div
+                className="empty-state"
+                data-testid="delivery-zone-map-loading"
+              >
+                Загружаем карту тарифов…
+              </div>
+            }
+          >
+            <DeliveryZoneMap onSelect={openEtrapEditor} zones={visibleEtraps} />
+          </Suspense>
+          <div
+            className="delivery-zone-summary"
+            data-testid="delivery-zone-summary"
+          >
+            <span>
+              С границей:{" "}
+              {allEtraps.filter(({ deliveryZone }) => deliveryZone).length}
+            </span>
+            <span>
+              Без границы:{" "}
+              {allEtraps.filter(({ deliveryZone }) => !deliveryZone).length}
+            </span>
+          </div>
+        </AsyncPanel>
+      </article>
 
       {welayatEditor && (
         <div
@@ -582,7 +692,7 @@ export function DeliveryManager() {
           <section
             aria-labelledby="delivery-etrap-form-title"
             aria-modal="true"
-            className="modal delivery-directory-modal"
+            className="modal delivery-directory-modal delivery-zone-modal"
             role="dialog"
           >
             <form
@@ -710,6 +820,60 @@ export function DeliveryManager() {
                   Район доступен клиентам
                 </label>
               </div>
+              <section
+                className="delivery-zone-editor"
+                data-testid="delivery-zone-editor"
+              >
+                <div className="delivery-zone-editor-copy">
+                  <div>
+                    <h3>Граница тарифа</h3>
+                    <p>
+                      Обведите район последовательными кликами. Цена выше будет
+                      применяться, только когда адресная точка находится внутри
+                      этой границы.
+                    </p>
+                  </div>
+                  {zoneDraft.length >= 3 && (
+                    <span className="state-pill is-on">Зона готова</span>
+                  )}
+                </div>
+                <Suspense
+                  fallback={
+                    <div
+                      className="empty-state"
+                      data-testid="delivery-zone-editor-loading"
+                    >
+                      Загружаем редактор карты…
+                    </div>
+                  }
+                >
+                  <DeliveryZoneMap
+                    draft={zoneDraft}
+                    editable
+                    onDraftChange={(points) => {
+                      setZoneDraft(points);
+                      setZoneError("");
+                    }}
+                    selectedId={
+                      etrapEditor.mode === "edit" ? etrapEditor.etrap.id : null
+                    }
+                    zones={allEtraps.filter(
+                      ({ id }) =>
+                        etrapEditor.mode !== "edit" ||
+                        id !== etrapEditor.etrap.id,
+                    )}
+                  />
+                </Suspense>
+                {zoneError && (
+                  <p
+                    className="field-error"
+                    data-testid="delivery-zone-error"
+                    role="alert"
+                  >
+                    {zoneError}
+                  </p>
+                )}
+              </section>
               <details
                 className="delivery-advanced-fields"
                 open={etrapAdvancedError || undefined}
@@ -911,6 +1075,20 @@ export function DeliveryManager() {
                 <p>Применяется, когда у адреса нет района.</p>
               </div>
             </div>
+            <label className="delivery-map-pricing-toggle">
+              <input
+                data-testid="delivery-map-pricing-enabled"
+                {...registerSettings("mapPricingEnabled")}
+                type="checkbox"
+              />
+              <span>
+                <strong>Определять тариф только по карте</strong>
+                <small>
+                  Включайте после отрисовки всех активных районов. Backend не
+                  позволит включить режим, пока у включённого района нет зоны.
+                </small>
+              </span>
+            </label>
             <div className="form-grid delivery-price-grid">
               <label>
                 <span>Дневная цена, TMT</span>

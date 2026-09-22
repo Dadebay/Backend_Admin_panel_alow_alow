@@ -6818,6 +6818,16 @@
             "type": "number",
             "description": "Delivery etrap used to include the authoritative delivery fee in this quote"
           },
+          "latitude": {
+            "type": "number",
+            "example": 37.9601,
+            "description": "Selected map latitude. Send together with longitude so map-zone pricing can override a stale district ID."
+          },
+          "longitude": {
+            "type": "number",
+            "example": 58.3261,
+            "description": "Selected map longitude. Send together with latitude so map-zone pricing can override a stale district ID."
+          },
           "promoCode": {
             "type": "string",
             "example": "WELCOME15"
@@ -11065,9 +11075,33 @@
           "body"
         ]
       },
+      "DeliveryZonePointDto": {
+        "type": "object",
+        "properties": {
+          "latitude": {
+            "type": "number",
+            "example": 37.9601
+          },
+          "longitude": {
+            "type": "number",
+            "example": 58.3261
+          }
+        },
+        "required": [
+          "latitude",
+          "longitude"
+        ]
+      },
       "DeliveryEtrapResponseDto": {
         "type": "object",
         "properties": {
+          "deliveryZone": {
+            "nullable": true,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DeliveryZonePointDto"
+            }
+          },
           "nightPrice": {
             "type": "number"
           },
@@ -11114,6 +11148,7 @@
           }
         },
         "required": [
+          "deliveryZone",
           "nightPrice",
           "nightFreeDeliveryThreshold",
           "version",
@@ -11167,6 +11202,9 @@
       "DeliveryConfigResponseDto": {
         "type": "object",
         "properties": {
+          "mapPricingEnabled": {
+            "type": "boolean"
+          },
           "fallbackNightPrice": {
             "type": "number"
           },
@@ -11207,6 +11245,7 @@
           }
         },
         "required": [
+          "mapPricingEnabled",
           "fallbackNightPrice",
           "fallbackNightFreeDeliveryThreshold",
           "nightTariffEnabled",
@@ -11335,7 +11374,15 @@
           },
           "matched": {
             "type": "boolean",
-            "description": "True when reverse geocoding produced one unambiguous configured delivery area"
+            "description": "True when the selected coordinates resolve to one unambiguous configured delivery area"
+          },
+          "matchSource": {
+            "type": "string",
+            "enum": [
+              "MAP_ZONE",
+              "LEGACY_TEXT",
+              "FALLBACK"
+            ]
           }
         },
         "required": [
@@ -11351,7 +11398,8 @@
           "latitude",
           "longitude",
           "welayat",
-          "matched"
+          "matched",
+          "matchSource"
         ]
       },
       "QuoteDeliveryTariffDto": {
@@ -11436,6 +11484,10 @@
             "minimum": 1,
             "description": "Current configuration version; required when changing night settings"
           },
+          "mapPricingEnabled": {
+            "type": "boolean",
+            "description": "Use map polygons as the only district source for coordinate quotes and order pricing"
+          },
           "fallbackNightPrice": {
             "type": "number",
             "minimum": 0,
@@ -11478,6 +11530,9 @@
       "DeliverySettingsResponseDto": {
         "type": "object",
         "properties": {
+          "mapPricingEnabled": {
+            "type": "boolean"
+          },
           "fallbackNightPrice": {
             "type": "number"
           },
@@ -11519,6 +11574,7 @@
           }
         },
         "required": [
+          "mapPricingEnabled",
           "fallbackNightPrice",
           "fallbackNightFreeDeliveryThreshold",
           "nightTariffEnabled",
@@ -11586,6 +11642,16 @@
       "CreateDeliveryEtrapDto": {
         "type": "object",
         "properties": {
+          "deliveryZone": {
+            "nullable": true,
+            "minItems": 3,
+            "maxItems": 64,
+            "description": "Ordered map boundary points. Null or omission creates the district without a map zone.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DeliveryZonePointDto"
+            }
+          },
           "nightPrice": {
             "type": "number",
             "minimum": 0,
@@ -11653,6 +11719,16 @@
             "type": "number",
             "minimum": 1,
             "description": "Current configuration version; required when changing night settings"
+          },
+          "deliveryZone": {
+            "nullable": true,
+            "minItems": 3,
+            "maxItems": 64,
+            "description": "Ordered map boundary points. Null removes the zone; the backend closes the polygon.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DeliveryZonePointDto"
+            }
           },
           "nightPrice": {
             "type": "number",

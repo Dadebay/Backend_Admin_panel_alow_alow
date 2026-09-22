@@ -6,10 +6,10 @@ import {
 } from "@nestjs/common";
 import { toApiResponse } from "../common/api-response";
 import type { AuthUser } from "../common/auth.types";
-import type {
+import {
   Prisma,
-  DeliverySettings,
-  Etrap,
+  type DeliverySettings,
+  type Etrap,
 } from "../generated/prisma/client";
 import { GeocodingService } from "../geocoding/geocoding.service";
 import { PrismaService } from "../prisma/prisma.service";
@@ -28,6 +28,14 @@ import {
   DELIVERY_TIME_ZONE,
 } from "./delivery-pricing";
 import { findDeliveryAreaForAddress } from "./delivery-area-matcher";
+import {
+  deliveryZoneFromJson,
+  deliveryZonesOverlap,
+  deliveryZoneValidationError,
+  findDeliveryAreaForCoordinates,
+  normalizeDeliveryZone,
+  type DeliveryZonePoint,
+} from "./delivery-zone";
 
 const SETTINGS_ID = "default";
 
@@ -57,7 +65,12 @@ export class DeliveryService {
     ]);
     if (!settings) throw new NotFoundException("Delivery settings not found");
 
-    const etrap = findDeliveryAreaForAddress(etraps, addressLine);
+    const etrap = settings.mapPricingEnabled
+      ? findDeliveryAreaForCoordinates(etraps, {
+          latitude: dto.latitude,
+          longitude: dto.longitude,
+        })
+      : findDeliveryAreaForAddress(etraps, addressLine);
     const pricing = this.priceDelivery(
       settings,
       etrap,
@@ -74,6 +87,11 @@ export class DeliveryService {
       etrap,
       welayat: etrap?.welayat ?? null,
       matched: Boolean(etrap),
+      matchSource: etrap
+        ? settings.mapPricingEnabled
+          ? "MAP_ZONE"
+          : "LEGACY_TEXT"
+        : "FALLBACK",
     });
   }
 
@@ -89,25 +107,44 @@ export class DeliveryService {
     subtotal: number,
     deliveryEtrapId: number | null,
     at = new Date(),
+    coordinates?: DeliveryZonePoint,
   ) {
     const settings = await tx.deliverySettings.findUnique({
       where: { id: SETTINGS_ID },
     });
     if (!settings) throw new NotFoundException("Delivery settings not found");
+    const usesCoordinates = settings.mapPricingEnabled && coordinates;
     const etrap =
-      deliveryEtrapId === null
-        ? null
-        : await tx.etrap.findUnique({
-            where: { id: deliveryEtrapId },
-            include: { welayat: true },
-          });
-    if (deliveryEtrapId !== null && !etrap)
+      usesCoordinates
+        ? findDeliveryAreaForCoordinates(
+            await tx.etrap.findMany({
+              where: { isDeliveryEnabled: true },
+              include: { welayat: true },
+            }),
+            coordinates,
+          )
+        : deliveryEtrapId === null
+          ? null
+          : await tx.etrap.findUnique({
+              where: { id: deliveryEtrapId },
+              include: { welayat: true },
+            });
+    if (!usesCoordinates && deliveryEtrapId !== null && !etrap)
       throw new BadRequestException("Delivery etrap not found");
     if (etrap && !etrap.isDeliveryEnabled)
       throw new BadRequestException(
         "Delivery is not available for the selected etrap",
       );
     return { ...this.priceDelivery(settings, etrap, subtotal, at), etrap };
+  }
+
+  async usesMapPricing(tx: Prisma.TransactionClient) {
+    const settings = await tx.deliverySettings.findUnique({
+      where: { id: SETTINGS_ID },
+      select: { mapPricingEnabled: true },
+    });
+    if (!settings) throw new NotFoundException("Delivery settings not found");
+    return settings.mapPricingEnabled;
   }
 
   private priceDelivery(
@@ -148,12 +185,13 @@ export class DeliveryService {
     const changedFields = Object.keys(update).filter(
       (key) => update[key as keyof typeof update] !== undefined,
     );
-    const changesNight = changedFields.some((key) =>
-      key.toLowerCase().includes("night"),
+    const changesVersionedSettings = changedFields.some(
+      (key) =>
+        key.toLowerCase().includes("night") || key === "mapPricingEnabled",
     );
-    if (changesNight && version === undefined)
+    if (changesVersionedSettings && version === undefined)
       throw new BadRequestException(
-        "Version is required when changing night settings",
+        "Version is required when changing night or map pricing settings",
       );
     if (!Object.values(update).some((value) => value !== undefined)) {
       throw new BadRequestException(
@@ -161,6 +199,9 @@ export class DeliveryService {
       );
     }
     return this.prisma.$transaction(async (tx) => {
+      if (dto.mapPricingEnabled === true) {
+        await this.lockMapConfiguration(tx);
+      }
       const before = await tx.deliverySettings.findUnique({
         where: { id: SETTINGS_ID },
       });
@@ -174,6 +215,9 @@ export class DeliveryService {
         (dto.nightEndsAt ?? before.nightEndsAt)
       ) {
         throw new BadRequestException("Night start and end must be different");
+      }
+      if (dto.mapPricingEnabled === true) {
+        await this.assertMapPricingReady(tx);
       }
       const changed = await tx.deliverySettings.updateMany({
         where: { id: SETTINGS_ID, version: before.version },
@@ -277,8 +321,20 @@ export class DeliveryService {
 
   createEtrap(actor: AuthUser, dto: CreateDeliveryEtrapDto) {
     return this.prisma.$transaction(async (tx) => {
+      if (dto.deliveryZone !== undefined || dto.isDeliveryEnabled) {
+        await this.lockMapConfiguration(tx);
+      }
       await this.assertWelayatExists(tx, dto.welayatId);
       await this.assertUniqueEtrap(tx, dto.welayatId, dto.nameRu, dto.nameTk);
+      const deliveryZone = await this.prepareDeliveryZone(
+        tx,
+        dto.deliveryZone,
+        undefined,
+        dto.isDeliveryEnabled ?? false,
+      );
+      if (dto.isDeliveryEnabled) {
+        await this.assertZonePresentWhenMapPricingIsActive(tx, deliveryZone);
+      }
       const etrap = await tx.etrap.create({
         data: {
           welayatId: dto.welayatId,
@@ -299,6 +355,7 @@ export class DeliveryService {
               ? 150
               : dto.freeDeliveryThreshold,
           isDeliveryEnabled: dto.isDeliveryEnabled ?? false,
+          ...(deliveryZone !== undefined ? { deliveryZone } : {}),
         },
       });
       await tx.auditLog.create({
@@ -321,11 +378,12 @@ export class DeliveryService {
   updateEtrap(actor: AuthUser, id: number, dto: UpdateDeliveryEtrapDto) {
     if (
       (dto.nightPrice !== undefined ||
-        dto.nightFreeDeliveryThreshold !== undefined) &&
+        dto.nightFreeDeliveryThreshold !== undefined ||
+        dto.deliveryZone !== undefined) &&
       dto.version === undefined
     ) {
       throw new BadRequestException(
-        "Version is required when changing night prices",
+        "Version is required when changing night prices or a delivery zone",
       );
     }
     const update = {
@@ -348,12 +406,41 @@ export class DeliveryService {
         ? { isDeliveryEnabled: dto.isDeliveryEnabled }
         : {}),
     };
-    if (!Object.keys(update).length) {
+    if (!Object.keys(update).length && dto.deliveryZone === undefined) {
       throw new BadRequestException("At least one etrap setting is required");
     }
     return this.prisma.$transaction(async (tx) => {
+      if (
+        dto.deliveryZone !== undefined ||
+        dto.isDeliveryEnabled !== undefined
+      ) {
+        await this.lockMapConfiguration(tx);
+      }
       const before = await tx.etrap.findUnique({ where: { id } });
       if (!before) throw new NotFoundException("Delivery etrap not found");
+      const nextIsEnabled = dto.isDeliveryEnabled ?? before.isDeliveryEnabled;
+      const nextZone =
+        dto.deliveryZone === undefined
+          ? deliveryZoneFromJson(before.deliveryZone)
+          : dto.deliveryZone;
+      const zoneToPrepare =
+        dto.deliveryZone === undefined &&
+        nextIsEnabled &&
+        !before.isDeliveryEnabled
+          ? nextZone
+          : dto.deliveryZone;
+      const deliveryZone = await this.prepareDeliveryZone(
+        tx,
+        zoneToPrepare,
+        id,
+        nextIsEnabled,
+      );
+      if (nextIsEnabled) {
+        await this.assertZonePresentWhenMapPricingIsActive(
+          tx,
+          deliveryZone === undefined ? nextZone : deliveryZone,
+        );
+      }
       const nextWelayatId = dto.welayatId ?? before.welayatId;
       await this.assertWelayatExists(tx, nextWelayatId);
       await this.assertUniqueEtrap(
@@ -369,7 +456,11 @@ export class DeliveryService {
         );
       const changed = await tx.etrap.updateMany({
         where: { id, version: before.version },
-        data: { ...update, version: { increment: 1 } },
+        data: {
+          ...update,
+          ...(deliveryZone !== undefined ? { deliveryZone } : {}),
+          version: { increment: 1 },
+        },
       });
       if (changed.count !== 1)
         throw new ConflictException(
@@ -383,7 +474,10 @@ export class DeliveryService {
           entityType: "Etrap",
           entityId: String(id),
           metadata: {
-            changedFields: Object.keys(update),
+            changedFields: [
+              ...Object.keys(update),
+              ...(dto.deliveryZone !== undefined ? ["deliveryZone"] : []),
+            ],
             previous: toApiResponse(before),
           },
         },
@@ -401,6 +495,103 @@ export class DeliveryService {
       select: { id: true },
     });
     if (!welayat) throw new NotFoundException("Delivery welayat not found");
+  }
+
+  private async prepareDeliveryZone(
+    tx: Prisma.TransactionClient,
+    value: DeliveryZonePoint[] | null | undefined,
+    excludeId: number | undefined,
+    enabled: boolean,
+  ): Promise<
+    Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput | undefined
+  > {
+    if (value === undefined) return undefined;
+    if (value === null) return Prisma.DbNull;
+    const normalized = normalizeDeliveryZone(value);
+    const validationError = deliveryZoneValidationError(normalized);
+    if (validationError) throw new BadRequestException(validationError);
+    if (enabled) {
+      const existing = await tx.etrap.findMany({
+        where: {
+          isDeliveryEnabled: true,
+          ...(excludeId === undefined ? {} : { id: { not: excludeId } }),
+        },
+        select: { id: true, nameRu: true, deliveryZone: true },
+      });
+      const overlapping = existing.find((candidate) => {
+        const zone = deliveryZoneFromJson(candidate.deliveryZone);
+        return zone ? deliveryZonesOverlap(normalized, zone) : false;
+      });
+      if (overlapping) {
+        throw new ConflictException(
+          `Delivery zone overlaps district ${overlapping.nameRu} (${overlapping.id})`,
+        );
+      }
+    }
+    return normalized;
+  }
+
+  private async lockMapConfiguration(tx: Prisma.TransactionClient) {
+    // Polygon overlap is a cross-row invariant. Serialize the small set of
+    // zone/activation mutations so two administrators cannot both validate
+    // against stale boundaries and commit overlapping enabled zones.
+    await tx.$queryRaw`
+      SELECT pg_advisory_xact_lock(2026, 92201) IS NULL AS locked
+    `;
+  }
+
+  private async assertZonePresentWhenMapPricingIsActive(
+    tx: Prisma.TransactionClient,
+    value:
+      | DeliveryZonePoint[]
+      | Prisma.InputJsonValue
+      | Prisma.NullableJsonNullValueInput
+      | null
+      | undefined,
+  ) {
+    const settings = await tx.deliverySettings.findUnique({
+      where: { id: SETTINGS_ID },
+      select: { mapPricingEnabled: true },
+    });
+    if (!settings?.mapPricingEnabled) return;
+    const zone = deliveryZoneFromJson(value);
+    if (!zone || deliveryZoneValidationError(zone)) {
+      throw new BadRequestException(
+        "An enabled district requires a valid map zone while map pricing is active",
+      );
+    }
+  }
+
+  private async assertMapPricingReady(tx: Prisma.TransactionClient) {
+    const enabled = await tx.etrap.findMany({
+      where: { isDeliveryEnabled: true },
+      select: { id: true, nameRu: true, deliveryZone: true },
+      orderBy: { id: "asc" },
+    });
+    const invalid = enabled.filter(({ deliveryZone }) => {
+      const zone = deliveryZoneFromJson(deliveryZone);
+      return !zone || Boolean(deliveryZoneValidationError(zone));
+    });
+    if (invalid.length) {
+      throw new BadRequestException(
+        `Map pricing requires a valid zone for every enabled district; missing: ${invalid
+          .slice(0, 5)
+          .map(({ id, nameRu }) => `${nameRu} (${id})`)
+          .join(
+            ", ",
+          )}${invalid.length > 5 ? ` and ${invalid.length - 5} more` : ""}`,
+      );
+    }
+    for (let left = 0; left < enabled.length; left += 1) {
+      const leftZone = deliveryZoneFromJson(enabled[left]!.deliveryZone)!;
+      for (let right = left + 1; right < enabled.length; right += 1) {
+        const rightZone = deliveryZoneFromJson(enabled[right]!.deliveryZone)!;
+        if (!deliveryZonesOverlap(leftZone, rightZone)) continue;
+        throw new ConflictException(
+          `Delivery zones overlap: ${enabled[left]!.nameRu} (${enabled[left]!.id}) and ${enabled[right]!.nameRu} (${enabled[right]!.id})`,
+        );
+      }
+    }
   }
 
   private async assertUniqueWelayat(
@@ -467,6 +658,7 @@ export class DeliveryService {
     ]);
     if (!settings) throw new NotFoundException("Delivery settings not found");
     return toApiResponse({
+      mapPricingEnabled: settings.mapPricingEnabled,
       fallbackPrice: settings.fallbackPrice,
       fallbackFreeDeliveryThreshold: settings.fallbackFreeDeliveryThreshold,
       fallbackNightPrice: settings.fallbackNightPrice,

@@ -16,6 +16,7 @@ export {
   type DeliveryTariffQuote,
   type DeliveryEtrap,
   type DeliveryEtrapWithWelayat,
+  type DeliveryZonePoint,
   type DeliveryWelayat,
   type UpdateDeliveryEtrap,
   type UpdateDeliverySettings,

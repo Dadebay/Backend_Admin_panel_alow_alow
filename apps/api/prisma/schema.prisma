@@ -388,6 +388,7 @@ model ContactSettings {
 
 model DeliverySettings {
   id                                 String   @id @default("default") @db.VarChar(40)
+  mapPricingEnabled                  Boolean  @default(false)
   fallbackPrice                      Decimal  @default(25) @db.Decimal(12, 2)
   fallbackFreeDeliveryThreshold      Decimal? @default(150) @db.Decimal(12, 2)
   fallbackNightPrice                 Decimal  @default(25) @db.Decimal(12, 2)
@@ -422,6 +423,7 @@ model Etrap {
   freeDeliveryThreshold      Decimal?      @default(150) @db.Decimal(12, 2)
   nightPrice                 Decimal       @default(15) @db.Decimal(12, 2)
   nightFreeDeliveryThreshold Decimal?      @default(150) @db.Decimal(12, 2)
+  deliveryZone              Json?
   version                    Int           @default(1)
   isDeliveryEnabled          Boolean       @default(false)
   updatedAt                  DateTime      @updatedAt

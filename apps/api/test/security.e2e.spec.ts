@@ -223,6 +223,7 @@ type BranchResponse = {
 };
 
 type DeliveryConfigResponse = {
+  mapPricingEnabled: boolean;
   welayats: Array<{
     id: number;
     etraps: Array<{
@@ -231,6 +232,7 @@ type DeliveryConfigResponse = {
       price: number;
       freeDeliveryThreshold: number | null;
       isDeliveryEnabled: boolean;
+      deliveryZone: Array<{ latitude: number; longitude: number }> | null;
     }>;
   }>;
 };
@@ -241,6 +243,7 @@ type DeliveryQuoteResponse = {
   subtotal: number;
   fee: number;
   matched: boolean;
+  matchSource: "MAP_ZONE" | "LEGACY_TEXT" | "FALLBACK";
 };
 
 type NotificationCampaignResponse = {
@@ -727,6 +730,145 @@ describe("backend security and critical workflow", () => {
       .set(bearer(tokens.admin))
       .send({ fallbackPrice: 25, fallbackFreeDeliveryThreshold: 150 })
       .expect(200);
+
+    const enabledBeforeMapPricing = await prisma.etrap.findMany({
+      where: { isDeliveryEnabled: true },
+      select: { id: true },
+    });
+    const settingsBeforeMapPricing =
+      await prisma.deliverySettings.findUniqueOrThrow({
+        where: { id: "default" },
+      });
+    await request(server)
+      .patch("/api/v1/delivery/admin/settings")
+      .set(bearer(tokens.admin))
+      .send({
+        mapPricingEnabled: true,
+        version: settingsBeforeMapPricing.version,
+      })
+      .expect(400);
+
+    await prisma.etrap.updateMany({ data: { isDeliveryEnabled: false } });
+    const mapTarget = await prisma.etrap.findUniqueOrThrow({
+      where: { id: 25 },
+    });
+    const deliveryZone = [
+      { latitude: 37.94, longitude: 58.37 },
+      { latitude: 37.94, longitude: 58.39 },
+      { latitude: 37.96, longitude: 58.39 },
+      { latitude: 37.96, longitude: 58.37 },
+    ];
+
+    await request(server)
+      .patch("/api/v1/delivery/admin/etraps/25")
+      .set(bearer(tokens.operator))
+      .send({ deliveryZone, version: mapTarget.version })
+      .expect(403);
+    await request(server)
+      .patch("/api/v1/delivery/admin/etraps/25")
+      .set(bearer(tokens.admin))
+      .send({
+        deliveryZone: [
+          { latitude: 37.94, longitude: 58.37 },
+          { latitude: 37.96, longitude: 58.39 },
+          { latitude: 37.94, longitude: 58.39 },
+          { latitude: 37.96, longitude: 58.37 },
+        ],
+        version: mapTarget.version,
+      })
+      .expect(400);
+    const zonedTarget = await request(server)
+      .patch("/api/v1/delivery/admin/etraps/25")
+      .set(bearer(tokens.admin))
+      .send({
+        deliveryZone,
+        isDeliveryEnabled: true,
+        price: 17,
+        freeDeliveryThreshold: null,
+        version: mapTarget.version,
+      })
+      .expect(200);
+    expect(zonedTarget.body).toMatchObject({ deliveryZone });
+
+    const readySettings = await prisma.deliverySettings.findUniqueOrThrow({
+      where: { id: "default" },
+    });
+    await request(server)
+      .patch("/api/v1/delivery/admin/settings")
+      .set(bearer(tokens.admin))
+      .send({ mapPricingEnabled: true, version: readySettings.version })
+      .expect(200);
+
+    await request(server)
+      .post("/api/v1/orders/quote")
+      .set(bearer(tokens.customer))
+      .send({
+        items: [{ productId, quantity: 2 }],
+        latitude: 37.9503,
+      })
+      .expect(400);
+
+    const mappedQuote = await request(server)
+      .post("/api/v1/delivery/quote")
+      .send({ latitude: 37.9503, longitude: 58.3803, subtotal: 100 })
+      .expect(200);
+    expect(mappedQuote.body).toMatchObject({
+      matched: true,
+      matchSource: "MAP_ZONE",
+      fee: 17,
+      etrap: { id: 25 },
+    });
+    const fallbackQuote = await request(server)
+      .post("/api/v1/delivery/quote")
+      .send({ latitude: 37.8, longitude: 58.1, subtotal: 100 })
+      .expect(200);
+    expect(fallbackQuote.body).toMatchObject({
+      matched: false,
+      matchSource: "FALLBACK",
+      fee: 25,
+      etrap: null,
+    });
+
+    const mapPricedOrder = await createOrder(tokens.customer, {
+      deliveryEtrapId: createdEtrap.id,
+      address: "Map-priced delivery point",
+      latitude: 37.9504,
+      longitude: 58.3804,
+    });
+    expect(mapPricedOrder).toMatchObject({
+      deliveryEtrapId: 25,
+      deliveryFee: 17,
+    });
+
+    const activeMapSettings = await prisma.deliverySettings.findUniqueOrThrow({
+      where: { id: "default" },
+    });
+    await request(server)
+      .patch("/api/v1/delivery/admin/settings")
+      .set(bearer(tokens.admin))
+      .send({
+        mapPricingEnabled: false,
+        version: activeMapSettings.version,
+      })
+      .expect(200);
+    const zonedTargetAfterQuote = await prisma.etrap.findUniqueOrThrow({
+      where: { id: 25 },
+    });
+    await request(server)
+      .patch("/api/v1/delivery/admin/etraps/25")
+      .set(bearer(tokens.admin))
+      .send({
+        deliveryZone: null,
+        price: 15,
+        freeDeliveryThreshold: 150,
+        version: zonedTargetAfterQuote.version,
+      })
+      .expect(200);
+    await prisma.etrap.updateMany({ data: { isDeliveryEnabled: false } });
+    await prisma.etrap.updateMany({
+      where: { id: { in: enabledBeforeMapPricing.map(({ id }) => id) } },
+      data: { isDeliveryEnabled: true },
+    });
   });
 
   it("previews selected variant and promo prices without creating an order or consuming the promo", async () => {

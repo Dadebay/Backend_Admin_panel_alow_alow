@@ -1,6 +1,9 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 import { Transform, Type } from "class-transformer";
 import {
+  ArrayMaxSize,
+  ArrayMinSize,
+  IsArray,
   IsBoolean,
   IsInt,
   IsLatitude,
@@ -13,11 +16,22 @@ import {
   MaxLength,
   Matches,
   Min,
+  ValidateNested,
   ValidateIf,
 } from "class-validator";
 
 const trimString = ({ value }: { value: unknown }) =>
   typeof value === "string" ? value.trim() : value;
+
+export class DeliveryZonePointDto {
+  @ApiProperty({ example: 37.9601 })
+  @IsLatitude()
+  latitude: number;
+
+  @ApiProperty({ example: 58.3261 })
+  @IsLongitude()
+  longitude: number;
+}
 
 export class QuoteDeliveryDto {
   @ApiProperty({ example: 37.9601 })
@@ -65,6 +79,14 @@ export class UpdateDeliverySettingsDto {
   @IsInt()
   @Min(1)
   version?: number;
+
+  @ApiPropertyOptional({
+    description:
+      "Use map polygons as the only district source for coordinate quotes and order pricing",
+  })
+  @ValidateIf((_object, value: unknown) => value !== undefined)
+  @IsBoolean()
+  mapPricingEnabled?: boolean;
 
   @ApiPropertyOptional({ minimum: 0, maximum: 1_000_000 })
   @ValidateIf((_object, value: unknown) => value !== undefined)
@@ -143,6 +165,22 @@ export class UpdateDeliveryEtrapDto {
   @IsInt()
   @Min(1)
   version?: number;
+
+  @ApiPropertyOptional({
+    type: [DeliveryZonePointDto],
+    nullable: true,
+    minItems: 3,
+    maxItems: 64,
+    description:
+      "Ordered map boundary points. Null removes the zone; the backend closes the polygon.",
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMinSize(3)
+  @ArrayMaxSize(64)
+  @ValidateNested({ each: true })
+  @Type(() => DeliveryZonePointDto)
+  deliveryZone?: DeliveryZonePointDto[] | null;
 
   @ApiPropertyOptional({ minimum: 0, maximum: 1_000_000 })
   @ValidateIf((_object, value: unknown) => value !== undefined)
@@ -301,6 +339,22 @@ export class UpdateDeliveryWelayatDto {
 }
 
 export class CreateDeliveryEtrapDto {
+  @ApiPropertyOptional({
+    type: [DeliveryZonePointDto],
+    nullable: true,
+    minItems: 3,
+    maxItems: 64,
+    description:
+      "Ordered map boundary points. Null or omission creates the district without a map zone.",
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMinSize(3)
+  @ArrayMaxSize(64)
+  @ValidateNested({ each: true })
+  @Type(() => DeliveryZonePointDto)
+  deliveryZone?: DeliveryZonePointDto[] | null;
+
   @ApiPropertyOptional({ minimum: 0, maximum: 1_000_000 })
   @ValidateIf((_object, value: unknown) => value !== undefined)
   @IsNumber({ maxDecimalPlaces: 2 })

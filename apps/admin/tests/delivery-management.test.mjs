@@ -142,7 +142,7 @@ test("delivery directory forms validate and normalize every admin-managed field"
 });
 
 test("delivery manager reads and writes the real API with stable selectors", async () => {
-  const [queries, actions, manager] = await Promise.all([
+  const [queries, actions, manager, zoneMap] = await Promise.all([
     readFile(
       new URL(
         "../src/entities/delivery/api/delivery-queries.ts",
@@ -164,6 +164,13 @@ test("delivery manager reads and writes the real API with stable selectors", asy
       ),
       "utf8",
     ),
+    readFile(
+      new URL(
+        "../src/widgets/delivery-manager/ui/delivery-zone-map.tsx",
+        import.meta.url,
+      ),
+      "utf8",
+    ),
   ]);
 
   assert.match(queries, /"\/delivery\/config"/);
@@ -181,5 +188,13 @@ test("delivery manager reads and writes the real API with stable selectors", asy
   assert.match(manager, /data-testid="delivery-etrap-welayat"/);
   assert.match(manager, /data-testid="delivery-etrap-name-ru"/);
   assert.match(manager, /data-testid="delivery-etrap-search"/);
+  assert.match(manager, /data-testid="delivery-zone-overview"/);
+  assert.match(manager, /data-testid="delivery-zone-editor"/);
+  assert.match(manager, /data-testid="delivery-map-pricing-enabled"/);
+  assert.match(manager, /deliveryZone: zoneDraft\.length >= 3/);
+  assert.match(zoneMap, /data-testid="delivery-zone-map"/);
+  assert.match(zoneMap, /data-testid="delivery-zone-map-undo"/);
+  assert.match(zoneMap, /data-testid="delivery-zone-map-clear"/);
+  assert.match(zoneMap, /<Polygon/);
   assert.match(manager, /getRowId=\{\(etrap\) => String\(etrap\.id\)\}/);
 });

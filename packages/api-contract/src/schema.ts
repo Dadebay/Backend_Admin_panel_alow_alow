@@ -2505,6 +2505,16 @@ export interface components {
             items: components["schemas"]["CreateOrderItemDto"][];
             /** @description Delivery etrap used to include the authoritative delivery fee in this quote */
             deliveryEtrapId?: number;
+            /**
+             * @description Selected map latitude. Send together with longitude so map-zone pricing can override a stale district ID.
+             * @example 37.9601
+             */
+            latitude?: number;
+            /**
+             * @description Selected map longitude. Send together with latitude so map-zone pricing can override a stale district ID.
+             * @example 58.3261
+             */
+            longitude?: number;
             /** @example WELCOME15 */
             promoCode?: string;
         };
@@ -3744,7 +3754,14 @@ export interface components {
              */
             idempotencyKey?: string;
         };
+        DeliveryZonePointDto: {
+            /** @example 37.9601 */
+            latitude: number;
+            /** @example 58.3261 */
+            longitude: number;
+        };
         DeliveryEtrapResponseDto: {
+            deliveryZone: components["schemas"]["DeliveryZonePointDto"][] | null;
             nightPrice: number;
             nightFreeDeliveryThreshold: number | null;
             version: number;
@@ -3769,6 +3786,7 @@ export interface components {
             etraps: components["schemas"]["DeliveryEtrapResponseDto"][];
         };
         DeliveryConfigResponseDto: {
+            mapPricingEnabled: boolean;
             fallbackNightPrice: number;
             fallbackNightFreeDeliveryThreshold: number | null;
             nightTariffEnabled: boolean;
@@ -3818,8 +3836,10 @@ export interface components {
             latitude: number;
             longitude: number;
             welayat: components["schemas"]["DeliveryQuoteWelayatResponseDto"] | null;
-            /** @description True when reverse geocoding produced one unambiguous configured delivery area */
+            /** @description True when the selected coordinates resolve to one unambiguous configured delivery area */
             matched: boolean;
+            /** @enum {string} */
+            matchSource: "MAP_ZONE" | "LEGACY_TEXT" | "FALLBACK";
         };
         QuoteDeliveryTariffDto: {
             subtotal: number;
@@ -3846,6 +3866,8 @@ export interface components {
         UpdateDeliverySettingsDto: {
             /** @description Current configuration version; required when changing night settings */
             version?: number;
+            /** @description Use map polygons as the only district source for coordinate quotes and order pricing */
+            mapPricingEnabled?: boolean;
             fallbackNightPrice?: number;
             /** @description Null disables free delivery during the night tariff */
             fallbackNightFreeDeliveryThreshold?: number | null;
@@ -3865,6 +3887,7 @@ export interface components {
             fallbackFreeDeliveryThreshold?: number | null;
         };
         DeliverySettingsResponseDto: {
+            mapPricingEnabled: boolean;
             fallbackNightPrice: number;
             fallbackNightFreeDeliveryThreshold: number | null;
             nightTariffEnabled: boolean;
@@ -3895,6 +3918,8 @@ export interface components {
             sortOrder?: number;
         };
         CreateDeliveryEtrapDto: {
+            /** @description Ordered map boundary points. Null or omission creates the district without a map zone. */
+            deliveryZone?: components["schemas"]["DeliveryZonePointDto"][] | null;
             nightPrice?: number;
             /** @description Null disables free delivery during the night tariff */
             nightFreeDeliveryThreshold?: number | null;
@@ -3913,6 +3938,8 @@ export interface components {
         UpdateDeliveryEtrapDto: {
             /** @description Current configuration version; required when changing night settings */
             version?: number;
+            /** @description Ordered map boundary points. Null removes the zone; the backend closes the polygon. */
+            deliveryZone?: components["schemas"]["DeliveryZonePointDto"][] | null;
             nightPrice?: number;
             /** @description Null disables free delivery during the night tariff */
             nightFreeDeliveryThreshold?: number | null;

@@ -1,6 +1,10 @@
 import { ApiProperty } from "@nestjs/swagger";
+import { DeliveryZonePointDto } from "./delivery.dto";
 
 export class DeliverySettingsResponseDto {
+  @ApiProperty()
+  mapPricingEnabled: boolean;
+
   @ApiProperty()
   fallbackNightPrice: number;
 
@@ -36,6 +40,9 @@ export class DeliverySettingsResponseDto {
 }
 
 export class DeliveryEtrapResponseDto {
+  @ApiProperty({ type: [DeliveryZonePointDto], nullable: true })
+  deliveryZone: DeliveryZonePointDto[] | null;
+
   @ApiProperty()
   nightPrice: number;
 
@@ -97,6 +104,9 @@ export class DeliveryWelayatResponseDto {
 }
 
 export class DeliveryConfigResponseDto {
+  @ApiProperty()
+  mapPricingEnabled: boolean;
+
   @ApiProperty()
   fallbackNightPrice: number;
 
@@ -195,7 +205,10 @@ export class DeliveryQuoteResponseDto extends DeliveryTariffQuoteResponseDto {
 
   @ApiProperty({
     description:
-      "True when reverse geocoding produced one unambiguous configured delivery area",
+      "True when the selected coordinates resolve to one unambiguous configured delivery area",
   })
   matched: boolean;
+
+  @ApiProperty({ enum: ["MAP_ZONE", "LEGACY_TEXT", "FALLBACK"] })
+  matchSource: "MAP_ZONE" | "LEGACY_TEXT" | "FALLBACK";
 }

@@ -51,6 +51,7 @@ const optionalIntegerInput = z
   .transform((value) => (value ? Number(value) : null));
 
 export const deliverySettingsFormSchema = z.object({
+  mapPricingEnabled: z.boolean(),
   fallbackPrice: moneyInput,
   fallbackNightPrice: moneyInput.optional(),
   fallbackNightFreeDeliveryThreshold: optionalMoneyInput.optional(),

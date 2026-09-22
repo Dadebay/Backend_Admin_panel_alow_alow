@@ -20,6 +20,7 @@ import {
   MaxLength,
   Min,
   MinLength,
+  ValidateIf,
   ValidateNested,
 } from "class-validator";
 import { OrderStatus } from "../generated/prisma/client";
@@ -100,12 +101,18 @@ export class CreateOrderDto {
   address?: string;
 
   @ApiPropertyOptional({ example: 37.9601 })
-  @IsOptional()
+  @ValidateIf(
+    (dto: CreateOrderDto) =>
+      dto.latitude !== undefined || dto.longitude !== undefined,
+  )
   @IsLatitude()
   latitude?: number;
 
   @ApiPropertyOptional({ example: 58.3261 })
-  @IsOptional()
+  @ValidateIf(
+    (dto: CreateOrderDto) =>
+      dto.latitude !== undefined || dto.longitude !== undefined,
+  )
   @IsLongitude()
   longitude?: number;
 
@@ -163,6 +170,30 @@ export class QuoteOrderDto {
   @IsInt()
   @Min(1)
   deliveryEtrapId?: number;
+
+  @ApiPropertyOptional({
+    example: 37.9601,
+    description:
+      "Selected map latitude. Send together with longitude so map-zone pricing can override a stale district ID.",
+  })
+  @ValidateIf(
+    (dto: QuoteOrderDto) =>
+      dto.latitude !== undefined || dto.longitude !== undefined,
+  )
+  @IsLatitude()
+  latitude?: number;
+
+  @ApiPropertyOptional({
+    example: 58.3261,
+    description:
+      "Selected map longitude. Send together with latitude so map-zone pricing can override a stale district ID.",
+  })
+  @ValidateIf(
+    (dto: QuoteOrderDto) =>
+      dto.latitude !== undefined || dto.longitude !== undefined,
+  )
+  @IsLongitude()
+  longitude?: number;
 
   @ApiPropertyOptional({ example: "WELCOME15" })
   @IsOptional()

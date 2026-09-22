@@ -9138,6 +9138,110 @@ button:disabled {
   overflow-y: auto;
 }
 
+.delivery-zone-modal {
+  width: min(1040px, 100%);
+}
+
+.delivery-zone-overview {
+  margin-bottom: 14px;
+}
+
+.delivery-zone-overview-title,
+.delivery-zone-editor-copy,
+.delivery-zone-map-tools,
+.delivery-zone-summary,
+.delivery-map-pricing-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.delivery-zone-overview-title > div,
+.delivery-zone-editor-copy > div,
+.delivery-map-pricing-toggle > span {
+  display: grid;
+  gap: 5px;
+}
+
+.delivery-zone-overview-title small,
+.delivery-zone-editor-copy p,
+.delivery-zone-map-tools span,
+.delivery-map-pricing-toggle small {
+  margin: 0;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.delivery-zone-map-shell {
+  position: relative;
+  z-index: 0;
+  isolation: isolate;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--brand-cream);
+}
+
+.delivery-zone-map-canvas,
+.delivery-zone-map-leaflet {
+  min-height: 420px;
+}
+
+.delivery-zone-map-leaflet {
+  width: 100%;
+  height: 100%;
+  cursor: crosshair;
+}
+
+.delivery-zone-map-tools {
+  padding: 12px 14px;
+  border-top: 1px solid var(--line);
+  background: var(--surface);
+}
+
+.delivery-zone-map-tools > div:first-child {
+  display: grid;
+  gap: 3px;
+}
+
+.delivery-zone-editor {
+  display: grid;
+  gap: 12px;
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.delivery-zone-editor-copy h3 {
+  margin: 0;
+  font-size: 14px;
+}
+
+.delivery-zone-summary {
+  justify-content: flex-start;
+  padding: 10px 2px 0;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.delivery-map-pricing-toggle {
+  justify-content: flex-start;
+  margin: 4px 0 16px;
+  padding: 13px 14px;
+  border: 1px solid color-mix(in srgb, var(--brand-orange) 35%, var(--line));
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--brand-cream) 82%, white);
+}
+
+.delivery-map-pricing-toggle input {
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  accent-color: var(--brand-orange);
+}
+
 @media (max-width: 720px) {
   .delivery-directory-modal .delivery-directory-grid {
     grid-template-columns: 1fr;
@@ -9175,6 +9279,23 @@ button:disabled {
   .delivery-filters button {
     width: 100%;
     min-width: 0;
+  }
+
+  .delivery-zone-overview-title,
+  .delivery-zone-editor-copy,
+  .delivery-zone-map-tools {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .delivery-zone-map-tools .row-actions,
+  .delivery-zone-map-tools button {
+    width: 100%;
+  }
+
+  .delivery-zone-map-canvas,
+  .delivery-zone-map-leaflet {
+    min-height: 320px;
   }
 }
 

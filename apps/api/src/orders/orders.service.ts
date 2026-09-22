@@ -251,6 +251,10 @@ export class OrdersService {
         tx,
         subtotal,
         dto.deliveryEtrapId ?? null,
+        new Date(),
+        dto.latitude !== undefined && dto.longitude !== undefined
+          ? { latitude: dto.latitude, longitude: dto.longitude }
+          : undefined,
       );
       const originalLineTotals = resolvedItems.map(
         ({ product, variant, quantity }) =>
@@ -692,10 +696,11 @@ export class OrdersService {
       subtotal,
     );
 
+    const usesMapPricing = await this.delivery.usesMapPricing(tx);
     const selectedAddress = await this.addresses.selectForOrder(
       tx,
       customerId,
-      dto,
+      usesMapPricing ? { ...dto, deliveryEtrapId: undefined } : dto,
       actorId,
     );
     const deliveryPricing = await this.delivery.resolvePricing(
@@ -703,7 +708,19 @@ export class OrdersService {
       subtotal,
       selectedAddress.deliveryEtrapId,
       createdAt,
+      {
+        latitude: Number(selectedAddress.latitude),
+        longitude: Number(selectedAddress.longitude),
+      },
     );
+    if (
+      selectedAddress.deliveryEtrapId !== (deliveryPricing.etrap?.id ?? null)
+    ) {
+      await tx.userAddress.update({
+        where: { id: selectedAddress.id },
+        data: { deliveryEtrapId: deliveryPricing.etrap?.id ?? null },
+      });
+    }
     const deliveryFee = deliveryPricing.fee;
     const total = roundMoney(subtotal - discount + deliveryFee);
     const nearest = await this.branches.findNearestActive(tx, {
@@ -1148,6 +1165,7 @@ export class OrdersService {
         subtotal,
         dto.deliveryEtrapId,
         order.createdAt,
+        { latitude: dto.latitude, longitude: dto.longitude },
       );
       const nearest = await this.branches.findNearestActive(tx, {
         latitude: dto.latitude,

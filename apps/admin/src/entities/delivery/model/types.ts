@@ -7,6 +7,7 @@ export type DeliveryQuote = components["schemas"]["DeliveryQuoteResponseDto"];
 export type DeliveryWelayat =
   components["schemas"]["DeliveryWelayatResponseDto"];
 export type DeliveryEtrap = components["schemas"]["DeliveryEtrapResponseDto"];
+export type DeliveryZonePoint = components["schemas"]["DeliveryZonePointDto"];
 export type UpdateDeliverySettings =
   components["schemas"]["UpdateDeliverySettingsDto"];
 export type CreateDeliveryWelayat =

@@ -15,6 +15,7 @@ import {
   useAdminDeliveryConfig,
   type DeliveryEtrapWithWelayat,
   type DeliveryZonePoint,
+  type DeliveryZoneSuggestion,
   type DeliveryWelayat,
 } from "@/src/entities/delivery";
 import { useDeliveryActions } from "@/src/features/delivery-management";
@@ -31,6 +32,11 @@ import {
   type DeliveryWelayatFormInput,
   type DeliveryWelayatFormValues,
 } from "../model/delivery-form";
+import {
+  createStarterDeliveryZone,
+  findExistingZoneForSuggestion,
+  findWelayatForZoneSuggestion,
+} from "../model/delivery-zone-editor";
 
 import { NightDeliverySchedule } from "./night-delivery-schedule";
 
@@ -53,13 +59,18 @@ export function DeliveryManager() {
   const config = useAdminDeliveryConfig();
   const actions = useDeliveryActions();
   const [search, setSearch] = useState("");
-  const [welayatId, setWelayatId] = useState("");
   const [welayatEditor, setWelayatEditor] = useState<WelayatEditor | null>(
     null,
   );
   const [etrapEditor, setEtrapEditor] = useState<EtrapEditor | null>(null);
   const [zoneDraft, setZoneDraft] = useState<DeliveryZonePoint[]>([]);
   const [zoneError, setZoneError] = useState("");
+  const [zoneDiscoveryMode, setZoneDiscoveryMode] = useState(false);
+  const [zoneAssistantMessage, setZoneAssistantMessage] = useState("");
+  const [mapZoneSelectionMode, setMapZoneSelectionMode] = useState(false);
+  const [mapZoneSelectionMessage, setMapZoneSelectionMessage] = useState("");
+  const [zoneFitRevision, setZoneFitRevision] = useState(0);
+  const zoneLookupSequence = useRef(0);
   const welayatFormRef = useRef<HTMLFormElement>(null);
   const etrapFormRef = useRef<HTMLFormElement>(null);
   const {
@@ -92,6 +103,7 @@ export function DeliveryManager() {
     register: registerEtrap,
     handleSubmit: handleEtrapSubmit,
     reset: resetEtrap,
+    setValue: setEtrapValue,
     formState: { errors: etrapErrors },
   } = useForm<DeliveryEtrapFormInput, unknown, DeliveryEtrapFormValues>({
     resolver: zodResolver(deliveryEtrapFormSchema),
@@ -150,10 +162,14 @@ export function DeliveryManager() {
     () => flattenDeliveryEtraps(config.data),
     [config.data],
   );
-  const visibleEtraps = useMemo(() => {
+  const tariffZones = useMemo(
+    () =>
+      allEtraps.filter((etrap) => (etrap.deliveryZone?.length ?? 0) >= 3),
+    [allEtraps],
+  );
+  const visibleTariffZones = useMemo(() => {
     const normalized = search.trim().toLocaleLowerCase("ru");
-    return allEtraps.filter((etrap) => {
-      if (welayatId && etrap.welayatId !== Number(welayatId)) return false;
+    return tariffZones.filter((etrap) => {
       if (!normalized) return true;
       return [
         etrap.nameRu,
@@ -163,7 +179,7 @@ export function DeliveryManager() {
         etrap.welayatNameTk,
       ].some((value) => value.toLocaleLowerCase("ru").includes(normalized));
     });
-  }, [allEtraps, search, welayatId]);
+  }, [search, tariffZones]);
 
   const openCreateWelayat = useCallback(() => {
     const sortOrders =
@@ -194,12 +210,15 @@ export function DeliveryManager() {
   );
 
   const openCreateEtrap = useCallback(() => {
-    const initialWelayatId =
-      welayatId || String(config.data?.welayats[0]?.id ?? "");
+    const initialWelayatId = String(config.data?.welayats[0]?.id ?? "");
     setWelayatEditor(null);
     setEtrapEditor({ mode: "create" });
     setZoneDraft([]);
     setZoneError("");
+    setZoneDiscoveryMode(false);
+    setZoneAssistantMessage("");
+    zoneLookupSequence.current += 1;
+    actions.suggestZone.reset();
     resetEtrap({
       welayatId: initialWelayatId,
       nameEn: "",
@@ -214,14 +233,27 @@ export function DeliveryManager() {
         config.data?.fallbackFreeDeliveryThreshold?.toFixed(2) ?? "",
       isDeliveryEnabled: false,
     });
-  }, [config.data, resetEtrap, welayatId]);
+  }, [actions.suggestZone, config.data, resetEtrap]);
 
   const openEtrapEditor = useCallback(
-    (etrap: DeliveryEtrapWithWelayat) => {
+    (
+      etrap: DeliveryEtrapWithWelayat,
+      suggestedBoundary?: readonly DeliveryZonePoint[],
+    ) => {
       setWelayatEditor(null);
       setEtrapEditor({ mode: "edit", etrap });
-      setZoneDraft(etrap.deliveryZone ? [...etrap.deliveryZone] : []);
+      setZoneDraft(
+        suggestedBoundary
+          ? [...suggestedBoundary]
+          : etrap.deliveryZone
+            ? [...etrap.deliveryZone]
+            : [],
+      );
       setZoneError("");
+      setZoneDiscoveryMode(false);
+      setZoneAssistantMessage("");
+      zoneLookupSequence.current += 1;
+      actions.suggestZone.reset();
       resetEtrap({
         welayatId: String(etrap.welayatId),
         nameEn: etrap.nameEn ?? "",
@@ -237,8 +269,177 @@ export function DeliveryManager() {
         isDeliveryEnabled: etrap.isDeliveryEnabled,
       });
     },
-    [resetEtrap],
+    [actions.suggestZone, resetEtrap],
   );
+
+  const openSuggestedZone = useCallback(
+    (suggestion: DeliveryZoneSuggestion, approximateBoundary = false) => {
+      const boundary = suggestion.boundary ?? [];
+      const suggestedWelayat = findWelayatForZoneSuggestion(
+        config.data?.welayats ?? [],
+        suggestion,
+      );
+      const existing = findExistingZoneForSuggestion(
+        allEtraps,
+        suggestion,
+        suggestedWelayat?.id,
+      );
+      if (existing) {
+        openEtrapEditor(existing, boundary);
+        setZoneFitRevision((revision) => revision + 1);
+        setZoneAssistantMessage(
+          approximateBoundary
+            ? `Для «${existing.nameRu}» нет готовой OSM-границы. Мы создали небольшой черновой контур вокруг точки — растяните его за пронумерованные точки и задайте цену.`
+            : `Найдена готовая зона «${existing.nameRu}». Проверьте границу и задайте цену.`,
+        );
+        return;
+      }
+
+      setWelayatEditor(null);
+      setEtrapEditor({ mode: "create" });
+      setZoneDraft([...boundary]);
+      setZoneError("");
+      setZoneDiscoveryMode(false);
+      setZoneAssistantMessage(
+        approximateBoundary
+          ? suggestion.label
+            ? `Для «${suggestion.label}» нет готовой OSM-границы. Мы создали небольшой черновой контур вокруг точки — растяните его за пронумерованные точки и задайте цену.`
+            : "Готовая граница не найдена. Мы создали небольшой черновой контур вокруг точки — растяните его за пронумерованные точки, укажите название и цену."
+          : `Найдена зона: ${suggestion.label}. Проверьте границу и задайте цену.`,
+      );
+      setZoneFitRevision((revision) => revision + 1);
+      zoneLookupSequence.current += 1;
+      actions.suggestZone.reset();
+      resetEtrap({
+        welayatId: String(
+          suggestedWelayat?.id ?? config.data?.welayats[0]?.id ?? "",
+        ),
+        nameEn: suggestion.nameEn ?? "",
+        nameRu: suggestion.nameRu ?? "",
+        nameTk: suggestion.nameTk ?? suggestion.nameRu ?? "",
+        queuePosition: "",
+        price: config.data?.fallbackPrice.toFixed(2) ?? "15.00",
+        nightPrice: config.data?.fallbackNightPrice.toFixed(2) ?? "15.00",
+        nightFreeDeliveryThreshold:
+          config.data?.fallbackNightFreeDeliveryThreshold?.toFixed(2) ?? "",
+        freeDeliveryThreshold:
+          config.data?.fallbackFreeDeliveryThreshold?.toFixed(2) ?? "",
+        isDeliveryEnabled: false,
+      });
+    },
+    [
+      actions.suggestZone,
+      allEtraps,
+      config.data,
+      openEtrapEditor,
+      resetEtrap,
+    ],
+  );
+
+  async function selectTariffZoneFromMap(point: DeliveryZonePoint) {
+    if (actions.suggestZone.isPending) return;
+    const sequence = zoneLookupSequence.current;
+    setMapZoneSelectionMode(false);
+    setMapZoneSelectionMessage(
+      "Определяем название и замкнутую границу выбранного района…",
+    );
+    try {
+      const suggestion = await actions.suggestZone.mutateAsync(point);
+      if (sequence !== zoneLookupSequence.current) return;
+      if (!suggestion.label) {
+        setMapZoneSelectionMessage("");
+        openSuggestedZone(
+          {
+            ...suggestion,
+            boundary: createStarterDeliveryZone(point),
+          },
+          true,
+        );
+        return;
+      }
+      if (!suggestion.boundary || suggestion.boundary.length < 3) {
+        setMapZoneSelectionMessage("");
+        openSuggestedZone(
+          {
+            ...suggestion,
+            boundary: createStarterDeliveryZone(point),
+          },
+          true,
+        );
+        return;
+      }
+      setMapZoneSelectionMessage("");
+      openSuggestedZone(suggestion);
+    } catch (reason) {
+      if (sequence !== zoneLookupSequence.current) return;
+      setMapZoneSelectionMessage(
+        reason instanceof Error
+          ? reason.message
+          : "Не удалось получить границу района. Попробуйте ещё раз.",
+      );
+    }
+  }
+
+  async function discoverZone(point: DeliveryZonePoint) {
+    const sequence = zoneLookupSequence.current;
+    setZoneDiscoveryMode(false);
+    setZoneAssistantMessage("Ищем название и границу района в OpenStreetMap…");
+    try {
+      const suggestion = await actions.suggestZone.mutateAsync(point);
+      if (sequence !== zoneLookupSequence.current || !etrapFormRef.current) {
+        return;
+      }
+      if (!suggestion.label) {
+        setZoneDraft(createStarterDeliveryZone(point));
+        setZoneFitRevision((revision) => revision + 1);
+        setZoneError("");
+        setZoneAssistantMessage(
+          "Готовая граница не найдена, поэтому создан небольшой черновой контур вокруг точки. Растяните его за пронумерованные точки и укажите название вручную.",
+        );
+        return;
+      }
+      if (suggestion.nameRu) {
+        setEtrapValue("nameRu", suggestion.nameRu, {
+          shouldDirty: true,
+          shouldValidate: true,
+        });
+      }
+      if (suggestion.nameTk) {
+        setEtrapValue("nameTk", suggestion.nameTk, {
+          shouldDirty: true,
+          shouldValidate: true,
+        });
+      }
+      if (suggestion.nameEn) {
+        setEtrapValue("nameEn", suggestion.nameEn, {
+          shouldDirty: true,
+          shouldValidate: true,
+        });
+      }
+      if (suggestion.boundary && suggestion.boundary.length >= 3) {
+        setZoneDraft(suggestion.boundary);
+        setZoneFitRevision((revision) => revision + 1);
+        setZoneError("");
+        setZoneAssistantMessage(
+          `Найдено: ${suggestion.label}. Загружено ${suggestion.boundary.length} точек — границу можно поправить перетаскиванием.`,
+        );
+      } else {
+        setZoneDraft(createStarterDeliveryZone(point));
+        setZoneFitRevision((revision) => revision + 1);
+        setZoneError("");
+        setZoneAssistantMessage(
+          `Найдено: ${suggestion.label}. Готовой OSM-границы нет, поэтому создан небольшой черновой контур вокруг точки. Растяните его за пронумерованные точки.`,
+        );
+      }
+    } catch (reason) {
+      if (sequence !== zoneLookupSequence.current) return;
+      setZoneAssistantMessage(
+        reason instanceof Error
+          ? reason.message
+          : "Не удалось определить район. Попробуйте ещё раз.",
+      );
+    }
+  }
 
   // Velayat listesi kurulum ekrani: adi, kac rayonu oldugu ve duzenleme
   // dugmesi yeter. Ingilizce ad ile siralama numarasi modalda duruyor,
@@ -289,7 +490,7 @@ export function DeliveryManager() {
         // Panel tek dilli (index.html: lang="ru"), bu yuzden listede yalnizca
         // rusca ad gosteriliyor. Panele dil secimi eklenirse degistirilecek
         // tek yer burasi.
-        header: "Район / этрап",
+        header: "Район / улица",
         cell: ({ row }) => (
           <div className="primary-cell">
             <strong>{row.original.nameRu}</strong>
@@ -481,7 +682,7 @@ export function DeliveryManager() {
     welayatErrors.nameEn || welayatErrors.sortOrder,
   );
   const etrapAdvancedError = Boolean(
-    etrapErrors.nameEn || etrapErrors.queuePosition,
+    etrapErrors.welayatId || etrapErrors.nameEn || etrapErrors.queuePosition,
   );
 
   return (
@@ -516,20 +717,44 @@ export function DeliveryManager() {
           <div>
             <h2>Тарифные зоны на карте</h2>
             <small>
-              Нажмите на границу района, чтобы изменить её и назначить цену.
-              Текст адреса не участвует в расчёте после включения режима карты.
+              На карте показаны только ваши тарифные зоны. Выберите район на
+              карте или откройте сохранённый контур, чтобы назначить цену.
             </small>
           </div>
-          <span
-            className={`state-pill ${
-              config.data?.mapPricingEnabled ? "is-on" : "is-off"
-            }`}
-            data-testid="delivery-map-pricing-state"
-          >
-            {config.data?.mapPricingEnabled
-              ? "Расчёт по карте включён"
-              : "Подготовка зон"}
-          </span>
+          <div className="delivery-zone-overview-actions">
+            <button
+              className={
+                mapZoneSelectionMode
+                  ? "primary-button compact"
+                  : "secondary-button compact"
+              }
+              data-testid="delivery-map-zone-select"
+              disabled={actions.suggestZone.isPending}
+              onClick={() => {
+                zoneLookupSequence.current += 1;
+                setMapZoneSelectionMode((active) => !active);
+                setMapZoneSelectionMessage("");
+                actions.suggestZone.reset();
+              }}
+              type="button"
+            >
+              {actions.suggestZone.isPending
+                ? "Ищем границу…"
+                : mapZoneSelectionMode
+                  ? "Отменить выбор"
+                  : "Выбрать район на карте"}
+            </button>
+            <span
+              className={`state-pill ${
+                config.data?.mapPricingEnabled ? "is-on" : "is-off"
+              }`}
+              data-testid="delivery-map-pricing-state"
+            >
+              {config.data?.mapPricingEnabled
+                ? "Расчёт по карте включён"
+                : "Подготовка зон"}
+            </span>
+          </div>
         </div>
         <AsyncPanel
           pending={config.isPending}
@@ -546,20 +771,46 @@ export function DeliveryManager() {
               </div>
             }
           >
-            <DeliveryZoneMap onSelect={openEtrapEditor} zones={visibleEtraps} />
+            {mapZoneSelectionMode && (
+              <div
+                className="delivery-zone-assistant is-active"
+                data-testid="delivery-map-zone-select-hint"
+                role="status"
+              >
+                Нажмите внутри района или города. Если у карты есть готовая
+                граница, мы загрузим её; иначе создадим удобный черновик
+                контура вокруг выбранной точки.
+              </div>
+            )}
+            {mapZoneSelectionMessage && (
+              <div
+                className="delivery-zone-assistant"
+                data-testid="delivery-map-zone-select-result"
+                role="status"
+              >
+                {mapZoneSelectionMessage}
+              </div>
+            )}
+            <DeliveryZoneMap
+              discoveryMode={mapZoneSelectionMode}
+              fitRevision={tariffZones.length}
+              onDiscover={(point) => void selectTariffZoneFromMap(point)}
+              onSelect={(zone) => {
+                setMapZoneSelectionMode(false);
+                setMapZoneSelectionMessage("");
+                openEtrapEditor(zone);
+              }}
+              zones={tariffZones}
+            />
           </Suspense>
           <div
             className="delivery-zone-summary"
             data-testid="delivery-zone-summary"
           >
             <span>
-              С границей:{" "}
-              {allEtraps.filter(({ deliveryZone }) => deliveryZone).length}
+              Тарифных районов на карте: {tariffZones.length}
             </span>
-            <span>
-              Без границы:{" "}
-              {allEtraps.filter(({ deliveryZone }) => !deliveryZone).length}
-            </span>
+            <span>Клик по контуру открывает его цену и настройки</span>
           </div>
         </AsyncPanel>
       </article>
@@ -705,7 +956,7 @@ export function DeliveryManager() {
                 <div>
                   <h2 id="delivery-etrap-form-title">
                     {etrapEditor.mode === "create"
-                      ? "Новый район"
+                      ? "Новый тарифный район"
                       : etrapEditor.etrap.nameRu}
                   </h2>
                 </div>
@@ -729,23 +980,7 @@ export function DeliveryManager() {
               </header>
               <div className="form-grid delivery-directory-grid">
                 <label>
-                  <span>Велаят</span>
-                  <select
-                    data-testid="delivery-etrap-welayat"
-                    {...registerEtrap("welayatId")}
-                    aria-invalid={Boolean(etrapErrors.welayatId)}
-                  >
-                    <option value="">Выберите велаят</option>
-                    {config.data?.welayats.map((welayat) => (
-                      <option key={welayat.id} value={welayat.id}>
-                        {welayat.nameRu}
-                      </option>
-                    ))}
-                  </select>
-                  <FormFieldError message={etrapErrors.welayatId?.message} />
-                </label>
-                <label>
-                  <span>Название на русском</span>
+                  <span>Название зоны на русском</span>
                   <input
                     data-testid="delivery-etrap-name-ru"
                     {...registerEtrap("nameRu")}
@@ -754,7 +989,7 @@ export function DeliveryManager() {
                   <FormFieldError message={etrapErrors.nameRu?.message} />
                 </label>
                 <label>
-                  <span>Название на туркменском</span>
+                  <span>Название зоны на туркменском</span>
                   <input
                     data-testid="delivery-etrap-name-tk"
                     {...registerEtrap("nameTk")}
@@ -817,7 +1052,7 @@ export function DeliveryManager() {
                     {...registerEtrap("isDeliveryEnabled")}
                     type="checkbox"
                   />
-                  Район доступен клиентам
+                  Зона доступна клиентам
                 </label>
               </div>
               <section
@@ -828,15 +1063,56 @@ export function DeliveryManager() {
                   <div>
                     <h3>Граница тарифа</h3>
                     <p>
-                      Обведите район последовательными кликами. Цена выше будет
-                      применяться, только когда адресная точка находится внутри
-                      этой границы.
+                      Цена применяется только внутри сплошного контура. Можно
+                      выбрать другой район одним кликом или поправить точки
+                      границы вручную.
                     </p>
                   </div>
-                  {zoneDraft.length >= 3 && (
-                    <span className="state-pill is-on">Зона готова</span>
-                  )}
+                  <div className="delivery-zone-editor-actions">
+                    {zoneDraft.length >= 3 && (
+                      <span className="state-pill is-on">Зона готова</span>
+                    )}
+                    <button
+                      className={
+                        zoneDiscoveryMode
+                          ? "primary-button compact"
+                          : "secondary-button compact"
+                      }
+                      data-testid="delivery-zone-discover"
+                      disabled={actions.suggestZone.isPending}
+                      onClick={() => {
+                        setZoneDiscoveryMode((active) => !active);
+                        setZoneAssistantMessage("");
+                      }}
+                      type="button"
+                    >
+                      {actions.suggestZone.isPending
+                        ? "Ищем зону…"
+                        : zoneDiscoveryMode
+                          ? "Отменить выбор"
+                          : "Определить зону по карте"}
+                    </button>
+                  </div>
                 </div>
+                {zoneDiscoveryMode && (
+                  <div
+                    className="delivery-zone-assistant is-active"
+                    data-testid="delivery-zone-discovery-hint"
+                    role="status"
+                  >
+                    Кликните внутри района или города. Карта загрузит готовую
+                    границу либо создаст редактируемый черновик вокруг точки.
+                  </div>
+                )}
+                {zoneAssistantMessage && (
+                  <div
+                    className="delivery-zone-assistant"
+                    data-testid="delivery-zone-discovery-result"
+                    role="status"
+                  >
+                    {zoneAssistantMessage}
+                  </div>
+                )}
                 <Suspense
                   fallback={
                     <div
@@ -849,7 +1125,10 @@ export function DeliveryManager() {
                 >
                   <DeliveryZoneMap
                     draft={zoneDraft}
+                    discoveryMode={zoneDiscoveryMode}
                     editable
+                    fitRevision={zoneFitRevision}
+                    onDiscover={(point) => void discoverZone(point)}
                     onDraftChange={(points) => {
                       setZoneDraft(points);
                       setZoneError("");
@@ -881,6 +1160,22 @@ export function DeliveryManager() {
                 <summary>Дополнительно</summary>
                 <div className="form-grid delivery-directory-grid">
                   <label>
+                    <span>Служебная привязка к велаяту</span>
+                    <select
+                      data-testid="delivery-etrap-welayat"
+                      {...registerEtrap("welayatId")}
+                      aria-invalid={Boolean(etrapErrors.welayatId)}
+                    >
+                      <option value="">Выберите велаят</option>
+                      {config.data?.welayats.map((welayat) => (
+                        <option key={welayat.id} value={welayat.id}>
+                          {welayat.nameRu}
+                        </option>
+                      ))}
+                    </select>
+                    <FormFieldError message={etrapErrors.welayatId?.message} />
+                  </label>
+                  <label>
                     <span>Название на английском</span>
                     <input
                       data-testid="delivery-etrap-name-en"
@@ -906,7 +1201,7 @@ export function DeliveryManager() {
                 </div>
               </details>
               <p className="delivery-directory-note">
-                Район нельзя удалить — выключите его, чтобы скрыть от клиентов и
+                Зону нельзя удалить — выключите её, чтобы скрыть от клиентов и
                 сохранить старые адреса и чеки.
               </p>
               {(actions.updateEtrap.error || actions.createEtrap.error) && (
@@ -941,7 +1236,7 @@ export function DeliveryManager() {
                 <button
                   className="primary-button"
                   data-testid="delivery-etrap-save"
-                  disabled={directoryPending}
+                  disabled={directoryPending || actions.suggestZone.isPending}
                 >
                   {directoryPending ? "Сохраняем…" : "Сохранить"}
                 </button>
@@ -956,51 +1251,26 @@ export function DeliveryManager() {
         onReload={() => void config.refetch()}
       />
 
-      {/* Gunluk is tek sey: bir rayonun fiyatini degistirmek ya da acip
-          kapatmak. Sayfanin tamami o liste; velayat sozlugu ve yedek tarif
-          kurulumluk oldugu icin asagida kapali duruyor. */}
+      {/* Only zones with a saved map boundary belong to daily tariff work.
+          The legacy administrative directory remains available below for
+          rollback and exceptional manual setup. */}
       <article className="table-card" data-testid="delivery-etrap-table-card">
         <div className="card-title delivery-table-title">
           <div>
-            <h2>Районы</h2>
+            <h2>Тарифные районы на карте</h2>
             <span>
-              {visibleEtraps.length} из {allEtraps.length}
+              {visibleTariffZones.length} из {tariffZones.length}
             </span>
           </div>
           <div className="delivery-filters">
-            <label>
-              <span className="sr-only">Велаят</span>
-              <select
-                aria-label="Фильтр по велаяту"
-                data-testid="delivery-welayat-filter"
-                value={welayatId}
-                onChange={(event) => setWelayatId(event.target.value)}
-              >
-                <option value="">Все велаяты</option>
-                {config.data?.welayats.map((welayat) => (
-                  <option key={welayat.id} value={welayat.id}>
-                    {welayat.nameRu}
-                  </option>
-                ))}
-              </select>
-            </label>
             <input
-              aria-label="Поиск района"
+              aria-label="Поиск тарифного района"
               data-testid="delivery-etrap-search"
               type="search"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Найти район"
+              placeholder="Найти район на карте"
             />
-            <button
-              className="primary-button compact"
-              data-testid="delivery-etrap-create"
-              type="button"
-              disabled={!config.data?.welayats.length}
-              onClick={openCreateEtrap}
-            >
-              Добавить район
-            </button>
           </div>
         </div>
         <AsyncPanel
@@ -1010,10 +1280,10 @@ export function DeliveryManager() {
         >
           <DataTable
             columns={etrapColumns}
-            data={visibleEtraps}
-            empty="Районы не найдены. Измените фильтр или создайте новый район."
+            data={visibleTariffZones}
+            empty="Тарифных районов пока нет. Нажмите «Выбрать район на карте» выше и укажите цену."
             getRowId={(etrap) => String(etrap.id)}
-            label="Тарифы доставки по районам"
+            label="Тарифы доставки по районам на карте"
             minWidth={760}
             pageSize={25}
           />
@@ -1023,8 +1293,8 @@ export function DeliveryManager() {
       <details className="delivery-setup" data-testid="delivery-setup">
         <summary>
           <span>
-            Велаяты и резервный тариф
-            <small>Нужны при настройке, а не в ежедневной работе</small>
+            Служебный справочник и резервный тариф
+            <small>Для совместимости и зон без готовой OSM-границы</small>
           </span>
           <b>{config.data?.welayats.length ?? 0}</b>
         </summary>
@@ -1036,16 +1306,27 @@ export function DeliveryManager() {
           >
             <div className="card-title delivery-table-title">
               <div>
-                <h2>Велаяты</h2>
+                <h2>Служебная привязка к велаятам</h2>
               </div>
-              <button
-                className="primary-button compact"
-                data-testid="delivery-welayat-create"
-                type="button"
-                onClick={openCreateWelayat}
-              >
-                Добавить велаят
-              </button>
+              <div className="row-actions">
+                <button
+                  className="secondary-button compact"
+                  data-testid="delivery-etrap-create-manual"
+                  type="button"
+                  disabled={!config.data?.welayats.length}
+                  onClick={openCreateEtrap}
+                >
+                  Нарисовать зону вручную
+                </button>
+                <button
+                  className="text-button compact"
+                  data-testid="delivery-welayat-create"
+                  type="button"
+                  onClick={openCreateWelayat}
+                >
+                  Добавить велаят
+                </button>
+              </div>
             </div>
             <AsyncPanel
               pending={config.isPending}
@@ -1084,8 +1365,8 @@ export function DeliveryManager() {
               <span>
                 <strong>Определять тариф только по карте</strong>
                 <small>
-                  Включайте после отрисовки всех активных районов. Backend не
-                  позволит включить режим, пока у включённого района нет зоны.
+                  Включайте, когда подготовлены нужные тарифные районы. Старые
+                  строки справочника без контура в расчёте участвовать не будут.
                 </small>
               </span>
             </label>

@@ -5,6 +5,8 @@ import {
   type CreateDeliveryWelayat,
   type DeliveryEtrap,
   type DeliveryWelayat,
+  type DeliveryZonePoint,
+  type DeliveryZoneSuggestion,
   type UpdateDeliveryEtrap,
   type UpdateDeliverySettings,
   type UpdateDeliveryWelayat,
@@ -62,11 +64,23 @@ export function useDeliveryActions() {
     onSuccess: refresh,
   });
 
+  const suggestZone = useMutation({
+    mutationFn: (body: DeliveryZonePoint) =>
+      authorizedRequest<DeliveryZoneSuggestion>(
+        "/delivery/admin/zone-suggestion",
+        {
+          method: "POST",
+          body: JSON.stringify(body),
+        },
+      ),
+  });
+
   return {
     updateSettings,
     createWelayat,
     updateWelayat,
     createEtrap,
     updateEtrap,
+    suggestZone,
   };
 }

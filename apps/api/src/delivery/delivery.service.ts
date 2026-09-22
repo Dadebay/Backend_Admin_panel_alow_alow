@@ -18,6 +18,7 @@ import {
   CreateDeliveryWelayatDto,
   QuoteDeliveryDto,
   QuoteDeliveryTariffDto,
+  DeliveryZonePointDto,
   UpdateDeliveryEtrapDto,
   UpdateDeliverySettingsDto,
   UpdateDeliveryWelayatDto,
@@ -52,6 +53,31 @@ export class DeliveryService {
 
   adminConfig() {
     return this.getConfig(false);
+  }
+
+  async suggestZone(dto: DeliveryZonePointDto) {
+    const suggestion = await this.geocoding.suggestDistrictBoundary(
+      dto.latitude,
+      dto.longitude,
+    );
+    if (!suggestion) {
+      return {
+        label: null,
+        nameRu: null,
+        nameTk: null,
+        nameEn: null,
+        boundary: null,
+        provider: null,
+      };
+    }
+    const boundary = suggestion.boundary
+      ? normalizeDeliveryZone(suggestion.boundary)
+      : null;
+    return {
+      ...suggestion,
+      boundary:
+        boundary && !deliveryZoneValidationError(boundary) ? boundary : null,
+    };
   }
 
   async quote(dto: QuoteDeliveryDto) {
@@ -114,21 +140,20 @@ export class DeliveryService {
     });
     if (!settings) throw new NotFoundException("Delivery settings not found");
     const usesCoordinates = settings.mapPricingEnabled && coordinates;
-    const etrap =
-      usesCoordinates
-        ? findDeliveryAreaForCoordinates(
-            await tx.etrap.findMany({
-              where: { isDeliveryEnabled: true },
-              include: { welayat: true },
-            }),
-            coordinates,
-          )
-        : deliveryEtrapId === null
-          ? null
-          : await tx.etrap.findUnique({
-              where: { id: deliveryEtrapId },
-              include: { welayat: true },
-            });
+    const etrap = usesCoordinates
+      ? findDeliveryAreaForCoordinates(
+          await tx.etrap.findMany({
+            where: { isDeliveryEnabled: true },
+            include: { welayat: true },
+          }),
+          coordinates,
+        )
+      : deliveryEtrapId === null
+        ? null
+        : await tx.etrap.findUnique({
+            where: { id: deliveryEtrapId },
+            include: { welayat: true },
+          });
     if (!usesCoordinates && deliveryEtrapId !== null && !etrap)
       throw new BadRequestException("Delivery etrap not found");
     if (etrap && !etrap.isDeliveryEnabled)
@@ -568,27 +593,25 @@ export class DeliveryService {
       select: { id: true, nameRu: true, deliveryZone: true },
       orderBy: { id: "asc" },
     });
-    const invalid = enabled.filter(({ deliveryZone }) => {
+    const zoned = enabled.flatMap((etrap) => {
+      const { deliveryZone } = etrap;
       const zone = deliveryZoneFromJson(deliveryZone);
-      return !zone || Boolean(deliveryZoneValidationError(zone));
+      return zone && !deliveryZoneValidationError(zone)
+        ? [{ ...etrap, zone }]
+        : [];
     });
-    if (invalid.length) {
+    if (!zoned.length) {
       throw new BadRequestException(
-        `Map pricing requires a valid zone for every enabled district; missing: ${invalid
-          .slice(0, 5)
-          .map(({ id, nameRu }) => `${nameRu} (${id})`)
-          .join(
-            ", ",
-          )}${invalid.length > 5 ? ` and ${invalid.length - 5} more` : ""}`,
+        "Map pricing requires at least one enabled tariff zone with a valid boundary",
       );
     }
-    for (let left = 0; left < enabled.length; left += 1) {
-      const leftZone = deliveryZoneFromJson(enabled[left]!.deliveryZone)!;
-      for (let right = left + 1; right < enabled.length; right += 1) {
-        const rightZone = deliveryZoneFromJson(enabled[right]!.deliveryZone)!;
-        if (!deliveryZonesOverlap(leftZone, rightZone)) continue;
+    for (let left = 0; left < zoned.length; left += 1) {
+      for (let right = left + 1; right < zoned.length; right += 1) {
+        if (!deliveryZonesOverlap(zoned[left]!.zone, zoned[right]!.zone)) {
+          continue;
+        }
         throw new ConflictException(
-          `Delivery zones overlap: ${enabled[left]!.nameRu} (${enabled[left]!.id}) and ${enabled[right]!.nameRu} (${enabled[right]!.id})`,
+          `Delivery zones overlap: ${zoned[left]!.nameRu} (${zoned[left]!.id}) and ${zoned[right]!.nameRu} (${zoned[right]!.id})`,
         );
       }
     }

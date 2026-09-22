@@ -26,6 +26,7 @@ import { AdminPage, Role } from "../generated/prisma/client";
 import {
   CreateDeliveryEtrapDto,
   CreateDeliveryWelayatDto,
+  DeliveryZonePointDto,
   QuoteDeliveryDto,
   QuoteDeliveryTariffDto,
   UpdateDeliveryEtrapDto,
@@ -39,6 +40,7 @@ import {
   DeliveryWelayatResponseDto,
   DeliveryQuoteResponseDto,
   DeliveryTariffQuoteResponseDto,
+  DeliveryZoneSuggestionResponseDto,
 } from "./delivery-response.dto";
 import { DeliveryService } from "./delivery.service";
 
@@ -90,6 +92,20 @@ export class DeliveryController {
   @ApiOkResponse({ type: DeliveryConfigResponseDto })
   adminConfig() {
     return this.delivery.adminConfig();
+  }
+
+  @Post("admin/zone-suggestion")
+  @HttpCode(200)
+  @ApiBearerAuth()
+  @Roles(Role.ADMIN)
+  @AdminPages(AdminPage.DELIVERY)
+  @ApiOperation({
+    summary:
+      "Suggest district names and an editable OSM boundary for a map point",
+  })
+  @ApiOkResponse({ type: DeliveryZoneSuggestionResponseDto })
+  suggestZone(@Body() dto: DeliveryZonePointDto) {
+    return this.delivery.suggestZone(dto);
   }
 
   @Patch("admin/settings")

@@ -83,6 +83,26 @@ export class DeliveryEtrapResponseDto {
   updatedAt: string;
 }
 
+export class DeliveryZoneSuggestionResponseDto {
+  @ApiProperty({ type: String, nullable: true })
+  label: string | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  nameRu: string | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  nameTk: string | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  nameEn: string | null;
+
+  @ApiProperty({ type: [DeliveryZonePointDto], nullable: true })
+  boundary: DeliveryZonePointDto[] | null;
+
+  @ApiProperty({ type: String, enum: ["NOMINATIM"], nullable: true })
+  provider: "NOMINATIM" | null;
+}
+
 export class DeliveryWelayatResponseDto {
   @ApiProperty()
   id: number;

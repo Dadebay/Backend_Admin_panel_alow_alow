@@ -355,7 +355,7 @@ export function OrderAdminEditDialog({
                 <FormFieldError message={errors.address?.message} />
               </label>
               <label>
-                <span>Район / этрап</span>
+                <span>Тарифный район</span>
                 <select
                   {...register("deliveryEtrapId")}
                   aria-invalid={Boolean(errors.deliveryEtrapId)}

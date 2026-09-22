@@ -1,8 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { LatLngBoundsExpression, LatLngTuple } from "leaflet";
 import {
-  CircleMarker,
+  divIcon,
+  type LatLngBoundsExpression,
+  type LatLngTuple,
+} from "leaflet";
+import {
   MapContainer,
+  Marker,
   Polygon,
   TileLayer,
   Tooltip,
@@ -14,6 +18,11 @@ import type {
   DeliveryZonePoint,
 } from "@/src/entities/delivery";
 import { MAP_ATTRIBUTION, MAP_TILE_URL } from "@/src/shared/map";
+import {
+  insertDeliveryZonePointAtNearestEdge,
+  replaceDeliveryZonePoint,
+  scaleDeliveryZone,
+} from "../model/delivery-zone-editor";
 
 const ASHGABAT_CENTER: LatLngTuple = [37.9601, 58.3261];
 
@@ -40,15 +49,21 @@ function MapResizeController() {
   return null;
 }
 
-function FitZones({ points }: { points: readonly DeliveryZonePoint[] }) {
+function FitZones({
+  points,
+  revision,
+}: {
+  points: readonly DeliveryZonePoint[];
+  revision: number;
+}) {
   const map = useMap();
-  const fitted = useRef(false);
+  const fittedRevision = useRef<number | null>(null);
   const signature = points
     .map(({ latitude, longitude }) => `${latitude}:${longitude}`)
     .join("|");
   useEffect(() => {
-    if (!points.length || fitted.current) return;
-    fitted.current = true;
+    if (!points.length || fittedRevision.current === revision) return;
+    fittedRevision.current = revision;
     if (points.length === 1) {
       map.setView([points[0]!.latitude, points[0]!.longitude], 14, {
         animate: false,
@@ -62,20 +77,26 @@ function FitZones({ points }: { points: readonly DeliveryZonePoint[] }) {
     // `signature` deliberately represents the coordinates without retaining a
     // new array identity on every parent render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [map, signature]);
+  }, [map, revision, signature]);
   return null;
 }
 
-function DraftPointCollector({
-  enabled,
+function MapClickCollector({
+  editable,
+  discovering,
   onAppend,
+  onDiscover,
 }: {
-  enabled: boolean;
+  editable: boolean;
+  discovering: boolean;
   onAppend?: (point: DeliveryZonePoint) => void;
+  onDiscover?: (point: DeliveryZonePoint) => void;
 }) {
   useMapEvents({
     click(event) {
-      if (enabled) onAppend?.(normalized(event.latlng.lat, event.latlng.lng));
+      const point = normalized(event.latlng.lat, event.latlng.lng);
+      if (discovering) onDiscover?.(point);
+      else if (editable) onAppend?.(point);
     },
   });
   return null;
@@ -92,6 +113,9 @@ export function DeliveryZoneMap({
   selectedId = null,
   onDraftChange,
   onSelect,
+  discoveryMode = false,
+  fitRevision = 0,
+  onDiscover,
 }: {
   zones: readonly DeliveryEtrapWithWelayat[];
   draft?: readonly DeliveryZonePoint[];
@@ -99,6 +123,9 @@ export function DeliveryZoneMap({
   selectedId?: number | null;
   onDraftChange?: (points: DeliveryZonePoint[]) => void;
   onSelect?: (etrap: DeliveryEtrapWithWelayat) => void;
+  discoveryMode?: boolean;
+  fitRevision?: number;
+  onDiscover?: (point: DeliveryZonePoint) => void;
 }) {
   const [mapStatus, setMapStatus] = useState<"loading" | "ready" | "error">(
     "loading",
@@ -114,16 +141,30 @@ export function DeliveryZoneMap({
         : zoned.flatMap((zone) => zone.deliveryZone ?? []),
     [draft, zoned],
   );
+  const draftIcons = useMemo(
+    () =>
+      draft.map((_point, index) =>
+        divIcon({
+          className: "delivery-zone-vertex-icon",
+          html: `<span aria-label="Перетащить точку ${index + 1}" data-testid="delivery-zone-map-point-${index + 1}" role="button">${index + 1}</span>`,
+          iconAnchor: [14, 14],
+          iconSize: [28, 28],
+        }),
+      ),
+    [draft],
+  );
 
   return (
     <section
-      className="delivery-zone-map-shell"
+      className={`delivery-zone-map-shell${editable ? " is-editable" : ""}`}
       data-testid="delivery-zone-map"
     >
       <div className="delivery-zone-map-canvas">
         <MapContainer
           center={ASHGABAT_CENTER}
-          className="delivery-zone-map-leaflet"
+          className={`delivery-zone-map-leaflet${
+            discoveryMode ? " is-discovering" : ""
+          }`}
           keyboard
           scrollWheelZoom
           zoom={11}
@@ -138,10 +179,16 @@ export function DeliveryZoneMap({
             url={MAP_TILE_URL}
           />
           <MapResizeController />
-          <FitZones points={fitPoints} />
-          <DraftPointCollector
-            enabled={editable}
-            onAppend={(point) => onDraftChange?.([...draft, point])}
+          <FitZones points={fitPoints} revision={fitRevision} />
+          <MapClickCollector
+            discovering={discoveryMode}
+            editable={editable && draft.length < 64}
+            onAppend={(point) =>
+              onDraftChange?.(
+                insertDeliveryZonePointAtNearestEdge(draft, point),
+              )
+            }
+            onDiscover={onDiscover}
           />
           {zoned.map((zone) => {
             const selected = zone.id === selectedId;
@@ -183,19 +230,29 @@ export function DeliveryZoneMap({
             />
           )}
           {draft.map((point, index) => (
-            <CircleMarker
-              center={[point.latitude, point.longitude]}
-              key={`${point.latitude}:${point.longitude}:${index}`}
-              pathOptions={{
-                color: "#fef7e7",
-                fillColor: "#062f5e",
-                fillOpacity: 1,
-                weight: 2,
+            <Marker
+              alt={`Точка границы ${index + 1}`}
+              draggable={editable && !discoveryMode}
+              eventHandlers={{
+                dragend(event) {
+                  const position = event.target.getLatLng();
+                  onDraftChange?.(
+                    replaceDeliveryZonePoint(
+                      draft,
+                      index,
+                      normalized(position.lat, position.lng),
+                    ),
+                  );
+                },
               }}
-              radius={7}
+              icon={draftIcons[index]}
+              key={`${point.latitude}:${point.longitude}:${index}`}
+              position={[point.latitude, point.longitude]}
+              riseOnHover
+              title={`Перетащить точку ${index + 1}`}
             >
               <Tooltip direction="top">Точка {index + 1}</Tooltip>
-            </CircleMarker>
+            </Marker>
           ))}
         </MapContainer>
       </div>
@@ -207,11 +264,29 @@ export function DeliveryZoneMap({
               {draft.length} точек
             </strong>
             <span>
-              Нажимайте по карте по контуру района. Минимум 3 точки, максимум
-              64.
+              Перетаскивайте пронумерованные точки. Клик рядом со стороной
+              добавит туда новую точку. Минимум 3 точки, максимум 64.
             </span>
           </div>
           <div className="row-actions">
+            <button
+              className="secondary-button compact"
+              data-testid="delivery-zone-map-shrink"
+              disabled={draft.length < 3}
+              onClick={() => onDraftChange?.(scaleDeliveryZone(draft, 0.8))}
+              type="button"
+            >
+              Уменьшить
+            </button>
+            <button
+              className="secondary-button compact"
+              data-testid="delivery-zone-map-grow"
+              disabled={draft.length < 3}
+              onClick={() => onDraftChange?.(scaleDeliveryZone(draft, 1.25))}
+              type="button"
+            >
+              Увеличить
+            </button>
             <button
               className="secondary-button compact"
               data-testid="delivery-zone-map-undo"

@@ -1,6 +1,7 @@
 import type { ConfigService } from "@nestjs/config";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { AppEnv } from "../src/config/env";
+import { districtBoundarySuggestionFromNominatim } from "../src/geocoding/district-boundary";
 import { GeocodingService } from "../src/geocoding/geocoding.service";
 
 function config() {
@@ -153,5 +154,203 @@ describe("geocoding service", () => {
     const service = new GeocodingService(config());
 
     await expect(service.search("invalid", 3)).resolves.toEqual([]);
+  });
+
+  it("suggests localized district names and an editable Nominatim boundary", async () => {
+    const ring = Array.from({ length: 80 }, (_, index) => {
+      const angle = (index / 80) * Math.PI * 2;
+      return [58.32 + Math.cos(angle) * 0.02, 37.96 + Math.sin(angle) * 0.02];
+    });
+    ring.push(ring[0]!);
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse({
+        name: "Berkararlyk",
+        display_name: "Berkararlyk etraby, Aşgabat, Türkmenistan",
+        namedetails: {
+          "name:ru": "Беркарарлыкский этрап",
+          "name:tk": "Berkararlyk etraby",
+          "name:en": "Berkararlyk District",
+        },
+        address: { city_district: "Berkararlyk" },
+        geojson: { type: "Polygon", coordinates: [ring] },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const service = new GeocodingService(config());
+
+    const first = await service.suggestDistrictBoundary(37.96, 58.32);
+    const second = await service.suggestDistrictBoundary(37.96, 58.32);
+
+    expect(first).toMatchObject({
+      label: "Berkararlyk etraby, Aşgabat, Türkmenistan",
+      nameRu: "Беркарарлыкский этрап",
+      nameTk: "Berkararlyk etraby",
+      nameEn: "Berkararlyk District",
+      provider: "NOMINATIM",
+    });
+    expect(first?.boundary).toHaveLength(64);
+    expect(second).toEqual(first);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const requestedUrl = fetchMock.mock.calls[0]?.[0] as unknown as URL;
+    expect(requestedUrl.searchParams.get("polygon_geojson")).toBe("1");
+    expect(requestedUrl.searchParams.get("namedetails")).toBe("1");
+    expect(requestedUrl.searchParams.get("extratags")).toBe("1");
+    expect(requestedUrl.searchParams.get("zoom")).toBe("13");
+  });
+
+  it("does not offer an Ashgabat etrap outline as an inner tariff zone", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse({
+        osm_type: "relation",
+        osm_id: 8523224,
+        display_name: "Bagtyýarlyk etraby, Aşgabat, Türkmenistan",
+        namedetails: { "name:ru": "Багтыярлыкский этрап" },
+        geojson: {
+          type: "Polygon",
+          coordinates: [
+            [
+              [58.2, 37.9],
+              [58.5, 37.9],
+              [58.5, 38.1],
+              [58.2, 38.1],
+              [58.2, 37.9],
+            ],
+          ],
+        },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const service = new GeocodingService(config());
+
+    await expect(
+      service.suggestDistrictBoundary(37.96, 58.32),
+    ).resolves.toBeNull();
+  });
+
+  it("offers a closed mapped city such as Arkadag as a tariff area", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse({
+        osm_type: "relation",
+        osm_id: 20087037,
+        name: "Arkadag",
+        display_name: "Аркадаг, Ахалский велаят, Туркмения",
+        namedetails: {
+          "name:ru": "Аркадаг",
+          "name:tk": "Arkadag",
+          "name:en": "Arkadag",
+        },
+        address: { city: "Аркадаг", state: "Ахалский велаят" },
+        geojson: {
+          type: "Polygon",
+          coordinates: [
+            [
+              [58.02, 38.03],
+              [58.11, 38.03],
+              [58.11, 38.1],
+              [58.02, 38.1],
+              [58.02, 38.03],
+            ],
+          ],
+        },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const service = new GeocodingService(config());
+
+    await expect(
+      service.suggestDistrictBoundary(38.0664, 58.0669),
+    ).resolves.toMatchObject({
+      label: "Аркадаг, Ахалский велаят, Туркмения",
+      nameRu: "Аркадаг",
+      nameTk: "Arkadag",
+      boundary: [
+        { latitude: 38.03, longitude: 58.02 },
+        { latitude: 38.03, longitude: 58.11 },
+        { latitude: 38.1, longitude: 58.11 },
+        { latitude: 38.1, longitude: 58.02 },
+      ],
+    });
+  });
+
+  it("selects the multipolygon part containing the clicked point", () => {
+    const suggestion = districtBoundarySuggestionFromNominatim(
+      {
+        name: "Test district",
+        display_name: "Test district, Aşgabat",
+        geojson: {
+          type: "MultiPolygon",
+          coordinates: [
+            [
+              [
+                [58, 37],
+                [59, 37],
+                [59, 38],
+                [58, 38],
+                [58, 37],
+              ],
+            ],
+            [
+              [
+                [60, 39],
+                [60.1, 39],
+                [60.1, 39.1],
+                [60, 39.1],
+                [60, 39],
+              ],
+            ],
+          ],
+        },
+      },
+      { latitude: 39.05, longitude: 60.05 },
+    );
+
+    expect(suggestion?.boundary).toEqual([
+      { latitude: 39, longitude: 60 },
+      { latitude: 39, longitude: 60.1 },
+      { latitude: 39.1, longitude: 60.1 },
+      { latitude: 39.1, longitude: 60 },
+    ]);
+  });
+
+  it("does not flatten a provider polygon with holes into an unsafe tariff zone", () => {
+    const suggestion = districtBoundarySuggestionFromNominatim(
+      {
+        name: "District with an enclave",
+        display_name: "District with an enclave, Türkmenistan",
+        geojson: {
+          type: "Polygon",
+          coordinates: [
+            [
+              [58, 37],
+              [59, 37],
+              [59, 38],
+              [58, 38],
+              [58, 37],
+            ],
+            [
+              [58.4, 37.4],
+              [58.6, 37.4],
+              [58.6, 37.6],
+              [58.4, 37.6],
+              [58.4, 37.4],
+            ],
+          ],
+        },
+      },
+      { latitude: 37.2, longitude: 58.2 },
+    );
+
+    expect(suggestion?.boundary).toBeNull();
+  });
+
+  it("does not send district lookup outside Turkmenistan", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const service = new GeocodingService(config());
+
+    await expect(
+      service.suggestDistrictBoundary(51.5, -0.1),
+    ).resolves.toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

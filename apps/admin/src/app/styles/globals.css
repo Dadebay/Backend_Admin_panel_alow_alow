@@ -9157,11 +9157,23 @@ button:disabled {
   gap: 16px;
 }
 
-.delivery-zone-overview-title > div,
+.delivery-zone-overview-title > div:first-child,
 .delivery-zone-editor-copy > div,
 .delivery-map-pricing-toggle > span {
   display: grid;
   gap: 5px;
+}
+
+.delivery-zone-overview-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.delivery-zone-overview .delivery-zone-assistant {
+  margin-bottom: 10px;
 }
 
 .delivery-zone-overview-title small,
@@ -9192,7 +9204,44 @@ button:disabled {
 .delivery-zone-map-leaflet {
   width: 100%;
   height: 100%;
+  cursor: grab;
+}
+
+.delivery-zone-map-shell.is-editable .delivery-zone-map-leaflet,
+.delivery-zone-map-leaflet.is-discovering {
   cursor: crosshair;
+}
+
+.delivery-zone-vertex-icon {
+  border: 0;
+  background: transparent;
+}
+
+.delivery-zone-vertex-icon > span {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border: 2px solid var(--brand-cream);
+  border-radius: 999px;
+  color: var(--brand-cream);
+  background: var(--brand-navy);
+  box-shadow: 0 3px 10px rgb(6 47 94 / 0.35);
+  cursor: grab;
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 1;
+  user-select: none;
+}
+
+.delivery-zone-vertex-icon:focus-visible > span {
+  outline: 3px solid color-mix(in srgb, var(--brand-orange) 70%, transparent);
+  outline-offset: 2px;
+}
+
+.delivery-zone-vertex-icon.leaflet-drag-target > span,
+.leaflet-dragging .delivery-zone-vertex-icon > span {
+  cursor: grabbing;
 }
 
 .delivery-zone-map-tools {
@@ -9219,7 +9268,36 @@ button:disabled {
   font-size: 14px;
 }
 
+.delivery-zone-editor-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.delivery-zone-assistant {
+  padding: 11px 13px;
+  border: 1px solid color-mix(in srgb, var(--brand-navy) 18%, var(--line));
+  border-radius: 11px;
+  color: var(--brand-navy);
+  background: color-mix(in srgb, var(--brand-navy) 5%, var(--brand-cream));
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.delivery-zone-assistant.is-active {
+  border-color: color-mix(in srgb, var(--brand-orange) 55%, var(--line));
+  background: color-mix(in srgb, var(--brand-orange) 10%, var(--brand-cream));
+  font-weight: 650;
+}
+
+.delivery-zone-assistant .text-button {
+  margin-left: 8px;
+}
+
 .delivery-zone-summary {
+  flex-wrap: wrap;
   justify-content: flex-start;
   padding: 10px 2px 0;
   color: var(--muted);
@@ -9286,6 +9364,24 @@ button:disabled {
   .delivery-zone-map-tools {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .delivery-zone-overview-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .delivery-zone-overview-actions button {
+    width: 100%;
+  }
+
+  .delivery-zone-editor-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .delivery-zone-editor-actions button {
+    width: 100%;
   }
 
   .delivery-zone-map-tools .row-actions,

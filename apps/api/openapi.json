@@ -3909,6 +3909,43 @@
         ]
       }
     },
+    "/api/v1/delivery/admin/zone-suggestion": {
+      "post": {
+        "operationId": "DeliveryController_suggestZone_v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeliveryZonePointDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeliveryZoneSuggestionResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Suggest district names and an editable OSM boundary for a map point",
+        "tags": [
+          "delivery"
+        ]
+      }
+    },
     "/api/v1/delivery/admin/settings": {
       "patch": {
         "operationId": "DeliveryController_updateSettings_v1",
@@ -11474,6 +11511,49 @@
           "price",
           "freeDeliveryThreshold",
           "etrap"
+        ]
+      },
+      "DeliveryZoneSuggestionResponseDto": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string",
+            "nullable": true
+          },
+          "nameRu": {
+            "type": "string",
+            "nullable": true
+          },
+          "nameTk": {
+            "type": "string",
+            "nullable": true
+          },
+          "nameEn": {
+            "type": "string",
+            "nullable": true
+          },
+          "boundary": {
+            "nullable": true,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DeliveryZonePointDto"
+            }
+          },
+          "provider": {
+            "type": "string",
+            "enum": [
+              "NOMINATIM"
+            ],
+            "nullable": true
+          }
+        },
+        "required": [
+          "label",
+          "nameRu",
+          "nameTk",
+          "nameEn",
+          "boundary",
+          "provider"
         ]
       },
       "UpdateDeliverySettingsDto": {

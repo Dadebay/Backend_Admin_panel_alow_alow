@@ -17,6 +17,7 @@ export {
   type DeliveryEtrap,
   type DeliveryEtrapWithWelayat,
   type DeliveryZonePoint,
+  type DeliveryZoneSuggestion,
   type DeliveryWelayat,
   type UpdateDeliveryEtrap,
   type UpdateDeliverySettings,

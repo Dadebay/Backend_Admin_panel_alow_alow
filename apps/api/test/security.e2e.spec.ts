@@ -790,6 +790,16 @@ describe("backend security and critical workflow", () => {
       .expect(200);
     expect(zonedTarget.body).toMatchObject({ deliveryZone });
 
+    const legacyUnzonedId = enabledBeforeMapPricing.find(
+      ({ id }) => id !== 25,
+    )?.id;
+    if (legacyUnzonedId !== undefined) {
+      await prisma.etrap.update({
+        where: { id: legacyUnzonedId },
+        data: { isDeliveryEnabled: true },
+      });
+    }
+
     const readySettings = await prisma.deliverySettings.findUniqueOrThrow({
       where: { id: "default" },
     });

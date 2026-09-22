@@ -1,6 +1,10 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import type { AppEnv } from "../config/env";
+import {
+  districtBoundarySuggestionFromNominatim,
+  type DistrictBoundarySuggestion,
+} from "./district-boundary";
 
 const REQUEST_TIMEOUT_MS = 8_000;
 const PUBLIC_PROVIDER_INTERVAL_MS = 1_100;
@@ -8,6 +12,12 @@ const CACHE_TTL_MS = 24 * 60 * 60 * 1_000;
 const MAX_CACHE_ENTRIES = 500;
 const TURKMENISTAN_BBOX = "52.4,35.1,66.7,42.8";
 const ASHGABAT_VIEWBOX = "58.1,38.2,58.7,37.7";
+const ASHGABAT_ETRAP_RELATIONS = [
+  15654584, // Berkararlyk
+  8523224, // Bagtyýarlyk
+  15654583, // Köpetdag
+  8522989, // Büzmeýin
+] as const;
 
 export type GeocodingProvider = "NOMINATIM" | "PHOTON";
 
@@ -40,6 +50,10 @@ export class GeocodingService {
     CacheEntry<GeocodingSearchResult[]>
   >();
   private readonly reverseCache = new Map<string, CacheEntry<string | null>>();
+  private readonly districtBoundaryCache = new Map<
+    string,
+    CacheEntry<DistrictBoundarySuggestion | null>
+  >();
   private primaryQueue: Promise<void> = Promise.resolve();
   private lastPrimaryRequestAt = 0;
 
@@ -76,6 +90,49 @@ export class GeocodingService {
     const items = this.deduplicate([...primary, ...fallback]).slice(0, limit);
     this.writeCache(this.searchCache, key, items);
     return items;
+  }
+
+  async suggestDistrictBoundary(
+    latitude: number,
+    longitude: number,
+  ): Promise<DistrictBoundarySuggestion | null> {
+    if (
+      latitude < 35.1 ||
+      latitude > 42.8 ||
+      longitude < 52.4 ||
+      longitude > 66.7
+    ) {
+      return null;
+    }
+    const key = `${latitude.toFixed(5)}:${longitude.toFixed(5)}`;
+    const cached = this.readCache(this.districtBoundaryCache, key);
+    if (cached.hit) return cached.value;
+
+    const url = this.providerUrl(this.primaryUrl, "reverse");
+    url.searchParams.set("format", "jsonv2");
+    url.searchParams.set("lat", String(latitude));
+    url.searchParams.set("lon", String(longitude));
+    url.searchParams.set("zoom", "13");
+    url.searchParams.set("addressdetails", "1");
+    url.searchParams.set("namedetails", "1");
+    url.searchParams.set("extratags", "1");
+    url.searchParams.set("polygon_geojson", "1");
+    url.searchParams.set("accept-language", "ru,tk,en");
+
+    const response = await this.fetchPrimary(url);
+    const osmId = isRecord(response) ? finiteInteger(response.osm_id) : null;
+    const value =
+      isRecord(response) &&
+      response.osm_type === "relation" &&
+      osmId !== null &&
+      ASHGABAT_ETRAP_RELATIONS.some((etrapId) => etrapId === osmId)
+        ? null
+        : districtBoundarySuggestionFromNominatim(response, {
+            latitude,
+            longitude,
+          });
+    this.writeCache(this.districtBoundaryCache, key, value);
+    return value;
   }
 
   private async tryNominatimSearch(
@@ -339,6 +396,11 @@ function finiteCoordinate(
   return Number.isFinite(parsed) && parsed >= minimum && parsed <= maximum
     ? parsed
     : null;
+}
+
+function finiteInteger(value: unknown): number | null {
+  const parsed = typeof value === "number" ? value : Number(value);
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : null;
 }
 
 function uniqueStrings(values: unknown[], excluded?: string) {

@@ -761,11 +761,44 @@ heights; visual density must not be reduced to the previous pale compact map.
   search value and stale tariff selection.
 - Every etrap may own one audited polygon of 3–64 ordered latitude/longitude
   points. Administrators draw and inspect these boundaries on `/delivery`,
-  alongside the same day/night prices and availability controls. Enabled zones
-  may share a boundary but must not overlap; malformed, zero-area and
-  self-crossing polygons are rejected. Enabling coordinate pricing requires a
-  valid polygon for every enabled etrap. Once enabled, point-in-polygon lookup
-  is the only district source for location quotes and final order pricing;
+  alongside the same day/night prices and availability controls. Polygon
+  vertices are draggable. An explicit map-assistant action sends one selected
+  point through the protected backend to the configured Nominatim provider,
+  suggests Russian/Turkmen/English names, and imports an OSM Polygon or the
+  clicked part of a MultiPolygon when available. Imported boundaries are
+  reduced to the same 64-point contract and remain an editable draft until the
+  administrator saves. When OSM returns a usable name but no closed geometry,
+  the editor opens an unsaved eight-vertex starter polygon of roughly 800 m
+  radius around the selected point. It is explicitly approximate: the
+  administrator must reshape its numbered draggable vertices before saving;
+  pricing never changes merely because this draft was generated. Missing names
+  or invalid geometry create the same editable starter contour while names stay
+  available for manual entry. A click near a polygon side inserts a vertex into
+  that side; administrators may drag numbered vertices and scale the complete
+  polygon inward or outward around its center. The browser never calls
+  Nominatim directly. Administrative etrap outlines are not loaded or rendered:
+  the map contains only saved tariff polygons and the current draft. The
+  admin's primary creation flow starts directly on the
+  overview map: an administrator selects a closed mapped district, city or
+  other service area (including areas outside Ashgabat such as Arkadag), the
+  backend imports its Nominatim polygon, and the price editor opens without a
+  manual etrap-selection step. An existing same-name row under the inferred
+  welayat is reused to preserve references; otherwise a new tariff-area row is
+  prepared with its inferred welayat as a hidden compatibility attribute. The
+  daily table exposes only saved polygon-backed tariff areas; unzoned legacy
+  directory rows remain available for map-assisted reuse and rollback but are
+  not presented as ready map districts. Streets and their labels come from the
+  local base map; because a street is a line rather than a closed price area,
+  an administrator draws a non-overlapping tariff polygon around the intended
+  service area. The map assistant must not import a large administrative etrap
+  outline as an inner zone.
+  Enabled tariff polygons may share a boundary but must not overlap; malformed,
+  zero-area and self-crossing polygons are rejected. Enabling coordinate
+  pricing requires at least one enabled valid polygon. Legacy enabled directory
+  rows without a polygon remain available for rollback to text mode but are
+  ignored by coordinate matching; while map pricing is active, any newly
+  enabled zone must have a valid polygon. Once enabled, point-in-polygon lookup
+  is the only tariff-zone source for location quotes and final order pricing;
   reverse-geocoded text remains display data for the courier. Coordinates at
   final customer/assisted order creation and administrator editing override a
   stale or manipulated `deliveryEtrapId`, update the saved address reference,
@@ -1038,7 +1071,7 @@ configuration per platform and supports nullable RU/TK release notes. See
   to the existing global `SUPER_ADMIN` override.
 - A successful courier assignment or reassignment sends the new courier a
   direct push: `Täze sargyt #<number>` / `Sargyt size berkidildi.
-  Jikme-jiklikleri açyň.` This covers both `assign-courier` and a courier change
+Jikme-jiklikleri açyň.` This covers both `assign-courier` and a courier change
   through `admin-edit`. Sending starts only after the order transaction commits;
   rejected/stale requests, unchanged couriers and edits that clear the courier
   send no assignment push. Existing customer status notifications are preserved.
@@ -1103,9 +1136,12 @@ Current status:
   `/delivery` screen: fallback pricing, creation and multilingual editing of
   welayats and etraps, display order, parent assignment, availability,
   delivery price, free-delivery threshold and map polygons. The screen shows
-  every configured zone on one map; selecting a polygon opens that district's
-  price/boundary editor, and the administrator explicitly activates
-  coordinate-only pricing after all enabled districts have valid zones. The
+  every configured zone on one map; selecting a polygon opens that zone's
+  price/boundary editor. Administrative etrap outlines are hidden; the local
+  base map supplies street lines and labels, and the editor provides draggable
+  vertices plus whole-contour grow/shrink controls. The
+  administrator explicitly activates coordinate-only pricing after at least
+  one enabled tariff zone has a valid polygon. The
   phone-assisted order shows
   the location quote and submits an automatically matched etrap when one
   exists; otherwise it uses the configured fallback without asking the
@@ -2046,7 +2082,6 @@ controller and service belong to `orders`. See `RECEIPT_QUEUE.md` for protocol,
 tests, Windows/Mac releases, upgrade coordination and rollback. Production
 push/deployment was explicitly authorized by the user on 2026-09-04.
 
-
 ## Dispatcher map usability — 2026-09-12
 
 The first iteration used compact all-courier GPS markers with overlapping
@@ -2074,7 +2109,6 @@ local print-agent connection errors were the only browser console errors.
 Evidence and limitations are in `outputs/courier-map-20260912/DEV_NOTES.md`.
 No deployment or production data mutation was performed.
 
-
 The follow-up local demo on 2026-09-12 recovered Docker Desktop and started
 the existing OSRM Turkmenistan graph. Successful road geometry is now verified
 visually in the open local map; seven active couriers have usable road paths.
@@ -2082,7 +2116,6 @@ The demo samples movement along geometry returned through NestJS and publishes
 synthetic GPS every three seconds. Its selected and all-courier buttons enable
 route lines. This supersedes the earlier local-demo OSRM limitation; no
 production application or policy was changed.
-
 
 ### All-courier visibility correction — 2026-09-12
 

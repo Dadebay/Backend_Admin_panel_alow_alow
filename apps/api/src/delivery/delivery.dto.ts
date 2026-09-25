@@ -67,6 +67,16 @@ export class QuoteDeliveryTariffDto {
   @Min(1)
   @Max(2_147_483_647)
   deliveryEtrapId?: number | null;
+
+  @ApiPropertyOptional({ example: 37.9601, description: "Required with longitude for kilometer pricing" })
+  @ValidateIf((dto: QuoteDeliveryTariffDto) => dto.latitude !== undefined || dto.longitude !== undefined)
+  @IsLatitude()
+  latitude?: number;
+
+  @ApiPropertyOptional({ example: 58.3261, description: "Required with latitude for kilometer pricing" })
+  @ValidateIf((dto: QuoteDeliveryTariffDto) => dto.latitude !== undefined || dto.longitude !== undefined)
+  @IsLongitude()
+  longitude?: number;
 }
 
 export class UpdateDeliverySettingsDto {
@@ -87,6 +97,25 @@ export class UpdateDeliverySettingsDto {
   @ValidateIf((_object, value: unknown) => value !== undefined)
   @IsBoolean()
   mapPricingEnabled?: boolean;
+
+  @ApiPropertyOptional({ description: "Select kilometer pricing instead of the existing area tariff" })
+  @ValidateIf((_object, value: unknown) => value !== undefined)
+  @IsBoolean()
+  distancePricingEnabled?: boolean;
+
+  @ApiPropertyOptional({ minimum: 0.01, maximum: 10000, nullable: true })
+  @ValidateIf((_object, value: unknown) => value !== undefined)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0.01)
+  @Max(10000)
+  dayPricePerKilometer?: number;
+
+  @ApiPropertyOptional({ minimum: 0.01, maximum: 10000, nullable: true })
+  @ValidateIf((_object, value: unknown) => value !== undefined)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0.01)
+  @Max(10000)
+  nightPricePerKilometer?: number;
 
   @ApiPropertyOptional({ minimum: 0, maximum: 1_000_000 })
   @ValidateIf((_object, value: unknown) => value !== undefined)

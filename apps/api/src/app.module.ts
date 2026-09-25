@@ -26,6 +26,7 @@ import { GeocodingModule } from "./geocoding/geocoding.module";
 import { DeliveryModule } from "./delivery/delivery.module";
 import { AccountingModule } from "./accounting/accounting.module";
 import { AppVersionsModule } from "./app-versions/app-versions.module";
+import { LoyaltyModule } from "./loyalty/loyalty.module";
 
 @Module({
   imports: [
@@ -71,6 +72,7 @@ import { AppVersionsModule } from "./app-versions/app-versions.module";
     AccountingModule,
     AppVersionsModule,
     InventoryModule,
+    LoyaltyModule,
   ],
   controllers: [HealthController],
   providers: [

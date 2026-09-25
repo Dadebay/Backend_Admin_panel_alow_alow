@@ -204,10 +204,12 @@ LAN printers and no gateway. Printer endpoints remain catalog data managed
 through the admin registry: name, private IPv4 address, port, transport and
 active state, followed by one main selection, a kitchen default per category
 and an optional product override. Endpoints are never an agent config file or
-frontend constant. Roll out the current print-agent artifact with this release
-because it supports registered raw TCP/ESC-POS endpoints as well as legacy
-J-Speed HTTP and allows the main and kitchen copies to target the same physical
-endpoint sequentially.
+frontend constant. The current print-agent artifact supports registered raw
+TCP/ESC-POS endpoints as well as legacy J-Speed HTTP and allows the main and
+kitchen copies to target the same physical endpoint sequentially. Configurable
+main-copy counts and delayed kitchen jobs are scheduled as separate API tasks;
+an installed agent already using this queue protocol needs no software update
+for those features.
 
 ### Temporary domestic fallback record
 

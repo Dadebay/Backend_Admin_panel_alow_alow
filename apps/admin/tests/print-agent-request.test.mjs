@@ -67,3 +67,9 @@ test("disabling the main printer never promotes a kitchen copy to a customer rec
   assert.deepEqual(payload.jobs, [{ ...kitchen, copyType: "KITCHEN" }]);
   assert.equal(payload.metadata, null);
 });
+
+test("the browser bridge sends only the single main job supplied by the API", () => {
+  const payload = buildPrintAgentRequest({ ...plan, mainCopies: 2 }, true, "dispatch-4");
+  assert.deepEqual(payload.jobs.map(({ copyType }) => copyType), ["MAIN", "KITCHEN"]);
+  assert.equal(payload.jobs[0].printerIp, main.printerIp);
+});

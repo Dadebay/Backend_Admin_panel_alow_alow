@@ -51,6 +51,7 @@ export default defineConfig({
         "src/app-versions/**/*.ts",
         "src/accounting/**/*.ts",
         "src/inventory/**/*.ts",
+        "src/loyalty/**/*.ts",
         "src/auth/**/*.ts",
         "src/branches/**/*.ts",
         "src/catalog/**/*.ts",

@@ -83,6 +83,9 @@ export function DeliveryManager() {
     mode: "onBlur",
     defaultValues: {
       mapPricingEnabled: false,
+      distancePricingEnabled: false,
+      dayPricePerKilometer: "5.00",
+      nightPricePerKilometer: "5.00",
       fallbackPrice: "15.00",
       fallbackNightPrice: "15.00",
       fallbackNightFreeDeliveryThreshold: "150.00",
@@ -126,6 +129,9 @@ export function DeliveryManager() {
     if (!config.data) return;
     resetSettings({
       mapPricingEnabled: config.data.mapPricingEnabled,
+      distancePricingEnabled: config.data.distancePricingEnabled,
+      dayPricePerKilometer: config.data.dayPricePerKilometer?.toFixed(2) ?? "5.00",
+      nightPricePerKilometer: config.data.nightPricePerKilometer?.toFixed(2) ?? "5.00",
       fallbackPrice: config.data.fallbackPrice.toFixed(2),
       fallbackNightPrice: config.data.fallbackNightPrice.toFixed(2),
       fallbackNightFreeDeliveryThreshold:
@@ -1293,8 +1299,8 @@ export function DeliveryManager() {
       <details className="delivery-setup" data-testid="delivery-setup">
         <summary>
           <span>
-            Служебный справочник и резервный тариф
-            <small>Для совместимости и зон без готовой OSM-границы</small>
+            Способ расчёта, тарифы и справочник районов
+            <small>Выберите районный тариф или цену за километр</small>
           </span>
           <b>{config.data?.welayats.length ?? 0}</b>
         </summary>
@@ -1352,10 +1358,34 @@ export function DeliveryManager() {
           >
             <div className="editor-title">
               <div>
-                <h2>Резервный тариф</h2>
-                <p>Применяется, когда у адреса нет района.</p>
+                <h2>Способ расчёта доставки</h2>
+                <p>Выберите тариф по районам или по расстоянию от ближайшего филиала.</p>
               </div>
             </div>
+            <label className="delivery-map-pricing-toggle">
+              <input
+                data-testid="delivery-distance-pricing-enabled"
+                {...registerSettings("distancePricingEnabled")}
+                type="checkbox"
+              />
+              <span>
+                <strong>Цена за километр</strong>
+                <small>Расстояние по прямой вычисляется по координатам. Минимум 15 TMT; 16 TMT округляется до 15, 17 TMT — до 20.</small>
+              </span>
+            </label>
+            <div className="form-grid delivery-price-grid">
+              <label>
+                <span>Дневная цена за 1 км, TMT</span>
+                <input data-testid="delivery-day-price-per-km" {...registerSettings("dayPricePerKilometer")} inputMode="decimal" aria-invalid={Boolean(settingsErrors.dayPricePerKilometer)} />
+                <FormFieldError message={settingsErrors.dayPricePerKilometer?.message} />
+              </label>
+              <label>
+                <span>Ночная цена за 1 км, TMT</span>
+                <input data-testid="delivery-night-price-per-km" {...registerSettings("nightPricePerKilometer")} inputMode="decimal" aria-invalid={Boolean(settingsErrors.nightPricePerKilometer)} />
+                <FormFieldError message={settingsErrors.nightPricePerKilometer?.message} />
+              </label>
+            </div>
+            <h3>Районы и резервный тариф</h3>
             <label className="delivery-map-pricing-toggle">
               <input
                 data-testid="delivery-map-pricing-enabled"

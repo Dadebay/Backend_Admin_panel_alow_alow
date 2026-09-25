@@ -6,6 +6,15 @@ export class DeliverySettingsResponseDto {
   mapPricingEnabled: boolean;
 
   @ApiProperty()
+  distancePricingEnabled: boolean;
+
+  @ApiProperty({ type: Number, nullable: true })
+  dayPricePerKilometer: number | null;
+
+  @ApiProperty({ type: Number, nullable: true })
+  nightPricePerKilometer: number | null;
+
+  @ApiProperty()
   fallbackNightPrice: number;
 
   @ApiProperty({ type: Number, nullable: true })
@@ -128,6 +137,15 @@ export class DeliveryConfigResponseDto {
   mapPricingEnabled: boolean;
 
   @ApiProperty()
+  distancePricingEnabled: boolean;
+
+  @ApiProperty({ type: Number, nullable: true })
+  dayPricePerKilometer: number | null;
+
+  @ApiProperty({ type: Number, nullable: true })
+  nightPricePerKilometer: number | null;
+
+  @ApiProperty()
   fallbackNightPrice: number;
 
   @ApiProperty({ type: Number, nullable: true })
@@ -176,6 +194,15 @@ export class DeliveryQuoteWelayatResponseDto {
 }
 
 export class DeliveryTariffQuoteResponseDto {
+  @ApiProperty({ enum: ["AREA", "DISTANCE"] })
+  pricingMode: "AREA" | "DISTANCE";
+
+  @ApiProperty({ type: Number, nullable: true, description: "Distance from the assigned branch" })
+  distanceMeters: number | null;
+
+  @ApiProperty({ type: Number, nullable: true })
+  pricePerKilometer: number | null;
+
   @ApiProperty({ enum: ["DAY", "NIGHT"] })
   tariff: "DAY" | "NIGHT";
 

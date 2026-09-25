@@ -103,6 +103,7 @@ alowalow/
 │   ├── DEPLOYMENT.md
 │   ├── INFRASTRUCTURE.md
 │   ├── MOBILE_DELIVERY_AND_COURIER_UPDATE.md
+│   ├── MOBILE_LOYALTY_DELIVERY_HANDOFF.md
 │   ├── MOBILE_MAP_AND_ROUTING.md
 │   ├── MOBILE_MULTI_CAFE_CATALOG.md
 │   ├── MAP_DELIVERY_ZONES.md
@@ -149,6 +150,7 @@ alowalow/
 │   │   │   ├── users/     # staff, customer addresses and admin page-access policy
 │   │   │   ├── branches/  # branch CRUD and nearest-branch selection
 │   │   │   ├── delivery/  # welayat/etrap tariffs and delivery pricing
+│   │   │   ├── loyalty/   # gift catalog, point wallet and atomic redemption ledger
 │   │   │   ├── catalog/   # categories and products
 │   │   │   ├── marketing/ # banners and promo codes
 │   │   │   ├── media/     # S3-compatible image storage
@@ -173,9 +175,9 @@ alowalow/
 │       ├── package-lock.json # isolated frontend dependency/security tree
 │       ├── src/            # FSD product layers
 │       │   ├── app/        # SPA bootstrap, routes, providers, global styles
-│       │   ├── widgets/    # inventory-dashboard, meal/recipe configurator, boards/maps/managers, incl. page-access and app-version managers
-│       │   ├── features/   # inventory/page-access actions, notifications/calculator, typed mutations and app-version management
-│       │   ├── entities/   # typed queries/models, incl. inventory/accounting/delivery/page-access/app-version
+│       │   ├── widgets/    # inventory-dashboard, meal/recipe configurator, boards/maps/managers, incl. gift management
+│       │   ├── features/   # inventory/page-access/gift actions, notifications/calculator, typed mutations and app-version management
+│       │   ├── entities/   # typed queries/models, incl. inventory/accounting/delivery/loyalty/page-access/app-version
 │       │   └── shared/     # HTTP/query clients, auth, Zod form helpers, UI
 │       ├── public/
 │       └── tests/
@@ -2082,6 +2084,69 @@ controller and service belong to `orders`. See `RECEIPT_QUEUE.md` for protocol,
 tests, Windows/Mac releases, upgrade coordination and rollback. Production
 push/deployment was explicitly authorized by the user on 2026-09-04.
 
+## Preparation timing, receipt copies and ordering hours — 2026-09-24
+
+Each product has an administrator-managed `preparationMinutes` (0–240). The
+public catalog exposes it, and each order line snapshots it. For a newly
+created order, the kitchen receipt for each line becomes eligible at
+`order.createdAt + max(order line preparationMinutes) - line preparationMinutes`.
+Thus a 30-minute dish prints immediately while a 10-minute dish in the same
+order prints 20 minutes later. The delay is durable in `ReceiptPrintTask` and
+survives agent disconnection. The complete main receipt is immediate and its
+audited setting controls 1–3 copies, defaulting to two. The API queues one
+ordinary task per main copy, so the existing print agent and browser bridge
+print one main job per task without a software update. Kitchen jobs keep the
+line's snapshotted printer route. Cancelling an order cancels its pending
+automatic receipts before queuing a cancellation receipt.
+
+Manual print from the order board sends selected lines immediately. An
+administrator may override each line's kitchen apparatus for that one print,
+choose only the main cash register, or omit a dish from both the main and
+kitchen copies. At least one dish must remain. A partial main copy keeps the
+order's actual total and carries an explicit warning that the printed item
+list is incomplete. An operator may request a full print with saved routes.
+After validation the transaction cancels pending, failed and uncertain
+automatic receipt tasks for the order before creating idempotent tasks for
+the requested main copies. Reusing a manual print key with a different
+selection is a conflict.
+It refuses to race a processing task. Cancelled and delivered task history is
+available to operations staff; scheduling, delivery results and manual routing
+are audit logged. A pending future task cannot be manually retried early.
+
+When an administrator changes food in an order, the API synchronizes waiting
+receipt tasks in the same transaction. It cancels tickets for removed or
+changed lines, preserves other dishes in a shared kitchen task, and updates
+the due time of retained unprinted dishes from the edit time when food is
+added or the longest preparation time changes. Newly added or changed dishes
+receive new kitchen tasks on the same schedule. A waiting
+main copy with stale food or totals is cancelled and replaced with a current
+copy; delivered copies remain in history. An edit conflicts while any receipt
+for that order is processing or has an uncertain outcome, because paper already
+in transit or with unknown delivery cannot safely be recalled or reissued.
+An `ADMIN` or `SUPER_ADMIN` can also cancel one `PENDING` receipt
+from the queue, including a future kitchen task; processing and delivered
+tasks cannot be cancelled. Both paths are audited, and the queue shows dish
+names so staff can identify the correct task. The print agent protocol stays
+unchanged.
+
+The 2026-09-25 follow-up to these receipt features is pushed to the
+`codex/map-delivery-zones` branch for review. The user requested no production
+deployment in this handoff; only `main` triggers the production workflow.
+
+The separate `GET /ordering-hours` response is public and contains the
+server-calculated `isOpen`, `Asia/Ashgabat` timezone, local open/close times,
+and server time. Administrators configure it on the catalog's «Время работы»
+tab with optimistic version checking and audit. The setting is initially
+disabled (ordering always open); when enabled, customer-app order creation is
+rejected outside the daily interval, including intervals crossing midnight.
+Phone-assisted staff orders remain available. The public response is for mobile
+display; the API check is authoritative.
+
+The login-attempts workspace counts customer accounts with a successful OTP
+login as registered, and accounts created by staff but without a successful
+login separately. Anonymous app visitors cannot be counted reliably from the
+current data model because no anonymous installation telemetry is stored.
+
 ## Dispatcher map usability — 2026-09-12
 
 The first iteration used compact all-courier GPS markers with overlapping
@@ -2185,3 +2250,38 @@ and mutation invalidation remain available. Existing full-list catalog routes
 remain backward compatible for assisted ordering, marketing, inventory and
 other consumers while they are migrated independently. The production gateway
 and static admin container gzip JSON, JavaScript and CSS responses.
+
+## Loyalty gifts and selectable kilometer delivery — 2026-09-25
+
+Every catalog dish has an administrator-configured positive number of loyalty
+points per unit; existing dishes receive one point by default. An order saves
+the point amount of each line and its total. Points are credited once when the
+order reaches `DELIVERED`. A later permitted administrator cancellation reverses
+that credit. A balance can become negative after reversal if the customer has
+already spent the earned points; new redemptions require sufficient balance.
+
+The administrator manages toy/gift names, descriptions, WebP photos, point
+prices, visibility, and optional stock in the catalog's Gifts tab. Gift edits
+use a version check and audit record. Public `GET /loyalty/gifts` lists only
+active, available gifts; authenticated customers get their balance and recent
+ledger at `GET /loyalty/me`. The customer application is developed in a
+separate repository and consumes these endpoints plus the order contract.
+There is no separate gift checkout: a customer's order must contain at least
+one food item, and `gifts` can be requested only on that customer's own order.
+Phone-assisted staff orders cannot spend a customer's points. Gift cost and
+stock are reserved atomically with the food order and snapshotted on it; a
+permitted cancellation refunds the points and returns limited stock. Order
+creation idempotency also covers gifts.
+
+The existing street/etrap tariff remains available. An administrator switches
+`distancePricingEnabled` to choose kilometer pricing instead. In that mode the
+server selects the nearest active branch and uses the Haversine formula on its
+coordinates and the customer's coordinates; this is a straight-line distance,
+not an OSRM road route. OSRM remains the private courier route service. Day
+and night prices per kilometer are separate settings and use the existing
+Ashgabat night schedule. The kilometer fee has a minimum of 15 TMT and uses
+whole-manat cash bands: 16→15, 17→20. Kilometer pricing ignores area free
+delivery thresholds. A quote without coordinates is rejected in this mode;
+customer orders use their selected address coordinates. The public delivery
+config and quote disclose the selected mode, configured rates, calculated
+distance, and fee so mobile clients can render the authoritative result.

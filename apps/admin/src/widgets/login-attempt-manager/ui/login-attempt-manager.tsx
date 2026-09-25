@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import {
   useLoginAttempts,
+  useCustomerCounts,
   type LoginAttempt,
   type LoginAttemptFilters,
   type LoginAttemptPlatform,
@@ -38,7 +39,9 @@ const timeFormat = new Intl.DateTimeFormat("ru-RU", {
 function localDateTimeInput(value?: string) {
   if (!value) return "";
   const date = new Date(value);
-  const localTime = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
+  const localTime = new Date(
+    date.getTime() - date.getTimezoneOffset() * 60_000,
+  );
   return localTime.toISOString().slice(0, 16);
 }
 
@@ -48,6 +51,7 @@ export function LoginAttemptManager() {
     limit: 25,
   });
   const attempts = useLoginAttempts(filters);
+  const customers = useCustomerCounts();
   const data = attempts.data;
   const columns = useMemo<ColumnDef<LoginAttempt, unknown>[]>(
     () => [
@@ -139,10 +143,10 @@ export function LoginAttemptManager() {
   const summary = data?.summary;
   const hasActiveFilters = Boolean(
     filters.phone ||
-      filters.status ||
-      filters.platform ||
-      filters.from ||
-      filters.to,
+    filters.status ||
+    filters.platform ||
+    filters.from ||
+    filters.to,
   );
 
   return (
@@ -156,6 +160,25 @@ export function LoginAttemptManager() {
           <p>Коды OTP не сохраняются и не отображаются.</p>
         </div>
       </header>
+
+      <div className="login-attempt-summary" data-testid="customer-counts">
+        <div className="stat-card">
+          <span>Зарегистрированные клиенты</span>
+          <strong>{customers.data?.registered ?? "—"}</strong>
+        </div>
+        <div className="stat-card">
+          <span>Созданы оператором, без входа</span>
+          <strong>{customers.data?.assistedOnly ?? "—"}</strong>
+        </div>
+      </div>
+      {customers.isError && (
+        <p role="alert">
+          Не удалось загрузить количество клиентов.{" "}
+          <button type="button" onClick={() => void customers.refetch()}>
+            Повторить
+          </button>
+        </p>
+      )}
 
       <div
         className="login-attempt-summary"

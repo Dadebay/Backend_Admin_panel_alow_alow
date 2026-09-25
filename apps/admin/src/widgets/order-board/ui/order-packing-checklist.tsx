@@ -5,7 +5,7 @@ type OrderPackingChecklistProps = {
   order: Order;
   role: Role;
   pending: boolean;
-  onConfirm: (order: Order, checkedItemIds: string[]) => void;
+  onConfirm: (order: Order, checkedItemIds: string[], checkedGiftIds: string[]) => void;
 };
 
 function formatPackedAt(value: string) {
@@ -48,11 +48,10 @@ export function OrderPackingChecklist({
     );
   }
 
-  const checkedCount = order.items.filter((item) =>
-    checkedItemIds.has(item.id),
-  ).length;
+  const checkedCount = [...order.items, ...order.gifts].filter((item) => checkedItemIds.has(item.id)).length;
+  const totalCount = order.items.length + order.gifts.length;
   const allChecked =
-    order.items.length > 0 && checkedCount === order.items.length;
+    order.items.length > 0 && checkedCount === totalCount;
 
   return (
     <fieldset
@@ -85,19 +84,39 @@ export function OrderPackingChecklist({
           </span>
         </label>
       ))}
+      {order.gifts.map((gift) => (
+        <label key={gift.id}>
+          <input
+            type="checkbox"
+            data-testid={`order-packing-gift-${order.id}-${gift.id}`}
+            checked={checkedItemIds.has(gift.id)}
+            onChange={(event) => setCheckedItemIds((current) => {
+              const next = new Set(current);
+              if (event.target.checked) next.add(gift.id);
+              else next.delete(gift.id);
+              return next;
+            })}
+          />
+          <span><b>{gift.quantity}×</b> Подарок: {gift.name} ({gift.totalPoints} баллов)</span>
+        </label>
+      ))}
       <p
         className="order-packing-progress"
         role="status"
         data-testid={`order-packing-progress-${order.id}`}
       >
-        Проверено {checkedCount} из {order.items.length}
+        Проверено {checkedCount} из {totalCount}
       </p>
       <button
         type="button"
         className="primary-button compact"
         data-testid={`order-confirm-packing-${order.id}`}
         disabled={!allChecked || pending}
-        onClick={() => onConfirm(order, [...checkedItemIds])}
+        onClick={() => onConfirm(
+          order,
+          order.items.filter((item) => checkedItemIds.has(item.id)).map((item) => item.id),
+          order.gifts.filter((gift) => checkedItemIds.has(gift.id)).map((gift) => gift.id),
+        )}
       >
         {pending ? "Сохраняем…" : "✓ Заказ готов — к передаче курьеру"}
       </button>

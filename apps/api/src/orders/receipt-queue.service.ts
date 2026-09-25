@@ -1,11 +1,12 @@
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import {
   AdminPage,
   Prisma,
@@ -17,12 +18,17 @@ import type { AuthUser } from "../common/auth.types";
 import type { AppEnv } from "../config/env";
 import { PrismaService } from "../prisma/prisma.service";
 import { OrdersService } from "./orders.service";
+import {
+  expandMainReceiptCopies,
+  partialReceiptCustomerNote,
+} from "./receipt-print-plan";
 import { ReceiptPrintPlanResponseDto } from "./orders-response.dto";
 import {
   type ReceiptOutcomeDto,
   type ReceiptLeaseDto,
   type ReceiptAgentLeaseDto,
   type ReceiptAgentOutcomeDto,
+  ReprintReceiptDto,
 } from "./receipt-queue.dto";
 
 export const RECEIPT_LEASE_MS = 180_000;
@@ -30,6 +36,17 @@ const waiting = [
   ReceiptPrintTaskStatus.PENDING,
   ReceiptPrintTaskStatus.PROCESSING,
 ];
+
+function manualSelectionHash(dto: ReprintReceiptDto) {
+  const selection = (dto.itemRoutes ?? [])
+    .map(({ itemId, printerId, skip }) => ({
+      itemId,
+      printerId: printerId ?? null,
+      skip: skip === true,
+    }))
+    .sort((left, right) => left.itemId.localeCompare(right.itemId));
+  return createHash("sha256").update(JSON.stringify(selection)).digest("hex");
+}
 
 @Injectable()
 export class ReceiptQueueService {
@@ -55,10 +72,15 @@ export class ReceiptQueueService {
       );
   }
   private view(task: ReceiptPrintTask & { order: { number: number } }) {
+    const plan = task.plan as unknown as ReceiptPrintPlanResponseDto;
     return {
       id: task.id,
       orderId: task.orderId,
       orderNumber: task.order.number,
+      itemNames: [...new Set([
+        ...(plan.mainJob?.items ?? []),
+        ...plan.jobs.flatMap((job) => job.items),
+      ].map((item) => item.name))],
       documentType: task.documentType,
       status: task.status,
       attempts: task.attempts,
@@ -81,7 +103,9 @@ export class ReceiptQueueService {
     this.authorize(actor);
     const [items, pending, needsAttention] = await Promise.all([
       this.prisma.receiptPrintTask.findMany({
-        where: { status: { not: "DELIVERED" } },
+        where: {
+          status: { in: ["PENDING", "PROCESSING", "FAILED", "UNCERTAIN"] },
+        },
         include: { order: { select: { number: true } } },
         orderBy: { sequence: "asc" },
         take: 50,
@@ -100,6 +124,18 @@ export class ReceiptQueueService {
       consumerMode: this.directAgentEnabled()
         ? ("DIRECT_AGENT" as const)
         : ("BROWSER_BRIDGE" as const),
+    };
+  }
+  async history(actor: AuthUser) {
+    this.authorize(actor);
+    return {
+      items: (
+        await this.prisma.receiptPrintTask.findMany({
+          include: { order: { select: { number: true } } },
+          orderBy: { sequence: "desc" },
+          take: 100,
+        })
+      ).map((task) => this.view(task)),
     };
   }
   async claim(actor: AuthUser, stationId: string) {
@@ -272,7 +308,14 @@ export class ReceiptQueueService {
     return this.prisma.$transaction(async (tx) => {
       await this.lock(tx);
       const result = await tx.receiptPrintTask.updateMany({
-        where: { id, status: { in: ["PENDING", "FAILED"] } },
+        where: {
+          id,
+          OR: [
+            { status: "FAILED" },
+            { status: "PENDING", nextAttemptAt: { lte: new Date() } },
+            { status: "PENDING", attempts: { gt: 0 } },
+          ],
+        },
         data: { status: "PENDING", nextAttemptAt: new Date(), lastError: null },
       });
       if (result.count !== 1)
@@ -291,9 +334,40 @@ export class ReceiptQueueService {
     });
   }
 
-  async reprint(actor: AuthUser, orderId: string, key: string) {
+  async cancel(actor: AuthUser, id: string) {
+    if (actor.role !== Role.ADMIN && actor.role !== Role.SUPER_ADMIN)
+      throw new ForbiddenException("Only administrators may cancel a receipt");
+    return this.prisma.$transaction(async (tx) => {
+      await this.lock(tx);
+      const task = await tx.receiptPrintTask.findUnique({
+        where: { id },
+        include: { order: { select: { number: true } } },
+      });
+      if (!task) throw new NotFoundException("Receipt task not found");
+      if (task.status !== ReceiptPrintTaskStatus.PENDING)
+        throw new ConflictException("Only a waiting receipt can be cancelled");
+      const updated = await tx.receiptPrintTask.update({
+        where: { id },
+        data: { status: ReceiptPrintTaskStatus.CANCELLED, lastError: "MANUALLY_CANCELLED" },
+        include: { order: { select: { number: true } } },
+      });
+      await tx.auditLog.create({
+        data: {
+          actorId: actor.id,
+          action: "receipt.manually_cancelled",
+          entityType: "ReceiptPrintTask",
+          entityId: id,
+          metadata: { orderId: task.orderId, previousStatus: task.status },
+        },
+      });
+      return this.view(updated);
+    });
+  }
+
+  async reprint(actor: AuthUser, orderId: string, dto: ReprintReceiptDto) {
     this.authorize(actor);
-    const eventKey = `MANUAL:${actor.id}:${key}`;
+    const eventKey = `MANUAL:${actor.id}:${dto.idempotencyKey}`;
+    const requestHash = manualSelectionHash(dto);
     return this.prisma.$transaction(async (tx) => {
       await this.lock(tx);
       const prior = await tx.receiptPrintTask.findUnique({
@@ -305,16 +379,174 @@ export class ReceiptQueueService {
           throw new ConflictException(
             "Reprint key already belongs to another order",
           );
+        const priorHash = (prior.plan as { manualRequestHash?: unknown })
+          .manualRequestHash;
+        if (typeof priorHash === "string" && priorHash !== requestHash)
+          throw new ConflictException(
+            "Reprint key already belongs to a different print selection",
+          );
         return this.view(prior);
       }
-      const task = await this.orders.enqueueReceipt(tx, orderId, eventKey);
+      const processing = await tx.receiptPrintTask.count({
+        where: { orderId, status: "PROCESSING" },
+      });
+      if (processing)
+        throw new ConflictException(
+          "A receipt for this order is being printed; wait for its result",
+        );
+      const plan = await this.orders.receiptPrintPlan(orderId, tx);
+      const routes = dto.itemRoutes ?? [];
+      if (routes.length && actor.role !== Role.ADMIN && actor.role !== Role.SUPER_ADMIN)
+        throw new ForbiddenException(
+          "Only administrators may change receipt routes",
+        );
+      if (new Set(routes.map((route) => route.itemId)).size !== routes.length)
+        throw new ConflictException(
+          "Each order item may have only one print route",
+        );
+      const orderItems = await tx.orderItem.findMany({
+        where: { orderId },
+        select: { id: true },
+      });
+      const orderItemIds = new Set(orderItems.map((item) => item.id));
+      if (routes.some((route) => !orderItemIds.has(route.itemId)))
+        throw new ConflictException(
+          "Print route contains an item outside this order",
+        );
+      if (routes.some((route) => route.skip && route.printerId))
+        throw new BadRequestException(
+          "A skipped item cannot also have a printer",
+        );
+      const skippedItemIds = new Set(
+        routes.filter((route) => route.skip).map((route) => route.itemId),
+      );
+      if (skippedItemIds.size === orderItemIds.size)
+        throw new BadRequestException(
+          "Select at least one order item to print",
+        );
+      const items = new Map(
+        [
+          ...plan.jobs.flatMap((job) => job.items),
+          ...plan.unassignedItems,
+          ...(plan.mainJob?.items ?? []),
+        ]
+          .filter((item) => orderItemIds.has(item.id) && !skippedItemIds.has(item.id))
+          .map((item) => [item.id, item]),
+      );
+      if (
+        !plan.mainJob &&
+        routes.some((route) => !route.skip && route.printerId === null)
+      )
+        throw new ConflictException("Main cash register is not configured");
+      if (skippedItemIds.size) {
+        if (plan.mainJob)
+          plan.mainJob.items = plan.mainJob.items.filter(
+            (item) => !skippedItemIds.has(item.id),
+          );
+        if (plan.metadata)
+          plan.metadata.customerNote = partialReceiptCustomerNote(
+            plan.metadata.customerNote,
+          );
+      }
+      const printerIds = [
+        ...new Set(
+          routes.flatMap((route) =>
+            !route.skip && route.printerId ? [route.printerId] : [],
+          ),
+        ),
+      ];
+      const printers = await tx.receiptPrinter.findMany({
+        where: { id: { in: printerIds }, isActive: true },
+      });
+      if (printers.length !== printerIds.length)
+        throw new ConflictException("Selected receipt printer is unavailable");
+      const selected = new Map(
+        routes
+          .filter((route) => !route.skip)
+          .map((route) => [route.itemId, route.printerId]),
+      );
+      const endpoints = new Map<
+        string,
+        {
+          printerIp: string;
+          printerPort: number;
+          transport: (typeof printers)[number]["transport"];
+        }
+      >();
+      for (const job of plan.jobs)
+        for (const item of job.items)
+          endpoints.set(item.id, {
+            printerIp: job.printerIp,
+            printerPort: job.printerPort,
+            transport: job.transport,
+          });
+      for (const [itemId, printerId] of selected) {
+        if (!printerId) endpoints.delete(itemId);
+        else {
+          const printer = printers.find((value) => value.id === printerId)!;
+          endpoints.set(itemId, {
+            printerIp: printer.ipAddress,
+            printerPort: printer.port,
+            transport: printer.transport,
+          });
+        }
+      }
+      const groups = new Map<string, (typeof plan.jobs)[number]>();
+      for (const [itemId, item] of items) {
+        const endpoint = endpoints.get(itemId);
+        if (!endpoint) continue;
+        const key = `${endpoint.transport}:${endpoint.printerIp}:${endpoint.printerPort}`;
+        const group = groups.get(key) ?? { ...endpoint, items: [] };
+        group.items.push(item);
+        groups.set(key, group);
+      }
+      plan.jobs = [...groups.values()];
+      plan.unassignedItems = [...items.values()].filter(
+        (item) => !endpoints.has(item.id) && !selected.has(item.id),
+      );
+      const copies = expandMainReceiptCopies({
+        ...plan,
+        manualRequestHash: requestHash,
+      });
+      const cancelled = await tx.receiptPrintTask.updateMany({
+        where: {
+          orderId,
+          OR: [
+            { eventKey: { startsWith: "ORDER_CREATED:" } },
+            { eventKey: { startsWith: "ORDER_CANCELLED:" } },
+          ],
+          status: { in: ["PENDING", "FAILED", "UNCERTAIN"] },
+        },
+        data: { status: "CANCELLED", lastError: "SUPERSEDED_BY_MANUAL_PRINT" },
+      });
+      const task = await tx.receiptPrintTask.create({
+        data: { orderId, eventKey, documentType: plan.documentType, plan: copies[0]! },
+      });
+      for (const [index, copyPlan] of copies.slice(1).entries()) {
+        await tx.receiptPrintTask.create({
+          data: {
+            orderId,
+            eventKey: `${eventKey}:MAIN_COPY:${index + 2}`,
+            documentType: plan.documentType,
+            plan: copyPlan,
+          },
+        });
+      }
       await tx.auditLog.create({
         data: {
           actorId: actor.id,
           action: "receipt.reprint_requested",
           entityType: "ReceiptPrintTask",
           entityId: task.id,
-          metadata: { orderId },
+          metadata: {
+            orderId,
+            cancelledAutomaticTasks: cancelled.count,
+            itemRoutes: routes.map(({ itemId, printerId, skip }) => ({
+              itemId,
+              printerId,
+              skipped: skip ?? false,
+            })),
+          },
         },
       });
       const order = await tx.order.findUniqueOrThrow({

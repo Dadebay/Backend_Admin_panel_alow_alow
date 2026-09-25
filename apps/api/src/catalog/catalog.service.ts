@@ -245,7 +245,11 @@ async function assertCafeReference(
 }
 
 function mainPrinterReferenceData(input: UpdateReceiptPrintSettingsDto) {
-  if (input.mainPrinterId === undefined && input.mainPrinterIp === undefined) {
+  if (
+    input.mainPrinterId === undefined &&
+    input.mainPrinterIp === undefined &&
+    input.mainCopies === undefined
+  ) {
     throw new BadRequestException(
       "mainPrinterId or mainPrinterIp must be provided",
     );
@@ -255,6 +259,8 @@ function mainPrinterReferenceData(input: UpdateReceiptPrintSettingsDto) {
       "Provide mainPrinterId or mainPrinterIp, not both",
     );
   }
+  if (input.mainPrinterId === undefined && input.mainPrinterIp === undefined)
+    return {};
   return input.mainPrinterId !== undefined
     ? { mainPrinterId: input.mainPrinterId, mainPrinterIp: null }
     : { mainPrinterId: null, mainPrinterIp: input.mainPrinterIp ?? null };
@@ -754,6 +760,7 @@ export class CatalogService {
       include: { mainPrinter: true },
     });
     return toApiResponse({
+      mainCopies: settings?.mainCopies ?? 2,
       mainPrinterId: settings?.mainPrinterId ?? null,
       mainPrinterIp:
         settings?.mainPrinter?.ipAddress ?? settings?.mainPrinterIp ?? null,
@@ -875,8 +882,17 @@ export class CatalogService {
       await assertActivePrinterReference(tx, dto.mainPrinterId);
       const settings = await tx.receiptPrintSettings.upsert({
         where: { id: "default" },
-        create: { id: "default", ...reference },
-        update: reference,
+        create: {
+          id: "default",
+          ...reference,
+          mainCopies: dto.mainCopies ?? 2,
+        },
+        update: {
+          ...reference,
+          ...(dto.mainCopies === undefined
+            ? {}
+            : { mainCopies: dto.mainCopies }),
+        },
         include: { mainPrinter: true },
       });
       await tx.auditLog.create({
@@ -885,10 +901,16 @@ export class CatalogService {
           action: "catalog.receipt-print-settings.updated",
           entityType: "ReceiptPrintSettings",
           entityId: settings.id,
-          metadata: { changedFields: Object.keys(reference) },
+          metadata: {
+            changedFields: [
+              ...Object.keys(reference),
+              ...(dto.mainCopies === undefined ? [] : ["mainCopies"]),
+            ],
+          },
         },
       });
       return toApiResponse({
+        mainCopies: settings.mainCopies,
         mainPrinterId: settings.mainPrinterId,
         mainPrinterIp:
           settings.mainPrinter?.ipAddress ?? settings.mainPrinterIp,

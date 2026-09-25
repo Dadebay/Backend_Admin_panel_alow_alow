@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   calculateDeliveryFee,
+  calculateDistanceDeliveryFee,
   resolveDeliveryPeriod,
 } from "../src/delivery/delivery-pricing";
 
@@ -16,6 +17,38 @@ describe("delivery pricing", () => {
 
   it("keeps charging when the free threshold is disabled", () => {
     expect(calculateDeliveryFee(10_000, 25, null)).toBe(25);
+  });
+});
+
+describe("kilometer delivery pricing", () => {
+  it.each([
+    [0, 5, 15],
+    [1_000, 5, 15],
+    [3_200, 5, 15],
+    [3_400, 5, 20],
+    [4_000, 5, 20],
+    [4_200, 5, 20],
+    [4_400, 5, 25],
+  ])("prices %i meters at %i manat/km as %i", (meters, rate, fee) => {
+    expect(calculateDistanceDeliveryFee(meters, rate)).toBe(fee);
+  });
+
+  it("rounds fractional manat up before applying the 5-manat bands", () => {
+    expect(calculateDistanceDeliveryFee(3_200, 5)).toBe(15);
+    expect(calculateDistanceDeliveryFee(3_202, 5)).toBe(20);
+  });
+
+  it("rejects negative, non-finite, or unsafe inputs", () => {
+    for (const [meters, rate] of [
+      [-1, 5],
+      [1_000, -1],
+      [1_000, 0],
+      [Number.NaN, 5],
+      [1_000, Number.POSITIVE_INFINITY],
+      [Number.MAX_VALUE, 5],
+    ]) {
+      expect(() => calculateDistanceDeliveryFee(meters, rate)).toThrow();
+    }
   });
 });
 

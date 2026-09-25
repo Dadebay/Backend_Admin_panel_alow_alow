@@ -9,10 +9,13 @@ import { branchFormSchema } from "../src/widgets/branch-manager/model/branch-for
 import {
   categoryFormSchema,
   categoryReceiptRouteFormSchema,
+  orderingHoursFormSchema,
   productFormSchema,
   receiptPrinterFormSchema,
   receiptPrintSettingsFormSchema,
 } from "../src/widgets/catalog-manager/model/catalog-forms.ts";
+import { manualReceiptFormSchema } from "../src/features/receipt-printing/model/manual-receipt-form.ts";
+import { giftFormSchema } from "../src/widgets/catalog-manager/model/gift-form.ts";
 import {
   bannerFormSchema,
   promoFormSchema,
@@ -143,6 +146,8 @@ test("catalog forms accept display names without a technical slug", () => {
       pricingType: "VARIANT",
       price: 50,
       receiptPrinterId: "2d807991-e99f-4f17-9b9f-cc2fb7478820",
+      preparationMinutes: 20,
+      loyaltyPoints: 3,
       variantLabel: "Размер",
       variants: [
         {
@@ -197,6 +202,7 @@ test("receipt routing forms accept registered printer IDs", () => {
   assert.equal(
     receiptPrintSettingsFormSchema.safeParse({
       mainPrinterId: "2d807991-e99f-4f17-9b9f-cc2fb7478820",
+      mainCopies: 2,
     }).success,
     true,
   );
@@ -225,6 +231,36 @@ test("receipt routing forms accept registered printer IDs", () => {
       isActive: true,
     }).success,
     true,
+  );
+});
+
+test("ordering hours form allows overnight hours but rejects equal or invalid times", () => {
+  const value = { enabled: true, opensAt: "22:00", closesAt: "03:00", version: 0 };
+  assert.equal(orderingHoursFormSchema.safeParse(value).success, true);
+  assert.equal(
+    orderingHoursFormSchema.safeParse({ ...value, closesAt: "22:00" }).success,
+    false,
+  );
+  assert.equal(
+    orderingHoursFormSchema.safeParse({ ...value, opensAt: "24:00" }).success,
+    false,
+  );
+});
+
+test("manual receipt form rejects invalid and oversized item route lists", () => {
+  const route = {
+    itemId: "2d807991-e99f-4f17-9b9f-cc2fb7478820",
+    destination: "DEFAULT",
+  };
+  assert.equal(manualReceiptFormSchema.safeParse({ routes: [route] }).success, true);
+  assert.equal(
+    manualReceiptFormSchema.safeParse({ routes: [{ ...route, itemId: "bad" }] })
+      .success,
+    false,
+  );
+  assert.equal(
+    manualReceiptFormSchema.safeParse({ routes: Array(101).fill(route) }).success,
+    false,
   );
 });
 
@@ -298,6 +334,8 @@ test("printer registry validates LAN endpoint and product uses its ID", () => {
     pricingType: "FIXED",
     price: 60,
     receiptPrinterId: "2d807991-e99f-4f17-9b9f-cc2fb7478820",
+    preparationMinutes: 10,
+    loyaltyPoints: 2,
     variantLabel: "",
     variants: [],
     sortOrder: 0,
@@ -305,6 +343,7 @@ test("printer registry validates LAN endpoint and product uses its ID", () => {
   };
 
   assert.equal(productFormSchema.safeParse(product).success, true);
+  assert.equal(productFormSchema.safeParse({ ...product, loyaltyPoints: 0 }).success, false);
   assert.equal(
     productFormSchema.safeParse({
       ...product,
@@ -360,6 +399,14 @@ test("printer registry validates LAN endpoint and product uses its ID", () => {
     }).success,
     false,
   );
+});
+
+test("gift form requires positive points and accepts limited or unlimited stock", () => {
+  const gift = { name: "  Мишка  ", description: "Игрушка", pointsCost: 30, stock: "", sortOrder: 0, isActive: true };
+  assert.deepEqual(giftFormSchema.parse(gift), { ...gift, name: "Мишка", stock: null });
+  assert.equal(giftFormSchema.parse({ ...gift, stock: "0" }).stock, 0);
+  assert.equal(giftFormSchema.safeParse({ ...gift, pointsCost: 0 }).success, false);
+  assert.equal(giftFormSchema.safeParse({ ...gift, stock: "1.5" }).success, false);
 });
 
 test("marketing schemas normalize promo code and reject reversed dates", () => {

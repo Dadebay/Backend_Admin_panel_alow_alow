@@ -12,6 +12,9 @@ import { TrackingModule } from "../tracking/tracking.module";
 import { DeliveryModule } from "../delivery/delivery.module";
 import { OrdersController } from "./orders.controller";
 import { OrdersService } from "./orders.service";
+import { OrderingHoursController } from "./ordering-hours.controller";
+import { OrderingHoursService } from "./ordering-hours.service";
+import { LoyaltyModule } from "../loyalty/loyalty.module";
 
 @Module({
   imports: [
@@ -22,12 +25,14 @@ import { OrdersService } from "./orders.service";
     RoutingModule,
     NotificationsModule,
     DeliveryModule,
+    LoyaltyModule,
   ],
   controllers: [
     OrdersController,
     ReceiptQueueController,
     ReceiptAgentController,
+    OrderingHoursController,
   ],
-  providers: [OrdersService, ReceiptQueueService, ReceiptAgentGuard],
+  providers: [OrdersService, ReceiptQueueService, ReceiptAgentGuard, OrderingHoursService],
 })
 export class OrdersModule {}

@@ -101,6 +101,12 @@ export class OrderItemResponseDto {
   @ApiProperty({ type: String, nullable: true })
   variantName: string | null;
 
+  @ApiProperty({ minimum: 0 })
+  preparationMinutes: number;
+
+  @ApiProperty({ minimum: 0, description: "Points earned by this order line after delivery" })
+  loyaltyPoints: number;
+
   @ApiProperty({ type: String, nullable: true })
   productImageUrl: string | null;
 
@@ -133,6 +139,9 @@ export class OrderQuoteItemResponseDto {
   @ApiProperty()
   quantity: number;
 
+  @ApiProperty({ minimum: 0 })
+  loyaltyPoints: number;
+
   @ApiProperty({
     description: "Current backend-owned price for one selected item",
   })
@@ -164,9 +173,36 @@ export class OrderQuotePromoResponseDto {
   discount: number;
 }
 
+export class OrderGiftResponseDto {
+  @ApiProperty({ format: "uuid" }) id: string;
+  @ApiProperty({ format: "uuid" }) orderId: string;
+  @ApiProperty({ format: "uuid" }) giftId: string;
+  @ApiProperty() name: string;
+  @ApiProperty() imageUrl: string;
+  @ApiProperty() pointsCost: number;
+  @ApiProperty() quantity: number;
+  @ApiProperty() totalPoints: number;
+}
+
+export class OrderQuoteGiftResponseDto {
+  @ApiProperty({ format: "uuid" }) giftId: string;
+  @ApiProperty() name: string;
+  @ApiProperty() imageUrl: string;
+  @ApiProperty() pointsCost: number;
+  @ApiProperty() quantity: number;
+  @ApiProperty() totalPoints: number;
+}
+
 export class OrderQuoteResponseDto {
   @ApiProperty({ type: [OrderQuoteItemResponseDto] })
   items: OrderQuoteItemResponseDto[];
+
+  @ApiProperty({ type: [OrderQuoteGiftResponseDto] })
+  gifts: OrderQuoteGiftResponseDto[];
+
+  @ApiProperty() pointsBalance: number;
+  @ApiProperty() loyaltyPointsEarned: number;
+  @ApiProperty() loyaltyPointsSpent: number;
 
   @ApiProperty({ type: OrderQuotePromoResponseDto, nullable: true })
   promo: OrderQuotePromoResponseDto | null;
@@ -268,6 +304,8 @@ export class ReceiptPrintMetadataResponseDto {
 }
 
 export class ReceiptPrintPlanResponseDto {
+  @ApiProperty({ minimum: 1, maximum: 3 })
+  mainCopies: number;
   @ApiProperty({ format: "uuid" })
   orderId: string;
 
@@ -470,6 +508,12 @@ export class OrderResponseDto {
   total: number;
 
   @ApiProperty()
+  loyaltyPointsEarned: number;
+
+  @ApiProperty()
+  loyaltyPointsSpent: number;
+
+  @ApiProperty()
   address: string;
 
   @ApiProperty()
@@ -546,6 +590,9 @@ export class OrderResponseDto {
 
   @ApiProperty({ type: [OrderItemResponseDto] })
   items: OrderItemResponseDto[];
+
+  @ApiProperty({ type: [OrderGiftResponseDto] })
+  gifts: OrderGiftResponseDto[];
 
   @ApiProperty({ type: OrderRatingResponseDto, nullable: true })
   rating: OrderRatingResponseDto | null;

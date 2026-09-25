@@ -2594,6 +2594,12 @@ describe("backend security and critical workflow", () => {
   });
 
   it("builds an authorized accepted-order print plan grouped by snapshot endpoint", async () => {
+    const settingsAuditCountBefore = await prisma.auditLog.count({
+      where: {
+        action: "catalog.receipt-print-settings.updated",
+        entityType: "ReceiptPrintSettings",
+      },
+    });
     const [categoryPrinter, productPrinter, mainPrinter] = await Promise.all([
       prisma.receiptPrinter.findUniqueOrThrow({
         where: {
@@ -2789,7 +2795,7 @@ describe("backend security and critical workflow", () => {
           entityType: "ReceiptPrintSettings",
         },
       }),
-    ).toBe(1);
+    ).toBe(settingsAuditCountBefore + 1);
     expect(response.text).not.toContain("customerId");
 
     await request(server)

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { lazy, Suspense, useMemo, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useFieldArray, useForm, useWatch } from "react-hook-form";
@@ -50,6 +50,9 @@ import { CafeCatalogSection } from "./cafe-catalog-section";
 import { CategoryReceiptRoutes } from "./category-receipt-routes";
 import { ProductReceiptRoute } from "./product-receipt-route";
 import { ReceiptPrinterRegistry } from "./receipt-printer-registry";
+import { OrderingHoursSettings } from "./ordering-hours-settings";
+
+const GiftManager = lazy(() => import("./gift-manager").then((module) => ({ default: module.GiftManager })));
 
 type CatalogDeleteTarget =
   | {
@@ -60,7 +63,7 @@ type CatalogDeleteTarget =
     }
   | { kind: "product"; id: string; name: string };
 
-type CatalogTab = "cafes" | "categories" | "products" | "printers";
+type CatalogTab = "cafes" | "categories" | "products" | "printers" | "hours" | "gifts";
 
 function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : "";
@@ -141,6 +144,7 @@ export function CatalogManager() {
     mode: "onBlur",
     values: {
       mainPrinterId: receiptPrintSettings.data?.mainPrinterId ?? "",
+      mainCopies: receiptPrintSettings.data?.mainCopies ?? 2,
     },
   });
   const {
@@ -161,6 +165,8 @@ export function CatalogManager() {
       pricingType: "FIXED",
       price: 0,
       receiptPrinterId: "",
+      preparationMinutes: 0,
+      loyaltyPoints: 1,
       variantLabel: "",
       variants: [],
       sortOrder: 0,
@@ -468,6 +474,8 @@ export function CatalogManager() {
                     pricingType: row.original.pricingType,
                     price: Number(row.original.price),
                     receiptPrinterId: row.original.receiptPrinterId ?? "",
+                    preparationMinutes: row.original.preparationMinutes,
+                    loyaltyPoints: row.original.loyaltyPoints,
                     variantLabel: row.original.variantLabel ?? "",
                     variants:
                       row.original.pricingType === "VARIANT"
@@ -583,6 +591,7 @@ export function CatalogManager() {
   ) {
     await actions.updateReceiptPrintSettings.mutateAsync({
       mainPrinterId: values.mainPrinterId || null,
+      mainCopies: values.mainCopies,
     });
   }
 
@@ -637,6 +646,8 @@ export function CatalogManager() {
       pricingType: values.pricingType,
       ...(values.pricingType === "FIXED" ? { price: values.price } : {}),
       receiptPrinterId: values.receiptPrinterId || null,
+      preparationMinutes: values.preparationMinutes,
+      loyaltyPoints: values.loyaltyPoints,
       variantLabel:
         values.pricingType === "VARIANT"
           ? values.variantLabel || undefined
@@ -704,11 +715,15 @@ export function CatalogManager() {
       count: categories.data?.length ?? 0,
     },
     { id: "products", label: "Блюда", count: totalProductCount },
+    ...(["ADMIN", "SUPER_ADMIN"].includes(session?.user.role ?? "")
+      ? [{ id: "gifts" as const, label: "Подарки", count: 0 }]
+      : []),
     {
       id: "printers",
       label: "Чековые аппараты",
       count: receiptPrinters.data?.length ?? 0,
     },
+    { id: "hours", label: "Время работы", count: 0 },
   ];
 
   return (
@@ -759,8 +774,11 @@ export function CatalogManager() {
                     )?.id ?? "",
                   name: "",
                   description: "",
+                  pricingType: "FIXED",
                   price: 0,
                   receiptPrinterId: "",
+                  preparationMinutes: 0,
+                  loyaltyPoints: 1,
                   variantLabel: "",
                   variants: [],
                   sortOrder: 0,
@@ -801,7 +819,7 @@ export function CatalogManager() {
             </button>
           ))}
         </div>
-        {catalogTab !== "printers" && (
+        {catalogTab !== "printers" && catalogTab !== "hours" && catalogTab !== "gifts" && (
           <section
             className={
               catalogTab === "cafes"
@@ -936,6 +954,10 @@ export function CatalogManager() {
         <CafeCatalogSection canEdit={canEdit} search={catalogSearch} />
       )}
 
+      {catalogTab === "hours" && <OrderingHoursSettings canEdit={canEdit} />}
+
+      {catalogTab === "gifts" && <Suspense fallback={<p>Загружаем подарки…</p>}><GiftManager canEdit={Boolean(session && ["ADMIN", "SUPER_ADMIN"].includes(session.user.role))} /></Suspense>}
+
       {catalogTab === "printers" && (
         <>
           <ReceiptPrinterRegistry
@@ -972,7 +994,7 @@ export function CatalogManager() {
             <div className="receipt-print-settings-copy">
               <h2>Главный чековый аппарат</h2>
               <p>
-                Получает один полный чек со всеми блюдами. Кухонные копии ниже
+                Получает полные чеки со всеми блюдами. Кухонные копии ниже
                 маршрутизируются отдельно по категориям.
               </p>
             </div>
@@ -1004,6 +1026,22 @@ export function CatalogManager() {
                 </select>
                 <FormFieldError
                   message={receiptPrintSettingsErrors.mainPrinterId?.message}
+                />
+              </label>
+              <label>
+                <span>Копий на главной кассе</span>
+                <input
+                  data-testid="main-receipt-copies"
+                  type="number"
+                  min="1"
+                  max="3"
+                  {...registerReceiptPrintSettings("mainCopies", {
+                    valueAsNumber: true,
+                  })}
+                  disabled={!canEdit || receiptPrintSettings.isPending}
+                />
+                <FormFieldError
+                  message={receiptPrintSettingsErrors.mainCopies?.message}
                 />
               </label>
               <div className="receipt-print-settings-actions">
@@ -1167,7 +1205,9 @@ export function CatalogManager() {
                     </option>
                   ))}
                 </select>
-                <small>Смена кафе переносит категорию вместе со всеми блюдами.</small>
+                <small>
+                  Смена кафе переносит категорию вместе со всеми блюдами.
+                </small>
                 <FormFieldError message={categoryErrors.cafeId?.message} />
               </label>
               <label>
@@ -1361,6 +1401,38 @@ export function CatalogManager() {
                   <small>Полная цена блюда без вариантов.</small>
                 </label>
               )}
+              <label>
+                <span>Время приготовления, минут</span>
+                <input
+                  data-testid="product-preparation-minutes"
+                  type="number"
+                  min="0"
+                  max="240"
+                  {...registerProduct("preparationMinutes", {
+                    valueAsNumber: true,
+                  })}
+                  aria-invalid={Boolean(productErrors.preparationMinutes)}
+                />
+                <FormFieldError
+                  message={productErrors.preparationMinutes?.message}
+                />
+                <small>
+                  Чек для быстрого блюда выйдет позже, чтобы блюда были готовы
+                  одновременно.
+                </small>
+              </label>
+              <label>
+                <span>Баллы за одно блюдо</span>
+                <input
+                  data-testid="product-loyalty-points"
+                  type="number"
+                  min="1"
+                  max="100000"
+                  {...registerProduct("loyaltyPoints", { valueAsNumber: true })}
+                  aria-invalid={Boolean(productErrors.loyaltyPoints)}
+                />
+                <FormFieldError message={productErrors.loyaltyPoints?.message} />
+              </label>
               <label>
                 <span>Свой чековый аппарат</span>
                 <select

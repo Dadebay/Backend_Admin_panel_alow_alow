@@ -52,6 +52,9 @@ const optionalIntegerInput = z
 
 export const deliverySettingsFormSchema = z.object({
   mapPricingEnabled: z.boolean(),
+  distancePricingEnabled: z.boolean(),
+  dayPricePerKilometer: moneyInput.refine((value) => value > 0, "Цена должна быть больше нуля"),
+  nightPricePerKilometer: moneyInput.refine((value) => value > 0, "Цена должна быть больше нуля"),
   fallbackPrice: moneyInput,
   fallbackNightPrice: moneyInput.optional(),
   fallbackNightFreeDeliveryThreshold: optionalMoneyInput.optional(),

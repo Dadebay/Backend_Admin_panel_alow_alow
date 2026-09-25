@@ -1,4 +1,6 @@
 import type { components } from "@alowalow/api-contract";
+import { useState } from "react";
+import { useSession } from "@/src/shared/auth";
 import { useReceiptQueue } from "../api/use-receipt-queue";
 import { useReceiptPrinting } from "../api/use-receipt-printing";
 import "./receipt-queue.css";
@@ -12,11 +14,16 @@ const labels: Record<
   DELIVERED: "Передан аппарату",
   FAILED: "Требуется настройка",
   UNCERTAIN: "Проверьте бумажный чек",
+  CANCELLED: "Отменён",
 };
 export function ReceiptQueue() {
-  const { queue, agent, worker, retry, directMode } = useReceiptQueue();
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const { session } = useSession();
+  const canCancel = session?.user.role === "ADMIN" || session?.user.role === "SUPER_ADMIN";
+  const { queue, history, agent, worker, retry, cancel, directMode } =
+    useReceiptQueue(historyOpen);
   const reprint = useReceiptPrinting();
-  const failure = retry.error ?? reprint.error;
+  const failure = retry.error ?? cancel.error ?? reprint.error;
   return (
     <details className="receipt-queue" data-testid="receipt-queue">
       <summary data-testid="receipt-queue-toggle">
@@ -64,6 +71,9 @@ export function ReceiptQueue() {
             <span>
               {labels[task.status]} · попыток: {task.attempts}
             </span>
+            {task.itemNames.length > 0 && (
+              <small>Блюда: {task.itemNames.join(", ")}</small>
+            )}
             {!directMode &&
               task.stationId &&
               task.stationId !== agent.data?.agentId && (
@@ -74,14 +84,36 @@ export function ReceiptQueue() {
             {task.lastError === "NO_PRINTERS" && (
               <small>Укажите аппарат в настройках и создайте новый чек.</small>
             )}
-            {task.status === "PENDING" && (
+            {task.status === "PENDING" &&
+              new Date(task.nextAttemptAt).getTime() <= queue.dataUpdatedAt && (
+                <button
+                  type="button"
+                  disabled={retry.isPending}
+                  data-testid={`receipt-queue-retry-${task.id}`}
+                  onClick={() => retry.mutate(task.id)}
+                >
+                  Проверить снова
+                </button>
+              )}
+            {task.status === "PENDING" &&
+              new Date(task.nextAttemptAt).getTime() > queue.dataUpdatedAt && (
+                <small>
+                  Запланировано на{" "}
+                  {new Date(task.nextAttemptAt).toLocaleString("ru-RU")}
+                </small>
+              )}
+            {canCancel && task.status === "PENDING" && (
               <button
                 type="button"
-                disabled={retry.isPending}
-                data-testid={`receipt-queue-retry-${task.id}`}
-                onClick={() => retry.mutate(task.id)}
+                className="danger-button"
+                disabled={cancel.isPending}
+                data-testid={`receipt-queue-cancel-${task.id}`}
+                onClick={() => {
+                  if (window.confirm("Отменить этот ожидающий чек? Уже переданный аппарату чек отменить нельзя."))
+                    cancel.mutate(task.id);
+                }}
               >
-                Проверить снова
+                Отменить чек
               </button>
             )}
             {(task.status === "UNCERTAIN" || task.status === "FAILED") && (
@@ -119,6 +151,47 @@ export function ReceiptQueue() {
         {reprint.isSuccess && (
           <p role="status">Новый чек добавлен в очередь.</p>
         )}
+        {cancel.isSuccess && (
+          <p role="status">Ожидающий чек отменён.</p>
+        )}
+        <details
+          data-testid="receipt-queue-history"
+          onToggle={(event) => setHistoryOpen(event.currentTarget.open)}
+        >
+          <summary data-testid="receipt-queue-history-toggle">
+            Журнал печати
+          </summary>
+          {history.isPending && <p>Загружаем журнал…</p>}
+          {history.isError && (
+            <button
+              type="button"
+              data-testid="receipt-queue-history-retry"
+              onClick={() => void history.refetch()}
+            >
+              Повторить загрузку
+            </button>
+          )}
+          {history.data?.items.map((task) => (
+            <div className="receipt-queue-item" key={task.id}>
+              <strong>
+                #{task.orderNumber} ·{" "}
+                {task.documentType === "CANCELLATION"
+                  ? "Отмена заказа"
+                  : "Заказ"}
+              </strong>
+              <span>
+                {labels[task.status]} ·{" "}
+                {new Date(task.createdAt).toLocaleString("ru-RU")}
+              </span>
+              <small>
+                Отправить после:{" "}
+                {new Date(task.nextAttemptAt).toLocaleString("ru-RU")} ·
+                попыток: {task.attempts}
+              </small>
+              {task.lastError && <small>Код: {task.lastError}</small>}
+            </div>
+          ))}
+        </details>
         {failure && <p role="alert">{failure.message}</p>}
       </div>
     </details>

@@ -11,7 +11,7 @@ test("night schedule accepts midnight crossings and requires distinct valid time
   }
 });
 test("day and night fallback prices have independent free-delivery thresholds", () => {
-  assert.deepEqual(deliverySettingsFormSchema.parse({ mapPricingEnabled: true, fallbackPrice: "15", fallbackFreeDeliveryThreshold: "150", fallbackNightPrice: "35,50", fallbackNightFreeDeliveryThreshold: "" }), { mapPricingEnabled: true, fallbackPrice: 15, fallbackFreeDeliveryThreshold: 150, fallbackNightPrice: 35.5, fallbackNightFreeDeliveryThreshold: null });
+  assert.deepEqual(deliverySettingsFormSchema.parse({ mapPricingEnabled: true, distancePricingEnabled: true, dayPricePerKilometer: "5", nightPricePerKilometer: "7,50", fallbackPrice: "15", fallbackFreeDeliveryThreshold: "150", fallbackNightPrice: "35,50", fallbackNightFreeDeliveryThreshold: "" }), { mapPricingEnabled: true, distancePricingEnabled: true, dayPricePerKilometer: 5, nightPricePerKilometer: 7.5, fallbackPrice: 15, fallbackFreeDeliveryThreshold: 150, fallbackNightPrice: 35.5, fallbackNightFreeDeliveryThreshold: null });
 });
 test("district form preserves an independent night price and threshold", () => {
   const form = { welayatId: "1", nameEn: "", nameRu: "Район", nameTk: "Etrap", queuePosition: "", price: "20", freeDeliveryThreshold: "200", nightPrice: "40", nightFreeDeliveryThreshold: "400", isDeliveryEnabled: true };

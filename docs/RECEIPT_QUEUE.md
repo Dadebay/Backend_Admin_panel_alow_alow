@@ -3,6 +3,8 @@
 The standalone-agent revision is implemented in API, admin and Go agent.
 Production push/deployment was authorized by the user on 2026-09-19.
 The Windows investigation is preserved in [the handoff](RECEIPT_PRINTING_WINDOWS_HANDOFF.md).
+The 2026-09-25 queue changes are pushed to `codex/map-delivery-zones` for review;
+the current request explicitly excludes deployment.
 
 ## Delivery contract
 
@@ -18,6 +20,12 @@ The Windows investigation is preserved in [the handoff](RECEIPT_PRINTING_WINDOWS
   Main-printer selection is resolved at enqueue time; kitchen routes remain
   order-line snapshots. Retrying never regenerates the payload. An explicit
   new reprint obtains current main settings and a new dispatch identity.
+- The API calculates kitchen eligibility from snapshotted preparation times and
+  persists `nextAttemptAt`. It creates one immediate task per configured main
+  copy (1–3); only the first carries immediate kitchen jobs. Later kitchen
+  tasks have no main job. Manual printing cancels outstanding automatic tasks
+  and creates one task per requested main copy. Every task uses the unchanged
+  single-main-job protocol understood by existing print agents.
 - The standalone EXE claims directly from NestJS with the dedicated
   `RECEIPT_AGENT_API_TOKEN` and sends its persistent journal station UUID in
   `X-Receipt-Agent-Id`. It never reads a browser JWT. PostgreSQL serializes claim selection with a row
@@ -30,8 +38,8 @@ The Windows investigation is preserved in [the handoff](RECEIPT_PRINTING_WINDOWS
   switching OS accounts does not. Queue UI identifies tasks waiting for their
   original workstation.
 - API/network/agent outages preserve tasks. Definitively unsent copies retry
-  indefinitely with exponential delay capped at 60 seconds. The five-second
-  three-second EXE poll resumes pending work without a browser. Only the visible
+  indefinitely with exponential delay capped at 60 seconds. The three-second
+  EXE poll resumes pending work without a browser. Only the visible
   print agent, internet connection and printer LAN must be available.
 - Go serializes entire dispatches, fsyncs a `started` record before each copy,
   then a `sent` or definitely-unsent `retryable` result. A completed copy is
@@ -52,7 +60,23 @@ The Windows investigation is preserved in [the handoff](RECEIPT_PRINTING_WINDOWS
 - Manual reprint is explicit and has a separate HTTP idempotency key. It can
   intentionally reproduce previously printed copies; the UI asks for paper
   confirmation. A failed manual-request response retains its key for retry.
-  Missing printer routes require configuration and a fresh print plan.
+  Missing printer routes require configuration and a fresh print plan. An
+  administrator may omit individual dishes from both the main and kitchen
+  copies; the API rejects an empty selection and retains the full order total
+  with a visible partial-print warning on the paper. Operators retain the
+  saved full-order route. Reusing a key with a different selection returns
+  a conflict.
+- Administrator food edits cancel obsolete waiting receipts in the same
+  transaction as the order change. Retained kitchen lines keep their place in
+  a shared task. When food is added or the longest preparation time changes,
+  untouched pending lines are rescheduled from the edit time and newly added
+  lines get kitchen tasks on that schedule. Waiting main copies are replaced
+  with the corrected order. An edit conflicts while a receipt for that order
+  is processing or has an uncertain outcome. The queue records every cancellation and
+  replacement in its audit history.
+- An administrator can manually cancel one `PENDING` task, including a future
+  kitchen ticket. The queue displays the task's dish names. A processing or
+  delivered task cannot be recalled from the apparatus.
 
 ## API
 
@@ -61,11 +85,12 @@ Staff management paths under `/api/v1` require an active `OPERATOR`, `ADMIN` or
 
 | Method / path | Purpose |
 | --- | --- |
-| GET `/receipt-print-tasks` | First 50 outstanding tasks, counts and `consumerMode`; no receipt/customer payload |
+| GET `/receipt-print-tasks` | First 50 outstanding tasks, dish names, counts and `consumerMode`; no customer payload |
 | POST `/receipt-print-tasks/claim` | Atomically claim one eligible task for `stationId` |
 | POST `/receipt-print-tasks/:id/heartbeat` | Renew matching actor/station/claim token |
 | POST `/receipt-print-tasks/:id/outcome` | Record `DELIVERED`, `RETRY`, `UNCERTAIN` or `FAILED` |
 | POST `/receipt-print-tasks/:id/retry` | Move a safe pending/failed task's retry time to now; cannot reset uncertainty |
+| POST `/receipt-print-tasks/:id/cancel` | Administrator-only audited cancellation of a `PENDING` task |
 | POST `/receipt-print-tasks/orders/:orderId/reprint` | Audited, intentional new dispatch, deduplicated by request key |
 
 The EXE has a separate least-privilege bearer key and only these paths:

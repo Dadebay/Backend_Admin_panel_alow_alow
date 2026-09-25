@@ -6,6 +6,7 @@ import {
 } from "@nestjs/common";
 import { toApiResponse } from "../common/api-response";
 import type { AuthUser } from "../common/auth.types";
+import { BranchesService } from "../branches/branches.service";
 import {
   Prisma,
   type DeliverySettings,
@@ -25,6 +26,7 @@ import {
 } from "./delivery.dto";
 import {
   calculateDeliveryFee,
+  calculateDistanceDeliveryFee,
   resolveDeliveryPeriod,
   DELIVERY_TIME_ZONE,
 } from "./delivery-pricing";
@@ -45,6 +47,7 @@ export class DeliveryService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly geocoding: GeocodingService,
+    private readonly branches: BranchesService,
   ) {}
 
   publicConfig() {
@@ -97,11 +100,20 @@ export class DeliveryService {
           longitude: dto.longitude,
         })
       : findDeliveryAreaForAddress(etraps, addressLine);
+    const nearest = settings.distancePricingEnabled
+      ? await this.prisma.$transaction((tx) =>
+          this.branches.findNearestActive(tx, {
+            latitude: dto.latitude,
+            longitude: dto.longitude,
+          }, true),
+        )
+      : null;
     const pricing = this.priceDelivery(
       settings,
       etrap,
       dto.subtotal,
       new Date(),
+      nearest?.distanceMeters,
     );
 
     return toApiResponse({
@@ -123,7 +135,15 @@ export class DeliveryService {
 
   async tariffQuote(dto: QuoteDeliveryTariffDto) {
     const pricing = await this.prisma.$transaction((tx) =>
-      this.resolvePricing(tx, dto.subtotal, dto.deliveryEtrapId ?? null),
+      this.resolvePricing(
+        tx,
+        dto.subtotal,
+        dto.deliveryEtrapId ?? null,
+        new Date(),
+        dto.latitude !== undefined && dto.longitude !== undefined
+          ? { latitude: dto.latitude, longitude: dto.longitude }
+          : undefined,
+      ),
     );
     return toApiResponse({ ...pricing, subtotal: dto.subtotal });
   }
@@ -134,13 +154,16 @@ export class DeliveryService {
     deliveryEtrapId: number | null,
     at = new Date(),
     coordinates?: DeliveryZonePoint,
+    distanceMeters?: number,
   ) {
     const settings = await tx.deliverySettings.findUnique({
       where: { id: SETTINGS_ID },
     });
     if (!settings) throw new NotFoundException("Delivery settings not found");
     const usesCoordinates = settings.mapPricingEnabled && coordinates;
-    const etrap = usesCoordinates
+    const etrap = settings.distancePricingEnabled
+      ? null
+      : usesCoordinates
       ? findDeliveryAreaForCoordinates(
           await tx.etrap.findMany({
             where: { isDeliveryEnabled: true },
@@ -154,22 +177,34 @@ export class DeliveryService {
             where: { id: deliveryEtrapId },
             include: { welayat: true },
           });
-    if (!usesCoordinates && deliveryEtrapId !== null && !etrap)
+    if (!settings.distancePricingEnabled && !usesCoordinates && deliveryEtrapId !== null && !etrap)
       throw new BadRequestException("Delivery etrap not found");
     if (etrap && !etrap.isDeliveryEnabled)
       throw new BadRequestException(
         "Delivery is not available for the selected etrap",
       );
-    return { ...this.priceDelivery(settings, etrap, subtotal, at), etrap };
+    const nearest = settings.distancePricingEnabled && coordinates && distanceMeters === undefined
+      ? await this.branches.findNearestActive(tx, coordinates, true)
+      : null;
+    return {
+      ...this.priceDelivery(
+        settings,
+        etrap,
+        subtotal,
+        at,
+        distanceMeters ?? nearest?.distanceMeters,
+      ),
+      etrap,
+    };
   }
 
-  async usesMapPricing(tx: Prisma.TransactionClient) {
+  async ignoresSelectedEtrap(tx: Prisma.TransactionClient) {
     const settings = await tx.deliverySettings.findUnique({
       where: { id: SETTINGS_ID },
-      select: { mapPricingEnabled: true },
+      select: { mapPricingEnabled: true, distancePricingEnabled: true },
     });
     if (!settings) throw new NotFoundException("Delivery settings not found");
-    return settings.mapPricingEnabled;
+    return settings.mapPricingEnabled || settings.distancePricingEnabled;
   }
 
   private priceDelivery(
@@ -177,9 +212,29 @@ export class DeliveryService {
     etrap: Etrap | null,
     subtotal: number,
     at: Date,
+    distanceMeters?: number,
   ) {
     const period = resolveDeliveryPeriod(settings, at);
     const night = period.tariff === "NIGHT";
+    if (settings.distancePricingEnabled) {
+      if (distanceMeters === undefined)
+        throw new BadRequestException(
+          "Coordinates are required for kilometer delivery pricing",
+        );
+      const rate = Number(
+        night ? settings.nightPricePerKilometer : settings.dayPricePerKilometer,
+      );
+      const fee = calculateDistanceDeliveryFee(distanceMeters, rate);
+      return {
+        ...period,
+        pricingMode: "DISTANCE" as const,
+        distanceMeters,
+        pricePerKilometer: rate,
+        price: fee,
+        freeDeliveryThreshold: null,
+        fee,
+      };
+    }
     const price = Number(
       etrap
         ? night
@@ -199,6 +254,9 @@ export class DeliveryService {
     const freeDeliveryThreshold = threshold === null ? null : Number(threshold);
     return {
       ...period,
+      pricingMode: "AREA" as const,
+      distanceMeters: null,
+      pricePerKilometer: null,
       price,
       freeDeliveryThreshold,
       fee: calculateDeliveryFee(subtotal, price, freeDeliveryThreshold),
@@ -212,7 +270,10 @@ export class DeliveryService {
     );
     const changesVersionedSettings = changedFields.some(
       (key) =>
-        key.toLowerCase().includes("night") || key === "mapPricingEnabled",
+        key.toLowerCase().includes("night") ||
+        key === "mapPricingEnabled" ||
+        key === "distancePricingEnabled" ||
+        key === "dayPricePerKilometer",
     );
     if (changesVersionedSettings && version === undefined)
       throw new BadRequestException(
@@ -240,6 +301,16 @@ export class DeliveryService {
         (dto.nightEndsAt ?? before.nightEndsAt)
       ) {
         throw new BadRequestException("Night start and end must be different");
+      }
+      if (dto.distancePricingEnabled ?? before.distancePricingEnabled) {
+        if (
+          (dto.dayPricePerKilometer ?? Number(before.dayPricePerKilometer)) <= 0 ||
+          (dto.nightPricePerKilometer ?? Number(before.nightPricePerKilometer)) <= 0
+        ) {
+          throw new BadRequestException(
+            "Set both day and night kilometer prices before enabling kilometer pricing",
+          );
+        }
       }
       if (dto.mapPricingEnabled === true) {
         await this.assertMapPricingReady(tx);
@@ -682,6 +753,9 @@ export class DeliveryService {
     if (!settings) throw new NotFoundException("Delivery settings not found");
     return toApiResponse({
       mapPricingEnabled: settings.mapPricingEnabled,
+      distancePricingEnabled: settings.distancePricingEnabled,
+      dayPricePerKilometer: settings.dayPricePerKilometer,
+      nightPricePerKilometer: settings.nightPricePerKilometer,
       fallbackPrice: settings.fallbackPrice,
       fallbackFreeDeliveryThreshold: settings.fallbackFreeDeliveryThreshold,
       fallbackNightPrice: settings.fallbackNightPrice,

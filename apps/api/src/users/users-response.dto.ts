@@ -1,6 +1,12 @@
 import { ApiProperty } from "@nestjs/swagger";
 import { LoginAttemptStatus, OrderStatus, PushDevicePlatform, Role } from "../generated/prisma/client";
 
+export class CustomerCountsResponseDto {
+  @ApiProperty({ minimum: 0 }) registered: number;
+  @ApiProperty({ minimum: 0 }) assistedOnly: number;
+  @ApiProperty({ minimum: 0 }) totalCustomerAccounts: number;
+}
+
 export class LoginAttemptUserResponseDto {
   @ApiProperty({ format: "uuid" })
   id: string;

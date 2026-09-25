@@ -9,7 +9,7 @@ import {
 } from "./use-receipt-printing";
 
 const interval = () => (document.visibilityState === "visible" ? 5_000 : false);
-export function useReceiptQueue() {
+export function useReceiptQueue(historyOpen = false) {
   const { authorizedRequest, session } = useSession();
   const queryClient = useQueryClient();
   const queue = useQuery({
@@ -26,6 +26,15 @@ export function useReceiptQueue() {
     refetchInterval: interval,
     refetchIntervalInBackground: false,
     refetchOnWindowFocus: true,
+  });
+  const history = useQuery({
+    queryKey: [...receiptQueueKey, "history", session?.user.id],
+    queryFn: ({ signal }) =>
+      authorizedRequest<
+        components["schemas"]["ReceiptQueueHistoryResponseDto"]
+      >("/receipt-print-tasks/history", { signal }),
+    enabled: Boolean(session) && historyOpen,
+    staleTime: 10_000,
   });
   const directMode = queue.data?.consumerMode === "DIRECT_AGENT";
   const agent = useQuery({
@@ -98,5 +107,15 @@ export function useReceiptQueue() {
     onSuccess: () =>
       queryClient.invalidateQueries({ queryKey: receiptQueueKey }),
   });
-  return { queue, agent, worker, retry, directMode };
+  const cancel = useMutation({
+    mutationFn: (id: string) =>
+      authorizedRequest<components["schemas"]["ReceiptTaskResponseDto"]>(
+        `/receipt-print-tasks/${id}/cancel`,
+        { method: "POST", signal: AbortSignal.timeout(10_000) },
+      ),
+    retry: false,
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: receiptQueueKey }),
+  });
+  return { queue, history, agent, worker, retry, cancel, directMode };
 }

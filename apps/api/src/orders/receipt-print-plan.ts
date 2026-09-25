@@ -8,6 +8,16 @@ export enum ReceiptDocumentType {
   CANCELLATION = "CANCELLATION",
 }
 
+const PARTIAL_RECEIPT_WARNING =
+  "ВЫБОРОЧНАЯ ПЕЧАТЬ: указаны не все блюда. Итог ниже — по всему заказу.";
+
+export function partialReceiptCustomerNote(customerNote: string | null) {
+  const note = customerNote?.trim();
+  if (!note) return PARTIAL_RECEIPT_WARNING;
+  const availableNoteLength = 500 - [...PARTIAL_RECEIPT_WARNING].length - 1;
+  return `${[...note].slice(0, availableNoteLength).join("")}\n${PARTIAL_RECEIPT_WARNING}`;
+}
+
 type ReceiptPrintSourceItem = {
   id: string;
   productName: string;
@@ -30,6 +40,7 @@ type ReceiptPrintSourceOrder = {
   total: unknown;
   deliveryEtrapName: string | null;
   items: ReceiptPrintSourceItem[];
+  gifts?: { id: string; name: string; quantity: number; totalPoints: number }[];
 };
 
 export type ReceiptPrintItem = {
@@ -58,6 +69,29 @@ export type ReceiptPrintMetadata = {
   addressDetails: string | null;
   customerNote: string | null;
 };
+
+/** Each queued task is printable by the existing agent, which prints one main job. */
+export function expandMainReceiptCopies<
+  T extends {
+    mainJob: object | null;
+    mainCopies: number;
+    jobs: object[];
+    unassignedItems: object[];
+  },
+>(plan: T) {
+  const first = { ...plan, mainCopies: 1 };
+  const extraCopies = plan.mainJob
+    ? Math.max(0, Math.min(3, plan.mainCopies) - 1)
+    : 0;
+  return [
+    first,
+    ...Array.from({ length: extraCopies }, () => ({
+      ...first,
+      jobs: [],
+      unassignedItems: [],
+    })),
+  ];
+}
 
 export function buildReceiptPrintMetadata(
   order: {
@@ -114,6 +148,7 @@ export function buildReceiptPrintPlan(
   order: ReceiptPrintSourceOrder,
   mainPrinter: ReceiptPrinterEndpoint | null,
   metadata: ReceiptPrintMetadata | null = null,
+  mainCopies = 2,
 ) {
   const jobsByEndpoint = new Map<
     string,
@@ -142,6 +177,15 @@ export function buildReceiptPrintPlan(
     jobsByEndpoint.set(key, job);
   }
 
+  for (const gift of order.gifts ?? []) {
+    allItems.push({
+      id: gift.id,
+      name: `Подарок: ${gift.name} (${gift.totalPoints} баллов)`,
+      quantity: gift.quantity,
+      unitPrice: 0,
+    });
+  }
+
   return {
     orderId: order.id,
     orderNumber: order.number,
@@ -162,6 +206,7 @@ export function buildReceiptPrintPlan(
       deliveryAreaName: order.deliveryEtrapName,
     },
     mainJob: mainPrinter ? { ...mainPrinter, items: allItems } : null,
+    mainCopies,
     jobs: [...jobsByEndpoint.entries()]
       .sort(([left], [right]) => left.localeCompare(right))
       .map(([, { endpoint, items }]) => ({ ...endpoint, items })),

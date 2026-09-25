@@ -192,6 +192,12 @@ export class CreateCategoryDto {
 export class UpdateCategoryDto extends PartialType(CreateCategoryDto) {}
 
 export class UpdateReceiptPrintSettingsDto {
+  @ApiPropertyOptional({ minimum: 1, maximum: 3 })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(3)
+  mainCopies?: number;
   @ApiPropertyOptional({
     type: String,
     format: "uuid",
@@ -371,6 +377,24 @@ export class CreateProductDto {
   @IsString()
   @MaxLength(4000)
   description: string;
+
+  @ApiPropertyOptional({
+    minimum: 0,
+    maximum: 240,
+    description: "Preparation time in minutes",
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(240)
+  preparationMinutes?: number;
+
+  @ApiPropertyOptional({ minimum: 1, maximum: 100000, description: "Points earned for each ordered unit after delivery" })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(100000)
+  loyaltyPoints?: number;
 
   @ApiPropertyOptional({
     example: 49.9,

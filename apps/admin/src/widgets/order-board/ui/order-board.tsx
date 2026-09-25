@@ -23,7 +23,6 @@ import {
   type OrderStatus,
 } from "@/src/entities/order";
 import { useOrderActions } from "@/src/features/order-management";
-import { useReceiptPrinting } from "@/src/features/receipt-printing";
 import { ApiError } from "@/src/shared/api/api-client";
 import { useSession } from "@/src/shared/auth";
 import { FormFieldError } from "@/src/shared/forms";
@@ -57,6 +56,11 @@ const OrderCourierEditDialog = lazy(() =>
 const OrderAdminEditDialog = lazy(() =>
   import("@/src/features/order-management/editor").then((module) => ({
     default: module.OrderAdminEditDialog,
+  })),
+);
+const ManualReceiptDialog = lazy(() =>
+  import("@/src/features/receipt-printing").then((module) => ({
+    default: module.ManualReceiptDialog,
   })),
 );
 
@@ -131,6 +135,7 @@ export function OrderBoard({
   const [endHour, setEndHour] = useState(24);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
+  const [printOrder, setPrintOrder] = useState<Order | null>(null);
   const [showAssistedOrder, setShowAssistedOrder] = useState(false);
   const [courierByOrder, setCourierByOrder] = useState<Record<string, string>>(
     {},
@@ -171,14 +176,12 @@ export function OrderBoard({
   const branches = useBranches();
   const couriers = useCouriers();
   const actions = useOrderActions();
-  const receiptPrinting = useReceiptPrinting();
   const pending =
     actions.transition.isPending ||
     actions.assignCourier.isPending ||
     actions.confirmPacking.isPending ||
     actions.adminEdit.isPending ||
-    actions.cancel.isPending ||
-    receiptPrinting.isPending;
+    actions.cancel.isPending;
   const actionError =
     actions.transition.error ||
     actions.assignCourier.error ||
@@ -216,13 +219,11 @@ export function OrderBoard({
     (order: Order) => {
       const reason = window.prompt("Причина отмены заказа");
       if (!reason?.trim()) return;
-      actions.cancel.mutate(
-        {
-          orderId: order.id,
-          reason: reason.trim(),
-          version: order.version,
-        },
-      );
+      actions.cancel.mutate({
+        orderId: order.id,
+        reason: reason.trim(),
+        version: order.version,
+      });
     },
     [actions.cancel],
   );
@@ -313,15 +314,17 @@ export function OrderBoard({
                     <b>{item.quantity}×</b> {orderItemLabel(item)}
                   </span>
                 ))}
+              {!administratorIsPacking && order.gifts.map((gift) => <span key={gift.id}><b>{gift.quantity}×</b> Подарок: {gift.name}</span>)}
               <OrderPackingChecklist
                 key={`${order.id}-${order.version}`}
                 order={order}
                 role={role}
                 pending={pending}
-                onConfirm={(packingOrder, checkedItemIds) =>
+                onConfirm={(packingOrder, checkedItemIds, checkedGiftIds) =>
                   actions.confirmPacking.mutate({
                     orderId: packingOrder.id,
                     checkedItemIds,
+                    checkedGiftIds,
                     version: packingOrder.version,
                   })
                 }
@@ -465,10 +468,13 @@ export function OrderBoard({
                   title="Печать чека"
                   className="secondary-button compact row-icon-button"
                   data-testid={`order-table-print-${order.id}`}
-                  disabled={receiptPrinting.isPending}
-                  onClick={() => { if (window.confirm("Создать дополнительный чек? Сохранённые задания выполнятся автоматически.")) receiptPrinting.mutate(order.id); }}
+                  onClick={() => setPrintOrder(order)}
                 >
-                  <HugeiconsIcon icon={PrinterIcon} size={15} strokeWidth={1.8} />
+                  <HugeiconsIcon
+                    icon={PrinterIcon}
+                    size={15}
+                    strokeWidth={1.8}
+                  />
                 </button>
               )}
               {canCancel(role, order.status) && (
@@ -481,7 +487,11 @@ export function OrderBoard({
                   disabled={pending}
                   onClick={() => cancelOrder(order)}
                 >
-                  <HugeiconsIcon icon={Cancel01Icon} size={15} strokeWidth={1.8} />
+                  <HugeiconsIcon
+                    icon={Cancel01Icon}
+                    size={15}
+                    strokeWidth={1.8}
+                  />
                 </button>
               )}
             </div>
@@ -495,7 +505,6 @@ export function OrderBoard({
       courierByOrder,
       couriers.data,
       pending,
-      receiptPrinting,
       role,
       rollbackOrder,
       transitionOrder,
@@ -570,22 +579,6 @@ export function OrderBoard({
           </button>
         </div>
       </header>
-
-      {receiptPrinting.isPending && (
-        <div className="order-print-status is-pending" role="status">
-          Добавляем чек в очередь…
-        </div>
-      )}
-      {receiptPrinting.isSuccess && (
-        <div className="order-print-status is-success" role="status">
-          Чек добавлен в очередь. Состояние отправки — в разделе «Печать» выше.
-        </div>
-      )}
-      {receiptPrinting.isError && (
-        <div className="order-print-status is-error" role="alert">
-          Не удалось добавить чек: {receiptPrinting.error.message}
-        </div>
-      )}
 
       <div className="toolbar">
         <label>
@@ -763,15 +756,16 @@ export function OrderBoard({
                   version: order.version,
                 })
               }
-              onConfirmPacking={(order, checkedItemIds) =>
+              onConfirmPacking={(order, checkedItemIds, checkedGiftIds) =>
                 actions.confirmPacking.mutate({
                   orderId: order.id,
                   checkedItemIds,
+                  checkedGiftIds,
                   version: order.version,
                 })
               }
               onTransition={transitionOrder}
-              onPrintReceipt={(order) => { if (window.confirm("Создать дополнительный чек? Сохранённые задания выполнятся автоматически.")) receiptPrinting.mutate(order.id); }}
+              onPrintReceipt={setPrintOrder}
               onCancel={cancelOrder}
               onEditOrder={setEditingOrder}
               onOpenDetails={setSelectedOrderId}
@@ -821,6 +815,16 @@ export function OrderBoard({
           orderId={selectedOrderId}
           onClose={() => setSelectedOrderId(null)}
         />
+      )}
+      {printOrder && (
+        <Suspense
+          fallback={<div className="async-state">Открываем печать…</div>}
+        >
+          <ManualReceiptDialog
+            order={printOrder}
+            onClose={() => setPrintOrder(null)}
+          />
+        </Suspense>
       )}
       {editingOrder && (
         <Suspense

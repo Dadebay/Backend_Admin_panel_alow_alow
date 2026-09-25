@@ -1864,6 +1864,32 @@
         ]
       }
     },
+    "/api/v1/receipt-print-tasks/history": {
+      "get": {
+        "operationId": "ReceiptQueueController_history_v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReceiptQueueHistoryResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "receipt-queue"
+        ]
+      }
+    },
     "/api/v1/receipt-print-tasks": {
       "get": {
         "operationId": "ReceiptQueueController_list_v1",
@@ -2051,6 +2077,42 @@
           }
         ],
         "summary": "Retry safe pending/failed dispatch with the same identity",
+        "tags": [
+          "receipt-queue"
+        ]
+      }
+    },
+    "/api/v1/receipt-print-tasks/{id}/cancel": {
+      "post": {
+        "operationId": "ReceiptQueueController_cancel_v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReceiptTaskResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Cancel a receipt that is still waiting in the queue",
         "tags": [
           "receipt-queue"
         ]
@@ -2270,6 +2332,61 @@
         "summary": "Record standalone agent byte-delivery result",
         "tags": [
           "receipt-agent"
+        ]
+      }
+    },
+    "/api/v1/ordering-hours": {
+      "get": {
+        "operationId": "OrderingHoursController_get_v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderingHoursResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "ordering-hours"
+        ]
+      },
+      "patch": {
+        "operationId": "OrderingHoursController_update_v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateOrderingHoursDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderingHoursResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "ordering-hours"
         ]
       }
     },
@@ -2668,6 +2785,32 @@
         "summary": "Adjust ingredient stock",
         "tags": [
           "inventory"
+        ]
+      }
+    },
+    "/api/v1/staff/customer-counts": {
+      "get": {
+        "operationId": "UsersController_customerCounts_v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CustomerCountsResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "staff"
         ]
       }
     },
@@ -4242,6 +4385,164 @@
         ]
       }
     },
+    "/api/v1/loyalty/gifts": {
+      "get": {
+        "operationId": "LoyaltyController_gifts_v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/GiftResponseDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "loyalty"
+        ]
+      }
+    },
+    "/api/v1/loyalty/me": {
+      "get": {
+        "operationId": "LoyaltyController_me_v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoyaltyWalletResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "loyalty"
+        ]
+      }
+    },
+    "/api/v1/loyalty/admin/gifts": {
+      "get": {
+        "operationId": "LoyaltyController_adminGifts_v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/GiftResponseDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "loyalty"
+        ]
+      },
+      "post": {
+        "operationId": "LoyaltyController_createGift_v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateGiftDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GiftResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "loyalty"
+        ]
+      }
+    },
+    "/api/v1/loyalty/admin/gifts/{id}": {
+      "patch": {
+        "operationId": "LoyaltyController_updateGift_v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateGiftDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GiftResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "loyalty"
+        ]
+      }
+    },
     "/api/v1/marketing/banners": {
       "get": {
         "operationId": "MarketingController_banners_v1",
@@ -5703,6 +6004,14 @@
           "description": {
             "type": "string"
           },
+          "preparationMinutes": {
+            "type": "number",
+            "minimum": 0
+          },
+          "loyaltyPoints": {
+            "type": "number",
+            "minimum": 0
+          },
           "pricingType": {
             "type": "string",
             "enum": [
@@ -5763,6 +6072,8 @@
           "name",
           "slug",
           "description",
+          "preparationMinutes",
+          "loyaltyPoints",
           "pricingType",
           "price",
           "minPrice",
@@ -5957,6 +6268,14 @@
           "description": {
             "type": "string"
           },
+          "preparationMinutes": {
+            "type": "number",
+            "minimum": 0
+          },
+          "loyaltyPoints": {
+            "type": "number",
+            "minimum": 0
+          },
           "pricingType": {
             "type": "string",
             "enum": [
@@ -6056,6 +6375,8 @@
           "name",
           "slug",
           "description",
+          "preparationMinutes",
+          "loyaltyPoints",
           "pricingType",
           "price",
           "minPrice",
@@ -6296,6 +6617,11 @@
       "ReceiptPrintSettingsResponseDto": {
         "type": "object",
         "properties": {
+          "mainCopies": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 3
+          },
           "mainPrinterId": {
             "type": "string",
             "format": "uuid",
@@ -6322,6 +6648,7 @@
           }
         },
         "required": [
+          "mainCopies",
           "mainPrinterId",
           "mainPrinterIp",
           "mainPrinter",
@@ -6488,6 +6815,11 @@
       "UpdateReceiptPrintSettingsDto": {
         "type": "object",
         "properties": {
+          "mainCopies": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 3
+          },
           "mainPrinterId": {
             "type": "string",
             "format": "uuid",
@@ -6661,6 +6993,18 @@
           "description": {
             "type": "string"
           },
+          "preparationMinutes": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 240,
+            "description": "Preparation time in minutes"
+          },
+          "loyaltyPoints": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 100000,
+            "description": "Points earned for each ordered unit after delivery"
+          },
           "price": {
             "type": "number",
             "example": 49.9,
@@ -6740,6 +7084,18 @@
           },
           "description": {
             "type": "string"
+          },
+          "preparationMinutes": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 240,
+            "description": "Preparation time in minutes"
+          },
+          "loyaltyPoints": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 100000,
+            "description": "Points earned for each ordered unit after delivery"
           },
           "price": {
             "type": "number",
@@ -6842,6 +7198,24 @@
           "quantity"
         ]
       },
+      "RequestedOrderGiftDto": {
+        "type": "object",
+        "properties": {
+          "giftId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "quantity": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 10
+          }
+        },
+        "required": [
+          "giftId",
+          "quantity"
+        ]
+      },
       "QuoteOrderDto": {
         "type": "object",
         "properties": {
@@ -6849,6 +7223,13 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/CreateOrderItemDto"
+            }
+          },
+          "gifts": {
+            "maxItems": 10,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RequestedOrderGiftDto"
             }
           },
           "deliveryEtrapId": {
@@ -6900,6 +7281,10 @@
           "quantity": {
             "type": "number"
           },
+          "loyaltyPoints": {
+            "type": "number",
+            "minimum": 0
+          },
           "unitPrice": {
             "type": "number",
             "description": "Current backend-owned price for one selected item"
@@ -6924,10 +7309,43 @@
           "variantName",
           "productImageUrl",
           "quantity",
+          "loyaltyPoints",
           "unitPrice",
           "originalLineTotal",
           "discount",
           "discountedLineTotal"
+        ]
+      },
+      "OrderQuoteGiftResponseDto": {
+        "type": "object",
+        "properties": {
+          "giftId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "imageUrl": {
+            "type": "string"
+          },
+          "pointsCost": {
+            "type": "number"
+          },
+          "quantity": {
+            "type": "number"
+          },
+          "totalPoints": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "giftId",
+          "name",
+          "imageUrl",
+          "pointsCost",
+          "quantity",
+          "totalPoints"
         ]
       },
       "OrderQuotePromoResponseDto": {
@@ -6965,6 +7383,21 @@
             "items": {
               "$ref": "#/components/schemas/OrderQuoteItemResponseDto"
             }
+          },
+          "gifts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OrderQuoteGiftResponseDto"
+            }
+          },
+          "pointsBalance": {
+            "type": "number"
+          },
+          "loyaltyPointsEarned": {
+            "type": "number"
+          },
+          "loyaltyPointsSpent": {
+            "type": "number"
           },
           "promo": {
             "nullable": true,
@@ -7008,6 +7441,10 @@
         },
         "required": [
           "items",
+          "gifts",
+          "pointsBalance",
+          "loyaltyPointsEarned",
+          "loyaltyPointsSpent",
           "promo",
           "subtotal",
           "discount",
@@ -7031,6 +7468,14 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/CreateOrderItemDto"
+            }
+          },
+          "gifts": {
+            "maxItems": 10,
+            "description": "Gifts are redeemed only as part of a food delivery order",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RequestedOrderGiftDto"
             }
           },
           "deliveryEtrapId": {
@@ -7184,6 +7629,15 @@
             "type": "string",
             "nullable": true
           },
+          "preparationMinutes": {
+            "type": "number",
+            "minimum": 0
+          },
+          "loyaltyPoints": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Points earned by this order line after delivery"
+          },
           "productImageUrl": {
             "type": "string",
             "nullable": true
@@ -7205,10 +7659,54 @@
           "productVariantId",
           "productName",
           "variantName",
+          "preparationMinutes",
+          "loyaltyPoints",
           "productImageUrl",
           "unitPrice",
           "quantity",
           "lineTotal"
+        ]
+      },
+      "OrderGiftResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "orderId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "giftId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "imageUrl": {
+            "type": "string"
+          },
+          "pointsCost": {
+            "type": "number"
+          },
+          "quantity": {
+            "type": "number"
+          },
+          "totalPoints": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "id",
+          "orderId",
+          "giftId",
+          "name",
+          "imageUrl",
+          "pointsCost",
+          "quantity",
+          "totalPoints"
         ]
       },
       "OrderRatingResponseDto": {
@@ -7558,6 +8056,12 @@
           "total": {
             "type": "number"
           },
+          "loyaltyPointsEarned": {
+            "type": "number"
+          },
+          "loyaltyPointsSpent": {
+            "type": "number"
+          },
           "address": {
             "type": "string"
           },
@@ -7673,6 +8177,12 @@
               "$ref": "#/components/schemas/OrderItemResponseDto"
             }
           },
+          "gifts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OrderGiftResponseDto"
+            }
+          },
           "rating": {
             "nullable": true,
             "type": "object",
@@ -7724,6 +8234,8 @@
           "discount",
           "deliveryFee",
           "total",
+          "loyaltyPointsEarned",
+          "loyaltyPointsSpent",
           "address",
           "latitude",
           "longitude",
@@ -7750,6 +8262,7 @@
           "cook",
           "courier",
           "items",
+          "gifts",
           "rating",
           "cashSettlement",
           "savedAddress",
@@ -7868,6 +8381,14 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/CreateOrderItemDto"
+            }
+          },
+          "gifts": {
+            "maxItems": 10,
+            "description": "Gifts are redeemed only as part of a food delivery order",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RequestedOrderGiftDto"
             }
           },
           "deliveryEtrapId": {
@@ -8520,6 +9041,11 @@
       "ReceiptPrintPlanResponseDto": {
         "type": "object",
         "properties": {
+          "mainCopies": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 3
+          },
           "orderId": {
             "type": "string",
             "format": "uuid"
@@ -8573,6 +9099,7 @@
           }
         },
         "required": [
+          "mainCopies",
           "orderId",
           "orderNumber",
           "metadata",
@@ -8666,7 +9193,7 @@
           "customerNote": {
             "type": "string",
             "maxLength": 500,
-            "description": "Order comment shown in the admin and on newly requested receipts. An empty or omitted value clears it; previously queued receipts keep their original snapshot."
+            "description": "Order comment shown in the admin and on newly requested receipts. An empty or omitted value clears it; item edits cancel or revise stale waiting receipt tasks."
           },
           "courierId": {
             "type": "string",
@@ -8691,6 +9218,15 @@
         "properties": {
           "checkedItemIds": {
             "description": "Every immutable order-line ID checked by the administrator",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "checkedGiftIds": {
+            "maxItems": 10,
+            "description": "Every gift ID checked during packing",
             "type": "array",
             "items": {
               "type": "string",
@@ -8750,6 +9286,13 @@
           "orderNumber": {
             "type": "number"
           },
+          "itemNames": {
+            "description": "Dish names in this queued print task",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
           "documentType": {
             "type": "string"
           },
@@ -8760,7 +9303,8 @@
               "PROCESSING",
               "DELIVERED",
               "FAILED",
-              "UNCERTAIN"
+              "UNCERTAIN",
+              "CANCELLED"
             ]
           },
           "attempts": {
@@ -8789,6 +9333,7 @@
           "id",
           "orderId",
           "orderNumber",
+          "itemNames",
           "documentType",
           "status",
           "attempts",
@@ -8797,6 +9342,20 @@
           "stationId",
           "lastError",
           "deliveredAt"
+        ]
+      },
+      "ReceiptQueueHistoryResponseDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReceiptTaskResponseDto"
+            }
+          }
+        },
+        "required": [
+          "items"
         ]
       },
       "ReceiptQueueResponseDto": {
@@ -8854,6 +9413,13 @@
           "orderNumber": {
             "type": "number"
           },
+          "itemNames": {
+            "description": "Dish names in this queued print task",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
           "documentType": {
             "type": "string"
           },
@@ -8864,7 +9430,8 @@
               "PROCESSING",
               "DELIVERED",
               "FAILED",
-              "UNCERTAIN"
+              "UNCERTAIN",
+              "CANCELLED"
             ]
           },
           "attempts": {
@@ -8905,6 +9472,7 @@
           "id",
           "orderId",
           "orderNumber",
+          "itemNames",
           "documentType",
           "status",
           "attempts",
@@ -9004,6 +9572,29 @@
           "outcome"
         ]
       },
+      "ReceiptItemRouteDto": {
+        "type": "object",
+        "properties": {
+          "itemId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "printerId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "Null prints this item only on the main cash register"
+          },
+          "skip": {
+            "type": "boolean",
+            "description": "Omit this order item from both the main and kitchen copies of this manual print"
+          }
+        },
+        "required": [
+          "itemId",
+          "printerId"
+        ]
+      },
       "ReprintReceiptDto": {
         "type": "object",
         "properties": {
@@ -9011,6 +9602,12 @@
             "type": "string",
             "format": "uuid",
             "description": "A new key means an intentional new paper copy; reuse on HTTP retry"
+          },
+          "itemRoutes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReceiptItemRouteDto"
+            }
           }
         },
         "required": [
@@ -9060,6 +9657,72 @@
         "required": [
           "claimToken",
           "outcome"
+        ]
+      },
+      "OrderingHoursResponseDto": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "opensAt": {
+            "type": "string",
+            "example": "09:00"
+          },
+          "closesAt": {
+            "type": "string",
+            "example": "22:00"
+          },
+          "timezone": {
+            "type": "string",
+            "example": "Asia/Ashgabat"
+          },
+          "isOpen": {
+            "type": "boolean"
+          },
+          "version": {
+            "type": "number",
+            "minimum": 0
+          },
+          "serverTime": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "enabled",
+          "opensAt",
+          "closesAt",
+          "timezone",
+          "isOpen",
+          "version",
+          "serverTime"
+        ]
+      },
+      "UpdateOrderingHoursDto": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "opensAt": {
+            "type": "string",
+            "example": "09:00"
+          },
+          "closesAt": {
+            "type": "string",
+            "example": "22:00"
+          },
+          "version": {
+            "type": "number",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "enabled",
+          "opensAt",
+          "closesAt",
+          "version"
         ]
       },
       "InventoryIngredientResponseDto": {
@@ -9543,6 +10206,28 @@
           "branchId",
           "quantityDelta",
           "type"
+        ]
+      },
+      "CustomerCountsResponseDto": {
+        "type": "object",
+        "properties": {
+          "registered": {
+            "type": "number",
+            "minimum": 0
+          },
+          "assistedOnly": {
+            "type": "number",
+            "minimum": 0
+          },
+          "totalCustomerAccounts": {
+            "type": "number",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "registered",
+          "assistedOnly",
+          "totalCustomerAccounts"
         ]
       },
       "LoginAttemptUserResponseDto": {
@@ -11242,6 +11927,17 @@
           "mapPricingEnabled": {
             "type": "boolean"
           },
+          "distancePricingEnabled": {
+            "type": "boolean"
+          },
+          "dayPricePerKilometer": {
+            "type": "number",
+            "nullable": true
+          },
+          "nightPricePerKilometer": {
+            "type": "number",
+            "nullable": true
+          },
           "fallbackNightPrice": {
             "type": "number"
           },
@@ -11283,6 +11979,9 @@
         },
         "required": [
           "mapPricingEnabled",
+          "distancePricingEnabled",
+          "dayPricePerKilometer",
+          "nightPricePerKilometer",
           "fallbackNightPrice",
           "fallbackNightFreeDeliveryThreshold",
           "nightTariffEnabled",
@@ -11350,6 +12049,22 @@
       "DeliveryQuoteResponseDto": {
         "type": "object",
         "properties": {
+          "pricingMode": {
+            "type": "string",
+            "enum": [
+              "AREA",
+              "DISTANCE"
+            ]
+          },
+          "distanceMeters": {
+            "type": "number",
+            "nullable": true,
+            "description": "Distance from the assigned branch"
+          },
+          "pricePerKilometer": {
+            "type": "number",
+            "nullable": true
+          },
           "tariff": {
             "type": "string",
             "enum": [
@@ -11423,6 +12138,9 @@
           }
         },
         "required": [
+          "pricingMode",
+          "distanceMeters",
+          "pricePerKilometer",
           "tariff",
           "validUntil",
           "timeZone",
@@ -11452,6 +12170,16 @@
             "nullable": true,
             "minimum": 1,
             "description": "Null or omitted uses the fallback tariff"
+          },
+          "latitude": {
+            "type": "number",
+            "example": 37.9601,
+            "description": "Required with longitude for kilometer pricing"
+          },
+          "longitude": {
+            "type": "number",
+            "example": 58.3261,
+            "description": "Required with latitude for kilometer pricing"
           }
         },
         "required": [
@@ -11461,6 +12189,22 @@
       "DeliveryTariffQuoteResponseDto": {
         "type": "object",
         "properties": {
+          "pricingMode": {
+            "type": "string",
+            "enum": [
+              "AREA",
+              "DISTANCE"
+            ]
+          },
+          "distanceMeters": {
+            "type": "number",
+            "nullable": true,
+            "description": "Distance from the assigned branch"
+          },
+          "pricePerKilometer": {
+            "type": "number",
+            "nullable": true
+          },
           "tariff": {
             "type": "string",
             "enum": [
@@ -11503,6 +12247,9 @@
           }
         },
         "required": [
+          "pricingMode",
+          "distanceMeters",
+          "pricePerKilometer",
           "tariff",
           "validUntil",
           "timeZone",
@@ -11568,6 +12315,22 @@
             "type": "boolean",
             "description": "Use map polygons as the only district source for coordinate quotes and order pricing"
           },
+          "distancePricingEnabled": {
+            "type": "boolean",
+            "description": "Select kilometer pricing instead of the existing area tariff"
+          },
+          "dayPricePerKilometer": {
+            "type": "number",
+            "minimum": 0.01,
+            "maximum": 10000,
+            "nullable": true
+          },
+          "nightPricePerKilometer": {
+            "type": "number",
+            "minimum": 0.01,
+            "maximum": 10000,
+            "nullable": true
+          },
           "fallbackNightPrice": {
             "type": "number",
             "minimum": 0,
@@ -11613,6 +12376,17 @@
           "mapPricingEnabled": {
             "type": "boolean"
           },
+          "distancePricingEnabled": {
+            "type": "boolean"
+          },
+          "dayPricePerKilometer": {
+            "type": "number",
+            "nullable": true
+          },
+          "nightPricePerKilometer": {
+            "type": "number",
+            "nullable": true
+          },
           "fallbackNightPrice": {
             "type": "number"
           },
@@ -11655,6 +12429,9 @@
         },
         "required": [
           "mapPricingEnabled",
+          "distancePricingEnabled",
+          "dayPricePerKilometer",
+          "nightPricePerKilometer",
           "fallbackNightPrice",
           "fallbackNightFreeDeliveryThreshold",
           "nightTariffEnabled",
@@ -11924,6 +12701,195 @@
         "required": [
           "items",
           "attribution"
+        ]
+      },
+      "GiftResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "imageUrl": {
+            "type": "string"
+          },
+          "pointsCost": {
+            "type": "number"
+          },
+          "stock": {
+            "type": "number",
+            "nullable": true
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "sortOrder": {
+            "type": "number"
+          },
+          "version": {
+            "type": "number"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "description",
+          "imageUrl",
+          "pointsCost",
+          "stock",
+          "isActive",
+          "sortOrder",
+          "version",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "LoyaltyEntryResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "orderId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "EARN",
+              "REDEEM",
+              "REFUND",
+              "REVERSE_EARN"
+            ]
+          },
+          "points": {
+            "type": "number"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "orderId",
+          "kind",
+          "points",
+          "createdAt"
+        ]
+      },
+      "LoyaltyWalletResponseDto": {
+        "type": "object",
+        "properties": {
+          "pointsBalance": {
+            "type": "number"
+          },
+          "entries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LoyaltyEntryResponseDto"
+            }
+          }
+        },
+        "required": [
+          "pointsBalance",
+          "entries"
+        ]
+      },
+      "CreateGiftDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 160
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 4000
+          },
+          "imageUrl": {
+            "type": "string",
+            "description": "WebP path from POST /media/images"
+          },
+          "pointsCost": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 1000000
+          },
+          "stock": {
+            "type": "number",
+            "nullable": true,
+            "minimum": 0
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "sortOrder": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "name",
+          "description",
+          "imageUrl",
+          "pointsCost"
+        ]
+      },
+      "UpdateGiftDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 160
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 4000
+          },
+          "imageUrl": {
+            "type": "string",
+            "description": "WebP path from POST /media/images"
+          },
+          "pointsCost": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 1000000
+          },
+          "stock": {
+            "type": "number",
+            "nullable": true,
+            "minimum": 0
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "sortOrder": {
+            "type": "number"
+          },
+          "version": {
+            "type": "number",
+            "minimum": 1,
+            "description": "Current gift version"
+          }
+        },
+        "required": [
+          "version"
         ]
       },
       "BannerResponseDto": {

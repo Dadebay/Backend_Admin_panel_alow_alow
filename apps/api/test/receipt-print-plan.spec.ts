@@ -3,9 +3,60 @@ import { OrderStatus } from "../src/generated/prisma/client";
 import {
   buildReceiptPrintMetadata,
   buildReceiptPrintPlan,
+  expandMainReceiptCopies,
+  partialReceiptCustomerNote,
 } from "../src/orders/receipt-print-plan";
 
 describe("receipt print plan", () => {
+  it("keeps the partial-print warning within the agent's 500-character note limit", () => {
+    const note = partialReceiptCustomerNote("😀".repeat(500));
+    expect([...note].length).toBeLessThanOrEqual(500);
+    expect(note).toContain("ВЫБОРОЧНАЯ ПЕЧАТЬ");
+    expect(note).toContain("Итог ниже — по всему заказу.");
+    expect(note.startsWith("😀")).toBe(true);
+    expect(partialReceiptCustomerNote(null)).toContain("ВЫБОРОЧНАЯ ПЕЧАТЬ");
+    expect(partialReceiptCustomerNote("Без лука")).toMatch(/^Без лука\nВЫБОРОЧНАЯ ПЕЧАТЬ/);
+  });
+  it("creates one legacy-compatible main job per task without repeating kitchen jobs", () => {
+    const plan = {
+      orderId: "order-1",
+      mainJob: { printerIp: "192.168.0.10", items: [{ id: "food" }] },
+      mainCopies: 3,
+      jobs: [{ printerIp: "192.168.0.11", items: [{ id: "food" }] }],
+      unassignedItems: [{ id: "other" }],
+    };
+    const tasks = expandMainReceiptCopies(plan);
+    expect(tasks).toHaveLength(3);
+    expect(tasks.map((task) => task.mainCopies)).toEqual([1, 1, 1]);
+    expect(tasks.map((task) => task.mainJob)).toEqual([
+      plan.mainJob,
+      plan.mainJob,
+      plan.mainJob,
+    ]);
+    expect(tasks.map((task) => task.jobs.length)).toEqual([1, 0, 0]);
+    expect(tasks.map((task) => task.unassignedItems.length)).toEqual([1, 0, 0]);
+    expect(expandMainReceiptCopies({ ...plan, mainJob: null })).toHaveLength(1);
+    expect(expandMainReceiptCopies({ ...plan, mainCopies: 1 })).toHaveLength(1);
+  });
+  it("puts redeemed gifts on the main receipt without adding cash or kitchen jobs", () => {
+    const plan = buildReceiptPrintPlan({
+      id: "00000000-0000-4000-8000-000000000100",
+      number: 100,
+      status: OrderStatus.COOKING,
+      cancellationReason: null,
+      subtotal: 50,
+      discount: 0,
+      deliveryFee: 15,
+      total: 65,
+      deliveryEtrapName: null,
+      items: [{ id: "00000000-0000-4000-8000-000000000101", productName: "Манты", variantName: null, receiptPrinterIp: "192.168.0.10", receiptPrinterPort: 80, receiptPrinterTransport: "JSPEED_HTTP", unitPrice: 50, quantity: 1 }],
+      gifts: [{ id: "00000000-0000-4000-8000-000000000102", name: "Мишка", quantity: 1, totalPoints: 30 }],
+    }, { printerIp: "192.168.0.11", printerPort: 80, transport: "JSPEED_HTTP" });
+    expect(plan.mainJob?.items).toEqual(expect.arrayContaining([expect.objectContaining({ name: "Подарок: Мишка (30 баллов)", unitPrice: 0 })]));
+    expect(plan.jobs).toHaveLength(1);
+    expect(plan.jobs[0]?.items).toHaveLength(1);
+    expect(plan.summary.total).toBe(65);
+  });
   it("uses the stored order date, address details and customer instead of print-time placeholders", () => {
     const metadata = buildReceiptPrintMetadata(
       {
@@ -121,6 +172,7 @@ describe("receipt print plan", () => {
     expect(plan).toEqual({
       orderId: "00000000-0000-4000-8000-000000000001",
       orderNumber: 42,
+      mainCopies: 2,
       metadata: null,
       documentType: "ORDER",
       cancellationReason: null,

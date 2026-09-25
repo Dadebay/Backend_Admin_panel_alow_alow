@@ -47,6 +47,18 @@ export class CreateOrderItemDto {
   quantity: number;
 }
 
+export class RequestedOrderGiftDto {
+  @ApiProperty({ format: "uuid" })
+  @IsUUID()
+  giftId: string;
+
+  @ApiProperty({ minimum: 1, maximum: 10 })
+  @IsInt()
+  @Min(1)
+  @Max(10)
+  quantity: number;
+}
+
 export class CreateOrderDto {
   @ApiPropertyOptional({
     format: "uuid",
@@ -64,6 +76,15 @@ export class CreateOrderDto {
   @ValidateNested({ each: true })
   @Type(() => CreateOrderItemDto)
   items: CreateOrderItemDto[];
+
+  @ApiPropertyOptional({ type: [RequestedOrderGiftDto], maxItems: 10, description: "Gifts are redeemed only as part of a food delivery order" })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(10)
+  @ArrayUnique((gift: RequestedOrderGiftDto) => gift.giftId)
+  @ValidateNested({ each: true })
+  @Type(() => RequestedOrderGiftDto)
+  gifts?: RequestedOrderGiftDto[];
 
   @ApiPropertyOptional({
     description:
@@ -160,6 +181,15 @@ export class QuoteOrderDto {
   @ValidateNested({ each: true })
   @Type(() => CreateOrderItemDto)
   items: CreateOrderItemDto[];
+
+  @ApiPropertyOptional({ type: [RequestedOrderGiftDto], maxItems: 10 })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(10)
+  @ArrayUnique((gift: RequestedOrderGiftDto) => gift.giftId)
+  @ValidateNested({ each: true })
+  @Type(() => RequestedOrderGiftDto)
+  gifts?: RequestedOrderGiftDto[];
 
   @ApiPropertyOptional({
     description:
@@ -318,7 +348,7 @@ export class AdminEditOrderDto {
   @ApiPropertyOptional({
     maxLength: 500,
     description:
-      "Order comment shown in the admin and on newly requested receipts. An empty or omitted value clears it; previously queued receipts keep their original snapshot.",
+      "Order comment shown in the admin and on newly requested receipts. An empty or omitted value clears it; item edits cancel or revise stale waiting receipt tasks.",
   })
   @IsOptional()
   @IsString()
@@ -348,6 +378,14 @@ export class ConfirmOrderPackingDto {
   @ArrayUnique()
   @IsUUID(undefined, { each: true })
   checkedItemIds: string[];
+
+  @ApiPropertyOptional({ type: [String], format: "uuid", maxItems: 10, description: "Every gift ID checked during packing" })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(10)
+  @ArrayUnique()
+  @IsUUID(undefined, { each: true })
+  checkedGiftIds?: string[];
 
   @ApiProperty({ description: "Optimistic-lock version returned by the API" })
   @IsInt()

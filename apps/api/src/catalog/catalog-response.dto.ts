@@ -184,6 +184,12 @@ export class CatalogProductResponseDto {
   @ApiProperty()
   description: string;
 
+  @ApiProperty({ minimum: 0 })
+  preparationMinutes: number;
+
+  @ApiProperty({ minimum: 0 })
+  loyaltyPoints: number;
+
   @ApiProperty({ enum: ProductPricingType })
   pricingType: ProductPricingType;
 
@@ -294,6 +300,8 @@ export class CatalogAdminProductPageResponseDto {
 }
 
 export class ReceiptPrintSettingsResponseDto {
+  @ApiProperty({ minimum: 1, maximum: 3 })
+  mainCopies: number;
   @ApiProperty({ type: String, format: "uuid", nullable: true })
   mainPrinterId: string | null;
 

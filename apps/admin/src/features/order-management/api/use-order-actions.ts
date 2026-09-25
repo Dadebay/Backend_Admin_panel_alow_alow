@@ -75,16 +75,19 @@ export function useOrderActions() {
     mutationFn: ({
       orderId,
       checkedItemIds,
+      checkedGiftIds,
       version,
     }: {
       orderId: string;
       checkedItemIds: string[];
+      checkedGiftIds: string[];
       version: number;
     }) =>
       authorizedRequest<Order>(`/orders/${orderId}/confirm-packing`, {
         method: "PATCH",
         body: JSON.stringify({
           checkedItemIds,
+          checkedGiftIds,
           version,
         } satisfies ConfirmPackingBody),
       }),

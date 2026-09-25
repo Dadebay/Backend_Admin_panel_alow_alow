@@ -46,6 +46,10 @@ const receiptQueueUiUrl = new URL(
   "../src/features/receipt-printing/ui/receipt-queue.tsx",
   import.meta.url,
 );
+const manualDialogUrl = new URL(
+  "../src/features/receipt-printing/ui/manual-receipt-dialog.tsx",
+  import.meta.url,
+);
 
 test("printing enters the durable queue and notification observation never prints", async () => {
   const [feature, board, kanban, alert, dashboard] = await Promise.all(
@@ -61,7 +65,10 @@ test("printing enters the durable queue and notification observation never print
     /claimAutomaticReceiptPrint|printReceipt|useReceiptPrinting/,
   );
   assert.doesNotMatch(board, /receiptPrinting\.mutate\(cancelledOrder\.id\)/);
-  assert.match(board, /Чек добавлен в очередь/);
+  assert.match(board, /<ManualReceiptDialog\s+order=\{printOrder\}/);
+  const manualDialog = await readFile(manualDialogUrl, "utf8");
+  assert.match(manualDialog, /itemRoutes:/);
+  assert.match(manualDialog, /Напечатать сейчас/);
   assert.match(board, /data-testid=\{`order-table-print-\$\{order\.id\}`\}/);
   assert.match(kanban, /data-testid=\{`order-kanban-print-\$\{order\.id\}`\}/);
   assert.match(

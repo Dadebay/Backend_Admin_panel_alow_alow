@@ -1,5 +1,14 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
-import { IsIn, IsOptional, IsUUID } from "class-validator";
+import { Type } from "class-transformer";
+import {
+  ArrayMaxSize,
+  IsArray,
+  IsBoolean,
+  IsIn,
+  IsOptional,
+  IsUUID,
+  ValidateNested,
+} from "class-validator";
 import { ReceiptPrintTaskStatus } from "../generated/prisma/client";
 import { ReceiptPrintPlanResponseDto } from "./orders-response.dto";
 
@@ -73,6 +82,30 @@ export class ReceiptOutcomeDto extends ReceiptLeaseDto {
   ])
   errorCode?: string;
 }
+export class ReceiptItemRouteDto {
+  @ApiProperty({ format: "uuid" })
+  @IsUUID()
+  itemId: string;
+
+  @ApiProperty({
+    type: String,
+    format: "uuid",
+    nullable: true,
+    description: "Null prints this item only on the main cash register",
+  })
+  @IsOptional()
+  @IsUUID()
+  printerId: string | null;
+
+  @ApiPropertyOptional({
+    description:
+      "Omit this order item from both the main and kitchen copies of this manual print",
+  })
+  @IsOptional()
+  @IsBoolean()
+  skip?: boolean;
+}
+
 export class ReprintReceiptDto {
   @ApiProperty({
     format: "uuid",
@@ -81,11 +114,21 @@ export class ReprintReceiptDto {
   })
   @IsUUID()
   idempotencyKey: string;
+
+  @ApiPropertyOptional({ type: [ReceiptItemRouteDto] })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(100)
+  @ValidateNested({ each: true })
+  @Type(() => ReceiptItemRouteDto)
+  itemRoutes?: ReceiptItemRouteDto[];
 }
 export class ReceiptTaskResponseDto {
   @ApiProperty() id: string;
   @ApiProperty() orderId: string;
   @ApiProperty() orderNumber: number;
+  @ApiProperty({ type: [String], description: "Dish names in this queued print task" })
+  itemNames: string[];
   @ApiProperty() documentType: string;
   @ApiProperty({ enum: ReceiptPrintTaskStatus }) status: ReceiptPrintTaskStatus;
   @ApiProperty() attempts: number;
@@ -113,6 +156,11 @@ export class ReceiptQueueResponseDto {
   @ApiProperty() needsAttention: number;
   @ApiProperty({ enum: ["DIRECT_AGENT", "BROWSER_BRIDGE"] })
   consumerMode: "DIRECT_AGENT" | "BROWSER_BRIDGE";
+}
+
+export class ReceiptQueueHistoryResponseDto {
+  @ApiProperty({ type: [ReceiptTaskResponseDto] })
+  items: ReceiptTaskResponseDto[];
 }
 
 export class ReceiptActionResponseDto {

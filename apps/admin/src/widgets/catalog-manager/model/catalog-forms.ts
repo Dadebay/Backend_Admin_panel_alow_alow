@@ -59,7 +59,24 @@ const productVariantSchema = z.object({
 
 export const receiptPrintSettingsFormSchema = z.object({
   mainPrinterId: z.union([z.literal(""), z.uuid("Выберите аппарат")]),
+  mainCopies: z.number().int().min(1).max(3),
 });
+
+export const orderingHoursFormSchema = z
+  .object({
+    enabled: z.boolean(),
+    opensAt: z
+      .string()
+      .regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Введите время открытия"),
+    closesAt: z
+      .string()
+      .regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Введите время закрытия"),
+    version: z.number().int().min(0),
+  })
+  .refine((value) => !value.enabled || value.opensAt !== value.closesAt, {
+    path: ["closesAt"],
+    message: "Время открытия и закрытия должны различаться",
+  });
 
 export const categoryReceiptRouteFormSchema = z.object({
   receiptPrinterId: z.union([z.literal(""), z.uuid("Выберите аппарат")]),
@@ -103,6 +120,8 @@ export const productFormSchema = z
       .min(0, "Цена не может быть отрицательной")
       .multipleOf(0.01, "Не больше двух знаков после запятой"),
     receiptPrinterId: z.union([z.literal(""), z.uuid("Выберите аппарат")]),
+    preparationMinutes: z.number().int().min(0).max(240),
+    loyaltyPoints: z.number().int().min(1).max(100000),
     variantLabel: z.string().trim().max(80, "Не больше 80 символов"),
     variants: z.array(productVariantSchema).max(30, "Не больше 30 вариантов"),
     sortOrder: z

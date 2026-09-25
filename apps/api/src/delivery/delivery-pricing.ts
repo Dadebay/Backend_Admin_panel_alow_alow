@@ -8,6 +8,27 @@ export function calculateDeliveryFee(
     : price;
 }
 
+/** Whole-manat rounding follows the cash bands: 15–16 → 15, 17–21 → 20. */
+export function calculateDistanceDeliveryFee(
+  distanceMeters: number,
+  pricePerKilometer: number,
+) {
+  if (
+    !Number.isFinite(distanceMeters) ||
+    distanceMeters < 0 ||
+    !Number.isFinite(pricePerKilometer) ||
+    pricePerKilometer <= 0
+  ) {
+    throw new RangeError("Distance must be nonnegative and kilometer price positive");
+  }
+  const rawFee = (distanceMeters * pricePerKilometer) / 1000;
+  if (!Number.isFinite(rawFee) || rawFee > 1_000_000) {
+    throw new RangeError("Distance delivery fee is outside the supported range");
+  }
+  const wholeManat = Math.ceil(rawFee - 1e-9);
+  return Math.max(15, Math.floor((wholeManat + 3) / 5) * 5);
+}
+
 export const DELIVERY_TIME_ZONE = "Asia/Ashgabat";
 const localClock = new Intl.DateTimeFormat("en-GB", {
   timeZone: DELIVERY_TIME_ZONE,

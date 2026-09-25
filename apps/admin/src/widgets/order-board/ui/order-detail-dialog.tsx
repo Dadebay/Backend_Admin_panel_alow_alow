@@ -141,6 +141,12 @@ function OrderDetails({ order }: { order: Order }) {
               <strong>× {item.quantity}</strong>
             </li>
           ))}
+          {order.gifts.map((gift) => (
+            <li key={gift.id}>
+              <span>Подарок: {gift.name} · {gift.totalPoints} баллов</span>
+              <strong>× {gift.quantity}</strong>
+            </li>
+          ))}
         </ul>
         {order.customerNote && (
           <aside className="order-note" data-testid="order-detail-note">

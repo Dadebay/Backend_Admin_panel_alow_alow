@@ -667,6 +667,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/receipt-print-tasks/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ReceiptQueueController_history_v1"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/receipt-print-tasks": {
         parameters: {
             query?: never;
@@ -752,6 +768,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/receipt-print-tasks/{id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Cancel a receipt that is still waiting in the queue */
+        post: operations["ReceiptQueueController_cancel_v1"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/receipt-print-tasks/orders/{orderId}/reprint": {
         parameters: {
             query?: never;
@@ -818,6 +851,22 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ordering-hours": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["OrderingHoursController_get_v1"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["OrderingHoursController_update_v1"];
         trace?: never;
     };
     "/api/v1/inventory/ingredients": {
@@ -952,6 +1001,22 @@ export interface paths {
         put?: never;
         /** Adjust ingredient stock */
         post: operations["InventoryController_adjustStock_v1"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/staff/customer-counts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["UsersController_customerCounts_v1"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1602,6 +1667,70 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/loyalty/gifts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["LoyaltyController_gifts_v1"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/loyalty/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["LoyaltyController_me_v1"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/loyalty/admin/gifts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["LoyaltyController_adminGifts_v1"];
+        put?: never;
+        post: operations["LoyaltyController_createGift_v1"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/loyalty/admin/gifts/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["LoyaltyController_updateGift_v1"];
+        trace?: never;
+    };
     "/api/v1/marketing/banners": {
         parameters: {
             query?: never;
@@ -2099,6 +2228,8 @@ export interface components {
             name: string;
             slug: string;
             description: string;
+            preparationMinutes: number;
+            loyaltyPoints: number;
             /** @enum {string} */
             pricingType: "FIXED" | "VARIANT";
             price: number;
@@ -2172,6 +2303,8 @@ export interface components {
             name: string;
             slug: string;
             description: string;
+            preparationMinutes: number;
+            loyaltyPoints: number;
             /** @enum {string} */
             pricingType: "FIXED" | "VARIANT";
             price: number;
@@ -2267,6 +2400,7 @@ export interface components {
             isActive?: boolean;
         };
         ReceiptPrintSettingsResponseDto: {
+            mainCopies: number;
             /** Format: uuid */
             mainPrinterId: string | null;
             /** @example 192.168.1.50 */
@@ -2347,6 +2481,7 @@ export interface components {
             isActive: boolean;
         };
         UpdateReceiptPrintSettingsDto: {
+            mainCopies?: number;
             /**
              * Format: uuid
              * @description Registered printer that receives the complete receipt
@@ -2417,6 +2552,10 @@ export interface components {
             /** @description Optional technical identifier; generated from the name on create and preserved on update when omitted */
             slug?: string;
             description: string;
+            /** @description Preparation time in minutes */
+            preparationMinutes?: number;
+            /** @description Points earned for each ordered unit after delivery */
+            loyaltyPoints?: number;
             /**
              * @description Required for FIXED pricing and ignored for VARIANT pricing, where the backend derives the minimum price
              * @example 49.9
@@ -2462,6 +2601,10 @@ export interface components {
             /** @description Optional technical identifier; generated from the name on create and preserved on update when omitted */
             slug?: string;
             description?: string;
+            /** @description Preparation time in minutes */
+            preparationMinutes?: number;
+            /** @description Points earned for each ordered unit after delivery */
+            loyaltyPoints?: number;
             /**
              * @description Required for FIXED pricing and ignored for VARIANT pricing, where the backend derives the minimum price
              * @example 49.9
@@ -2518,8 +2661,14 @@ export interface components {
             variantId?: string;
             quantity: number;
         };
+        RequestedOrderGiftDto: {
+            /** Format: uuid */
+            giftId: string;
+            quantity: number;
+        };
         QuoteOrderDto: {
             items: components["schemas"]["CreateOrderItemDto"][];
+            gifts?: components["schemas"]["RequestedOrderGiftDto"][];
             /** @description Delivery etrap used to include the authoritative delivery fee in this quote */
             deliveryEtrapId?: number;
             /**
@@ -2544,6 +2693,7 @@ export interface components {
             variantName: string | null;
             productImageUrl: string | null;
             quantity: number;
+            loyaltyPoints: number;
             /** @description Current backend-owned price for one selected item */
             unitPrice: number;
             /** @description Line total before the promo discount */
@@ -2552,6 +2702,15 @@ export interface components {
             discount: number;
             /** @description Line total after the allocated promo discount */
             discountedLineTotal: number;
+        };
+        OrderQuoteGiftResponseDto: {
+            /** Format: uuid */
+            giftId: string;
+            name: string;
+            imageUrl: string;
+            pointsCost: number;
+            quantity: number;
+            totalPoints: number;
         };
         OrderQuotePromoResponseDto: {
             code: string;
@@ -2562,6 +2721,10 @@ export interface components {
         };
         OrderQuoteResponseDto: {
             items: components["schemas"]["OrderQuoteItemResponseDto"][];
+            gifts: components["schemas"]["OrderQuoteGiftResponseDto"][];
+            pointsBalance: number;
+            loyaltyPointsEarned: number;
+            loyaltyPointsSpent: number;
             promo: components["schemas"]["OrderQuotePromoResponseDto"] | null;
             /** @description Items total before the promo discount */
             subtotal: number;
@@ -2582,6 +2745,8 @@ export interface components {
              */
             idempotencyKey?: string;
             items: components["schemas"]["CreateOrderItemDto"][];
+            /** @description Gifts are redeemed only as part of a food delivery order */
+            gifts?: components["schemas"]["RequestedOrderGiftDto"][];
             /** @description Delivery etrap selected from GET /delivery/config; also updates the selected saved address */
             deliveryEtrapId?: number;
             /** @description Saved address owned by the current user */
@@ -2643,10 +2808,26 @@ export interface components {
             productVariantId: string | null;
             productName: string;
             variantName: string | null;
+            preparationMinutes: number;
+            /** @description Points earned by this order line after delivery */
+            loyaltyPoints: number;
             productImageUrl: string | null;
             unitPrice: number;
             quantity: number;
             lineTotal: number;
+        };
+        OrderGiftResponseDto: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            orderId: string;
+            /** Format: uuid */
+            giftId: string;
+            name: string;
+            imageUrl: string;
+            pointsCost: number;
+            quantity: number;
+            totalPoints: number;
         };
         OrderRatingResponseDto: {
             /** Format: uuid */
@@ -2751,6 +2932,8 @@ export interface components {
             discount: number;
             deliveryFee: number;
             total: number;
+            loyaltyPointsEarned: number;
+            loyaltyPointsSpent: number;
             address: string;
             latitude: number;
             longitude: number;
@@ -2783,6 +2966,7 @@ export interface components {
             cook: components["schemas"]["OrderStaffResponseDto"] | null;
             courier: components["schemas"]["OrderCourierResponseDto"] | null;
             items: components["schemas"]["OrderItemResponseDto"][];
+            gifts: components["schemas"]["OrderGiftResponseDto"][];
             rating: components["schemas"]["OrderRatingResponseDto"] | null;
             cashSettlement: components["schemas"]["OrderCashSettlementResponseDto"] | null;
             savedAddress: components["schemas"]["OrderSavedAddressResponseDto"] | null;
@@ -2819,6 +3003,8 @@ export interface components {
              */
             idempotencyKey?: string;
             items: components["schemas"]["CreateOrderItemDto"][];
+            /** @description Gifts are redeemed only as part of a food delivery order */
+            gifts?: components["schemas"]["RequestedOrderGiftDto"][];
             /** @description Delivery etrap selected from GET /delivery/config; also updates the selected saved address */
             deliveryEtrapId?: number;
             /** @description Saved address owned by the current user */
@@ -3002,6 +3188,7 @@ export interface components {
             items: components["schemas"]["ReceiptPrintItemResponseDto"][];
         };
         ReceiptPrintPlanResponseDto: {
+            mainCopies: number;
             /** Format: uuid */
             orderId: string;
             orderNumber: number;
@@ -3034,7 +3221,7 @@ export interface components {
             entrance?: string;
             floor?: string;
             apartment?: string;
-            /** @description Order comment shown in the admin and on newly requested receipts. An empty or omitted value clears it; previously queued receipts keep their original snapshot. */
+            /** @description Order comment shown in the admin and on newly requested receipts. An empty or omitted value clears it; item edits cancel or revise stale waiting receipt tasks. */
             customerNote?: string;
             /** Format: uuid */
             courierId?: string;
@@ -3044,6 +3231,8 @@ export interface components {
         ConfirmOrderPackingDto: {
             /** @description Every immutable order-line ID checked by the administrator */
             checkedItemIds: string[];
+            /** @description Every gift ID checked during packing */
+            checkedGiftIds?: string[];
             /** @description Optimistic-lock version returned by the API */
             version: number;
         };
@@ -3059,15 +3248,20 @@ export interface components {
             id: string;
             orderId: string;
             orderNumber: number;
+            /** @description Dish names in this queued print task */
+            itemNames: string[];
             documentType: string;
             /** @enum {string} */
-            status: "PENDING" | "PROCESSING" | "DELIVERED" | "FAILED" | "UNCERTAIN";
+            status: "PENDING" | "PROCESSING" | "DELIVERED" | "FAILED" | "UNCERTAIN" | "CANCELLED";
             attempts: number;
             createdAt: string;
             nextAttemptAt: string;
             stationId: string | null;
             lastError: string | null;
             deliveredAt: string | null;
+        };
+        ReceiptQueueHistoryResponseDto: {
+            items: components["schemas"]["ReceiptTaskResponseDto"][];
         };
         ReceiptQueueResponseDto: {
             items: components["schemas"]["ReceiptTaskResponseDto"][];
@@ -3087,9 +3281,11 @@ export interface components {
             id: string;
             orderId: string;
             orderNumber: number;
+            /** @description Dish names in this queued print task */
+            itemNames: string[];
             documentType: string;
             /** @enum {string} */
-            status: "PENDING" | "PROCESSING" | "DELIVERED" | "FAILED" | "UNCERTAIN";
+            status: "PENDING" | "PROCESSING" | "DELIVERED" | "FAILED" | "UNCERTAIN" | "CANCELLED";
             attempts: number;
             createdAt: string;
             nextAttemptAt: string;
@@ -3129,12 +3325,24 @@ export interface components {
             /** @enum {string} */
             errorCode?: "AGENT_UNAVAILABLE" | "PRINTER_UNAVAILABLE" | "DELIVERY_UNCERTAIN" | "NO_PRINTERS" | "JOURNAL_UNAVAILABLE" | "INVALID_PLAN";
         };
+        ReceiptItemRouteDto: {
+            /** Format: uuid */
+            itemId: string;
+            /**
+             * Format: uuid
+             * @description Null prints this item only on the main cash register
+             */
+            printerId: string | null;
+            /** @description Omit this order item from both the main and kitchen copies of this manual print */
+            skip?: boolean;
+        };
         ReprintReceiptDto: {
             /**
              * Format: uuid
              * @description A new key means an intentional new paper copy; reuse on HTTP retry
              */
             idempotencyKey: string;
+            itemRoutes?: components["schemas"]["ReceiptItemRouteDto"][];
         };
         ReceiptAgentLeaseDto: {
             /** Format: uuid */
@@ -3147,6 +3355,27 @@ export interface components {
             outcome: "DELIVERED" | "RETRY" | "UNCERTAIN" | "FAILED";
             /** @enum {string} */
             errorCode?: "AGENT_UNAVAILABLE" | "PRINTER_UNAVAILABLE" | "DELIVERY_UNCERTAIN" | "NO_PRINTERS" | "JOURNAL_UNAVAILABLE" | "INVALID_PLAN";
+        };
+        OrderingHoursResponseDto: {
+            enabled: boolean;
+            /** @example 09:00 */
+            opensAt: string;
+            /** @example 22:00 */
+            closesAt: string;
+            /** @example Asia/Ashgabat */
+            timezone: string;
+            isOpen: boolean;
+            version: number;
+            /** Format: date-time */
+            serverTime: string;
+        };
+        UpdateOrderingHoursDto: {
+            enabled: boolean;
+            /** @example 09:00 */
+            opensAt: string;
+            /** @example 22:00 */
+            closesAt: string;
+            version: number;
         };
         InventoryIngredientResponseDto: {
             /** Format: uuid */
@@ -3318,6 +3547,11 @@ export interface components {
             type: "RECEIPT" | "CONSUMPTION" | "WASTE" | "ADJUSTMENT";
             /** @example Приемка поставки №42 */
             reason?: string;
+        };
+        CustomerCountsResponseDto: {
+            registered: number;
+            assistedOnly: number;
+            totalCustomerAccounts: number;
         };
         LoginAttemptUserResponseDto: {
             /** Format: uuid */
@@ -3804,6 +4038,9 @@ export interface components {
         };
         DeliveryConfigResponseDto: {
             mapPricingEnabled: boolean;
+            distancePricingEnabled: boolean;
+            dayPricePerKilometer: number | null;
+            nightPricePerKilometer: number | null;
             fallbackNightPrice: number;
             fallbackNightFreeDeliveryThreshold: number | null;
             nightTariffEnabled: boolean;
@@ -3835,6 +4072,11 @@ export interface components {
         };
         DeliveryQuoteResponseDto: {
             /** @enum {string} */
+            pricingMode: "AREA" | "DISTANCE";
+            /** @description Distance from the assigned branch */
+            distanceMeters: number | null;
+            pricePerKilometer: number | null;
+            /** @enum {string} */
             tariff: "DAY" | "NIGHT";
             /**
              * Format: date-time
@@ -3862,8 +4104,23 @@ export interface components {
             subtotal: number;
             /** @description Null or omitted uses the fallback tariff */
             deliveryEtrapId?: number | null;
+            /**
+             * @description Required with longitude for kilometer pricing
+             * @example 37.9601
+             */
+            latitude?: number;
+            /**
+             * @description Required with latitude for kilometer pricing
+             * @example 58.3261
+             */
+            longitude?: number;
         };
         DeliveryTariffQuoteResponseDto: {
+            /** @enum {string} */
+            pricingMode: "AREA" | "DISTANCE";
+            /** @description Distance from the assigned branch */
+            distanceMeters: number | null;
+            pricePerKilometer: number | null;
             /** @enum {string} */
             tariff: "DAY" | "NIGHT";
             /**
@@ -3894,6 +4151,10 @@ export interface components {
             version?: number;
             /** @description Use map polygons as the only district source for coordinate quotes and order pricing */
             mapPricingEnabled?: boolean;
+            /** @description Select kilometer pricing instead of the existing area tariff */
+            distancePricingEnabled?: boolean;
+            dayPricePerKilometer?: number | null;
+            nightPricePerKilometer?: number | null;
             fallbackNightPrice?: number;
             /** @description Null disables free delivery during the night tariff */
             fallbackNightFreeDeliveryThreshold?: number | null;
@@ -3914,6 +4175,9 @@ export interface components {
         };
         DeliverySettingsResponseDto: {
             mapPricingEnabled: boolean;
+            distancePricingEnabled: boolean;
+            dayPricePerKilometer: number | null;
+            nightPricePerKilometer: number | null;
             fallbackNightPrice: number;
             fallbackNightFreeDeliveryThreshold: number | null;
             nightTariffEnabled: boolean;
@@ -3995,6 +4259,59 @@ export interface components {
             items: components["schemas"]["SearchGeocodeResultDto"][];
             /** @example © OpenStreetMap contributors */
             attribution: string;
+        };
+        GiftResponseDto: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            description: string;
+            imageUrl: string;
+            pointsCost: number;
+            stock: number | null;
+            isActive: boolean;
+            sortOrder: number;
+            version: number;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        LoyaltyEntryResponseDto: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            orderId: string;
+            /** @enum {string} */
+            kind: "EARN" | "REDEEM" | "REFUND" | "REVERSE_EARN";
+            points: number;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        LoyaltyWalletResponseDto: {
+            pointsBalance: number;
+            entries: components["schemas"]["LoyaltyEntryResponseDto"][];
+        };
+        CreateGiftDto: {
+            name: string;
+            description: string;
+            /** @description WebP path from POST /media/images */
+            imageUrl: string;
+            pointsCost: number;
+            stock?: number | null;
+            isActive?: boolean;
+            sortOrder?: number;
+        };
+        UpdateGiftDto: {
+            name?: string;
+            description?: string;
+            /** @description WebP path from POST /media/images */
+            imageUrl?: string;
+            pointsCost?: number;
+            stock?: number | null;
+            isActive?: boolean;
+            sortOrder?: number;
+            /** @description Current gift version */
+            version: number;
         };
         BannerResponseDto: {
             /** Format: uuid */
@@ -5368,6 +5685,25 @@ export interface operations {
             };
         };
     };
+    ReceiptQueueController_history_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReceiptQueueHistoryResponseDto"];
+                };
+            };
+        };
+    };
     ReceiptQueueController_list_v1: {
         parameters: {
             query?: never;
@@ -5481,6 +5817,27 @@ export interface operations {
             };
         };
     };
+    ReceiptQueueController_cancel_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReceiptTaskResponseDto"];
+                };
+            };
+        };
+    };
     ReceiptQueueController_reprint_v1: {
         parameters: {
             query?: never;
@@ -5583,6 +5940,48 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ReceiptTaskResponseDto"];
+                };
+            };
+        };
+    };
+    OrderingHoursController_get_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderingHoursResponseDto"];
+                };
+            };
+        };
+    };
+    OrderingHoursController_update_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateOrderingHoursDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderingHoursResponseDto"];
                 };
             };
         };
@@ -5804,6 +6203,25 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["InventoryStockResponseDto"];
+                };
+            };
+        };
+    };
+    UsersController_customerCounts_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerCountsResponseDto"];
                 };
             };
         };
@@ -6743,6 +7161,111 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SearchGeocodeResponseDto"];
+                };
+            };
+        };
+    };
+    LoyaltyController_gifts_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GiftResponseDto"][];
+                };
+            };
+        };
+    };
+    LoyaltyController_me_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LoyaltyWalletResponseDto"];
+                };
+            };
+        };
+    };
+    LoyaltyController_adminGifts_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GiftResponseDto"][];
+                };
+            };
+        };
+    };
+    LoyaltyController_createGift_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateGiftDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GiftResponseDto"];
+                };
+            };
+        };
+    };
+    LoyaltyController_updateGift_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateGiftDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GiftResponseDto"];
                 };
             };
         };

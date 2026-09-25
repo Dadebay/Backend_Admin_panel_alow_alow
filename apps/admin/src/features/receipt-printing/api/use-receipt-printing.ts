@@ -13,7 +13,15 @@ export function useReceiptPrinting() {
   const queryClient = useQueryClient();
   const pendingKeys = useRef(new Map<string, string>());
   return useMutation({
-    mutationFn: async (orderId: string) => {
+    mutationFn: async (
+      request:
+        | string
+        | {
+            orderId: string;
+            itemRoutes: components["schemas"]["ReceiptItemRouteDto"][];
+          },
+    ) => {
+      const orderId = typeof request === "string" ? request : request.orderId;
       const storageKey = `receipt-reprint:${session?.user.id}:${orderId}`;
       let key = pendingKeys.current.get(storageKey);
       try {
@@ -32,7 +40,12 @@ export function useReceiptPrinting() {
         components["schemas"]["ReceiptTaskResponseDto"]
       >(`/receipt-print-tasks/orders/${orderId}/reprint`, {
         method: "POST",
-        body: JSON.stringify({ idempotencyKey: key }),
+        body: JSON.stringify({
+          idempotencyKey: key,
+          ...(typeof request === "string"
+            ? {}
+            : { itemRoutes: request.itemRoutes }),
+        }),
         signal: AbortSignal.timeout(15_000),
       });
       pendingKeys.current.delete(storageKey);

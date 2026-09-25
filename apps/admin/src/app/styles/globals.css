@@ -4080,10 +4080,6 @@ textarea[aria-invalid="true"] {
     display: block;
   }
 
-  .data-table--orders td:nth-child(6) {
-    display: none;
-  }
-
   .data-table--orders .customer-address-cell {
     max-width: none;
   }

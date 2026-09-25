@@ -29,6 +29,9 @@ import {
   RoutingUnavailableError,
 } from "../routing/routing.service";
 import { TrackingService } from "../tracking/tracking.service";
+import { OrderingHoursService } from "./ordering-hours.service";
+import { LoyaltyService } from "../loyalty/loyalty.service";
+import { earnedPoints } from "../loyalty/loyalty-points";
 import {
   AdminEditOrderDto,
   AssignCourierDto,
@@ -61,9 +64,11 @@ import {
   CourierRouteWaypointKind,
   CourierRoutingStatus,
 } from "./orders-response.dto";
+import { reconcileReceiptsAfterItemEdit } from "./receipt-edit-queue";
 import {
   buildReceiptPrintMetadata,
   buildReceiptPrintPlan,
+  expandMainReceiptCopies,
 } from "./receipt-print-plan";
 
 type ReceiptPrinterRouteSource = {
@@ -128,6 +133,7 @@ const detailInclude = {
       },
     },
   },
+  gifts: true,
   rating: true,
   cashSettlement: true,
   savedAddress: true,
@@ -159,6 +165,8 @@ function withItemImages<T extends OrderWithDetails>(order: T) {
         productVariantId,
         productName,
         variantName,
+        preparationMinutes,
+        loyaltyPoints,
         unitPrice,
         quantity,
         lineTotal,
@@ -169,6 +177,8 @@ function withItemImages<T extends OrderWithDetails>(order: T) {
         productVariantId,
         productName,
         variantName,
+        preparationMinutes,
+        loyaltyPoints,
         unitPrice,
         quantity,
         lineTotal,
@@ -233,6 +243,8 @@ export class OrdersService {
     private readonly notifications: NotificationsService,
     private readonly delivery: DeliveryService,
     private readonly inventory: InventoryService,
+    private readonly orderingHours: OrderingHoursService,
+    private readonly loyalty: LoyaltyService,
   ) {}
 
   quote(user: AuthUser, dto: QuoteOrderDto) {
@@ -256,6 +268,19 @@ export class OrdersService {
           ? { latitude: dto.latitude, longitude: dto.longitude }
           : undefined,
       );
+      const redemption = await this.loyalty.prepareRedemption(tx, dto.gifts);
+      const wallet = await tx.user.findUniqueOrThrow({
+        where: { id: user.id },
+        select: { pointsBalance: true },
+      });
+      if (redemption.pointsSpent > wallet.pointsBalance)
+        throw new ConflictException("Insufficient loyalty points");
+      const loyaltyPointsEarned = earnedPoints(
+        resolvedItems.map(({ product, quantity }) => ({
+          points: product.loyaltyPoints,
+          quantity,
+        })),
+      );
       const originalLineTotals = resolvedItems.map(
         ({ product, variant, quantity }) =>
           roundMoney(Number(variant?.price ?? product.price) * quantity),
@@ -276,6 +301,7 @@ export class OrdersService {
             productImageUrl:
               variant?.images[0]?.url ?? product.images[0]?.url ?? null,
             quantity,
+            loyaltyPoints: product.loyaltyPoints * quantity,
             unitPrice: Number(variant?.price ?? product.price),
             originalLineTotal,
             discount: lineDiscount,
@@ -300,6 +326,17 @@ export class OrdersService {
         discountedSubtotal,
         deliveryFee: deliveryPricing.fee,
         total: roundMoney(discountedSubtotal + deliveryPricing.fee),
+        loyaltyPointsEarned,
+        loyaltyPointsSpent: redemption.pointsSpent,
+        pointsBalance: wallet.pointsBalance,
+        gifts: redemption.gifts.map(({ gift, quantity, totalPoints }) => ({
+          giftId: gift.id,
+          name: gift.name,
+          imageUrl: gift.imageUrl,
+          pointsCost: gift.pointsCost,
+          quantity,
+          totalPoints,
+        })),
         deliveryEtrapId: deliveryPricing.etrap?.id ?? null,
         deliveryWelayatName: deliveryPricing.etrap?.welayat.nameRu ?? null,
         deliveryEtrapName: deliveryPricing.etrap?.nameRu ?? null,
@@ -402,14 +439,101 @@ export class OrdersService {
     eventKey: string,
   ) {
     const plan = await this.receiptPrintPlan(orderId, tx);
-    return tx.receiptPrintTask.create({
+    if (eventKey.startsWith("ORDER_CANCELLED:")) {
+      await tx.receiptPrintTask.updateMany({
+        where: {
+          orderId,
+          eventKey: { startsWith: "ORDER_CREATED:" },
+          status: { in: ["PENDING", "FAILED"] },
+        },
+        data: { status: "CANCELLED", lastError: "ORDER_CANCELLED" },
+      });
+    }
+    const delayed = eventKey.startsWith("ORDER_CREATED:");
+    const order = delayed
+      ? await tx.order.findUniqueOrThrow({
+          where: { id: orderId },
+          select: {
+            createdAt: true,
+            items: { select: { id: true, preparationMinutes: true } },
+          },
+        })
+      : null;
+    const preparation = new Map(
+      order?.items.map((item) => [item.id, item.preparationMinutes]) ?? [],
+    );
+    const maxPreparation = Math.max(0, ...preparation.values());
+    const jobsByDelay = new Map<number, typeof plan.jobs>();
+    for (const job of plan.jobs) {
+      for (const item of job.items) {
+        const delay = delayed
+          ? maxPreparation - (preparation.get(item.id) ?? 0)
+          : 0;
+        const jobs = jobsByDelay.get(delay) ?? [];
+        const group = jobs.find(
+          (candidate) =>
+            candidate.printerIp === job.printerIp &&
+            candidate.printerPort === job.printerPort &&
+            candidate.transport === job.transport,
+        );
+        if (group) group.items.push(item);
+        else jobs.push({ ...job, items: [item] });
+        jobsByDelay.set(delay, jobs);
+      }
+    }
+    const immediatePlan = { ...plan, jobs: jobsByDelay.get(0) ?? [] };
+    const immediateCopies = expandMainReceiptCopies(immediatePlan);
+    const first = await tx.receiptPrintTask.create({
       data: {
         orderId,
         eventKey,
         documentType: plan.documentType,
-        plan,
+        plan: immediateCopies[0]!,
       },
     });
+    for (const [index, copyPlan] of immediateCopies.slice(1).entries()) {
+      await tx.receiptPrintTask.create({
+        data: {
+          orderId,
+          eventKey: `${eventKey}:MAIN_COPY:${index + 2}`,
+          documentType: plan.documentType,
+          plan: copyPlan,
+        },
+      });
+    }
+    for (const [delay, jobs] of [...jobsByDelay].sort(([a], [b]) => a - b)) {
+      if (delay === 0) continue;
+      const due = new Date(order!.createdAt.getTime() + delay * 60_000);
+      const task = await tx.receiptPrintTask.create({
+        data: {
+          orderId,
+          eventKey: `${eventKey}:DELAY:${delay}`,
+          documentType: plan.documentType,
+          plan: {
+            ...plan,
+            mainJob: null,
+            mainCopies: 1,
+            jobs,
+            unassignedItems: [],
+          },
+          nextAttemptAt: due,
+        },
+      });
+      await tx.auditLog.create({
+        data: {
+          action: "receipt.kitchen_scheduled",
+          entityType: "ReceiptPrintTask",
+          entityId: task.id,
+          metadata: {
+            orderId,
+            delayMinutes: delay,
+            dueAt: due.toISOString(),
+            itemIds: jobs.flatMap((job) => job.items.map((item) => item.id)),
+          },
+        },
+      });
+    }
+    return first;
   }
 
   async searchAssistedCustomers(query: SearchAssistedCustomersQueryDto) {
@@ -684,6 +808,12 @@ export class OrdersService {
     },
   ) {
     const { actorId, customerId, dto, source } = input;
+    if (source === OrderSource.STAFF_PHONE && dto.gifts?.length)
+      throw new ForbiddenException(
+        "Gift redemption requires the customer's own session",
+      );
+    if (source === OrderSource.CUSTOMER_APP)
+      await this.orderingHours.assertOpen(tx);
     const createdAt = new Date();
     const { resolvedItems, subtotal } = await this.resolveOrderItems(
       tx,
@@ -696,12 +826,20 @@ export class OrdersService {
       subtotal,
     );
 
-    const usesMapPricing = await this.delivery.usesMapPricing(tx);
+    const ignoresSelectedEtrap = await this.delivery.ignoresSelectedEtrap(tx);
     const selectedAddress = await this.addresses.selectForOrder(
       tx,
       customerId,
-      usesMapPricing ? { ...dto, deliveryEtrapId: undefined } : dto,
+      ignoresSelectedEtrap ? { ...dto, deliveryEtrapId: undefined } : dto,
       actorId,
+    );
+    const nearest = await this.branches.findNearestActive(
+      tx,
+      {
+        latitude: Number(selectedAddress.latitude),
+        longitude: Number(selectedAddress.longitude),
+      },
+      true,
     );
     const deliveryPricing = await this.delivery.resolvePricing(
       tx,
@@ -712,6 +850,7 @@ export class OrdersService {
         latitude: Number(selectedAddress.latitude),
         longitude: Number(selectedAddress.longitude),
       },
+      nearest.distanceMeters,
     );
     if (
       selectedAddress.deliveryEtrapId !== (deliveryPricing.etrap?.id ?? null)
@@ -723,10 +862,13 @@ export class OrdersService {
     }
     const deliveryFee = deliveryPricing.fee;
     const total = roundMoney(subtotal - discount + deliveryFee);
-    const nearest = await this.branches.findNearestActive(tx, {
-      latitude: Number(selectedAddress.latitude),
-      longitude: Number(selectedAddress.longitude),
-    });
+    const redemption = await this.loyalty.prepareRedemption(tx, dto.gifts);
+    const loyaltyPointsEarned = earnedPoints(
+      resolvedItems.map(({ product, quantity }) => ({
+        points: product.loyaltyPoints,
+        quantity,
+      })),
+    );
 
     if (promo) {
       const incremented = await tx.promoCode.updateMany({
@@ -758,6 +900,8 @@ export class OrdersService {
         discount,
         deliveryFee,
         total,
+        loyaltyPointsEarned,
+        loyaltyPointsSpent: redemption.pointsSpent,
         address: selectedAddress.address,
         latitude: selectedAddress.latitude,
         longitude: selectedAddress.longitude,
@@ -781,6 +925,8 @@ export class OrdersService {
               productVariantId: variant?.id,
               productName: product.name,
               variantName: variant?.name,
+              preparationMinutes: product.preparationMinutes,
+              loyaltyPoints: product.loyaltyPoints * quantity,
               receiptPrinterIp: receiptRoute?.receiptPrinterIp,
               receiptPrinterPort: receiptRoute?.receiptPrinterPort,
               receiptPrinterTransport: receiptRoute?.receiptPrinterTransport,
@@ -803,6 +949,13 @@ export class OrdersService {
       },
       include: detailInclude,
     });
+    await this.loyalty.redeem(
+      tx,
+      customerId,
+      order.id,
+      redemption.gifts,
+      redemption.pointsSpent,
+    );
     await tx.auditLog.create({
       data: {
         actorId,
@@ -826,7 +979,11 @@ export class OrdersService {
     });
     await this.inventory.allocateOrder(tx, { id: actorId }, order);
     await this.enqueueReceipt(tx, order.id, `ORDER_CREATED:${order.id}`);
-    return toApiResponse(withItemImages(order));
+    const created = await tx.order.findUniqueOrThrow({
+      where: { id: order.id },
+      include: detailInclude,
+    });
+    return toApiResponse(withItemImages(created));
   }
 
   async list(user: AuthUser, query: ListOrdersQueryDto) {
@@ -980,6 +1137,10 @@ export class OrdersService {
             },
             orderBy: { id: "asc" },
           },
+          gifts: {
+            select: { id: true, name: true, quantity: true, totalPoints: true },
+            orderBy: { id: "asc" },
+          },
         },
       }),
       db.receiptPrintSettings.findUnique({
@@ -1012,6 +1173,7 @@ export class OrdersService {
         order,
         mainPrinter,
         buildReceiptPrintMetadata(order, contact?.phone ?? null),
+        settings?.mainCopies ?? 2,
       ),
     );
   }
@@ -1070,6 +1232,15 @@ export class OrdersService {
       });
       if (updated.count !== 1) {
         throw new ConflictException("Order changed; reload and try again");
+      }
+
+      if (dto.status === OrderStatus.DELIVERED) {
+        await this.loyalty.award(
+          tx,
+          order.customerId,
+          id,
+          order.loyaltyPointsEarned,
+        );
       }
 
       if (dto.status === OrderStatus.CASH_RETURNED) {
@@ -1160,17 +1331,22 @@ export class OrdersService {
         tx,
         dto.items,
       );
+      const nearest = await this.branches.findNearestActive(
+        tx,
+        {
+          latitude: dto.latitude,
+          longitude: dto.longitude,
+        },
+        true,
+      );
       const deliveryPricing = await this.delivery.resolvePricing(
         tx,
         subtotal,
         dto.deliveryEtrapId,
         order.createdAt,
         { latitude: dto.latitude, longitude: dto.longitude },
+        nearest.distanceMeters,
       );
-      const nearest = await this.branches.findNearestActive(tx, {
-        latitude: dto.latitude,
-        longitude: dto.longitude,
-      });
       const currentItems = order.items
         .map(
           (item) =>
@@ -1184,6 +1360,14 @@ export class OrdersService {
         )
         .sort();
       const itemsChanged = currentItems.join("|") !== nextItems.join("|");
+      const loyaltyPointsEarned = itemsChanged
+        ? earnedPoints(
+            resolvedItems.map(({ product, quantity }) => ({
+              points: product.loyaltyPoints,
+              quantity,
+            })),
+          )
+        : order.loyaltyPointsEarned;
 
       let courierId = order.courierId;
       let cookId = order.cookId;
@@ -1232,6 +1416,26 @@ export class OrdersService {
       }
       const total = roundMoney(subtotal - discount + deliveryPricing.fee);
 
+      if (itemsChanged) {
+        // The same row lock serializes edits with receipt claims and manual
+        // cancellation, so a waiting task cannot start while its plan changes.
+        await tx.receiptPrintQueue.update({
+          where: { id: "default" },
+          data: { revision: { increment: 1 } },
+        });
+        if (
+          await tx.receiptPrintTask.count({
+            where: {
+              orderId: id,
+              status: { in: ["PROCESSING", "UNCERTAIN"] },
+            },
+          })
+        )
+          throw new ConflictException(
+            "A receipt for this order is printing or has an uncertain outcome; inspect the receipt before editing food",
+          );
+      }
+
       const updated = await tx.order.updateMany({
         where: { id, version: dto.version, status: order.status },
         data: {
@@ -1251,6 +1455,7 @@ export class OrdersService {
           discount,
           deliveryFee: deliveryPricing.fee,
           total,
+          loyaltyPointsEarned,
           branchId: nearest.branch.id,
           branchName: nearest.branch.name,
           branchAddress: nearest.branch.address,
@@ -1280,6 +1485,8 @@ export class OrdersService {
               productVariantId: variant?.id,
               productName: product.name,
               variantName: variant?.name,
+              preparationMinutes: product.preparationMinutes,
+              loyaltyPoints: product.loyaltyPoints * quantity,
               receiptPrinterIp: receiptRoute?.receiptPrinterIp,
               receiptPrinterPort: receiptRoute?.receiptPrinterPort,
               receiptPrinterTransport: receiptRoute?.receiptPrinterTransport,
@@ -1328,6 +1535,16 @@ export class OrdersService {
         where: { id },
         include: detailInclude,
       });
+      if (itemsChanged)
+        await reconcileReceiptsAfterItemEdit(
+          tx,
+          user,
+          id,
+          result.version,
+          order.items,
+          result.items,
+          await this.receiptPrintPlan(id, tx),
+        );
       if (itemsChanged || order.branchId !== result.branchId) {
         await this.inventory.allocateOrder(tx, user, result, true);
       }
@@ -1358,7 +1575,10 @@ export class OrdersService {
     const response = await this.prisma.$transaction(async (tx) => {
       const order = await tx.order.findUnique({
         where: { id },
-        include: { items: { select: { id: true } } },
+        include: {
+          items: { select: { id: true } },
+          gifts: { select: { id: true } },
+        },
       });
       if (!order) throw new NotFoundException("Order not found");
       if (order.version !== dto.version) {
@@ -1383,6 +1603,15 @@ export class OrdersService {
       ) {
         throw new BadRequestException(
           "Check every order item before confirming packing",
+        );
+      }
+      const checkedGiftIds = new Set(dto.checkedGiftIds ?? []);
+      if (
+        checkedGiftIds.size !== order.gifts.length ||
+        order.gifts.some((gift) => !checkedGiftIds.has(gift.id))
+      ) {
+        throw new BadRequestException(
+          "Check every gift before confirming packing",
         );
       }
 
@@ -1591,6 +1820,13 @@ export class OrdersService {
       if (returnsInventoryOnCancellation(order.status)) {
         await this.inventory.releaseOrderReservation(tx, user, order);
       }
+      await this.loyalty.cancel(
+        tx,
+        order.customerId,
+        id,
+        order.loyaltyPointsEarned,
+        order.loyaltyPointsSpent,
+      );
       await tx.orderTransition.create({
         data: {
           orderId: id,

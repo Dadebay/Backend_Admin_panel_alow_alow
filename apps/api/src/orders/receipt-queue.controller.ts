@@ -24,6 +24,7 @@ import {
   ReprintReceiptDto,
   ReceiptClaimResultDto,
   ReceiptQueueResponseDto,
+  ReceiptQueueHistoryResponseDto,
   ReceiptTaskResponseDto,
 } from "./receipt-queue.dto";
 import { ReceiptQueueService } from "./receipt-queue.service";
@@ -35,6 +36,11 @@ import { ReceiptQueueService } from "./receipt-queue.service";
 @Controller("receipt-print-tasks")
 export class ReceiptQueueController {
   constructor(private readonly queue: ReceiptQueueService) {}
+  @Get("history")
+  @ApiOkResponse({ type: ReceiptQueueHistoryResponseDto })
+  history(@CurrentUser() actor: AuthUser) {
+    return this.queue.history(actor);
+  }
   @Get()
   @ApiOperation({
     summary:
@@ -87,6 +93,16 @@ export class ReceiptQueueController {
   ) {
     return this.queue.retry(actor, id);
   }
+  @Post(":id/cancel")
+  @Roles(Role.ADMIN)
+  @ApiOperation({ summary: "Cancel a receipt that is still waiting in the queue" })
+  @ApiCreatedResponse({ type: ReceiptTaskResponseDto })
+  cancel(
+    @CurrentUser() actor: AuthUser,
+    @Param("id", ParseUUIDPipe) id: string,
+  ) {
+    return this.queue.cancel(actor, id);
+  }
   @Post("orders/:orderId/reprint")
   @ApiOperation({
     summary:
@@ -98,6 +114,6 @@ export class ReceiptQueueController {
     @Param("orderId", ParseUUIDPipe) id: string,
     @Body() dto: ReprintReceiptDto,
   ) {
-    return this.queue.reprint(actor, id, dto.idempotencyKey);
+    return this.queue.reprint(actor, id, dto);
   }
 }

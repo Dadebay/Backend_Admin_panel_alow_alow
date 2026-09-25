@@ -30,7 +30,7 @@ type OrderKanbanProps = {
   pending: boolean;
   onCourierChange: (orderId: string, courierId: string) => void;
   onAssignCourier: (order: Order, courierId: string) => void;
-  onConfirmPacking: (order: Order, checkedItemIds: string[]) => void;
+  onConfirmPacking: (order: Order, checkedItemIds: string[], checkedGiftIds: string[]) => void;
   onTransition: (order: Order, status: OrderStatus, note?: string) => void;
   onPrintReceipt: (order: Order) => void;
   onCancel: (order: Order) => void;
@@ -238,6 +238,7 @@ function OrderCard({
                 <span>{orderItemLabel(item)}</span>
               </li>
             ))}
+            {order.gifts.map((gift) => <li key={gift.id}><b>{gift.quantity}×</b><span>Подарок: {gift.name}</span></li>)}
           </ul>
         )}
 

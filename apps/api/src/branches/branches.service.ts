@@ -87,6 +87,7 @@ export class BranchesService {
   async findNearestActive(
     tx: Prisma.TransactionClient,
     destination: { latitude: number; longitude: number },
+    requireValidCoordinates = false,
   ) {
     const branches = await tx.branch.findMany({
       where: { isActive: true },
@@ -122,6 +123,16 @@ export class BranchesService {
 
     const fallbackDistance = safeDistance(fallback);
     if (fallbackDistance === null) {
+      if (requireValidCoordinates) {
+        const valid = branches
+          .map((branch) => ({ branch, distanceMeters: safeDistance(branch) }))
+          .filter((entry): entry is { branch: (typeof branches)[number]; distanceMeters: number } => entry.distanceMeters !== null)
+          .sort((left, right) => left.distanceMeters - right.distanceMeters);
+        if (!valid[0]) {
+          throw new ConflictException("Active branch coordinates are invalid");
+        }
+        return valid[0];
+      }
       // This can only happen with corrupt coordinates. Keep accepting orders
       // through the primary branch rather than dropping the customer order.
       return { branch: fallback, distanceMeters: 0 };

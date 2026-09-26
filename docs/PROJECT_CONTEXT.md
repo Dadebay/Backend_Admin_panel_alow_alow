@@ -2109,6 +2109,10 @@ After validation the transaction cancels pending, failed and uncertain
 automatic receipt tasks for the order before creating idempotent tasks for
 the requested main copies. Reusing a manual print key with a different
 selection is a conflict.
+Automatic tasks created by order edits (`ORDER_EDITED`) follow the same
+cancellation rules as the original order tasks: order cancellation stops
+pending/failed edit tasks, and manual printing supersedes pending/failed/uncertain
+edit tasks, including replacement main copies and delayed kitchen tickets.
 It refuses to race a processing task. Cancelled and delivered task history is
 available to operations staff; scheduling, delivery results and manual routing
 are audit logged. A pending future task cannot be manually retried early.
@@ -2132,6 +2136,14 @@ unchanged.
 The 2026-09-25 follow-up to these receipt features is pushed to the
 `codex/map-delivery-zones` branch for review. The user requested no production
 deployment in this handoff; only `main` triggers the production workflow.
+
+For the temporary legacy mobile compatibility window, order creation accepts
+`latitude: null` and `longitude: null` as omitted values, using the selected
+or active saved address. A lone numeric coordinate still fails validation;
+new inline addresses still require both valid coordinates. Keep this shim
+until mobile clients stop sending null coordinates and its removal is approved.
+On 2026-09-26 the user authorized merging the compatibility fixes and the
+feature branch into `main`, followed by deployment over local workstation SSH.
 
 The separate `GET /ordering-hours` response is public and contains the
 server-calculated `isOpen`, `Asia/Ashgabat` timezone, local open/close times,

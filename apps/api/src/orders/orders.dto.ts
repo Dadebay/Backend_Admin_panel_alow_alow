@@ -121,7 +121,12 @@ export class CreateOrderDto {
   @MaxLength(500)
   address?: string;
 
-  @ApiPropertyOptional({ example: 37.9601 })
+  @ApiPropertyOptional({
+    example: 37.9601,
+    nullable: true,
+    description: "Legacy clients may send null; it is treated as omitted when selecting a saved address",
+  })
+  @Transform(({ value }: { value: unknown }) => value === null ? undefined : value)
   @ValidateIf(
     (dto: CreateOrderDto) =>
       dto.latitude !== undefined || dto.longitude !== undefined,
@@ -129,7 +134,12 @@ export class CreateOrderDto {
   @IsLatitude()
   latitude?: number;
 
-  @ApiPropertyOptional({ example: 58.3261 })
+  @ApiPropertyOptional({
+    example: 58.3261,
+    nullable: true,
+    description: "Legacy clients may send null; it is treated as omitted when selecting a saved address",
+  })
+  @Transform(({ value }: { value: unknown }) => value === null ? undefined : value)
   @ValidateIf(
     (dto: CreateOrderDto) =>
       dto.latitude !== undefined || dto.longitude !== undefined,

@@ -7498,11 +7498,15 @@
           },
           "latitude": {
             "type": "number",
-            "example": 37.9601
+            "example": 37.9601,
+            "nullable": true,
+            "description": "Legacy clients may send null; it is treated as omitted when selecting a saved address"
           },
           "longitude": {
             "type": "number",
-            "example": 58.3261
+            "example": 58.3261,
+            "nullable": true,
+            "description": "Legacy clients may send null; it is treated as omitted when selecting a saved address"
           },
           "entrance": {
             "type": "string"
@@ -8411,11 +8415,15 @@
           },
           "latitude": {
             "type": "number",
-            "example": 37.9601
+            "example": 37.9601,
+            "nullable": true,
+            "description": "Legacy clients may send null; it is treated as omitted when selecting a saved address"
           },
           "longitude": {
             "type": "number",
-            "example": 58.3261
+            "example": 58.3261,
+            "nullable": true,
+            "description": "Legacy clients may send null; it is treated as omitted when selecting a saved address"
           },
           "entrance": {
             "type": "string"

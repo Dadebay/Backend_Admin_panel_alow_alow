@@ -612,6 +612,143 @@ describe("durable receipt queue", () => {
     }
   });
 
+  it.each([
+    { action: "cancel", status: "PENDING" },
+    { action: "cancel", status: "FAILED" },
+    { action: "reprint", status: "PENDING" },
+    { action: "reprint", status: "FAILED" },
+    { action: "reprint", status: "UNCERTAIN" },
+  ] as const)(
+    "$action supersedes $status receipts created by an order edit",
+    async ({ action, status }) => {
+      const original = await prisma.product.findUniqueOrThrow({
+        where: { id: productId },
+      });
+      const shortDish = await prisma.product.create({
+        data: {
+          categoryId: original.categoryId,
+          name: "Edited ten-minute dish",
+          slug: `superseded-edit-${randomUUID()}`,
+          description: "Delayed edit regression",
+          price: 20,
+          preparationMinutes: 10,
+        },
+      });
+      await prisma.product.update({
+        where: { id: productId },
+        data: { preparationMinutes: 30 },
+      });
+      await prisma.receiptPrintSettings.update({
+        where: { id: "default" },
+        data: { mainPrinterIp: "192.168.0.87", mainCopies: 2 },
+      });
+      try {
+        const order = await create();
+        const delivered = (await claim())!;
+        await outcome(delivered, "DELIVERED").expect(201);
+        const edited = await request(server)
+          .patch(`/api/v1/orders/${order.id}/admin-edit`)
+          .set(auth())
+          .send({
+            version: order.version,
+            items: [
+              { productId, quantity: 1 },
+              { productId: shortDish.id, quantity: 1 },
+            ],
+            deliveryEtrapId: 25,
+            address: "Queue test address",
+            latitude: 37.98,
+            longitude: 58.34,
+          })
+          .expect(200);
+        const revised = await prisma.receiptPrintTask.findMany({
+          where: { orderId: order.id, eventKey: { startsWith: "ORDER_EDITED:" } },
+        });
+        expect(revised).toHaveLength(2);
+        expect(
+          revised.some((task) => task.eventKey.endsWith(":MAIN_COPY:1")),
+        ).toBe(true);
+        expect(
+          revised.some(
+            (task) =>
+              task.eventKey.endsWith(":KITCHEN:DELAY:20") &&
+              task.nextAttemptAt.getTime() > Date.now() + 19 * 60_000,
+          ),
+        ).toBe(true);
+        const revisedIds = revised.map((task) => task.id);
+        await prisma.receiptPrintTask.updateMany({
+          where: { id: { in: revisedIds } },
+          data: { status },
+        });
+        if (action === "cancel") {
+          await request(server)
+            .patch(`/api/v1/orders/${order.id}/cancel`)
+            .set(auth())
+            .send({
+              version: (edited.body as { version: number }).version,
+              reason: "Cancel edited food",
+            })
+            .expect(200);
+        } else {
+          const selection = { idempotencyKey: randomUUID() };
+          const first = await request(server)
+            .post(`${root}/orders/${order.id}/reprint`)
+            .set(auth())
+            .send(selection)
+            .expect(201);
+          const replay = await request(server)
+            .post(`${root}/orders/${order.id}/reprint`)
+            .set(auth())
+            .send(selection)
+            .expect(201);
+          expect((replay.body as ReceiptTaskResponseDto).id).toBe(
+            (first.body as ReceiptTaskResponseDto).id,
+          );
+          expect(
+            await prisma.auditLog.findFirst({
+              where: {
+                entityId: (first.body as ReceiptTaskResponseDto).id,
+                action: "receipt.reprint_requested",
+              },
+            }),
+          ).toMatchObject({
+            metadata: { cancelledAutomaticTasks: revised.length },
+          });
+        }
+        const superseded = await prisma.receiptPrintTask.findMany({
+          where: { id: { in: revisedIds } },
+        });
+        expect(superseded).toHaveLength(revisedIds.length);
+        for (const task of superseded) expect(task.status).toBe("CANCELLED");
+        expect(
+          await prisma.receiptPrintTask.findUniqueOrThrow({
+            where: { id: delivered.id },
+          }),
+        ).toMatchObject({ status: "DELIVERED" });
+        // Advance the delayed tasks' eligibility without waiting twenty minutes.
+        await prisma.receiptPrintTask.updateMany({
+          where: { id: { in: revisedIds } },
+          data: { nextAttemptAt: new Date(0) },
+        });
+        for (let copy = 0; copy < 2; copy += 1) {
+          const next = (await claim())!;
+          expect(next).not.toBeNull();
+          expect(revisedIds).not.toContain(next.id);
+          expect(next.plan.documentType).toBe(
+            action === "cancel" ? "CANCELLATION" : "ORDER",
+          );
+          await outcome(next, "DELIVERED").expect(201);
+        }
+        expect(await claim()).toBeNull();
+      } finally {
+        await prisma.product.update({
+          where: { id: productId },
+          data: { preparationMinutes: original.preparationMinutes },
+        });
+      }
+    },
+  );
+
   it("cancels a delayed dish removed on a later edit after line IDs change", async () => {
     const original = await prisma.product.findUniqueOrThrow({
       where: { id: productId },

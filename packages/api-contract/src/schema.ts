@@ -2761,10 +2761,16 @@ export interface components {
              * @example Magtymguly şaýoly, 72
              */
             address?: string;
-            /** @example 37.9601 */
-            latitude?: number;
-            /** @example 58.3261 */
-            longitude?: number;
+            /**
+             * @description Legacy clients may send null; it is treated as omitted when selecting a saved address
+             * @example 37.9601
+             */
+            latitude?: number | null;
+            /**
+             * @description Legacy clients may send null; it is treated as omitted when selecting a saved address
+             * @example 58.3261
+             */
+            longitude?: number | null;
             entrance?: string;
             floor?: string;
             apartment?: string;
@@ -3019,10 +3025,16 @@ export interface components {
              * @example Magtymguly şaýoly, 72
              */
             address?: string;
-            /** @example 37.9601 */
-            latitude?: number;
-            /** @example 58.3261 */
-            longitude?: number;
+            /**
+             * @description Legacy clients may send null; it is treated as omitted when selecting a saved address
+             * @example 37.9601
+             */
+            latitude?: number | null;
+            /**
+             * @description Legacy clients may send null; it is treated as omitted when selecting a saved address
+             * @example 58.3261
+             */
+            longitude?: number | null;
             entrance?: string;
             floor?: string;
             apartment?: string;

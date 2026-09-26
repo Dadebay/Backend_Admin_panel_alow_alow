@@ -74,6 +74,83 @@ describe("loyalty shop and kilometer delivery HTTP", () => {
     await app?.close();
   });
 
+  it.each([
+    { explicit: false, distancePricing: false },
+    { explicit: true, distancePricing: false },
+    { explicit: false, distancePricing: true },
+    { explicit: true, distancePricing: true },
+  ])(
+    "accepts legacy null coordinates with saved addresses ($explicit, kilometer=$distancePricing)",
+    async ({ explicit, distancePricing }) => {
+      const settings = await prisma.deliverySettings.findUniqueOrThrow({
+        where: { id: "default" },
+      });
+      await prisma.deliverySettings.update({
+        where: { id: "default" },
+        data: {
+          distancePricingEnabled: distancePricing,
+          dayPricePerKilometer: 10,
+          nightPricePerKilometer: 15,
+        },
+      });
+      try {
+        const address = await prisma.userAddress.create({
+          data: {
+            userId: customerId,
+            label: "Legacy checkout",
+            address: "Saved legacy address",
+            latitude: 37.95123,
+            longitude: 58.38123,
+          },
+        });
+        await prisma.userAddress.updateMany({
+          where: { userId: customerId },
+          data: { isActive: false },
+        });
+        await prisma.userAddress.update({
+          where: { id: address.id },
+          data: { isActive: true },
+        });
+        const response = await request(server)
+          .post("/api/v1/orders")
+          .set(auth(customerToken))
+          .send({
+            items: [{ productId, quantity: 1 }],
+            ...(explicit ? { addressId: address.id } : {}),
+            latitude: null,
+            longitude: null,
+          })
+          .expect(201);
+        expect(response.body).toMatchObject({
+          addressId: address.id,
+          address: address.address,
+          latitude: 37.95123,
+          longitude: 58.38123,
+        });
+        await request(server)
+          .post("/api/v1/orders")
+          .set(auth(customerToken))
+          .send({
+            items: [{ productId, quantity: 1 }],
+            address: "New address without coordinates",
+            latitude: null,
+            longitude: null,
+          })
+          .expect(400);
+        await prisma.userAddress.delete({ where: { id: address.id } });
+      } finally {
+        await prisma.deliverySettings.update({
+          where: { id: "default" },
+          data: {
+            distancePricingEnabled: settings.distancePricingEnabled,
+            dayPricePerKilometer: settings.dayPricePerKilometer,
+            nightPricePerKilometer: settings.nightPricePerKilometer,
+          },
+        });
+      }
+    },
+  );
+
   it("restricts gift management and exposes active gifts publicly", async () => {
     const payload = { name: "Toy", description: "A gift", imageUrl, pointsCost: 30, stock: 2 };
     await request(server).post("/api/v1/loyalty/admin/gifts").set(auth(customerToken)).send(payload).expect(403);

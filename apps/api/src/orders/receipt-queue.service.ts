@@ -513,6 +513,7 @@ export class ReceiptQueueService {
           orderId,
           OR: [
             { eventKey: { startsWith: "ORDER_CREATED:" } },
+            { eventKey: { startsWith: "ORDER_EDITED:" } },
             { eventKey: { startsWith: "ORDER_CANCELLED:" } },
           ],
           status: { in: ["PENDING", "FAILED", "UNCERTAIN"] },

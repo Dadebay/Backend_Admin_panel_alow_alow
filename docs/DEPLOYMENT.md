@@ -386,6 +386,24 @@ then, `main → production` is the only deployment path.
 
 ## Receipt queue release coordination
 
+### Preparation and loyalty compatibility rollout — 2026-09-26
+
+The user authorized merging the preparation/loyalty/delivery feature branch and
+its compatibility fixes into `main`, then deploying over workstation SSH using
+the existing checksum-verified local image fallback. Apply the three additive
+map-zone, preparation/receipt/hours and loyalty/distance migrations after a
+verified PostgreSQL backup. Existing queue-capable print agents need no update.
+Keep kilometer pricing and ordering hours disabled until configured; the admin
+can return to street pricing by setting `distancePricingEnabled` to false.
+Order creation temporarily accepts null coordinates from older mobile clients
+and resolves the selected/active saved address in either pricing mode.
+
+Do not blindly restore old API images after new loyalty orders/ledger entries,
+gift orders or `CANCELLED` receipt tasks exist. Old code cannot maintain loyalty
+balances/gift stock and its Prisma client does not know the new receipt status.
+Preserve the database and fix forward after these writes. An immediate failed
+rollout may restore the previous images only before incompatible data exists.
+
 The 2026-09-04 receipt queue migration/API/admin and updated workstation agent
 form one coordinated release authorized by the user. Close old frontend tabs,
 preserve agent journals and use the new Windows/Mac build. No historical orders

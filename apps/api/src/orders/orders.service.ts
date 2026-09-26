@@ -443,7 +443,10 @@ export class OrdersService {
       await tx.receiptPrintTask.updateMany({
         where: {
           orderId,
-          eventKey: { startsWith: "ORDER_CREATED:" },
+          OR: [
+            { eventKey: { startsWith: "ORDER_CREATED:" } },
+            { eventKey: { startsWith: "ORDER_EDITED:" } },
+          ],
           status: { in: ["PENDING", "FAILED"] },
         },
         data: { status: "CANCELLED", lastError: "ORDER_CANCELLED" },

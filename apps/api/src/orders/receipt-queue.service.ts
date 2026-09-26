@@ -45,7 +45,11 @@ function manualSelectionHash(dto: ReprintReceiptDto) {
       skip: skip === true,
     }))
     .sort((left, right) => left.itemId.localeCompare(right.itemId));
-  return createHash("sha256").update(JSON.stringify(selection)).digest("hex");
+  // Preserve the hash of requests made by older clients during HTTP retries.
+  const payload = dto.mainCopies === undefined
+    ? selection
+    : { mainCopies: dto.mainCopies, itemRoutes: selection };
+  return createHash("sha256").update(JSON.stringify(payload)).digest("hex");
 }
 
 @Injectable()
@@ -396,9 +400,9 @@ export class ReceiptQueueService {
         );
       const plan = await this.orders.receiptPrintPlan(orderId, tx);
       const routes = dto.itemRoutes ?? [];
-      if (routes.length && actor.role !== Role.ADMIN && actor.role !== Role.SUPER_ADMIN)
+      if ((routes.length || dto.mainCopies !== undefined) && actor.role !== Role.ADMIN && actor.role !== Role.SUPER_ADMIN)
         throw new ForbiddenException(
-          "Only administrators may change receipt routes",
+          "Only administrators may change receipt routes or copies",
         );
       if (new Set(routes.map((route) => route.itemId)).size !== routes.length)
         throw new ConflictException(
@@ -433,6 +437,16 @@ export class ReceiptQueueService {
           .filter((item) => orderItemIds.has(item.id) && !skippedItemIds.has(item.id))
           .map((item) => [item.id, item]),
       );
+      if (dto.mainCopies !== undefined) {
+        if (dto.mainCopies > 0 && !plan.mainJob)
+          throw new ConflictException("Main cash register is not configured");
+        if (dto.mainCopies === 0) {
+          if (routes.some((route) => !route.skip && route.printerId === null))
+            throw new BadRequestException("Выберите кухонный аппарат для блюд: печать на главной кассе отключена");
+          plan.mainJob = null;
+        }
+        plan.mainCopies = dto.mainCopies;
+      }
       if (
         !plan.mainJob &&
         routes.some((route) => !route.skip && route.printerId === null)
@@ -504,6 +518,8 @@ export class ReceiptQueueService {
       plan.unassignedItems = [...items.values()].filter(
         (item) => !endpoints.has(item.id) && !selected.has(item.id),
       );
+      if (dto.mainCopies === 0 && (!plan.jobs.length || plan.unassignedItems.length))
+        throw new BadRequestException("Выберите кухонный аппарат для каждого отмеченного блюда или включите главную кассу");
       const copies = expandMainReceiptCopies({
         ...plan,
         manualRequestHash: requestHash,
@@ -542,6 +558,7 @@ export class ReceiptQueueService {
           metadata: {
             orderId,
             cancelledAutomaticTasks: cancelled.count,
+            mainCopies: plan.mainJob ? plan.mainCopies : 0,
             itemRoutes: routes.map(({ itemId, printerId, skip }) => ({
               itemId,
               printerId,

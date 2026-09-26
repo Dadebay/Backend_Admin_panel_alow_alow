@@ -1123,6 +1123,61 @@ describe("durable receipt queue", () => {
       .expect(201);
   });
 
+  it.each([0, 1, 3])("manual mainCopies=%i controls paper copies without changing defaults", async (mainCopies) => {
+    await prisma.receiptPrintSettings.update({ where: { id: "default" }, data: { mainPrinterIp: "192.168.0.87", mainCopies: 2 } });
+    const order = await create();
+    const input = { idempotencyKey: randomUUID(), mainCopies };
+    const first = await request(server).post(`${root}/orders/${order.id}/reprint`).set(auth()).send(input).expect(201);
+    const retry = await request(server).post(`${root}/orders/${order.id}/reprint`).set(auth()).send(input).expect(201);
+    expect((retry.body as ReceiptTaskResponseDto).id).toBe((first.body as ReceiptTaskResponseDto).id);
+    await request(server).post(`${root}/orders/${order.id}/reprint`).set(auth()).send({ ...input, mainCopies: mainCopies === 0 ? 1 : 0 }).expect(409);
+    const tasks = await prisma.receiptPrintTask.findMany({ where: { orderId: order.id } });
+    expect(tasks.filter((task) => task.eventKey.startsWith("ORDER_CREATED:")).every((task) => task.status === "CANCELLED")).toBe(true);
+    const plans = tasks.filter((task) => task.eventKey.startsWith("MANUAL:")).map((task) => task.plan as { mainJob: unknown; jobs: unknown[] });
+    expect(plans.filter((plan) => plan.mainJob)).toHaveLength(mainCopies);
+    expect(plans.flatMap((plan) => plan.jobs)).toHaveLength(1);
+    expect((await prisma.receiptPrintSettings.findUniqueOrThrow({ where: { id: "default" } })).mainCopies).toBe(2);
+    let delivered = 0;
+    for (let task = await claim(); task; task = await claim()) {
+      expect(task.orderId).toBe(order.id);
+      if (mainCopies === 0) expect(task.plan.mainJob).toBeNull();
+      await outcome(task, "DELIVERED").expect(201);
+      delivered++;
+    }
+    expect(delivered).toBe(Math.max(1, mainCopies));
+  });
+
+  it.each([-1, 4, 1.5, null, "1"])("rejects invalid manual mainCopies %s before cancelling pending checks", async (mainCopies) => {
+    const order = await create();
+    await request(server).post(`${root}/orders/${order.id}/reprint`).set(auth()).send({ idempotencyKey: randomUUID(), mainCopies }).expect(400);
+    expect(await prisma.receiptPrintTask.count({ where: { orderId: order.id, status: "PENDING" } })).toBe(1);
+  });
+
+  it("restricts manual copy overrides and requires a configured main printer", async () => {
+    const order = await create();
+    await request(server).post(`${root}/orders/${order.id}/reprint`).set(auth(Role.OPERATOR)).send({ idempotencyKey: randomUUID(), mainCopies: 0 }).expect(403);
+    await request(server).post(`${root}/orders/${order.id}/reprint`).set(auth()).send({ idempotencyKey: randomUUID(), mainCopies: 1 }).expect(409);
+    expect(await prisma.receiptPrintTask.count({ where: { orderId: order.id, status: "PENDING" } })).toBe(1);
+  });
+
+  it("does not cancel queued checks when main-only dishes have main printing disabled", async () => {
+    await prisma.receiptPrintSettings.update({ where: { id: "default" }, data: { mainPrinterIp: "192.168.0.87" } });
+    const order = await create();
+    const item = await prisma.orderItem.findFirstOrThrow({ where: { orderId: order.id } });
+    await request(server).post(`${root}/orders/${order.id}/reprint`).set(auth()).send({ idempotencyKey: randomUUID(), mainCopies: 0, itemRoutes: [{ itemId: item.id, printerId: null }] }).expect(400);
+    expect(await prisma.receiptPrintTask.count({ where: { orderId: order.id, status: "CANCELLED" } })).toBe(0);
+    expect(await prisma.receiptPrintTask.count({ where: { orderId: order.id, eventKey: { startsWith: "MANUAL:" } } })).toBe(0);
+  });
+
+  it("rejects mainCopies=0 when a selected dish has no kitchen destination", async () => {
+    await prisma.receiptPrintSettings.update({ where: { id: "default" }, data: { mainPrinterIp: "192.168.0.87" } });
+    const product = await prisma.product.create({ data: { name: "Unassigned dish", slug: randomUUID(), description: "No printer", price: 10, category: { create: { name: "Unassigned", slug: randomUUID() } } } });
+    const order = await create(false, { ...body(), items: [{ productId: product.id, quantity: 1 }] });
+    await request(server).post(`${root}/orders/${order.id}/reprint`).set(auth()).send({ idempotencyKey: randomUUID(), mainCopies: 0 }).expect(400);
+    expect(await prisma.receiptPrintTask.count({ where: { orderId: order.id, status: "PENDING" } })).toBe(2);
+    expect(await prisma.receiptPrintTask.count({ where: { orderId: order.id, eventKey: { startsWith: "MANUAL:" } } })).toBe(0);
+  });
+
   it("manual routing cancels queued automatic checks and is idempotent", async () => {
     const order = await create();
     const item = await prisma.orderItem.findFirstOrThrow({

@@ -9,7 +9,7 @@ import {
 } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import type { ColumnDef } from "@tanstack/react-table";
-import { useForm } from "react-hook-form";
+import { Controller, useForm, useWatch } from "react-hook-form";
 import {
   flattenDeliveryEtraps,
   useAdminDeliveryConfig,
@@ -75,6 +75,7 @@ export function DeliveryManager() {
   const etrapFormRef = useRef<HTMLFormElement>(null);
   const {
     register: registerSettings,
+    control: settingsControl,
     handleSubmit: handleSettingsSubmit,
     reset: resetSettings,
     formState: { errors: settingsErrors },
@@ -92,6 +93,7 @@ export function DeliveryManager() {
       fallbackFreeDeliveryThreshold: "150.00",
     },
   });
+  const distancePricing = useWatch({ control: settingsControl, name: "distancePricingEnabled" });
   const {
     register: registerWelayat,
     handleSubmit: handleWelayatSubmit,
@@ -173,9 +175,9 @@ export function DeliveryManager() {
       allEtraps.filter((etrap) => (etrap.deliveryZone?.length ?? 0) >= 3),
     [allEtraps],
   );
-  const visibleTariffZones = useMemo(() => {
+  const visibleEtraps = useMemo(() => {
     const normalized = search.trim().toLocaleLowerCase("ru");
-    return tariffZones.filter((etrap) => {
+    return allEtraps.filter((etrap) => {
       if (!normalized) return true;
       return [
         etrap.nameRu,
@@ -185,7 +187,7 @@ export function DeliveryManager() {
         etrap.welayatNameTk,
       ].some((value) => value.toLocaleLowerCase("ru").includes(normalized));
     });
-  }, [search, tariffZones]);
+  }, [search, allEtraps]);
 
   const openCreateWelayat = useCallback(() => {
     const sortOrders =
@@ -715,6 +717,222 @@ export function DeliveryManager() {
         </div>
       )}
 
+      <form
+        className="editor-card delivery-settings-card"
+        data-testid="delivery-settings-form"
+        noValidate
+        onSubmit={handleSettingsSubmit(saveSettings)}
+      >
+        <div className="editor-title">
+          <div>
+            <h2>Способ расчёта доставки</h2>
+            <p>
+              Выберите тариф по районам или по расстоянию от ближайшего филиала.
+            </p>
+          </div>
+        </div>
+        <Controller
+          name="distancePricingEnabled"
+          control={settingsControl}
+          render={({ field }) => (
+            <fieldset className="delivery-pricing-modes">
+              <legend>Как считать стоимость</legend>
+              <label className="delivery-map-pricing-toggle">
+                <input
+                  type="radio"
+                  name={field.name}
+                  ref={field.ref}
+                  onBlur={field.onBlur}
+                  data-testid="delivery-area-pricing-enabled"
+                  checked={!field.value}
+                  onChange={() => field.onChange(false)}
+                />
+                <span>
+                  <strong>По улицам и районам</strong>
+                  <small>Цена из справочника или тарифной зоны на карте.</small>
+                </span>
+              </label>
+              <label className="delivery-map-pricing-toggle">
+                <input
+                  type="radio"
+                  name={field.name}
+                  onBlur={field.onBlur}
+                  data-testid="delivery-distance-pricing-enabled"
+                  checked={field.value}
+                  onChange={() => field.onChange(true)}
+                />
+                <span>
+                  <strong>По километрам</strong>
+                  <small>
+                    Расстояние по прямой от ближайшего филиала. Минимум 15 TMT;
+                    16 → 15, 17 → 20.
+                  </small>
+                </span>
+              </label>
+            </fieldset>
+          )}
+        />
+        <div className="form-grid delivery-price-grid">
+          <label>
+            <span>Дневная цена за 1 км, TMT</span>
+            <input
+              data-testid="delivery-day-price-per-km"
+              {...registerSettings("dayPricePerKilometer")}
+              inputMode="decimal"
+              aria-invalid={Boolean(settingsErrors.dayPricePerKilometer)}
+            />
+            <FormFieldError
+              message={settingsErrors.dayPricePerKilometer?.message}
+            />
+          </label>
+          <label>
+            <span>Ночная цена за 1 км, TMT</span>
+            <input
+              data-testid="delivery-night-price-per-km"
+              {...registerSettings("nightPricePerKilometer")}
+              inputMode="decimal"
+              aria-invalid={Boolean(settingsErrors.nightPricePerKilometer)}
+            />
+            <FormFieldError
+              message={settingsErrors.nightPricePerKilometer?.message}
+            />
+          </label>
+        </div>
+        <h3>Настройки расчёта по улицам и районам</h3>
+        {distancePricing && (
+          <p
+            className="delivery-pricing-hint"
+            data-testid="delivery-area-pricing-inactive"
+          >
+            Выбран расчёт по километрам. Настройки районов и резервного тарифа
+            сохранены, но сейчас не влияют на цену.
+          </p>
+        )}
+        <fieldset className="delivery-area-settings" disabled={distancePricing}>
+          <label className="delivery-map-pricing-toggle">
+            <input
+              data-testid="delivery-map-pricing-enabled"
+              {...registerSettings("mapPricingEnabled")}
+              type="checkbox"
+            />
+            <span>
+              <strong>Находить район по координатам на карте</strong>
+              <small>
+                Включено — тариф по контуру на карте, вне контуров — резервный.
+                Выключено — тариф выбранной улицы из справочника. Названия улиц
+                сохраняются в обоих случаях.
+              </small>
+            </span>
+          </label>
+          <p>Резервный тариф: если подходящий район не найден.</p>
+          <div className="form-grid delivery-price-grid">
+            <label>
+              <span>Дневная цена, TMT</span>
+              <input
+                data-testid="delivery-fallback-price"
+                {...registerSettings("fallbackPrice")}
+                aria-invalid={Boolean(settingsErrors.fallbackPrice)}
+                inputMode="decimal"
+              />
+              <FormFieldError message={settingsErrors.fallbackPrice?.message} />
+            </label>
+            <label>
+              <span>Днём бесплатно от, TMT</span>
+              <input
+                data-testid="delivery-fallback-threshold"
+                {...registerSettings("fallbackFreeDeliveryThreshold")}
+                aria-invalid={Boolean(
+                  settingsErrors.fallbackFreeDeliveryThreshold,
+                )}
+                inputMode="decimal"
+                placeholder="Пусто — всегда платно"
+              />
+              <FormFieldError
+                message={settingsErrors.fallbackFreeDeliveryThreshold?.message}
+              />
+            </label>
+
+            <label>
+              <span>Ночная цена, TMT</span>
+              <input
+                data-testid="delivery-fallback-night-price"
+                {...registerSettings("fallbackNightPrice")}
+                inputMode="decimal"
+                aria-invalid={Boolean(settingsErrors.fallbackNightPrice)}
+              />
+              <FormFieldError
+                message={settingsErrors.fallbackNightPrice?.message}
+              />
+            </label>
+            <label>
+              <span>Ночью бесплатно от, TMT</span>
+              <input
+                data-testid="delivery-fallback-night-threshold"
+                {...registerSettings("fallbackNightFreeDeliveryThreshold")}
+                inputMode="decimal"
+                placeholder="Пусто — ночью всегда платно"
+                aria-invalid={Boolean(
+                  settingsErrors.fallbackNightFreeDeliveryThreshold,
+                )}
+              />
+              <FormFieldError
+                message={
+                  settingsErrors.fallbackNightFreeDeliveryThreshold?.message
+                }
+              />
+            </label>
+          </div>
+        </fieldset>
+        <button
+          className="primary-button delivery-settings-save"
+          data-testid="delivery-settings-save"
+          disabled={actions.updateSettings.isPending || !config.data}
+        >
+          {actions.updateSettings.isPending ? "Сохраняем…" : "Сохранить"}
+        </button>
+      </form>
+
+      <NightDeliverySchedule
+        config={config.data}
+        onReload={() => void config.refetch()}
+      />
+
+      <article className="table-card" data-testid="delivery-etrap-table-card">
+        <div className="card-title delivery-table-title">
+          <div>
+            <h2>Улицы и районы — тарифы доставки</h2>
+            <span>
+              {visibleEtraps.length} из {allEtraps.length}
+            </span>
+          </div>
+          <div className="delivery-filters">
+            <input
+              aria-label="Поиск улицы или района"
+              data-testid="delivery-etrap-search"
+              type="search"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Найти улицу или район"
+            />
+          </div>
+        </div>
+        <AsyncPanel
+          pending={config.isPending}
+          error={config.error}
+          onRetry={() => void config.refetch()}
+        >
+          <DataTable
+            columns={etrapColumns}
+            data={visibleEtraps}
+            empty="Улицы и районы не найдены."
+            getRowId={(etrap) => String(etrap.id)}
+            label="Тарифы доставки по улицам и районам"
+            minWidth={760}
+            pageSize={25}
+          />
+        </AsyncPanel>
+      </article>
+
       <article
         className="table-card delivery-zone-overview"
         data-testid="delivery-zone-overview"
@@ -784,8 +1002,8 @@ export function DeliveryManager() {
                 role="status"
               >
                 Нажмите внутри района или города. Если у карты есть готовая
-                граница, мы загрузим её; иначе создадим удобный черновик
-                контура вокруг выбранной точки.
+                граница, мы загрузим её; иначе создадим удобный черновик контура
+                вокруг выбранной точки.
               </div>
             )}
             {mapZoneSelectionMessage && (
@@ -813,9 +1031,7 @@ export function DeliveryManager() {
             className="delivery-zone-summary"
             data-testid="delivery-zone-summary"
           >
-            <span>
-              Тарифных районов на карте: {tariffZones.length}
-            </span>
+            <span>Тарифных районов на карте: {tariffZones.length}</span>
             <span>Клик по контуру открывает его цену и настройки</span>
           </div>
         </AsyncPanel>
@@ -1252,55 +1468,11 @@ export function DeliveryManager() {
         </div>
       )}
 
-      <NightDeliverySchedule
-        config={config.data}
-        onReload={() => void config.refetch()}
-      />
-
-      {/* Only zones with a saved map boundary belong to daily tariff work.
-          The legacy administrative directory remains available below for
-          rollback and exceptional manual setup. */}
-      <article className="table-card" data-testid="delivery-etrap-table-card">
-        <div className="card-title delivery-table-title">
-          <div>
-            <h2>Тарифные районы на карте</h2>
-            <span>
-              {visibleTariffZones.length} из {tariffZones.length}
-            </span>
-          </div>
-          <div className="delivery-filters">
-            <input
-              aria-label="Поиск тарифного района"
-              data-testid="delivery-etrap-search"
-              type="search"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Найти район на карте"
-            />
-          </div>
-        </div>
-        <AsyncPanel
-          pending={config.isPending}
-          error={config.error}
-          onRetry={() => void config.refetch()}
-        >
-          <DataTable
-            columns={etrapColumns}
-            data={visibleTariffZones}
-            empty="Тарифных районов пока нет. Нажмите «Выбрать район на карте» выше и укажите цену."
-            getRowId={(etrap) => String(etrap.id)}
-            label="Тарифы доставки по районам на карте"
-            minWidth={760}
-            pageSize={25}
-          />
-        </AsyncPanel>
-      </article>
-
       <details className="delivery-setup" data-testid="delivery-setup">
         <summary>
           <span>
-            Способ расчёта, тарифы и справочник районов
-            <small>Выберите районный тариф или цену за километр</small>
+            Справочник велаятов
+            <small>Служебная привязка районов и создание новых записей</small>
           </span>
           <b>{config.data?.welayats.length ?? 0}</b>
         </summary>
@@ -1349,126 +1521,6 @@ export function DeliveryManager() {
               />
             </AsyncPanel>
           </article>
-
-          <form
-            className="editor-card delivery-settings-card"
-            data-testid="delivery-settings-form"
-            noValidate
-            onSubmit={handleSettingsSubmit(saveSettings)}
-          >
-            <div className="editor-title">
-              <div>
-                <h2>Способ расчёта доставки</h2>
-                <p>Выберите тариф по районам или по расстоянию от ближайшего филиала.</p>
-              </div>
-            </div>
-            <label className="delivery-map-pricing-toggle">
-              <input
-                data-testid="delivery-distance-pricing-enabled"
-                {...registerSettings("distancePricingEnabled")}
-                type="checkbox"
-              />
-              <span>
-                <strong>Цена за километр</strong>
-                <small>Расстояние по прямой вычисляется по координатам. Минимум 15 TMT; 16 TMT округляется до 15, 17 TMT — до 20.</small>
-              </span>
-            </label>
-            <div className="form-grid delivery-price-grid">
-              <label>
-                <span>Дневная цена за 1 км, TMT</span>
-                <input data-testid="delivery-day-price-per-km" {...registerSettings("dayPricePerKilometer")} inputMode="decimal" aria-invalid={Boolean(settingsErrors.dayPricePerKilometer)} />
-                <FormFieldError message={settingsErrors.dayPricePerKilometer?.message} />
-              </label>
-              <label>
-                <span>Ночная цена за 1 км, TMT</span>
-                <input data-testid="delivery-night-price-per-km" {...registerSettings("nightPricePerKilometer")} inputMode="decimal" aria-invalid={Boolean(settingsErrors.nightPricePerKilometer)} />
-                <FormFieldError message={settingsErrors.nightPricePerKilometer?.message} />
-              </label>
-            </div>
-            <h3>Районы и резервный тариф</h3>
-            <label className="delivery-map-pricing-toggle">
-              <input
-                data-testid="delivery-map-pricing-enabled"
-                {...registerSettings("mapPricingEnabled")}
-                type="checkbox"
-              />
-              <span>
-                <strong>Определять тариф только по карте</strong>
-                <small>
-                  Включайте, когда подготовлены нужные тарифные районы. Старые
-                  строки справочника без контура в расчёте участвовать не будут.
-                </small>
-              </span>
-            </label>
-            <div className="form-grid delivery-price-grid">
-              <label>
-                <span>Дневная цена, TMT</span>
-                <input
-                  data-testid="delivery-fallback-price"
-                  {...registerSettings("fallbackPrice")}
-                  aria-invalid={Boolean(settingsErrors.fallbackPrice)}
-                  inputMode="decimal"
-                />
-                <FormFieldError
-                  message={settingsErrors.fallbackPrice?.message}
-                />
-              </label>
-              <label>
-                <span>Днём бесплатно от, TMT</span>
-                <input
-                  data-testid="delivery-fallback-threshold"
-                  {...registerSettings("fallbackFreeDeliveryThreshold")}
-                  aria-invalid={Boolean(
-                    settingsErrors.fallbackFreeDeliveryThreshold,
-                  )}
-                  inputMode="decimal"
-                  placeholder="Пусто — всегда платно"
-                />
-                <FormFieldError
-                  message={
-                    settingsErrors.fallbackFreeDeliveryThreshold?.message
-                  }
-                />
-              </label>
-
-              <label>
-                <span>Ночная цена, TMT</span>
-                <input
-                  data-testid="delivery-fallback-night-price"
-                  {...registerSettings("fallbackNightPrice")}
-                  inputMode="decimal"
-                  aria-invalid={Boolean(settingsErrors.fallbackNightPrice)}
-                />
-                <FormFieldError
-                  message={settingsErrors.fallbackNightPrice?.message}
-                />
-              </label>
-              <label>
-                <span>Ночью бесплатно от, TMT</span>
-                <input
-                  data-testid="delivery-fallback-night-threshold"
-                  {...registerSettings("fallbackNightFreeDeliveryThreshold")}
-                  inputMode="decimal"
-                  placeholder="Пусто — ночью всегда платно"
-                  aria-invalid={Boolean(
-                    settingsErrors.fallbackNightFreeDeliveryThreshold,
-                  )}
-                />
-                <FormFieldError
-                  message={
-                    settingsErrors.fallbackNightFreeDeliveryThreshold?.message
-                  }
-                />
-              </label>
-              <button
-                className="primary-button delivery-settings-save"
-                data-testid="delivery-settings-save"
-                disabled={actions.updateSettings.isPending || !config.data}
-              >
-                {actions.updateSettings.isPending ? "Сохраняем…" : "Сохранить"}
-              </button>
-            </div>
-          </form>
         </div>
       </details>
     </section>

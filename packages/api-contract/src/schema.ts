@@ -3349,6 +3349,8 @@ export interface components {
             skip?: boolean;
         };
         ReprintReceiptDto: {
+            /** @description Main receipt copies for this manual print only. Zero disables the main receipt; omission preserves configured defaults. Administrators only. */
+            mainCopies?: number;
             /**
              * Format: uuid
              * @description A new key means an intentional new paper copy; reuse on HTTP retry

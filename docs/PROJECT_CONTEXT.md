@@ -787,9 +787,14 @@ heights; visual density must not be reduced to the previous pale compact map.
   manual etrap-selection step. An existing same-name row under the inferred
   welayat is reused to preserve references; otherwise a new tariff-area row is
   prepared with its inferred welayat as a hidden compatibility attribute. The
-  daily table exposes only saved polygon-backed tariff areas; unzoned legacy
-  directory rows remain available for map-assisted reuse and rollback but are
-  not presented as ready map districts. Streets and their labels come from the
+  daily table lists every street and district, including entries without a
+  polygon, with search, prices and editing. A separate map column identifies
+  entries without a boundary; only saved polygons appear on the map. Pricing
+  settings and the day/night kilometer rates are visible at the top of
+  `/delivery`. Administrators choose district/street pricing or kilometer
+  pricing explicitly. In kilometer mode the retained map/area fallback
+  controls are disabled and labelled as inactive; switching back restores
+  their saved configuration. Streets and their labels come from the
   local base map; because a street is a line rather than a closed price area,
   an administrator draws a non-overlapping tariff polygon around the intended
   service area. The map assistant must not import a large administrative etrap
@@ -2102,7 +2107,16 @@ automatic receipts before queuing a cancellation receipt.
 Manual print from the order board sends selected lines immediately. An
 administrator may override each line's kitchen apparatus for that one print,
 choose only the main cash register, or omit a dish from both the main and
-kitchen copies. At least one dish must remain. A partial main copy keeps the
+kitchen copies. For that manual print an administrator may independently
+choose 0–3 main copies: zero omits the main job entirely. Omitting `mainCopies`
+from the API request preserves global defaults and previous retry hashes.
+Explicit counts require administrator authorization and are validated/audited;
+a changed count with the same idempotency key conflicts. With the main receipt
+disabled, every included dish needs a kitchen destination, and invalid requests
+leave automatic tasks untouched. The global automatic copy setting and print
+agent protocol remain unchanged. The dialog keeps main controls and buttons
+visible while the dish list scrolls; unchecked dishes are omitted entirely.
+At least one dish must remain. A partial main copy keeps the
 order's actual total and carries an explicit warning that the printed item
 list is incomplete. An operator may request a full print with saved routes.
 After validation the transaction cancels pending, failed and uncertain

@@ -11,15 +11,15 @@ const printer = "33333333-3333-4333-8333-333333333333";
 
 test("manual print requires at least one included dish", () => {
   assert.equal(manualReceiptFormSchema.safeParse({
-    routes: [{ itemId: first, destination: "SKIP" }],
+    mainCopies: 2, routes: [{ itemId: first, included: false, destination: "DEFAULT" }],
   }).success, false);
 });
 
 test("manual print sends explicit omissions and printer overrides", () => {
   const values = manualReceiptFormSchema.parse({
-    routes: [
-      { itemId: first, destination: "SKIP" },
-      { itemId: second, destination: printer },
+    mainCopies: 2, routes: [
+      { itemId: first, included: false, destination: "DEFAULT" },
+      { itemId: second, included: true, destination: printer },
     ],
   });
   assert.deepEqual(manualReceiptItemRoutes(values), [
@@ -30,15 +30,25 @@ test("manual print sends explicit omissions and printer overrides", () => {
 
 test("default routes are omitted and main-only routes stay explicit", () => {
   const values = manualReceiptFormSchema.parse({
-    routes: [
-      { itemId: first, destination: "DEFAULT" },
-      { itemId: second, destination: "MAIN" },
+    mainCopies: 2, routes: [
+      { itemId: first, included: true, destination: "DEFAULT" },
+      { itemId: second, included: true, destination: "MAIN" },
     ],
   });
   assert.deepEqual(manualReceiptItemRoutes(values), [
     { itemId: second, printerId: null },
   ]);
   assert.equal(manualReceiptFormSchema.safeParse({
-    routes: [{ itemId: first, destination: "not-a-printer" }],
+    mainCopies: 2, routes: [{ itemId: first, destination: "not-a-printer" }],
   }).success, false);
+});
+
+for (const mainCopies of [-1, 4, 1.5, null, "1"]) {
+  test(`manual copies reject ${JSON.stringify(mainCopies)}`, () => {
+    assert.equal(manualReceiptFormSchema.safeParse({ mainCopies, routes: [{ itemId: first, included: true, destination: "DEFAULT" }] }).success, false);
+  });
+}
+test("main-only dish requires enabled main printing", () => {
+  assert.equal(manualReceiptFormSchema.safeParse({ mainCopies: 0, routes: [{ itemId: first, included: true, destination: "MAIN" }] }).success, false);
+  assert.equal(manualReceiptFormSchema.safeParse({ mainCopies: 0, routes: [{ itemId: first, included: true, destination: "DEFAULT" }] }).success, true);
 });

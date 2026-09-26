@@ -251,15 +251,16 @@ test("manual receipt form rejects invalid and oversized item route lists", () =>
   const route = {
     itemId: "2d807991-e99f-4f17-9b9f-cc2fb7478820",
     destination: "DEFAULT",
+    included: true,
   };
-  assert.equal(manualReceiptFormSchema.safeParse({ routes: [route] }).success, true);
+  assert.equal(manualReceiptFormSchema.safeParse({ mainCopies: 2, routes: [route] }).success, true);
   assert.equal(
-    manualReceiptFormSchema.safeParse({ routes: [{ ...route, itemId: "bad" }] })
+    manualReceiptFormSchema.safeParse({ mainCopies: 2, routes: [{ ...route, itemId: "bad" }] })
       .success,
     false,
   );
   assert.equal(
-    manualReceiptFormSchema.safeParse({ routes: Array(101).fill(route) }).success,
+    manualReceiptFormSchema.safeParse({ mainCopies: 2, routes: Array(101).fill(route) }).success,
     false,
   );
 });

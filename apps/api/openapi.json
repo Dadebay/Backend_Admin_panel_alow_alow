@@ -9606,6 +9606,12 @@
       "ReprintReceiptDto": {
         "type": "object",
         "properties": {
+          "mainCopies": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 3,
+            "description": "Main receipt copies for this manual print only. Zero disables the main receipt; omission preserves configured defaults. Administrators only."
+          },
           "idempotencyKey": {
             "type": "string",
             "format": "uuid",

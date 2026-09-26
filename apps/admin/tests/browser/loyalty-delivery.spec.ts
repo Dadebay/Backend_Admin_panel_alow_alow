@@ -1,5 +1,17 @@
 import { expect, test, type Page } from "@playwright/test";
 
+const browserConsoleErrors = new WeakMap<Page, string[]>();
+test.beforeEach(({ page }) => {
+  const errors: string[] = [];
+  browserConsoleErrors.set(page, errors);
+  page.on("console", (message) => {
+    if (message.type() === "error" || message.type() === "warning") errors.push(message.text());
+  });
+});
+test.afterEach(({ page }) => {
+  expect(browserConsoleErrors.get(page)).toEqual([]);
+});
+
 const CAFE_ID = "11111111-1111-4111-8111-111111111111";
 const CATEGORY_ID = "22222222-2222-4222-8222-222222222222";
 const GIFT_ID = "33333333-3333-4333-8333-333333333333";
@@ -7,13 +19,14 @@ const IMAGE_URL = `/api/v1/media/${GIFT_ID}.webp`;
 const now = "2026-09-25T10:00:00.000Z";
 const cafe = { id: CAFE_ID, name: "Test cafe", slug: "test-cafe", description: null, imageUrl: null, sortOrder: 0, isActive: true, createdAt: now, updatedAt: now, categoryCount: 1 };
 const category = { id: CATEGORY_ID, cafeId: CAFE_ID, cafe, name: "Food", slug: "food", imageUrl: null, receiptPrinterId: null, receiptPrinterIp: null, receiptPrinter: null, productCount: 0, sortOrder: 0, isActive: true, createdAt: now, updatedAt: now };
-const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO9+f8YAAAAASUVORK5CYII=", "base64");
+const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP49/35fwAJrwPcl3fl5wAAAABJRU5ErkJggg==", "base64");
 
 function makeDeliveryConfig() {
-  return { mapPricingEnabled: false, distancePricingEnabled: false, dayPricePerKilometer: null, nightPricePerKilometer: null, fallbackPrice: 15, fallbackFreeDeliveryThreshold: null, fallbackNightPrice: 25, fallbackNightFreeDeliveryThreshold: null, nightTariffEnabled: false, nightStartsAt: "23:00", nightEndsAt: "07:00", version: 1, timeZone: "Asia/Ashgabat", welayats: [] };
+  return { mapPricingEnabled: false, distancePricingEnabled: false, dayPricePerKilometer: null, nightPricePerKilometer: null, fallbackPrice: 15, fallbackFreeDeliveryThreshold: null, fallbackNightPrice: 25, fallbackNightFreeDeliveryThreshold: null, nightTariffEnabled: false, nightStartsAt: "23:00", nightEndsAt: "07:00", version: 1, timeZone: "Asia/Ashgabat", welayats: [{ id: 1, nameRu: "Ашхабад", nameTk: "Aşgabat", nameEn: null, sortOrder: 0, etraps: [{ id: 2, welayatId: 1, nameRu: "Улица Анкара", nameTk: "Ankara", nameEn: null, queuePosition: 1, price: 15, nightPrice: 25, freeDeliveryThreshold: null, nightFreeDeliveryThreshold: null, isDeliveryEnabled: true, deliveryZone: null, version: 1, updatedAt: now }] }] };
 }
 
 async function mockAdmin(page: Page) {
+  await page.route("**/styles/alowalow/**", (route) => route.fulfill({ status: 200, contentType: "image/png", body: png }));
   const session = { accessToken: "test-access", refreshToken: "test-refresh", expiresInSeconds: 3600, accessExpiresAt: Date.now() + 3_600_000, user: { id: "44444444-4444-4444-8444-444444444444", phone: "+99365123456", firstName: "Admin", lastName: null, role: "ADMIN" } };
   await page.addInitScript((value) => sessionStorage.setItem("alowalow.session.v1", JSON.stringify(value)), session);
   const state = { gifts: [] as Record<string, unknown>[], productPosts: [] as Record<string, unknown>[], deliveryPatches: [] as Record<string, unknown>[], delivery: makeDeliveryConfig() };
@@ -82,18 +95,39 @@ test("gift photo and configurable point price are submitted in the shop", async 
   expect(errors).toEqual([]);
 });
 
-test("delivery pricing mode sends day and night kilometer rates", async ({ page }) => {
+test("delivery pricing mode sends day and night kilometer rates", async ({ page }, testInfo) => {
   const state = await mockAdmin(page);
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto("/delivery");
-  await page.getByTestId("delivery-setup").locator("summary").click();
+  await expect(page.getByTestId("delivery-settings-form")).toBeVisible();
+  expect(await page.getByTestId("delivery-settings-form").evaluate((form) => !!(form.compareDocumentPosition(document.querySelector('[data-testid="delivery-zone-overview"]')!) & Node.DOCUMENT_POSITION_FOLLOWING))).toBe(true);
   await page.getByTestId("delivery-distance-pricing-enabled").check();
+  await expect(page.getByTestId("delivery-area-pricing-inactive")).toBeVisible();
+  await expect(page.getByTestId("delivery-map-pricing-enabled")).toBeDisabled();
   await page.getByTestId("delivery-day-price-per-km").fill("5,50");
   await page.getByTestId("delivery-night-price-per-km").fill("8");
   await page.getByTestId("delivery-settings-save").click();
   await expect.poll(() => state.deliveryPatches.length).toBe(1);
   expect(state.deliveryPatches[0]).toMatchObject({ distancePricingEnabled: true, dayPricePerKilometer: 5.5, nightPricePerKilometer: 8, version: 1 });
+  await expect(page.getByTestId("delivery-distance-pricing-enabled")).toBeChecked();
+  await page.screenshot({ path: testInfo.outputPath("delivery-pricing.png") });
+  await page.getByTestId("delivery-area-pricing-enabled").check();
+  await expect(page.getByTestId("delivery-map-pricing-enabled")).toBeEnabled();
+  await page.getByTestId("delivery-settings-save").click();
+  await expect.poll(() => state.deliveryPatches.length).toBe(2);
+  expect(state.deliveryPatches[1]).toMatchObject({ distancePricingEnabled: false, dayPricePerKilometer: 5.5, nightPricePerKilometer: 8, version: 2 });
   await expectNoHorizontalOverflow(page);
   expect(errors).toEqual([]);
+});
+
+test("street names without map boundaries remain searchable and editable", async ({ page }) => {
+  await mockAdmin(page);
+  await page.goto("/delivery");
+  const table = page.getByTestId("delivery-etrap-table-card");
+  await expect(table.getByText("Улица Анкара")).toBeVisible();
+  await page.getByTestId("delivery-etrap-search").fill("Анкара");
+  await expect(table.getByText("Улица Анкара")).toBeVisible();
+  await page.getByTestId("delivery-etrap-edit-2").click();
+  await expect(page.getByTestId("delivery-etrap-name-ru")).toHaveValue("Улица Анкара");
 });

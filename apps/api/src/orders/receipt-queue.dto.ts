@@ -5,8 +5,12 @@ import {
   IsArray,
   IsBoolean,
   IsIn,
+  IsInt,
   IsOptional,
   IsUUID,
+  Max,
+  Min,
+  ValidateIf,
   ValidateNested,
 } from "class-validator";
 import { ReceiptPrintTaskStatus } from "../generated/prisma/client";
@@ -107,6 +111,17 @@ export class ReceiptItemRouteDto {
 }
 
 export class ReprintReceiptDto {
+  @ApiPropertyOptional({
+    minimum: 0,
+    maximum: 3,
+    description: "Main receipt copies for this manual print only. Zero disables the main receipt; omission preserves configured defaults. Administrators only.",
+  })
+  @ValidateIf((_object, value: unknown) => value !== undefined)
+  @IsInt()
+  @Min(0)
+  @Max(3)
+  mainCopies?: number;
+
   @ApiProperty({
     format: "uuid",
     description:

@@ -822,6 +822,7 @@ export function OrderBoard({
         >
           <ManualReceiptDialog
             order={printOrder}
+            returnFocusTestId={`order-${viewMode}-print-${printOrder.id}`}
             onClose={() => setPrintOrder(null)}
           />
         </Suspense>

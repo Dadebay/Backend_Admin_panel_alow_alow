@@ -201,3 +201,21 @@ http://127.0.0.1:4310/orders (local QA URL; processes stopped at handoff)
 - Desktop/mobile очередь, раскрытие, ожидание, ошибки и ручные действия.
 - На реальном Windows 10 со свитчем — проверить новую сборку после согласованного
   обновления сайта. Физическая Windows-печать новой сборкой локально не проверялась.
+
+## Manual print controls — 2026-09-26
+
+The admin print dialog has a main-cash-register selector (no print / 1 / 2 / 3
+copies), an include checkbox per dish, and a kitchen destination per included
+dish. It scrolls the dish list inside the viewport and keeps actions visible.
+
+`POST /receipt-print-tasks/orders/:id/reprint` accepts optional `mainCopies`
+(integer 0–3, ADMIN/SUPER_ADMIN only). Zero removes `mainJob` from all newly
+queued tasks; positive values require a configured main printer. Omission
+retains existing configured defaults and retry compatibility. The choice is
+per request, is audit logged, and never changes automatic printing settings.
+Changing the count with an already-used idempotency key returns 409.
+
+When main printing is off, each included dish needs a kitchen destination.
+Invalid selections return 400 before any automatic tasks are cancelled.
+Unchecked dishes use the existing `itemRoutes[].skip: true` contract. Existing
+print-agent binaries keep receiving the same ordinary queue tasks.

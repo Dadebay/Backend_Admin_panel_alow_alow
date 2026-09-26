@@ -10771,3 +10771,46 @@ button:disabled {
 }
 
 /* Shared visual rhythm for every top-level admin workspace. */
+
+/* Keep manual print destinations scrollable while primary actions stay visible. */
+.modal.manual-receipt-dialog {
+  width: min(760px, calc(100vw - 24px));
+  max-width: none;
+  max-height: calc(100dvh - 24px);
+  margin: auto;
+  padding: 0;
+  color: var(--ink);
+  overflow: hidden;
+  border: 1px solid rgba(6, 47, 94, 0.2);
+}
+.manual-receipt-dialog[open] { display: flex; flex-direction: column; }
+.manual-receipt-dialog::backdrop { background: rgba(6, 47, 94, 0.5); backdrop-filter: blur(4px); }
+.manual-receipt-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 20px; flex-shrink: 0; }
+.manual-receipt-head h2 { margin: 0; font-size: 20px; }
+.manual-receipt-form { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+.manual-receipt-main { padding: 0 20px 14px; flex-shrink: 0; }
+.manual-receipt-main small, .manual-receipt-footer small { display: block; font-size: 12px; line-height: 1.45; margin-top: 6px; }
+.manual-receipt-body { min-height: 0; overflow: auto; overscroll-behavior: contain; padding: 0 20px; border-block: 1px solid rgba(6, 47, 94, 0.15); }
+.manual-receipt-instructions { font-size: 13px; line-height: 1.5; margin: 12px 0; }
+.manual-receipt-item { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: 10px; align-items: center; padding: 12px 0; border-top: 1px solid rgba(6, 47, 94, 0.1); }
+.manual-receipt-inclusion { display: flex; gap: 10px; align-items: center; min-width: 0; cursor: pointer; }
+.modal .manual-receipt-inclusion > span { margin: 0; overflow-wrap: anywhere; }
+.modal .manual-receipt-inclusion > input { width: 18px; height: 18px; margin: 0; flex-shrink: 0; accent-color: #EC7A1B; }
+.manual-receipt-item select { min-width: 0; font-size: 13px; text-overflow: ellipsis; }
+.manual-receipt-footer { flex-shrink: 0; padding: 10px 20px 16px; }
+.manual-receipt-footer p { margin: 4px 0; font-size: 13px; }
+.manual-receipt-footer .modal-actions { margin-top: 10px; }
+.manual-receipt-message { padding: 0 20px 20px; }
+@media (max-width: 600px) {
+  .manual-receipt-head, .manual-receipt-main, .manual-receipt-body, .manual-receipt-footer { padding-inline: 14px; }
+  .manual-receipt-head h2 { font-size: 18px; }
+  .manual-receipt-item { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  .manual-receipt-footer .modal-actions { display: grid; grid-template-columns: auto 1fr; gap: 8px; }
+  .manual-receipt-footer button { padding-inline: 12px; }
+}
+.delivery-pricing-modes, .delivery-area-settings { min-width: 0; margin: 0; padding: 0; border: 0; }
+.delivery-pricing-modes { display: grid; gap: 12px; }
+.delivery-pricing-modes legend { font-weight: 600; margin-bottom: 10px; }
+.delivery-area-settings { display: grid; gap: 12px; }
+.delivery-area-settings:disabled { opacity: 0.6; }
+.delivery-pricing-hint { border-left: 3px solid #EC7A1B; padding-left: 12px; font-size: 13px; }

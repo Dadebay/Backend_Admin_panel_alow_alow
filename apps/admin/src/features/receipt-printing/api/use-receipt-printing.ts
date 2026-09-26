@@ -18,6 +18,7 @@ export function useReceiptPrinting() {
         | string
         | {
             orderId: string;
+            mainCopies?: number;
             itemRoutes: components["schemas"]["ReceiptItemRouteDto"][];
           },
     ) => {
@@ -44,7 +45,7 @@ export function useReceiptPrinting() {
           idempotencyKey: key,
           ...(typeof request === "string"
             ? {}
-            : { itemRoutes: request.itemRoutes }),
+            : { itemRoutes: request.itemRoutes, mainCopies: request.mainCopies }),
         }),
         signal: AbortSignal.timeout(15_000),
       });

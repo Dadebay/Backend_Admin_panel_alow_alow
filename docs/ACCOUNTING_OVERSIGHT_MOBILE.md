@@ -105,3 +105,18 @@ Swagger и TypeScript-схема обновляются командой `npm ru
 заказе получает задержку кухонного чека `maxPreparation - preparationMinutes`.
 Готовка 520 минут не обрезается до прежнего максимума 240; старые снимки заказов
 не переписываются при изменении каталога.
+
+
+## Additive readability fields — 2026-09-27
+
+Order detail adds `cook`, `participants: [{ actor, actions }]`, and
+`actualCourierUnknown`. Participant actions come from saved order audits and
+transitions (`transition:<OrderStatus>`); assignment alone does not establish
+that a historical technical courier performed delivery. Settlement details add
+nullable `operator` and `accountant` actor objects. Missing names/actors must
+remain visibly unknown.
+
+Audit entries add nullable `orderId`/`orderNumber` and `relatedActors`. Receipt
+events resolve their order too; non-order or missing entities return null.
+Use the resolved order number and names in the journal; keep entity UUIDs in
+secondary technical details. Existing fields and readonly role gates remain.

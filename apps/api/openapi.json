@@ -14734,6 +14734,24 @@
           "limit"
         ]
       },
+      "InspectionParticipantDto": {
+        "type": "object",
+        "properties": {
+          "actor": {
+            "$ref": "#/components/schemas/InspectionActorDto"
+          },
+          "actions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "actor",
+          "actions"
+        ]
+      },
       "InspectionOrderItemDto": {
         "type": "object",
         "properties": {
@@ -14873,6 +14891,24 @@
             "format": "date-time",
             "nullable": true
           },
+          "operator": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/InspectionActorDto"
+              }
+            ]
+          },
+          "accountant": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/InspectionActorDto"
+              }
+            ]
+          },
           "cashHandoffId": {
             "type": "string",
             "nullable": true,
@@ -14890,6 +14926,8 @@
           "courierGivenAt",
           "operatorTakenAt",
           "reconciledAt",
+          "operator",
+          "accountant",
           "cashHandoffId"
         ]
       },
@@ -14957,6 +14995,25 @@
                 "$ref": "#/components/schemas/InspectionActorDto"
               }
             ]
+          },
+          "cook": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/InspectionActorDto"
+              }
+            ]
+          },
+          "participants": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InspectionParticipantDto"
+            }
+          },
+          "actualCourierUnknown": {
+            "type": "boolean",
+            "description": "Historical technical assignment; actual delivery courier is unknown"
           },
           "subtotal": {
             "type": "number"
@@ -15074,6 +15131,9 @@
           "deliveryEtrapName",
           "cancellationReason",
           "courier",
+          "cook",
+          "participants",
+          "actualCourierUnknown",
           "subtotal",
           "latitude",
           "longitude",
@@ -15101,6 +15161,20 @@
       "InspectionAuditDto": {
         "type": "object",
         "properties": {
+          "relatedActors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InspectionActorDto"
+            }
+          },
+          "orderId": {
+            "type": "string",
+            "nullable": true
+          },
+          "orderNumber": {
+            "type": "number",
+            "nullable": true
+          },
           "id": {
             "type": "string"
           },
@@ -15135,6 +15209,9 @@
           }
         },
         "required": [
+          "relatedActors",
+          "orderId",
+          "orderNumber",
           "id",
           "action",
           "entityType",

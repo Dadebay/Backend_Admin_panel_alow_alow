@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import {
   flexRender,
   getCoreRowModel,
@@ -10,9 +10,12 @@ import type {
   InspectionOrdersPage,
 } from "@/src/entities/accounting";
 import { statusLabels } from "@/src/entities/order";
-import { inspectionMoney, inspectionTime } from "../model/inspection";
+import {
+  inspectionMoney,
+  inspectionTime,
+  personName,
+} from "../model/inspection";
 import { InspectionPagination } from "./inspection-audit";
-
 const rowId = (order: InspectionOrder) => order.id;
 export function InspectionOrders({
   data,
@@ -23,72 +26,74 @@ export function InspectionOrders({
   onOrder: (id: string) => void;
   onPage: (page: number) => void;
 }) {
+  const openOrderRef = useRef(onOrder);
+  useEffect(() => { openOrderRef.current = onOrder; }, [onOrder]);
   const columns = useMemo<ColumnDef<InspectionOrder>[]>(
     () => [
       {
-        id: "number",
-        header: "Заказ",
-        cell: ({ row }) => (
-          <button
-            className="secondary-button"
-            type="button"
-            data-testid={`inspection-open-order-${row.original.id}`}
-            onClick={() => onOrder(row.original.id)}
-          >
-            №{row.original.number}
-          </button>
-        ),
-      },
-      {
-        id: "createdAt",
-        header: "Создан",
-        cell: ({ row }) => inspectionTime(row.original.createdAt),
-      },
-      {
-        id: "status",
-        header: "Статус / отмена",
-        cell: ({ row }) => (
-          <>
-            <strong>{statusLabels[row.original.status]}</strong>
-            {row.original.cancellationReason && (
-              <p>{row.original.cancellationReason}</p>
+        id: "order",
+        header: "Заказ / статус",
+        cell: ({ row: { original: o } }) => (
+          <div className="inspection-order-identity">
+            <button
+              className="inspection-order-link"
+              type="button"
+              data-testid={`inspection-open-order-${o.id}`}
+              onClick={(event) => { event.currentTarget.focus(); openOrderRef.current(o.id); }}
+            >
+              Заказ №{o.number}
+              <span aria-hidden="true">↗</span>
+            </button>
+            <time dateTime={o.createdAt}>{inspectionTime(o.createdAt)}</time>
+            <span
+              className={`inspection-status status-${o.status.toLowerCase()}`}
+            >
+              {statusLabels[o.status]}
+            </span>
+            {o.cancellationReason && (
+              <p className="inspection-cancel-reason">{o.cancellationReason}</p>
             )}
-          </>
-        ),
-      },
-      {
-        id: "foodAmount",
-        header: "Еда после скидок",
-        cell: ({ row }) => inspectionMoney(row.original.foodAmount),
-      },
-      {
-        id: "delivery",
-        header: "Доставка отдельно",
-        cell: ({ row }) => inspectionMoney(row.original.deliveryFee),
-      },
-      {
-        id: "location",
-        header: "Локация",
-        cell: ({ row }) => (
-          <>
-            {row.original.deliveryEtrapName ?? "Район не определён"}
-            <small>{row.original.branchName ?? "Без филиала"}</small>
-            <small>{row.original.address}</small>
-          </>
+          </div>
         ),
       },
       {
         id: "courier",
         header: "Курьер",
-        cell: ({ row }) =>
-          row.original.courier
-            ? [row.original.courier.firstName, row.original.courier.lastName]
-                .filter(Boolean)
-                .join(" ") || row.original.courier.id
-            : "Не назначен",
+        cell: ({ row: { original: o } }) => (
+          <div className="inspection-order-person">
+            <strong>{o.courier ? personName(o.courier) : "Не назначен"}</strong>
+            <small>
+              {o.source === "STAFF_PHONE"
+                ? "Заказ по телефону"
+                : "Заказ из приложения"}
+            </small>
+          </div>
+        ),
+      },
+      {
+        id: "location",
+        header: "Куда / откуда",
+        cell: ({ row: { original: o } }) => (
+          <div className="inspection-order-location">
+            <strong>{o.deliveryEtrapName ?? "Район не указан"}</strong>
+            <span>{o.address}</span>
+            <small>Кухня: {o.branchName ?? "не указана"}</small>
+          </div>
+        ),
+      },
+      {
+        id: "amount",
+        header: "Сумма",
+        cell: ({ row: { original: o } }) => (
+          <div className="inspection-order-amount">
+            <strong>{inspectionMoney(o.foodAmount)}</strong>
+            <small>за еду</small>
+            <span>Доставка {inspectionMoney(o.deliveryFee)}</span>
+          </div>
+        ),
       },
     ],
-    [onOrder],
+    [],
   );
   // eslint-disable-next-line react-hooks/incompatible-library
   const table = useReactTable({
@@ -104,8 +109,15 @@ export function InspectionOrders({
   });
   return (
     <div data-testid="inspection-orders">
-      <div className="data-table-scroll">
-        <table className="data-table" aria-label="Заказы смены">
+      <div className="inspection-list-heading">
+        <strong>Найдено заказов: {data.total}</strong>
+        <span>Нажмите номер для подробностей</span>
+      </div>
+      <div className="inspection-orders-scroll">
+        <table
+          className="inspection-orders-table"
+          aria-label="Заказы за выбранный период"
+        >
           <thead>
             {table.getHeaderGroups().map((group) => (
               <tr key={group.id}>
@@ -126,6 +138,7 @@ export function InspectionOrders({
                 {row.getVisibleCells().map((cell) => (
                   <td
                     key={cell.id}
+                    className={`inspection-cell-${cell.column.id}`}
                     data-label={String(cell.column.columnDef.header)}
                   >
                     {flexRender(cell.column.columnDef.cell, cell.getContext())}
@@ -136,7 +149,12 @@ export function InspectionOrders({
           </tbody>
         </table>
       </div>
-      {!data.items.length && <p className="async-state">Заказы не найдены.</p>}
+      {!data.items.length && (
+        <div className="inspection-empty">
+          <strong>Заказы не найдены.</strong>
+          <p>Проверьте период, номер и выбранный статус.</p>
+        </div>
+      )}
       <InspectionPagination
         {...data}
         onPage={onPage}

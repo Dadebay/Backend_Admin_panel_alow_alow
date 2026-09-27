@@ -12,6 +12,7 @@ import type {
   InspectionAuditPageDto,
   InspectionCarryoverPageDto,
   InspectionOrdersPageDto,
+  InspectionOrderDetailDto,
   InspectionOverviewDto,
 } from "../src/accounting/accounting-inspection.dto";
 
@@ -505,5 +506,97 @@ describe("accountant inspection and shift carryover", () => {
       .get(`${root}/orders/00000000-0000-4000-8000-000000000000`)
       .set(auth())
       .expect(404);
+  });
+  it("names every participant and resolves legacy journal order numbers without exposing other roles", async () => {
+    const order = await prisma.order.create({
+      data: {
+        customerId: users.CUSTOMER.id,
+        courierId: users.COURIER.id,
+        cookId: users.COOK.id,
+        status: "RECONCILED",
+        subtotal: 50,
+        total: 65,
+        deliveryFee: 15,
+        address: "Readable accounting",
+        latitude: 37.87,
+        longitude: 58.31,
+        cashSettlement: {
+          create: {
+            courierId: users.COURIER.id,
+            operatorId: users.OPERATOR.id,
+            accountantId: users.ACCOUNTANT.id,
+            amount: 50,
+            status: "RECONCILED",
+          },
+        },
+        transitions: {
+          create: {
+            actorId: users.ADMIN.id,
+            fromStatus: "DELIVERED",
+            toStatus: "CASH_RETURNED",
+          },
+        },
+      },
+    });
+    const event = await prisma.auditLog.create({
+      data: {
+        actorId: users.OPERATOR.id,
+        entityType: "Order",
+        entityId: order.id,
+        action: "order.historical-completion-requested",
+        metadata: { actualCourierUnknown: true, courierId: users.COURIER.id },
+      },
+    });
+    const detail = (
+      await request(server)
+        .get(`${root}/orders/${order.id}`)
+        .set(auth())
+        .expect(200)
+    ).body as InspectionOrderDetailDto;
+    expect(detail.number).toBe(order.number);
+    expect(detail.courier).toMatchObject({
+      id: users.COURIER.id,
+      firstName: users.COURIER.firstName,
+    });
+    expect(detail.cook).toMatchObject({ id: users.COOK.id });
+    expect(detail.actualCourierUnknown).toBe(true);
+    expect(
+      detail.participants.find(
+        (person) => person.actor.id === users.OPERATOR.id,
+      )?.actions,
+    ).toEqual(["order.historical-completion-requested"]);
+    expect(
+      detail.participants.find((person) => person.actor.id === users.ADMIN.id)
+        ?.actions,
+    ).toEqual(["transition:CASH_RETURNED"]);
+    expect(detail.settlement?.operator).toMatchObject({
+      id: users.OPERATOR.id,
+    });
+    expect(detail.settlement?.accountant).toMatchObject({
+      id: users.ACCOUNTANT.id,
+    });
+    const journal = (
+      await request(server)
+        .get(`${root}/orders/${order.id}/audit`)
+        .set(auth())
+        .expect(200)
+    ).body as InspectionAuditPageDto;
+    expect(journal.items.find((item) => item.id === event.id)).toMatchObject({
+      orderId: order.id,
+      orderNumber: order.number,
+      relatedActors: [expect.objectContaining({ id: users.COURIER.id })],
+    });
+    for (const role of [Role.ADMIN, Role.CUSTOMER, Role.COURIER, Role.OPERATOR])
+      await request(server)
+        .get(`${root}/orders/${order.id}`)
+        .set(auth(role))
+        .expect(403);
+    const ordinary = (
+      await request(server)
+        .get(`${root}/orders/${boundaryId}`)
+        .set(auth())
+        .expect(200)
+    ).body as InspectionOrderDetailDto;
+    expect(ordinary.actualCourierUnknown).toBe(false);
   });
 });

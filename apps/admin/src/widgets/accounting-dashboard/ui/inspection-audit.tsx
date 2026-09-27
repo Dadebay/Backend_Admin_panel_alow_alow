@@ -2,22 +2,69 @@ import { useState } from "react";
 import type { InspectionAuditPage } from "@/src/entities/accounting";
 import { roleLabels, statusLabels } from "@/src/entities/order";
 import {
-  auditActionLabels,
+  actionLabel,
+  auditSummary,
+  evidenceRecord,
+  entityLabels,
+  personName,
   auditChanges,
   auditFieldLabels,
   inspectionTime,
+  inspectionMoney,
 } from "../model/inspection";
 
-export function EvidenceValue({ value }: { value: unknown }) {
+export function EvidenceValue({
+  value,
+  names,
+  field,
+}: {
+  value: unknown;
+  names?: Record<string, string>;
+  field?: string;
+}) {
   if (value === null || value === undefined)
     return <span className="muted-text">Не указано</span>;
   if (typeof value === "boolean") return <span>{value ? "Да" : "Нет"}</span>;
+  if (
+    typeof value === "number" &&
+    field &&
+    /^(total|subtotal|amount|discount|deliveryFee|unitPrice|lineTotal|price|expectedAmount|declaredAmount)$/.test(
+      field,
+    )
+  )
+    return <span>{inspectionMoney(value)}</span>;
+  if (
+    Array.isArray(value) &&
+    value.length &&
+    value.every((item) => typeof evidenceRecord(item).productName === "string")
+  )
+    return (
+      <ul className="inspection-evidence-items">
+        {value.map((item, index) => {
+          const row = evidenceRecord(item);
+          return (
+            <li key={index}>
+              <strong>{String(row.productName)}</strong>
+              <span>
+                {String(row.quantity ?? "—")} шт.
+                {typeof row.unitPrice === "number"
+                  ? ` × ${inspectionMoney(row.unitPrice)}`
+                  : ""}
+                {typeof row.lineTotal === "number"
+                  ? ` = ${inspectionMoney(row.lineTotal)}`
+                  : ""}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+    );
   if (Array.isArray(value))
     return value.length ? (
       <ol className="inspection-evidence-list">
         {value.map((item, index) => (
           <li key={index}>
-            <EvidenceValue value={item} />
+            <EvidenceValue value={item} names={names} />
           </li>
         ))}
       </ol>
@@ -31,7 +78,7 @@ export function EvidenceValue({ value }: { value: unknown }) {
           <div key={key}>
             <dt>{auditFieldLabels[key] ?? key}</dt>
             <dd>
-              <EvidenceValue value={item} />
+              <EvidenceValue value={item} names={names} field={key} />
             </dd>
           </div>
         ))}
@@ -41,7 +88,13 @@ export function EvidenceValue({ value }: { value: unknown }) {
     <span>
       {typeof value === "string" && value in statusLabels
         ? statusLabels[value as keyof typeof statusLabels]
-        : String(value)}
+        : names && typeof value === "string" && /^[0-9a-f-]{36}$/i.test(value)
+          ? (names[value] ?? "Неизвестно (см. технические сведения)")
+          : typeof value === "string" &&
+              /^\d{4}-\d{2}-\d{2}T/.test(value) &&
+              Number.isFinite(Date.parse(value))
+            ? inspectionTime(value)
+            : String(value)}
     </span>
   );
 }
@@ -109,7 +162,24 @@ export function InspectionAuditList({
       )}
       {data.items.map((event) => {
         const changes =
-          expanded === event.id ? auditChanges(event.metadata) : [];
+          expanded === event.id
+            ? auditChanges(event.metadata).filter(
+                (change) => !["version", "updatedAt"].includes(change.key),
+              )
+            : [];
+        const names = Object.fromEntries(
+          (event.relatedActors ?? []).map((actor) => [
+            actor.id,
+            personName(actor),
+          ]),
+        );
+        const metadata = evidenceRecord(event.metadata);
+        const after = evidenceRecord(metadata.after);
+        const newStatus = String(metadata.toStatus ?? after.status ?? "");
+        const title =
+          event.action === "order.transitioned" && newStatus in statusLabels
+            ? `Статус: ${statusLabels[newStatus as keyof typeof statusLabels]}`
+            : actionLabel(event.action);
         return (
           <article
             className="inspection-event"
@@ -118,20 +188,36 @@ export function InspectionAuditList({
           >
             <div className="inspection-event-heading">
               <div>
-                <strong>
-                  {auditActionLabels[event.action] ?? event.action}
-                </strong>
+                <div className="inspection-event-subject">
+                  {event.orderNumber ? (
+                    <button
+                      className="inspection-order-link"
+                      type="button"
+                      disabled={!onOrder}
+                      data-testid={`inspection-event-order-${event.id}`}
+                      onClick={() => event.orderId && onOrder?.(event.orderId)}
+                    >
+                      Заказ №{event.orderNumber}
+                    </button>
+                  ) : (
+                    <span>
+                      {entityLabels[event.entityType] ?? "Запись"}
+                      {typeof (
+                        evidenceRecord(metadata.after).name ?? metadata.name
+                      ) === "string"
+                        ? ` · ${String(evidenceRecord(metadata.after).name ?? metadata.name)}`
+                        : ""}
+                    </span>
+                  )}
+                </div>
+                <strong>{title}</strong>
+                <p className="inspection-event-summary">
+                  {auditSummary(event.metadata)}
+                </p>
                 <small>
                   {inspectionTime(event.createdAt)} ·{" "}
-                  {event.actor
-                    ? [event.actor.firstName, event.actor.lastName]
-                        .filter(Boolean)
-                        .join(" ") || event.actor.id
-                    : "Системное действие / автор не сохранён"}
+                  {event.actor ? personName(event.actor) : "Автор не сохранён"}
                   {event.actor && ` · ${roleLabels[event.actor.role]}`}
-                </small>
-                <small>
-                  {event.entityType} · {event.entityId ?? "—"}
                 </small>
               </div>
               <button
@@ -143,7 +229,7 @@ export function InspectionAuditList({
                   setExpanded(expanded === event.id ? null : event.id)
                 }
               >
-                {expanded === event.id ? "Свернуть" : "Что произошло"}
+                {expanded === event.id ? "Свернуть" : "Подробнее"}
               </button>
             </div>
             {expanded === event.id && (
@@ -156,11 +242,18 @@ export function InspectionAuditList({
                         <div className="inspection-before-after">
                           <div>
                             <strong>Было</strong>
-                            <EvidenceValue value={change.before} />
+                            <EvidenceValue
+                              value={change.before}
+                              names={names}
+                            />
                           </div>
                           <div>
                             <strong>Стало</strong>
-                            <EvidenceValue value={change.after} />
+                            <EvidenceValue
+                              value={change.after}
+                              names={names}
+                              field={change.key}
+                            />
                           </div>
                         </div>
                       </section>
@@ -169,27 +262,14 @@ export function InspectionAuditList({
                 )}
                 {!changes.length && (
                   <p className="muted-text">
-                    Сохранённые сведения о действии. Для старых записей
-                    сравнение «было / стало» может отсутствовать.
+                    Для этого действия сравнение «до / после» не сохранено.
                   </p>
                 )}
                 <details>
-                  <summary>Все сохранённые сведения</summary>
+                  <summary>Технические сведения</summary>
                   <EvidenceValue value={event.metadata} />
                 </details>
                 <div className="inspection-event-actions">
-                  {event.entityType === "Order" &&
-                    event.entityId &&
-                    onOrder && (
-                      <button
-                        type="button"
-                        className="secondary-button"
-                        data-testid={`inspection-event-order-${event.id}`}
-                        onClick={() => onOrder(event.entityId!)}
-                      >
-                        Открыть заказ
-                      </button>
-                    )}
                   {event.actor && onActor && (
                     <button
                       type="button"

@@ -1,12 +1,10 @@
-import { useCallback, useEffect, useRef, type Ref } from "react";
+import { useCallback, type Ref } from "react";
 import { useSearchParams } from "react-router";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import type { z } from "zod";
 import {
   useAccountingInspection,
-  useAccountingOrder,
-  useAccountingOrderAudit,
   type AccountingShift,
 } from "@/src/entities/accounting";
 import {
@@ -29,6 +27,7 @@ import {
 } from "./inspection-audit";
 import { InspectionOrders } from "./inspection-orders";
 import { InspectionOverviewPanel } from "./inspection-overview";
+import { InspectionOrderDrawer } from "./inspection-order-drawer";
 import "./inspection.css";
 
 const tabs = [
@@ -46,11 +45,15 @@ export function AccountingInspection({
   toDate,
   shifts,
   ref,
+  shiftsError,
+  onRetryShifts,
 }: {
   fromDate: string;
   toDate: string;
   shifts: AccountingShift[];
   ref?: Ref<HTMLElement>;
+  shiftsError?: Error | null;
+  onRetryShifts: () => void;
 }) {
   const [params, setParams] = useSearchParams();
   const update = useCallback(
@@ -67,16 +70,11 @@ export function AccountingInspection({
   );
   const tab = tabs.some(([key]) => key === params.get("inspection"))
     ? params.get("inspection")!
-    : "overview";
+    : "orders";
   const shiftKey = params.get("shift") ?? "";
   const selected = shifts.find((shift) => shift.shiftKey === shiftKey);
   const page = pageNumber(params.get("inspectionPage"));
   const orderId = params.get("order");
-  const detailRef = useRef<HTMLElement>(null);
-  useEffect(() => {
-    if (orderId) detailRef.current?.scrollIntoView({ block: "start" });
-  }, [orderId]);
-  const historyPage = pageNumber(params.get("historyPage"));
   const search = new URLSearchParams(
     shiftKey ? { shiftKey } : { fromDate, toDate },
   );
@@ -122,8 +120,6 @@ export function AccountingInspection({
     carrySearch.toString(),
     tab === "in" || tab === "out",
   );
-  const detail = useAccountingOrder(orderId);
-  const history = useAccountingOrderAudit(orderId, historyPage);
   const form = useForm<z.infer<typeof inspectionSearchSchema>>({
     resolver: zodResolver(inspectionSearchSchema),
     values: { number: params.get("orderNumber") ?? "" },
@@ -142,8 +138,26 @@ export function AccountingInspection({
     >
       <header className="editor-title">
         <div>
-          <h2>Контроль смен и действий</h2>
-          <p>Заказы, деньги и история изменений. Часовой пояс: Ашхабад.</p>
+          <h2>
+            {
+              (
+                {
+                  orders: "Заказы",
+                  overview: "Графики за период",
+                  audit: "Кто что сделал",
+                  in: "Принято от предыдущей смены",
+                  out: "Передано следующей смене",
+                } as Record<string, string>
+              )[tab]
+            }
+          </h2>
+          <p>
+            {tab === "orders"
+              ? "Нажмите номер заказа: состав, курьер, участники и история"
+              : tab === "audit"
+                ? "Номер заказа, сотрудник и результат каждого действия"
+                : "За выбранные даты или одну смену"}
+          </p>
         </div>
         <button
           className="secondary-button"
@@ -154,15 +168,23 @@ export function AccountingInspection({
             if (tab === "orders") void orders.refetch();
             if (tab === "audit") void audit.refetch();
             if (tab === "in" || tab === "out") void carryover.refetch();
-            if (orderId) {
-              void detail.refetch();
-              void history.refetch();
-            }
           }}
         >
           Обновить
         </button>
       </header>
+      {shiftsError && (
+        <div className="inline-alert" role="alert">
+          Не удалось загрузить смены.{" "}
+          <button
+            type="button"
+            data-testid="inspection-shifts-retry"
+            onClick={onRetryShifts}
+          >
+            Повторить
+          </button>
+        </div>
+      )}
       <label className="inspection-shift-label">
         Период проверки
         <select
@@ -221,25 +243,6 @@ export function AccountingInspection({
           )}
         </div>
       )}
-      <div
-        className="inspection-tabs"
-        role="tablist"
-        aria-label="Разделы контроля"
-      >
-        {tabs.map(([key, label]) => (
-          <button
-            key={key}
-            role="tab"
-            aria-selected={tab === key}
-            className={tab === key ? "primary-button" : "secondary-button"}
-            type="button"
-            data-testid={`inspection-tab-${key}`}
-            onClick={() => update({ inspection: key, inspectionPage: null })}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
       {tab === "overview" && (
         <AsyncPanel
           pending={overview.isPending}
@@ -249,8 +252,15 @@ export function AccountingInspection({
           {overview.data && (
             <InspectionOverviewPanel
               data={overview.data}
-              onSelectDay={(date) =>
+              fromDate={fromDate}
+              toDate={toDate}
+              showRevenue={!shiftKey}
+              onSelectDay={(date, basis = "created") =>
                 update({
+                  inspection: "orders",
+                  orderBasis: basis,
+                  inspectionStatus: null,
+                  orderNumber: null,
                   fromDate: date,
                   toDate: date,
                   shift: null,
@@ -265,21 +275,6 @@ export function AccountingInspection({
       )}
       {tab === "orders" && (
         <>
-          <label className="inspection-shift-label">
-            Какие заказы показать
-            <select
-              data-testid="inspection-order-basis"
-              value={params.get("orderBasis") ?? "created"}
-              onChange={(event) =>
-                update({ orderBasis: event.target.value, inspectionPage: null })
-              }
-            >
-              <option value="created">Созданные в этом периоде</option>
-              <option value="cashReturned">
-                Возврат денег в этом периоде / состав пакета смены
-              </option>
-            </select>
-          </label>
           <form
             className="inspection-filters"
             data-testid="inspection-order-search"
@@ -287,9 +282,10 @@ export function AccountingInspection({
               update({ orderNumber: value.number, inspectionPage: null }),
             )}
           >
-            <label>
+            <label className="inspection-number-filter">
               Номер заказа
               <input
+                placeholder="Например, 52"
                 inputMode="numeric"
                 data-testid="inspection-order-number"
                 {...form.register("number")}
@@ -303,26 +299,69 @@ export function AccountingInspection({
             >
               Найти
             </button>
-            <label>
-              Статус
-              <select
-                value={status ?? ""}
-                data-testid="inspection-order-status"
-                onChange={(event) =>
-                  update({
-                    inspectionStatus: event.target.value,
-                    inspectionPage: null,
-                  })
+            {params.get("orderNumber") && (
+              <button
+                type="button"
+                className="secondary-button"
+                data-testid="inspection-order-reset"
+                onClick={() =>
+                  update({ orderNumber: null, inspectionPage: null })
                 }
               >
-                <option value="">Все статусы</option>
-                {orderStatuses.map((value) => (
-                  <option key={value} value={value}>
-                    {statusLabels[value]}
-                  </option>
-                ))}
-              </select>
-            </label>
+                Сбросить поиск
+              </button>
+            )}
+            <details className="inspection-order-filters">
+              <summary data-testid="inspection-order-filters">
+                {params.get("orderBasis") === "cashReturned"
+                  ? "По возврату денег"
+                  : "По дате создания"}
+                {status
+                  ? ` · ${statusLabels[status as OrderStatus]}`
+                  : " · Все статусы"}
+              </summary>
+              <div className="inspection-filter-options">
+                {" "}
+                <label className="inspection-shift-label">
+                  Какие заказы показать
+                  <select
+                    data-testid="inspection-order-basis"
+                    value={params.get("orderBasis") ?? "created"}
+                    onChange={(event) =>
+                      update({
+                        orderBasis: event.target.value,
+                        inspectionPage: null,
+                      })
+                    }
+                  >
+                    <option value="created">Созданные в этом периоде</option>
+                    <option value="cashReturned">
+                      Деньги возвращены в этот период
+                    </option>
+                  </select>
+                </label>
+                <label>
+                  Статус
+                  <select
+                    value={status ?? ""}
+                    data-testid="inspection-order-status"
+                    onChange={(event) =>
+                      update({
+                        inspectionStatus: event.target.value,
+                        inspectionPage: null,
+                      })
+                    }
+                  >
+                    <option value="">Все статусы</option>
+                    {orderStatuses.map((value) => (
+                      <option key={value} value={value}>
+                        {statusLabels[value]}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+            </details>
           </form>
           <AsyncPanel
             pending={orders.isPending}
@@ -496,11 +535,7 @@ export function AccountingInspection({
               </button>
             )}
           </div>
-          <p className="muted-text">
-            Журнал показывает записанные действия по времени их выполнения.
-            Откройте действие, чтобы сравнить изменения или отфильтровать
-            автора.
-          </p>
+
           <AsyncPanel
             pending={audit.isPending}
             error={audit.error}
@@ -520,127 +555,10 @@ export function AccountingInspection({
         </>
       )}
       {orderId && (
-        <section
-          ref={detailRef}
-          className="inspection-order-detail"
-          data-testid="inspection-order-detail"
-          aria-label="Проверка заказа"
-        >
-          <header className="editor-title">
-            <h3>Заказ {detail.data ? `№${detail.data.number}` : ""}</h3>
-            <button
-              type="button"
-              className="secondary-button"
-              data-testid="inspection-order-close"
-              onClick={() => update({ order: null, historyPage: null })}
-            >
-              Закрыть заказ
-            </button>
-          </header>
-          <AsyncPanel
-            pending={detail.isPending}
-            error={detail.error}
-            onRetry={() => void detail.refetch()}
-          >
-            {detail.data && (
-              <>
-                <p>
-                  {statusLabels[detail.data.status]} ·{" "}
-                  {inspectionTime(detail.data.createdAt)} ·{" "}
-                  {detail.data.source === "STAFF_PHONE"
-                    ? "Заказ по телефону"
-                    : "Приложение"}
-                </p>
-                <p>
-                  {detail.data.customerName} · {detail.data.customerPhone}
-                </p>
-                <p>
-                  {detail.data.address} ·{" "}
-                  {detail.data.deliveryEtrapName ?? "Район не определён"}
-                </p>
-                <p>Комментарий: {detail.data.customerNote || "Нет"}</p>
-                <p>
-                  Еда:{" "}
-                  <strong>{inspectionMoney(detail.data.foodAmount)}</strong> ·
-                  скидка: {inspectionMoney(detail.data.discount)} · доставка:{" "}
-                  {inspectionMoney(detail.data.deliveryFee)} · всего:{" "}
-                  {inspectionMoney(detail.data.total)}
-                </p>
-                {detail.data.cancellationReason && (
-                  <p className="inline-alert">
-                    Причина отмены: {detail.data.cancellationReason}
-                  </p>
-                )}
-                <ul>
-                  {detail.data.items.map((item) => (
-                    <li key={item.id}>
-                      {item.productName}
-                      {item.variantName ? ` · ${item.variantName}` : ""} —{" "}
-                      {item.quantity} × {inspectionMoney(item.unitPrice)} ={" "}
-                      {inspectionMoney(item.lineTotal)} · готовка{" "}
-                      {item.preparationMinutes} мин.
-                    </li>
-                  ))}
-                </ul>
-                <details>
-                  <summary>Адресные детали, время этапов и подарки</summary>
-                  <EvidenceValue
-                    value={{
-                      entrance: detail.data.entrance,
-                      floor: detail.data.floor,
-                      apartment: detail.data.apartment,
-                      branchAddress: detail.data.branchAddress,
-                      assignedAt: detail.data.assignedAt,
-                      packingConfirmedAt: detail.data.packingConfirmedAt,
-                      deliveredAt: detail.data.deliveredAt,
-                      completedAt: detail.data.completedAt,
-                      gifts: detail.data.gifts,
-                      loyaltyPointsEarned: detail.data.loyaltyPointsEarned,
-                      loyaltyPointsSpent: detail.data.loyaltyPointsSpent,
-                      rating: detail.data.rating,
-                    }}
-                  />
-                </details>
-                <details>
-                  <summary>Возврат и подтверждение денег</summary>
-                  <EvidenceValue value={detail.data.settlement} />
-                </details>
-                <h4>Переходы статуса</h4>
-                {!detail.data.transitions.length && <p>Переходов ещё нет.</p>}
-                <ol className="inspection-timeline">
-                  {detail.data.transitions.map((event) => (
-                    <li key={event.id}>
-                      <strong>
-                        {statusLabels[event.fromStatus]} →{" "}
-                        {statusLabels[event.toStatus]}
-                      </strong>
-                      <span>
-                        {inspectionTime(event.createdAt)} ·{" "}
-                        {[event.actor.firstName, event.actor.lastName]
-                          .filter(Boolean)
-                          .join(" ") || event.actor.id}
-                      </span>
-                      {event.note && <p>{event.note}</p>}
-                    </li>
-                  ))}
-                </ol>
-              </>
-            )}
-          </AsyncPanel>
-          <h4>Полная история действий с заказом</h4>
-          <AsyncPanel
-            pending={history.isPending}
-            error={history.error}
-            onRetry={() => void history.refetch()}
-          >
-            {history.data && (
-              <InspectionAuditList
-                data={history.data}
-                onPage={(value) => update({ historyPage: String(value) })}
-              />
-            )}
-          </AsyncPanel>
-        </section>
+        <InspectionOrderDrawer
+          id={orderId}
+          onClose={() => update({ order: null, historyPage: null })}
+        />
       )}
     </section>
   );

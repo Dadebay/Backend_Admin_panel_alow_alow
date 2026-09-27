@@ -22,7 +22,7 @@ const category = { id: CATEGORY_ID, cafeId: CAFE_ID, cafe, name: "Food", slug: "
 const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP49/35fwAJrwPcl3fl5wAAAABJRU5ErkJggg==", "base64");
 
 function makeDeliveryConfig() {
-  return { mapPricingEnabled: false, distancePricingEnabled: false, dayPricePerKilometer: null, nightPricePerKilometer: null, fallbackPrice: 15, fallbackFreeDeliveryThreshold: null, fallbackNightPrice: 25, fallbackNightFreeDeliveryThreshold: null, nightTariffEnabled: false, nightStartsAt: "23:00", nightEndsAt: "07:00", version: 1, timeZone: "Asia/Ashgabat", welayats: [{ id: 1, nameRu: "Ашхабад", nameTk: "Aşgabat", nameEn: null, sortOrder: 0, etraps: [{ id: 2, welayatId: 1, nameRu: "Улица Анкара", nameTk: "Ankara", nameEn: null, queuePosition: 1, price: 15, nightPrice: 25, freeDeliveryThreshold: null, nightFreeDeliveryThreshold: null, isDeliveryEnabled: true, deliveryZone: null, version: 1, updatedAt: now }] }] };
+  return { mapPricingEnabled: false, distancePricingEnabled: false, dayPricePerKilometer: null, nightPricePerKilometer: null, distancePriceTiers: [], fallbackPrice: 15, fallbackFreeDeliveryThreshold: null, fallbackNightPrice: 25, fallbackNightFreeDeliveryThreshold: null, nightTariffEnabled: false, nightStartsAt: "23:00", nightEndsAt: "07:00", version: 1, timeZone: "Asia/Ashgabat", welayats: [{ id: 1, nameRu: "Ашхабад", nameTk: "Aşgabat", nameEn: null, sortOrder: 0, etraps: [{ id: 2, welayatId: 1, nameRu: "Улица Анкара", nameTk: "Ankara", nameEn: null, queuePosition: 1, price: 15, nightPrice: 25, freeDeliveryThreshold: null, nightFreeDeliveryThreshold: null, isDeliveryEnabled: true, deliveryZone: null, version: 1, updatedAt: now }] }] };
 }
 
 async function mockAdmin(page: Page) {
@@ -130,4 +130,62 @@ test("street names without map boundaries remain searchable and editable", async
   await expect(table.getByText("Улица Анкара")).toBeVisible();
   await page.getByTestId("delivery-etrap-edit-2").click();
   await expect(page.getByTestId("delivery-etrap-name-ru")).toHaveValue("Улица Анкара");
+});
+
+test("distance tiers can be added, validated, saved, reloaded and removed", async ({ page }, testInfo) => {
+  const state = await mockAdmin(page);
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await page.goto("/delivery");
+  await page.getByTestId("delivery-distance-pricing-enabled").check();
+  await page.getByTestId("delivery-day-price-per-km").fill("5");
+  await page.getByTestId("delivery-night-price-per-km").fill("8");
+  await expect(page.getByTestId("delivery-distance-tiers-empty")).toBeVisible();
+  await page.getByTestId("delivery-tier-add").click();
+  await page.getByTestId("delivery-tier-after-km").fill("5");
+  await page.getByTestId("delivery-tier-day-price").fill("4");
+  await page.getByTestId("delivery-tier-night-price").fill("6");
+  await page.getByTestId("delivery-tier-add").click();
+  await page.getByTestId("delivery-tier-after-km").nth(1).fill("5");
+  await page.getByTestId("delivery-tier-day-price").nth(1).fill("3,50");
+  await page.getByTestId("delivery-tier-night-price").nth(1).fill("5");
+  await page.getByTestId("delivery-settings-save").click();
+  await expect(page.getByText("Каждый следующий порог должен быть больше предыдущего")).toBeVisible();
+  expect(state.deliveryPatches).toHaveLength(0);
+  await page.getByTestId("delivery-tier-after-km").nth(1).fill("10");
+  await page.getByTestId("delivery-settings-save").click();
+  await expect.poll(() => state.deliveryPatches.length).toBe(1);
+  expect(state.deliveryPatches[0]).toMatchObject({ version: 1, distancePriceTiers: [{ afterKilometers: 5, dayPricePerKilometer: 4, nightPricePerKilometer: 6 }, { afterKilometers: 10, dayPricePerKilometer: 3.5, nightPricePerKilometer: 5 }] });
+  await page.reload();
+  await expect(page.getByTestId("delivery-tier-day-price").first()).toHaveValue("4.00");
+  await expect(page.getByTestId("delivery-tier-after-km").nth(1)).toHaveValue("10");
+  await expectNoHorizontalOverflow(page);
+  await page.getByTestId("delivery-distance-tiers").screenshot({ path: testInfo.outputPath("distance-tiers.png") });
+  await page.getByTestId("delivery-tier-after-km").first().focus();
+  await page.keyboard.press("Tab");
+  await expect(page.getByTestId("delivery-tier-day-price").first()).toBeFocused();
+  await page.getByTestId("delivery-tier-remove").first().click();
+  await expect(page.getByTestId("delivery-tier-after-km")).toHaveValue("10");
+  await page.getByTestId("delivery-tier-remove").click();
+  await expect(page.getByTestId("delivery-distance-tiers-empty")).toBeVisible();
+  await page.getByTestId("delivery-settings-save").click();
+  await expect.poll(() => state.deliveryPatches.length).toBe(2);
+  expect(state.deliveryPatches[1]).toMatchObject({ version: 2, distancePriceTiers: [] });
+  expect(errors).toEqual([]);
+});
+
+test("a conflicting tier save keeps the draft and offers configuration reload", async ({ page }) => {
+  await mockAdmin(page);
+  await page.route("**/api/v1/delivery/admin/settings", (route) => route.fulfill({ status: 409, contentType: "application/json", body: JSON.stringify({ statusCode: 409, message: "Delivery settings changed; reload and try again" }) }));
+  await page.goto("/delivery");
+  await page.getByTestId("delivery-tier-add").click();
+  await page.getByTestId("delivery-tier-after-km").fill("5");
+  await page.getByTestId("delivery-tier-day-price").fill("4");
+  await page.getByTestId("delivery-tier-night-price").fill("4");
+  await page.getByTestId("delivery-settings-save").click();
+  await expect(page.getByTestId("delivery-config-reload")).toBeVisible();
+  await expect(page.getByTestId("delivery-tier-day-price")).toHaveValue("4");
+  await expect(page.getByTestId("delivery-settings-save")).toBeEnabled();
+  // Expected HTTP conflict is surfaced in the UI; browsers also log its status.
+  browserConsoleErrors.set(page, (browserConsoleErrors.get(page) ?? []).filter((message) => message.includes("409") === false));
 });

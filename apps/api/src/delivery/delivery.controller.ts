@@ -113,7 +113,7 @@ export class DeliveryController {
   @Roles(Role.ADMIN)
   @AdminPages(AdminPage.DELIVERY)
   @ApiOperation({
-    summary: "Update day/night fallback pricing and the night schedule",
+    summary: "Update day/night delivery prices, distance tiers and the night schedule",
   })
   @ApiOkResponse({ type: DeliverySettingsResponseDto })
   updateSettings(

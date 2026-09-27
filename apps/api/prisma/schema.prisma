@@ -397,6 +397,7 @@ model DeliverySettings {
   distancePricingEnabled             Boolean  @default(false)
   dayPricePerKilometer               Decimal? @db.Decimal(12, 2)
   nightPricePerKilometer             Decimal? @db.Decimal(12, 2)
+  distancePriceTiers                 Json     @default("[]")
   fallbackPrice                      Decimal  @default(25) @db.Decimal(12, 2)
   fallbackFreeDeliveryThreshold      Decimal? @default(150) @db.Decimal(12, 2)
   fallbackNightPrice                 Decimal  @default(25) @db.Decimal(12, 2)

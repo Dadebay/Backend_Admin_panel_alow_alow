@@ -39,6 +39,7 @@ import {
 } from "../model/delivery-zone-editor";
 
 import { NightDeliverySchedule } from "./night-delivery-schedule";
+import { DistancePriceTiers } from "./distance-price-tiers";
 
 const DeliveryZoneMap = lazy(() =>
   import("./delivery-zone-map").then((module) => ({
@@ -87,6 +88,7 @@ export function DeliveryManager() {
       distancePricingEnabled: false,
       dayPricePerKilometer: "5.00",
       nightPricePerKilometer: "5.00",
+      distancePriceTiers: [],
       fallbackPrice: "15.00",
       fallbackNightPrice: "15.00",
       fallbackNightFreeDeliveryThreshold: "150.00",
@@ -134,6 +136,11 @@ export function DeliveryManager() {
       distancePricingEnabled: config.data.distancePricingEnabled,
       dayPricePerKilometer: config.data.dayPricePerKilometer?.toFixed(2) ?? "5.00",
       nightPricePerKilometer: config.data.nightPricePerKilometer?.toFixed(2) ?? "5.00",
+      distancePriceTiers: (config.data.distancePriceTiers ?? []).map((tier) => ({
+        afterKilometers: String(tier.afterKilometers),
+        dayPricePerKilometer: tier.dayPricePerKilometer.toFixed(2),
+        nightPricePerKilometer: tier.nightPricePerKilometer.toFixed(2),
+      })),
       fallbackPrice: config.data.fallbackPrice.toFixed(2),
       fallbackNightPrice: config.data.fallbackNightPrice.toFixed(2),
       fallbackNightFreeDeliveryThreshold:
@@ -798,6 +805,7 @@ export function DeliveryManager() {
             />
           </label>
         </div>
+        <DistancePriceTiers control={settingsControl} register={registerSettings} errors={settingsErrors} pending={actions.updateSettings.isPending} />
         <h3>Настройки расчёта по улицам и районам</h3>
         {distancePricing && (
           <p

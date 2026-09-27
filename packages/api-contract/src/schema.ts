@@ -1561,7 +1561,7 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** Update day/night fallback pricing and the night schedule */
+        /** Update day/night delivery prices, distance tiers and the night schedule */
         patch: operations["DeliveryController_updateSettings_v1"];
         trace?: never;
     };
@@ -4019,6 +4019,17 @@ export interface components {
              */
             idempotencyKey?: string;
         };
+        DistancePriceTierDto: {
+            /**
+             * @description New rate applies only to kilometers after this threshold
+             * @example 5
+             */
+            afterKilometers: number;
+            /** @example 7 */
+            dayPricePerKilometer: number;
+            /** @example 10 */
+            nightPricePerKilometer: number;
+        };
         DeliveryZonePointDto: {
             /** @example 37.9601 */
             latitude: number;
@@ -4051,6 +4062,7 @@ export interface components {
             etraps: components["schemas"]["DeliveryEtrapResponseDto"][];
         };
         DeliveryConfigResponseDto: {
+            distancePriceTiers: components["schemas"]["DistancePriceTierDto"][];
             mapPricingEnabled: boolean;
             distancePricingEnabled: boolean;
             dayPricePerKilometer: number | null;
@@ -4085,10 +4097,13 @@ export interface components {
             sortOrder: number;
         };
         DeliveryQuoteResponseDto: {
+            /** @description Progressive kilometer rates; empty for area pricing. Use fee as the authoritative total. */
+            distancePriceTiers: components["schemas"]["DistancePriceTierDto"][];
             /** @enum {string} */
             pricingMode: "AREA" | "DISTANCE";
             /** @description Distance from the assigned branch */
             distanceMeters: number | null;
+            /** @description Initial kilometer rate before any distancePriceTiers thresholds */
             pricePerKilometer: number | null;
             /** @enum {string} */
             tariff: "DAY" | "NIGHT";
@@ -4130,10 +4145,13 @@ export interface components {
             longitude?: number;
         };
         DeliveryTariffQuoteResponseDto: {
+            /** @description Progressive kilometer rates; empty for area pricing. Use fee as the authoritative total. */
+            distancePriceTiers: components["schemas"]["DistancePriceTierDto"][];
             /** @enum {string} */
             pricingMode: "AREA" | "DISTANCE";
             /** @description Distance from the assigned branch */
             distanceMeters: number | null;
+            /** @description Initial kilometer rate before any distancePriceTiers thresholds */
             pricePerKilometer: number | null;
             /** @enum {string} */
             tariff: "DAY" | "NIGHT";
@@ -4161,6 +4179,8 @@ export interface components {
             provider: "NOMINATIM" | null;
         };
         UpdateDeliverySettingsDto: {
+            /** @description Ascending unique distance thresholds. Empty array removes tiers; omission preserves them. Requires version. */
+            distancePriceTiers?: components["schemas"]["DistancePriceTierDto"][];
             /** @description Current configuration version; required when changing night settings */
             version?: number;
             /** @description Use map polygons as the only district source for coordinate quotes and order pricing */
@@ -4188,6 +4208,7 @@ export interface components {
             fallbackFreeDeliveryThreshold?: number | null;
         };
         DeliverySettingsResponseDto: {
+            distancePriceTiers: components["schemas"]["DistancePriceTierDto"][];
             mapPricingEnabled: boolean;
             distancePricingEnabled: boolean;
             dayPricePerKilometer: number | null;

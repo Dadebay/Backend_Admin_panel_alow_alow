@@ -4,6 +4,7 @@ import {
   calculateDistanceDeliveryFee,
   resolveDeliveryPeriod,
 } from "../src/delivery/delivery-pricing";
+import { parseDistancePriceTiers } from "../src/delivery/distance-price-tiers";
 
 describe("delivery pricing", () => {
   it("charges the configured price below the free threshold", () => {
@@ -21,6 +22,31 @@ describe("delivery pricing", () => {
 });
 
 describe("kilometer delivery pricing", () => {
+  const tiers = [{ afterKilometers: 5, pricePerKilometer: 4 }, { afterKilometers: 10, pricePerKilometer: 3 }];
+  it.each([
+    [0, 15], [3_000, 15], [5_000, 25], [5_250, 25],
+    [5_251, 30], [7_000, 35], [10_000, 45], [12_000, 50],
+  ])("prices only the distance after each threshold: %i meters → %i", (meters, fee) => {
+    expect(calculateDistanceDeliveryFee(meters, 5, tiers)).toBe(fee);
+  });
+
+  it("rounds the total once and never drops the total at a reduced-rate boundary", () => {
+    expect(calculateDistanceDeliveryFee(6_000, 5, tiers)).toBe(30);
+    expect(calculateDistanceDeliveryFee(5_001, 5, tiers)).toBeGreaterThanOrEqual(calculateDistanceDeliveryFee(5_000, 5, tiers));
+    expect(calculateDistanceDeliveryFee(2_000, 5, [{ afterKilometers: 0.5, pricePerKilometer: 4 }])).toBe(15);
+    expect(calculateDistanceDeliveryFee(6_000, 5, [{ afterKilometers: 5, pricePerKilometer: 10 }])).toBe(35);
+    expect(() => calculateDistanceDeliveryFee(6_000, 5, [...tiers, tiers[0]!])).toThrow();
+  });
+
+  it("validates saved tiers including duplicate, unordered and unsafe values", () => {
+    const tier = { afterKilometers: 5, dayPricePerKilometer: 4, nightPricePerKilometer: 6 };
+    expect(parseDistancePriceTiers([tier])).toEqual([tier]);
+    expect(parseDistancePriceTiers([])).toEqual([]);
+    for (const value of [null, {}, [null], [tier, tier], [{ ...tier, afterKilometers: 0 }], [{ ...tier, dayPricePerKilometer: 0 }], [{ ...tier, nightPricePerKilometer: 10001 }], [{ ...tier, afterKilometers: 5.001 }], Array.from({ length: 21 }, (_, index) => ({ ...tier, afterKilometers: index + 1 }))]) {
+      expect(() => parseDistancePriceTiers(value)).toThrow();
+    }
+  });
+
   it.each([
     [0, 5, 15],
     [1_000, 5, 15],

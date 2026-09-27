@@ -79,7 +79,35 @@ export class QuoteDeliveryTariffDto {
   longitude?: number;
 }
 
+export class DistancePriceTierDto {
+  @ApiProperty({ minimum: 0.01, maximum: 10000, example: 5, description: "New rate applies only to kilometers after this threshold" })
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0.01)
+  @Max(10000)
+  afterKilometers: number;
+
+  @ApiProperty({ minimum: 0.01, maximum: 10000, example: 7 })
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0.01)
+  @Max(10000)
+  dayPricePerKilometer: number;
+
+  @ApiProperty({ minimum: 0.01, maximum: 10000, example: 10 })
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0.01)
+  @Max(10000)
+  nightPricePerKilometer: number;
+}
+
 export class UpdateDeliverySettingsDto {
+  @ApiPropertyOptional({ type: [DistancePriceTierDto], maxItems: 20, description: "Ascending unique distance thresholds. Empty array removes tiers; omission preserves them. Requires version." })
+  @ValidateIf((_object, value: unknown) => value !== undefined)
+  @IsArray()
+  @ArrayMaxSize(20)
+  @ValidateNested({ each: true })
+  @Type(() => DistancePriceTierDto)
+  distancePriceTiers?: DistancePriceTierDto[];
+
   @ApiPropertyOptional({
     minimum: 1,
     description:

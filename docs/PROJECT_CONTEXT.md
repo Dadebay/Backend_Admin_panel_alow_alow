@@ -2414,3 +2414,50 @@ additional audit records that these are technical assignments, not evidence of
 who actually delivered them. Cancelled and already completed orders were not
 changed. The original database backup and scoped operation results are retained
 on the VDS under maintenance/complete-before-20260927.
+
+
+## Historical cash correction — 2026-09-27
+
+The owner confirmed that the 26 pre-27 September orders completed during
+maintenance had already been paid and their cash surrendered earlier. The
+maintenance-created `CONFIRMED` settlements incorrectly assigned 5,505 TMT of
+food to the 27 September day shift. A scoped owner-authorized correction
+atomically reconciled those orders and settlements, incremented order versions,
+and recorded `order.historical-cash-reconciled` before/after audits and
+transitions. No cash packet existed or was rewritten.
+
+For this historical batch only, `operatorTakenAt` is null because the actual
+cash receipt time is unknown. Never invent a past shift or use the maintenance
+time as a new cash receipt. Original erroneous timestamps remain in the audit;
+`reconciledAt` records the correction time. Amounts, order creation dates and
+monthly order-cohort analytics are preserved. These undated historical receipts
+are visible through the orders/audit, but do not enter dated cash-receipt charts
+or create a current employee liability. Normal live settlements keep their
+actual receipt timestamps.
+
+Production API verification: the affected day shift changed from 26 settlements
+and 5,505 TMT ready to submit to zero; all other settlements were unchanged.
+Scope, tested correction script, database backup and before/after evidence are
+retained privately at
+`/opt/alowalow/production/maintenance/historical-cash-correction-20260927/`.
+
+
+## Readable accounting workspace — 2026-09-27
+
+The accountant workspace opens on numbered orders. Separate sections expose
+shift cash, monthly charts, named employee actions and incoming/outgoing work.
+Selecting a calendar month opens the charts; choosing a chart day opens that
+day's orders using its creation or cash-return basis. Financial totals and
+creation cohorts remain distinct. Mobile uses readable order cards and a
+full-screen, keyboard-dismissible detail dialog with separate contents/people
+and history views.
+
+Dedicated read-only inspection responses now include assigned cook, actors and
+their recorded actions, cash operator/accountant names, and an explicit flag for
+historical technical courier assignments with unknown actual deliverer. Missing
+participants are shown as unknown, never inferred as the actual courier or cash
+recipient from a maintenance actor. Journal pages batch-resolve order numbers
+and referenced staff names, including old records without before/after data.
+Technical IDs and raw evidence remain in expandable technical details; primary
+entries show Russian action labels, order numbers, staff, time and changes.
+No operational mutation rights or cash calculation rules change.

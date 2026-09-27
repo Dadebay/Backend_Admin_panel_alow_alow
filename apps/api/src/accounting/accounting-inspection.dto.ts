@@ -107,7 +107,16 @@ export class InspectionActorDto {
   @ApiProperty({ enum: Role }) role: Role;
 }
 
+export class InspectionParticipantDto {
+  @ApiProperty({ type: InspectionActorDto }) actor: InspectionActorDto;
+  @ApiProperty({ type: [String] }) actions: string[];
+}
+
 export class InspectionAuditDto {
+  @ApiProperty({ type: [InspectionActorDto] })
+  relatedActors: InspectionActorDto[];
+  @ApiProperty({ nullable: true, type: String }) orderId: string | null;
+  @ApiProperty({ nullable: true, type: Number }) orderNumber: number | null;
   @ApiProperty() id: string;
   @ApiProperty() action: string;
   @ApiProperty() entityType: string;
@@ -206,12 +215,25 @@ export class InspectionTransitionDto {
 }
 
 export class InspectionSettlementDto extends OrderCashSettlementResponseDto {
+  @ApiProperty({ nullable: true, type: InspectionActorDto })
+  operator: InspectionActorDto | null;
+  @ApiProperty({ nullable: true, type: InspectionActorDto })
+  accountant: InspectionActorDto | null;
   @ApiProperty({ nullable: true, type: String, format: "uuid" }) cashHandoffId:
     | string
     | null;
 }
 
 export class InspectionOrderDetailDto extends InspectionOrderDto {
+  @ApiProperty({ nullable: true, type: InspectionActorDto })
+  cook: InspectionActorDto | null;
+  @ApiProperty({ type: [InspectionParticipantDto] })
+  participants: InspectionParticipantDto[];
+  @ApiProperty({
+    description:
+      "Historical technical assignment; actual delivery courier is unknown",
+  })
+  actualCourierUnknown: boolean;
   @ApiProperty() subtotal: number;
   @ApiProperty() latitude: number;
   @ApiProperty() longitude: number;

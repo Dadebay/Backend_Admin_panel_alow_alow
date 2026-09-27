@@ -25,13 +25,21 @@ const order = {
   branchName: "Кухня №1",
   deliveryEtrapName: "Копетдаг",
   cancellationReason: null,
-  courier: null,
+  courier: {
+    id: "44444444-4444-4444-8444-444444444444",
+    firstName: "Марат",
+    lastName: "Доставкин",
+    role: "COURIER",
+  },
 };
 const event = {
   id: eventId,
   action: "order.admin-edited",
   entityType: "Order",
   entityId: orderId,
+  orderId,
+  orderNumber: 520,
+  relatedActors: [],
   createdAt: end,
   actor,
   metadata: {
@@ -168,6 +176,21 @@ async function setup(page: Page) {
       json = {
         ...order,
         version: 2,
+        subtotal: 100,
+        cook: {
+          id: userId,
+          firstName: "Повар",
+          lastName: "Кухни",
+          role: "COOK",
+        },
+        participants: [
+          {
+            actor: { ...actor, firstName: "Анна", role: "ADMIN" },
+            actions: ["order.admin-edited", "order.packing-confirmed"],
+          },
+        ],
+        actualCourierUnknown: true,
+        gifts: [],
         customerPhone: "+99365123456",
         customerName: "Клиент",
         customerNote: "Без лука",
@@ -221,14 +244,23 @@ test("accountant inspects the calendar month, real query parameters, edits and c
 }, testInfo) => {
   const state = await setup(page);
   await page.goto("/accounting?fromDate=2025-02-01&toDate=2025-02-28");
+  await expect(page.getByTestId("inspection-orders")).toContainText(
+    "Заказ №520",
+  );
+  await expect(page.getByTestId("inspection-orders")).toContainText(
+    "Марат Доставкин",
+  );
+  await page.screenshot({
+    path: testInfo.outputPath("orders.png"),
+    fullPage: true,
+  });
+  await page.getByTestId("inspection-tab-overview").click();
   await expect(page.getByTestId("inspection-overview")).toBeVisible();
   expect(
     state.requests.filter((path) => path.startsWith("/accounting/overview?"))
       .length,
   ).toBeLessThanOrEqual(process.env.ADMIN_QA_PRODUCTION === "1" ? 1 : 2);
-  expect(
-    state.requests.some((path) => path.startsWith("/accounting/orders")),
-  ).toBe(false);
+
   await page.getByTestId("accounting-month").fill("2024-02");
   await page.getByTestId("accounting-month-apply").click();
   await expect
@@ -238,7 +270,13 @@ test("accountant inspects the calendar month, real query parameters, edits and c
       ),
     )
     .toBe(true);
-  await page.getByTestId("inspection-day-2025-02-01").click();
+  await expect(page.getByTestId("inspection-orders-chart")).toBeVisible();
+  await expect(page.getByTestId("inspection-revenue-chart")).toBeVisible();
+  await page.screenshot({
+    path: testInfo.outputPath("monthly-charts.png"),
+    fullPage: true,
+  });
+  await page.getByTestId("inspection-chart-day").selectOption("2025-02-01");
   await expect
     .poll(() =>
       state.requests.some((path) =>
@@ -246,6 +284,7 @@ test("accountant inspects the calendar month, real query parameters, edits and c
       ),
     )
     .toBe(true);
+  await page.getByTestId("inspection-tab-shifts").click();
   await page.getByTestId("accounting-inspect-2025-02-01:first").click();
   await expect(page.getByTestId("inspection-shift")).toHaveValue(
     "2025-02-01:first",
@@ -258,6 +297,24 @@ test("accountant inspects the calendar month, real query parameters, edits and c
   await expect(page.getByTestId("inspection-order-detail")).toContainText(
     "готовка 520 мин.",
   );
+  await expect(page.getByTestId("inspection-participants")).toContainText(
+    "Марат Доставкин",
+  );
+  await expect(page.getByTestId("inspection-participants")).toContainText(
+    "Анна",
+  );
+  await expect(page.getByTestId("inspection-participants")).toContainText(
+    "Кто доставил фактически — неизвестно",
+  );
+  await expect(page.getByTestId("inspection-order-detail")).toHaveJSProperty(
+    "open",
+    true,
+  );
+  expect(
+    (await page.getByTestId("inspection-order-detail").boundingBox())?.y,
+  ).toBe(0);
+  await page.screenshot({ path: testInfo.outputPath("order-details.png") });
+  await page.getByTestId("inspection-history-tab").click();
   await page.getByTestId(`inspection-event-expand-${eventId}`).click();
   await expect(page.getByTestId("inspection-order-detail")).toContainText(
     "Старый адрес",
@@ -265,7 +322,8 @@ test("accountant inspects the calendar month, real query parameters, edits and c
   await expect(page.getByTestId("inspection-order-detail")).toContainText(
     "Новый адрес",
   );
-  await page.getByTestId("inspection-order-close").click();
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("inspection-order-detail")).toHaveCount(0);
   await page.getByTestId("inspection-tab-orders").click();
   await expect(page.getByTestId("inspection-orders")).toBeVisible();
   await page.getByTestId("inspection-orders-next").click();
@@ -277,6 +335,7 @@ test("accountant inspects the calendar month, real query parameters, edits and c
       ),
     )
     .toBe(true);
+  await page.getByTestId("inspection-order-filters").click();
   await page.getByTestId("inspection-order-basis").selectOption("cashReturned");
   await expect
     .poll(() =>
@@ -289,6 +348,12 @@ test("accountant inspects the calendar month, real query parameters, edits and c
   await page.getByTestId("inspection-order-status").selectOption("CANCELLED");
   await expect(page.getByText("Заказы не найдены.")).toBeVisible();
   await page.getByTestId("inspection-tab-audit").click();
+  await expect(page.getByTestId("inspection-audit-list")).toContainText(
+    "Заказ №520",
+  );
+  await expect(page.getByTestId("inspection-audit-list")).not.toContainText(
+    orderId,
+  );
   await page.getByTestId(`inspection-event-expand-${eventId}`).click();
   await expect(page.getByTestId("inspection-audit-list")).toContainText("Было");
   await expect(page.getByTestId("inspection-audit-list")).toContainText(
@@ -325,7 +390,7 @@ test("overview failures can be retried and empty audit is explicit", async ({
       });
     } else await route.fallback();
   });
-  await page.goto("/accounting");
+  await page.goto("/accounting?inspection=overview");
   // Query retries once; the successful result replaces the transient failure.
   await expect(page.getByTestId("inspection-overview")).toBeVisible();
   await page.route("**/api/v1/accounting/audit?**", (route) =>
@@ -335,4 +400,35 @@ test("overview failures can be retried and empty audit is explicit", async ({
   await expect(
     page.getByText("За выбранный период действий нет."),
   ).toBeVisible();
+});
+
+test("narrow phone keeps order numbers, month controls and dialog usable", async ({
+  page,
+}, testInfo) => {
+  const { errors } = await setup(page);
+  await page.setViewportSize({ width: 320, height: 740 });
+  await page.goto("/accounting?fromDate=2025-02-01&toDate=2025-02-28");
+  await expect(
+    page.getByTestId(`inspection-open-order-${orderId}`),
+  ).toBeVisible();
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth + 1,
+    ),
+  ).toBe(true);
+  await page.getByTestId(`inspection-open-order-${orderId}`).click();
+  await expect(page.getByTestId("inspection-participants")).toContainText(
+    "Марат",
+  );
+  expect(
+    await page
+      .getByTestId("inspection-order-detail")
+      .evaluate((el) => el.scrollWidth <= el.clientWidth + 1),
+  ).toBe(true);
+  await page.screenshot({ path: testInfo.outputPath("narrow-order.png") });
+  await page.keyboard.press("Escape");
+  await expect(
+    page.getByTestId(`inspection-open-order-${orderId}`),
+  ).toBeFocused();
+  expect(errors).toEqual([]);
 });

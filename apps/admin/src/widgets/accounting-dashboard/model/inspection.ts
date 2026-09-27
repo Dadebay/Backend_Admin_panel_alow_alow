@@ -70,9 +70,11 @@ export const auditActionLabels: Record<string, string> = {
   "receipt.reprint_requested": "Запрошена повторная печать",
   "receipt.retry_requested": "Повтор отправки чека запрошен",
   "admin_role_page_access.updated": "Права доступа роли изменены",
-  "order.created": "Заказ из приложения",
-  "order.created_by_staff": "Заказ по телефону",
-  "order.historical-completion-requested": "Историческое завершение по поручению владельца",
+  "order.created": "Заказ создан в приложении",
+  "order.created_by_staff": "Заказ оформлен по телефону",
+  "order.historical-completion-requested":
+    "Историческое завершение по поручению владельца",
+  "order.historical-cash-reconciled": "Отмечена ранее сданная оплата",
   "order.admin-edited": "Заказ отредактирован",
   "order.cancelled": "Заказ отменён",
   "order.transitioned": "Статус заказа изменён",
@@ -98,6 +100,10 @@ export const auditActionLabels: Record<string, string> = {
 };
 
 export const auditFieldLabels: Record<string, string> = {
+  actualCashDateUnknown: "Точная дата сдачи неизвестна",
+  historicalCashAlreadySurrendered: "Деньги сданы ранее",
+  actualCourierUnknown: "Фактический курьер неизвестен",
+  cashSettlement: "Расчёт по заказу",
   branchAddress: "Адрес кухни",
   assignedAt: "Назначение курьера",
   deliveredAt: "Доставлено",
@@ -112,8 +118,8 @@ export const auditFieldLabels: Record<string, string> = {
   operatorTakenAt: "Деньги приняты",
   reconciledAt: "Сверено бухгалтером",
   cashHandoffId: "Пакет смены",
-  operatorId: "Принял деньги (ID)",
-  accountantId: "Бухгалтер (ID)",
+  operatorId: "Принял деньги",
+  accountantId: "Бухгалтер",
   before: "До изменения",
   after: "После изменения",
   previous: "До изменения",
@@ -136,9 +142,9 @@ export const auditFieldLabels: Record<string, string> = {
   branchName: "Филиал",
   deliveryEtrapId: "Район (ID)",
   deliveryEtrapName: "Район",
-  courierId: "Курьер (ID)",
-  previousCourierId: "Предыдущий курьер (ID)",
-  cookId: "Повар (ID)",
+  courierId: "Курьер",
+  previousCourierId: "Предыдущий курьер",
+  cookId: "Повар",
   subtotal: "Еда до скидки",
   discount: "Скидка",
   deliveryFee: "Доставка",
@@ -190,4 +196,56 @@ export function auditChanges(metadata: unknown) {
       (key) => JSON.stringify(previous[key]) !== JSON.stringify(current[key]),
     )
     .map((key) => ({ key, before: previous[key], after: current[key] }));
+}
+
+export const personName = (
+  person:
+    | { firstName?: string | null; lastName?: string | null }
+    | null
+    | undefined,
+) =>
+  person
+    ? [person.firstName, person.lastName].filter(Boolean).join(" ") ||
+      "Имя не заполнено"
+    : "Не указан";
+export const evidenceRecord = (value: unknown): Record<string, unknown> =>
+  value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+export const entityLabels: Record<string, string> = {
+  Order: "Заказ",
+  ReceiptPrintTask: "Печать чека",
+  CashHandoff: "Сдача денег за смену",
+  AccountingSettings: "Расписание смен",
+  User: "Сотрудник",
+  Product: "Блюдо",
+  Category: "Категория",
+  Cafe: "Кафе",
+  Branch: "Кухня",
+  PromoCode: "Промокод",
+  Banner: "Баннер",
+  OperationsRequest: "Запрос сотрудника",
+};
+export function actionLabel(action: string) {
+  return auditActionLabels[action] ?? "Изменение записи";
+}
+export function auditSummary(metadata: unknown) {
+  const value = evidenceRecord(metadata),
+    after = evidenceRecord(value.after ?? value.current);
+  const reason =
+    value.reason ??
+    after.cancellationReason ??
+    value.cancellationReason ??
+    value.note;
+  const fields = auditChanges(metadata).filter(
+    (change) => !["version", "updatedAt", "id"].includes(change.key),
+  );
+  const parts = fields.map(
+    (change) => auditFieldLabels[change.key] ?? "Данные записи",
+  );
+  return typeof reason === "string" && reason
+    ? reason
+    : parts.length
+      ? `Изменено: ${parts.join(", ")}`
+      : "Подробности сохранены в истории действия";
 }

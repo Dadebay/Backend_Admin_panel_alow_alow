@@ -50,6 +50,7 @@ export function useAccountingReport(
   fromDate: string,
   toDate: string,
   hasExpandedAccess = false,
+  enabled = true,
 ) {
   const { session, authorizedRequest } = useSession();
   const canView = Boolean(
@@ -68,7 +69,7 @@ export function useAccountingReport(
       authorizedRequest<AccountingReport>(`/accounting/report?${search}`, {
         signal,
       }),
-    enabled: canView,
+    enabled: canView && enabled,
     staleTime: 30_000,
   });
 }

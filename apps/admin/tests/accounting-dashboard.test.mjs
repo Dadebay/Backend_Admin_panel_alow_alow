@@ -35,7 +35,7 @@ test("shift accounting uses the real API with role-scoped report loading", async
 });
 
 test("the screen exposes distinct admin, accountant and super-admin duties", async () => {
-  const source = await readFile(dashboardUrl, "utf8");
+  const source = (await readFile(dashboardUrl, "utf8")) + (await readFile(new URL("../src/widgets/accounting-dashboard/ui/accounting-cash.tsx", import.meta.url), "utf8"));
   assert.match(source, /role === "ADMIN" \|\| role === "SUPER_ADMIN"/);
   assert.match(source, /role === "ACCOUNTANT" \|\| role === "SUPER_ADMIN"/);
   assert.match(source, /role === "SUPER_ADMIN"/);
@@ -46,9 +46,8 @@ test("the screen exposes distinct admin, accountant and super-admin duties", asy
   assert.match(source, /zodResolver\(accountingRangeSchema\)/);
   assert.match(source, /zodResolver\(accountingSettingsSchema\)/);
   assert.match(source, /zodResolver\(cashHandoffSchema\)/);
-  assert.match(source, /Деньги за еду по сменам/);
-  assert.match(source, /Доставка в/);
-  assert.match(source, /бухгалтерскую сумму не входит/);
+  assert.match(source, /Бухгалтерия/);
+  assert.match(source, /Доставка исключена/);
   assert.match(source, /Еда по системе/);
 });
 

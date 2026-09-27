@@ -79,7 +79,7 @@ test("accountant month, shift transfer and audit work against the isolated Nest 
     });
     await route.fulfill({ response });
   });
-  await page.goto("/accounting?fromDate=2025-02-01&toDate=2025-02-28");
+  await page.goto("/accounting?fromDate=2025-02-01&toDate=2025-02-28&inspection=overview");
   await expect(page.getByTestId("inspection-overview")).toContainText("30");
   await expect(page.getByTestId("inspection-overview")).toContainText(
     "Копетдаг",
@@ -111,6 +111,8 @@ test("accountant month, shift transfer and audit work against the isolated Nest 
     "готовка 520 мин.",
   );
   latencies.push(Date.now() - started);
+  await expect(page.getByTestId("inspection-participants")).toContainText("Ахмет");
+  await page.screenshot({path:testInfo.outputPath("real-order.png")});
   await page.getByTestId("inspection-order-close").click();
   await page.getByTestId("inspection-shift").selectOption("2025-02-02:first");
   await page.getByTestId("inspection-tab-out").click();
@@ -127,11 +129,11 @@ test("accountant month, shift transfer and audit work against the isolated Nest 
   await expect(
     page
       .getByTestId("inspection-audit-list")
-      .getByRole("button", { name: "Что произошло" }),
+      .getByRole("button", { name: "Подробнее" }),
   ).toHaveCount(1);
   await page
     .getByTestId("inspection-audit-list")
-    .getByRole("button", { name: "Что произошло" })
+    .getByRole("button", { name: "Подробнее" })
     .click();
   await expect(page.getByTestId("inspection-audit-list")).toContainText(
     "Старый адрес",

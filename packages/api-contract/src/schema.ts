@@ -4783,6 +4783,10 @@ export interface components {
             page: number;
             limit: number;
         };
+        InspectionParticipantDto: {
+            actor: components["schemas"]["InspectionActorDto"];
+            actions: string[];
+        };
         InspectionOrderItemDto: {
             id: string;
             productName: string;
@@ -4823,6 +4827,8 @@ export interface components {
             operatorTakenAt: string | null;
             /** Format: date-time */
             reconciledAt: string | null;
+            operator: components["schemas"]["InspectionActorDto"] | null;
+            accountant: components["schemas"]["InspectionActorDto"] | null;
             /** Format: uuid */
             cashHandoffId: string | null;
         };
@@ -4843,6 +4849,10 @@ export interface components {
             deliveryEtrapName: string | null;
             cancellationReason: string | null;
             courier: components["schemas"]["InspectionActorDto"] | null;
+            cook: components["schemas"]["InspectionActorDto"] | null;
+            participants: components["schemas"]["InspectionParticipantDto"][];
+            /** @description Historical technical assignment; actual delivery courier is unknown */
+            actualCourierUnknown: boolean;
             subtotal: number;
             latitude: number;
             longitude: number;
@@ -4871,6 +4881,9 @@ export interface components {
             settlement: components["schemas"]["InspectionSettlementDto"] | null;
         };
         InspectionAuditDto: {
+            relatedActors: components["schemas"]["InspectionActorDto"][];
+            orderId: string | null;
+            orderNumber: number | null;
             id: string;
             action: string;
             entityType: string;

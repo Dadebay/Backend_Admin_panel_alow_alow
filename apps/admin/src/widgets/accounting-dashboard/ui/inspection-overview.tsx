@@ -1,4 +1,9 @@
-import type { InspectionOverview } from "@/src/entities/accounting";
+import {
+  useAccountingReport,
+  type InspectionOverview,
+} from "@/src/entities/accounting";
+import { AsyncPanel } from "@/src/shared/ui";
+import { DailyChart } from "./inspection-daily-chart";
 import { inspectionMoney } from "../model/inspection";
 
 function Ranking({
@@ -41,12 +46,21 @@ function Ranking({
 export function InspectionOverviewPanel({
   data,
   onSelectDay,
+  fromDate,
+  toDate,
+  showRevenue,
 }: {
   data: InspectionOverview;
-  onSelectDay: (date: string) => void;
+  onSelectDay: (date: string, basis?: "created" | "cashReturned") => void;
+  fromDate: string;
+  toDate: string;
+  showRevenue: boolean;
 }) {
   const { summary } = data;
-  const max = Math.max(1, ...data.daily.map((day) => day.orders));
+  const report = useAccountingReport(fromDate, toDate, false, showRevenue);
+  const amounts = new Map(
+    report.data?.daily.map((day) => [day.date, day.amount]) ?? [],
+  );
   return (
     <div data-testid="inspection-overview">
       <div className="accounting-metrics inspection-metrics">
@@ -68,50 +82,42 @@ export function InspectionOverviewPanel({
           <small>Доставлено, деньги ещё не вернули</small>
           <strong>{inspectionMoney(summary.deliveredUnreturnedAmount)}</strong>
         </article>
-        <article>
-          <small>Редактирований в течение периода</small>
-          <strong>{summary.editEvents}</strong>
-        </article>
-        <article>
-          <small>Действий отмены в течение периода</small>
-          <strong>{summary.cancellationEvents}</strong>
-        </article>
+      </div>
+      <div className="inspection-chart-grid">
+        <DailyChart
+          title="Заказы по дням"
+          unit="заказов"
+          rows={data.daily.map((day) => ({
+            date: day.date,
+            value: day.orders,
+            secondary: day.cancelled,
+          }))}
+          onSelectDay={onSelectDay}
+        />
+        {showRevenue && (
+          <AsyncPanel
+            pending={report.isPending}
+            error={report.error}
+            onRetry={() => void report.refetch()}
+          >
+            {report.data && (
+              <DailyChart
+                title="Получено денег за еду"
+                unit="TMT"
+                rows={data.daily.map((day) => ({
+                  date: day.date,
+                  value: amounts.get(day.date) ?? 0,
+                }))}
+                onSelectDay={(date) => onSelectDay(date, "cashReturned")}
+              />
+            )}
+          </AsyncPanel>
+        )}
       </div>
       <p className="muted-text">
-        Заказы и спрос считаются по времени создания. Отмены и редактирования
-        как действия — по времени действия, включая заказы прошлых смен. Деньги
-        к сдаче считаются по времени возврата денег и показаны в пакетах смен.
+        Заказы — по дате создания. Деньги — по фактическому возврату, без
+        доставки. Для просмотра заказов выберите день под графиком.
       </p>
-      <section className="inspection-chart">
-        <h3>Заказы и отмены по дням</h3>
-        <p className="muted-text">
-          Нажмите на дату, чтобы проверить заказы и действия за этот день.
-        </p>
-        <div className="inspection-days">
-          {data.daily.map((day) => (
-            <div key={day.date}>
-              <button
-                type="button"
-                className="inspection-day-button"
-                data-testid={`inspection-day-${day.date}`}
-                onClick={() => onSelectDay(day.date)}
-                aria-label={`Проверить день ${day.date}`}
-              >
-                <time dateTime={day.date}>{day.date}</time>
-              </button>
-              <meter
-                min={0}
-                max={max}
-                value={day.orders}
-                aria-label={`${day.date}: заказов ${day.orders}, отмен ${day.cancelled}`}
-              />
-              <span>
-                {day.orders} заказов · {day.cancelled} отмен
-              </span>
-            </div>
-          ))}
-        </div>
-      </section>
       <div className="inspection-chart-grid">
         <Ranking title="Районы доставки" rows={data.districts} money />
         <Ranking title="Филиалы приготовления" rows={data.branches} money />
@@ -135,6 +141,10 @@ export function InspectionOverviewPanel({
           money
         />
       </div>
+      <p className="muted-text">
+        За период: {summary.editEvents} редактирований и{" "}
+        {summary.cancellationEvents} действий отмены.
+      </p>
       <p className="muted-text">
         Популярность — количество порций в неотменённых заказах. В «реже» входят
         блюда, которые хотя бы раз заказали за период. Переименование блюда

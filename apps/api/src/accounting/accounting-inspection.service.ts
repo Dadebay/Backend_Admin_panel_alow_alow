@@ -475,6 +475,7 @@ export class AccountingInspectionService {
       where: { id },
       select: {
         ...orderSelect,
+        cook: { select: actorSelect },
         version: true,
         customerNote: true,
         subtotal: true,
@@ -516,13 +517,63 @@ export class AccountingInspectionService {
           },
           orderBy: [{ createdAt: "asc" }, { id: "asc" }],
         },
-        cashSettlement: true,
+        cashSettlement: {
+          include: {
+            operator: { select: actorSelect },
+            accountant: { select: actorSelect },
+          },
+        },
       },
     });
     if (!order) throw new NotFoundException("Order not found");
+    const events = await this.prisma.auditLog.findMany({
+      where: { entityType: "Order", entityId: id },
+      select: { action: true, actor: { select: actorSelect } },
+      distinct: ["actorId", "action"],
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+    });
+    const participants = new Map<
+      string,
+      {
+        actor: NonNullable<(typeof events)[number]["actor"]>;
+        actions: string[];
+      }
+    >();
+    for (const event of events) {
+      if (!event.actor) continue;
+      const entry = participants.get(event.actor.id) ?? {
+        actor: event.actor,
+        actions: [],
+      };
+      if (!entry.actions.includes(event.action))
+        entry.actions.push(event.action);
+      participants.set(event.actor.id, entry);
+    }
+    for (const event of order.transitions) {
+      const entry = participants.get(event.actor.id) ?? {
+        actor: event.actor,
+        actions: [],
+      };
+      const action = `transition:${event.toStatus}`;
+      if (!entry.actions.includes(action)) entry.actions.push(action);
+      participants.set(event.actor.id, entry);
+    }
+    const actualCourierUnknown = Boolean(
+      await this.prisma.auditLog.findFirst({
+        where: {
+          entityType: "Order",
+          entityId: id,
+          action: "order.historical-completion-requested",
+          metadata: { path: ["actualCourierUnknown"], equals: true },
+        },
+        select: { id: true },
+      }),
+    );
     const { customer, cashSettlement, ...fields } = order;
     return toApiResponse({
       ...fields,
+      participants: [...participants.values()],
+      actualCourierUnknown,
       foodAmount: foodAmount(order.total, order.deliveryFee),
       customerPhone: customer.phone,
       customerName: [customer.firstName, customer.lastName]
@@ -600,9 +651,72 @@ export class AccountingInspectionService {
           }),
           tx.auditLog.count({ where }),
         ]);
+        // Resolve labels in batches for this page, including legacy events without snapshots.
+        const receiptEvents = items.filter(
+          (event) => event.entityType === "ReceiptPrintTask" && event.entityId,
+        );
+        const receipts = await tx.receiptPrintTask.findMany({
+          where: { id: { in: receiptEvents.map((event) => event.entityId!) } },
+          select: { id: true, orderId: true },
+        });
+        const receiptOrders = new Map(
+          receipts.map((receipt) => [receipt.id, receipt.orderId]),
+        );
+        const eventOrderId = (event: (typeof items)[number]) =>
+          event.entityType === "Order"
+            ? event.entityId
+            : event.entityType === "ReceiptPrintTask"
+              ? (receiptOrders.get(event.entityId ?? "") ?? null)
+              : null;
+        const orderIds = items
+          .map(eventOrderId)
+          .filter((id): id is string =>
+            Boolean(
+              id &&
+              /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+                id,
+              ),
+            ),
+          );
+        const orders = await tx.order.findMany({
+          where: { id: { in: orderIds } },
+          select: { id: true, number: true },
+        });
+        const orderNumbers = new Map(
+          orders.map((order) => [order.id, order.number]),
+        );
+        const relatedIds = (value: Prisma.JsonValue): string[] => {
+          if (!value || typeof value !== "object") return [];
+          if (Array.isArray(value)) return value.flatMap(relatedIds);
+          return Object.entries(value).flatMap(([key, item]) =>
+            /^(courierId|previousCourierId|cookId|operatorId|accountantId|technicalCourierId)$/.test(
+              key,
+            ) &&
+            typeof item === "string" &&
+            /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+              item,
+            )
+              ? [item]
+              : relatedIds(item ?? null),
+          );
+        };
+        const references = new Map(
+          items.map((event) => [event.id, relatedIds(event.metadata)]),
+        );
+        const people = await tx.user.findMany({
+          where: { id: { in: [...new Set([...references.values()].flat())] } },
+          select: actorSelect,
+        });
         return toApiResponse({
           items: items.map((event) => ({
             ...event,
+            orderId: orderNumbers.has(eventOrderId(event) ?? "")
+              ? eventOrderId(event)
+              : null,
+            orderNumber: orderNumbers.get(eventOrderId(event) ?? "") ?? null,
+            relatedActors: people.filter((person) =>
+              references.get(event.id)?.includes(person.id),
+            ),
             metadata: sanitizeAudit(event.metadata),
           })),
           total,

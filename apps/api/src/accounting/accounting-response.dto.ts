@@ -114,6 +114,12 @@ export class AccountingShiftResponseDto {
 }
 
 export class AccountingReportSummaryResponseDto {
+  @ApiProperty({ description: "Sum of declared cash for packets whose shift starts in the period" })
+  declaredHandoffAmount: number;
+
+  @ApiProperty({ description: "Declared minus expected cash for packets whose shift starts in the period; negative means shortage" })
+  handoffDiscrepancy: number;
+
   @ApiProperty()
   collectedAmount: number;
 

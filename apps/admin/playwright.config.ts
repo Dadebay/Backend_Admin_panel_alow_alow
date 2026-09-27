@@ -10,5 +10,5 @@ export default defineConfig({
       { name: `${browserName}-mobile`, use: { browserName, viewport: { width: 390, height: 844 }, isMobile: browserName !== "firefox" } },
     ]),
   ],
-  webServer: { command: "npm run dev -- --host 127.0.0.1 --port 4174 --strictPort", url: "http://127.0.0.1:4174", reuseExistingServer: false, env: { VITE_API_URL: "/api/v1" }, timeout: 60_000 },
+  webServer: { command: process.env.ADMIN_QA_PRODUCTION === "1" ? "npm run preview -- --host 127.0.0.1 --port 4174 --strictPort" : "npm run dev -- --host 127.0.0.1 --port 4174 --strictPort", url: "http://127.0.0.1:4174", reuseExistingServer: false, env: { VITE_API_URL: "/api/v1" }, timeout: 60_000 },
 });

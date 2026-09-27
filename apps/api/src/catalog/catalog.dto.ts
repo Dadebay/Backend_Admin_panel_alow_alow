@@ -380,13 +380,13 @@ export class CreateProductDto {
 
   @ApiPropertyOptional({
     minimum: 0,
-    maximum: 240,
+    maximum: 1440,
     description: "Preparation time in minutes",
   })
   @IsOptional()
   @IsInt()
   @Min(0)
-  @Max(240)
+  @Max(1440)
   preparationMinutes?: number;
 
   @ApiPropertyOptional({ minimum: 1, maximum: 100000, description: "Points earned for each ordered unit after delivery" })

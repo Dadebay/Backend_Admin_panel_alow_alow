@@ -1985,8 +1985,110 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get cash totals, handoffs, daily series and super-admin product analytics */
+        /** Get cash totals, handoffs, daily series and accountant/owner product analytics */
         get: operations["AccountingController_report_v1"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/accounting/carryover": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Unfinished orders entering/leaving a shift, reconstructed at its boundary; cancelled and cash-returned orders are excluded */
+        get: operations["AccountingInspectionController_carryover_v1"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/accounting/overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read shift/date order counts, cancellations, demand and location analytics (accountant/owner only) */
+        get: operations["AccountingInspectionController_overview_v1"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/accounting/orders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Inspect orders created in a shift/date interval; read only */
+        get: operations["AccountingInspectionController_orders_v1"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/accounting/orders/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Inspect order contents, customer, cash and status history; read only */
+        get: operations["AccountingInspectionController_order_v1"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/accounting/orders/{id}/audit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Paginated lifetime order audit, independent of selected date interval */
+        get: operations["AccountingInspectionController_orderAudit_v1"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/accounting/audit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read persisted audit actions across admin domains, by event time, actor, action and entity */
+        get: operations["AccountingInspectionController_audit_v1"];
         put?: never;
         post?: never;
         delete?: never;
@@ -4543,6 +4645,10 @@ export interface components {
             note?: string;
         };
         AccountingReportSummaryResponseDto: {
+            /** @description Sum of declared cash for packets whose shift starts in the period */
+            declaredHandoffAmount: number;
+            /** @description Declared minus expected cash for packets whose shift starts in the period; negative means shortage */
+            handoffDiscrepancy: number;
             collectedAmount: number;
             completedOrders: number;
             averageOrderAmount: number;
@@ -4572,6 +4678,216 @@ export interface components {
             daily: components["schemas"]["AccountingDailyResponseDto"][];
             handoffs: components["schemas"]["CashHandoffResponseDto"][];
             popularProducts: components["schemas"]["AccountingPopularProductResponseDto"][];
+        };
+        InspectionActorDto: {
+            id: string;
+            firstName: string | null;
+            lastName: string | null;
+            /** @enum {string} */
+            role: "CUSTOMER" | "OPERATOR" | "COOK" | "COURIER" | "ACCOUNTANT" | "ADMIN" | "SUPER_ADMIN";
+        };
+        InspectionCarryoverOrderDto: {
+            id: string;
+            number: number;
+            /** @enum {string} */
+            status: "COOKING" | "READY" | "ASSIGNED_TO_COURIER" | "OUT_FOR_DELIVERY" | "DELIVERED" | "CASH_RETURNED" | "RECONCILED" | "CANCELLED";
+            source: string;
+            /** Format: date-time */
+            createdAt: string;
+            total: number;
+            discount: number;
+            deliveryFee: number;
+            foodAmount: number;
+            address: string;
+            branchName: string | null;
+            deliveryEtrapName: string | null;
+            cancellationReason: string | null;
+            courier: components["schemas"]["InspectionActorDto"] | null;
+            /** @enum {string} */
+            statusAtBoundary: "COOKING" | "READY" | "ASSIGNED_TO_COURIER" | "OUT_FOR_DELIVERY" | "DELIVERED" | "CASH_RETURNED" | "RECONCILED" | "CANCELLED";
+            /** @description False when a legacy edit prevents exact reconstruction of historical contents */
+            historicalSnapshotAvailable: boolean;
+            snapshot: {
+                [key: string]: unknown;
+            } | null;
+        };
+        InspectionCarryoverPageDto: {
+            items: components["schemas"]["InspectionCarryoverOrderDto"][];
+            total: number;
+            page: number;
+            limit: number;
+            /** Format: date-time */
+            boundary: string;
+            /** @description For an unfinished shift, outgoing work is a live projection, not a final handoff */
+            isProvisional: boolean;
+        };
+        InspectionSummaryDto: {
+            createdOrders: number;
+            cancelledOrders: number;
+            cancellationRate: number;
+            orderedFoodAmount: number;
+            deliveredUnreturnedAmount: number;
+            cancellationEvents: number;
+            editEvents: number;
+        };
+        InspectionGroupDto: {
+            name: string;
+            count: number;
+            foodAmount: number;
+        };
+        InspectionProductDto: {
+            productId: string;
+            name: string;
+            quantity: number;
+        };
+        InspectionDailyDto: {
+            date: string;
+            orders: number;
+            cancelled: number;
+        };
+        InspectionOverviewDto: {
+            /** Format: date-time */
+            periodStart: string;
+            /** Format: date-time */
+            periodEnd: string;
+            timeZone: string;
+            summary: components["schemas"]["InspectionSummaryDto"];
+            districts: components["schemas"]["InspectionGroupDto"][];
+            branches: components["schemas"]["InspectionGroupDto"][];
+            cancellationReasons: components["schemas"]["InspectionGroupDto"][];
+            mostOrderedProducts: components["schemas"]["InspectionProductDto"][];
+            leastOrderedProducts: components["schemas"]["InspectionProductDto"][];
+            daily: components["schemas"]["InspectionDailyDto"][];
+        };
+        InspectionOrderDto: {
+            id: string;
+            number: number;
+            /** @enum {string} */
+            status: "COOKING" | "READY" | "ASSIGNED_TO_COURIER" | "OUT_FOR_DELIVERY" | "DELIVERED" | "CASH_RETURNED" | "RECONCILED" | "CANCELLED";
+            source: string;
+            /** Format: date-time */
+            createdAt: string;
+            total: number;
+            discount: number;
+            deliveryFee: number;
+            foodAmount: number;
+            address: string;
+            branchName: string | null;
+            deliveryEtrapName: string | null;
+            cancellationReason: string | null;
+            courier: components["schemas"]["InspectionActorDto"] | null;
+        };
+        InspectionOrdersPageDto: {
+            items: components["schemas"]["InspectionOrderDto"][];
+            total: number;
+            page: number;
+            limit: number;
+        };
+        InspectionOrderItemDto: {
+            id: string;
+            productName: string;
+            variantName: string | null;
+            quantity: number;
+            unitPrice: number;
+            lineTotal: number;
+            preparationMinutes: number;
+        };
+        InspectionTransitionDto: {
+            id: string;
+            /** @enum {string} */
+            fromStatus: "COOKING" | "READY" | "ASSIGNED_TO_COURIER" | "OUT_FOR_DELIVERY" | "DELIVERED" | "CASH_RETURNED" | "RECONCILED" | "CANCELLED";
+            /** @enum {string} */
+            toStatus: "COOKING" | "READY" | "ASSIGNED_TO_COURIER" | "OUT_FOR_DELIVERY" | "DELIVERED" | "CASH_RETURNED" | "RECONCILED" | "CANCELLED";
+            /** Format: date-time */
+            createdAt: string;
+            note: string | null;
+            actor: components["schemas"]["InspectionActorDto"];
+        };
+        InspectionSettlementDto: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            orderId: string;
+            /** Format: uuid */
+            courierId: string;
+            /** Format: uuid */
+            operatorId: string | null;
+            /** Format: uuid */
+            accountantId: string | null;
+            amount: number;
+            /** @enum {string} */
+            status: "RECORDED" | "CONFIRMED" | "RECONCILED";
+            /** Format: date-time */
+            courierGivenAt: string;
+            /** Format: date-time */
+            operatorTakenAt: string | null;
+            /** Format: date-time */
+            reconciledAt: string | null;
+            /** Format: uuid */
+            cashHandoffId: string | null;
+        };
+        InspectionOrderDetailDto: {
+            id: string;
+            number: number;
+            /** @enum {string} */
+            status: "COOKING" | "READY" | "ASSIGNED_TO_COURIER" | "OUT_FOR_DELIVERY" | "DELIVERED" | "CASH_RETURNED" | "RECONCILED" | "CANCELLED";
+            source: string;
+            /** Format: date-time */
+            createdAt: string;
+            total: number;
+            discount: number;
+            deliveryFee: number;
+            foodAmount: number;
+            address: string;
+            branchName: string | null;
+            deliveryEtrapName: string | null;
+            cancellationReason: string | null;
+            courier: components["schemas"]["InspectionActorDto"] | null;
+            subtotal: number;
+            latitude: number;
+            longitude: number;
+            entrance: string | null;
+            floor: string | null;
+            apartment: string | null;
+            branchAddress: string | null;
+            /** Format: date-time */
+            assignedAt: string | null;
+            /** Format: date-time */
+            deliveredAt: string | null;
+            /** Format: date-time */
+            completedAt: string | null;
+            /** Format: date-time */
+            packingConfirmedAt: string | null;
+            gifts: components["schemas"]["OrderGiftResponseDto"][];
+            rating: components["schemas"]["OrderRatingResponseDto"] | null;
+            loyaltyPointsEarned: number;
+            loyaltyPointsSpent: number;
+            version: number;
+            customerPhone: string;
+            customerName: string;
+            customerNote: string | null;
+            items: components["schemas"]["InspectionOrderItemDto"][];
+            transitions: components["schemas"]["InspectionTransitionDto"][];
+            settlement: components["schemas"]["InspectionSettlementDto"] | null;
+        };
+        InspectionAuditDto: {
+            id: string;
+            action: string;
+            entityType: string;
+            entityId: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            actor: components["schemas"]["InspectionActorDto"] | null;
+            /** @description Sanitized persisted domain evidence. Legacy events may lack before/after snapshots. */
+            metadata: {
+                [key: string]: unknown;
+            } | null;
+        };
+        InspectionAuditPageDto: {
+            items: components["schemas"]["InspectionAuditDto"][];
+            total: number;
+            page: number;
+            limit: number;
         };
         PublicAppVersionResponseDto: {
             /** @example 1.4.0 */
@@ -7773,6 +8089,166 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AccountingReportResponseDto"];
+                };
+            };
+        };
+    };
+    AccountingInspectionController_carryover_v1: {
+        parameters: {
+            query?: {
+                fromDate?: string;
+                toDate?: string;
+                /** @description Overrides calendar dates; submitted shifts use their frozen boundaries */
+                shiftKey?: string;
+                page?: components["schemas"]["Object"];
+                limit?: components["schemas"]["Object"];
+                direction?: "in" | "out";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InspectionCarryoverPageDto"];
+                };
+            };
+        };
+    };
+    AccountingInspectionController_overview_v1: {
+        parameters: {
+            query?: {
+                fromDate?: string;
+                toDate?: string;
+                /** @description Overrides calendar dates; submitted shifts use their frozen boundaries */
+                shiftKey?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InspectionOverviewDto"];
+                };
+            };
+        };
+    };
+    AccountingInspectionController_orders_v1: {
+        parameters: {
+            query?: {
+                fromDate?: string;
+                toDate?: string;
+                /** @description Overrides calendar dates; submitted shifts use their frozen boundaries */
+                shiftKey?: string;
+                page?: components["schemas"]["Object"];
+                limit?: components["schemas"]["Object"];
+                /** @description Select by creation time or cash return time; submitted shifts use frozen packet membership */
+                basis?: "created" | "cashReturned";
+                status?: "COOKING" | "READY" | "ASSIGNED_TO_COURIER" | "OUT_FOR_DELIVERY" | "DELIVERED" | "CASH_RETURNED" | "RECONCILED" | "CANCELLED";
+                number?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InspectionOrdersPageDto"];
+                };
+            };
+        };
+    };
+    AccountingInspectionController_order_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InspectionOrderDetailDto"];
+                };
+            };
+        };
+    };
+    AccountingInspectionController_orderAudit_v1: {
+        parameters: {
+            query?: {
+                fromDate?: string;
+                toDate?: string;
+                /** @description Overrides calendar dates; submitted shifts use their frozen boundaries */
+                shiftKey?: string;
+                page?: components["schemas"]["Object"];
+                limit?: components["schemas"]["Object"];
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InspectionAuditPageDto"];
+                };
+            };
+        };
+    };
+    AccountingInspectionController_audit_v1: {
+        parameters: {
+            query?: {
+                fromDate?: string;
+                toDate?: string;
+                /** @description Overrides calendar dates; submitted shifts use their frozen boundaries */
+                shiftKey?: string;
+                page?: components["schemas"]["Object"];
+                limit?: components["schemas"]["Object"];
+                actorId?: string;
+                /** @description Exact audit action */
+                action?: string;
+                entityType?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InspectionAuditPageDto"];
                 };
             };
         };

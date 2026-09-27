@@ -285,7 +285,7 @@ describe("shift cash handoffs and accounting reports", () => {
     ).toBe(true);
   });
 
-  it("shows financial data to accountants and product analytics only to super admins", async () => {
+  it("shows financial data to accountants and product analytics to accountants and super admins", async () => {
     const accountant = await request(server)
       .get("/api/v1/accounting/report?fromDate=2026-08-20&toDate=2026-08-20")
       .set(bearer(tokens.accountant))
@@ -296,8 +296,10 @@ describe("shift cash handoffs and accounting reports", () => {
       completedOrders: 2,
       confirmedAmount: 250,
       outstandingAmount: 0,
+      declaredHandoffAmount: 249,
+      handoffDiscrepancy: -1,
     });
-    expect(accountantReport.popularProducts).toEqual([]);
+    expect(accountantReport.popularProducts[0]).toMatchObject({ quantity: 3, revenue: 250 });
 
     const superAdmin = await request(server)
       .get("/api/v1/accounting/report?fromDate=2026-08-20&toDate=2026-08-20")

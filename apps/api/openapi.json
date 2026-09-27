@@ -5276,7 +5276,534 @@
             "bearer": []
           }
         ],
-        "summary": "Get cash totals, handoffs, daily series and super-admin product analytics",
+        "summary": "Get cash totals, handoffs, daily series and accountant/owner product analytics",
+        "tags": [
+          "accounting"
+        ]
+      }
+    },
+    "/api/v1/accounting/carryover": {
+      "get": {
+        "operationId": "AccountingInspectionController_carryover_v1",
+        "parameters": [
+          {
+            "name": "fromDate",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "example": "2026-08-20",
+              "type": "string"
+            }
+          },
+          {
+            "name": "toDate",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "example": "2026-08-26",
+              "type": "string"
+            }
+          },
+          {
+            "name": "shiftKey",
+            "required": false,
+            "in": "query",
+            "description": "Overrides calendar dates; submitted shifts use their frozen boundaries",
+            "schema": {
+              "example": "2026-09-27:second",
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100000,
+              "default": 1,
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/Object"
+                }
+              ]
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25,
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/Object"
+                }
+              ]
+            }
+          },
+          {
+            "name": "direction",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": "out",
+              "type": "string",
+              "enum": [
+                "in",
+                "out"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InspectionCarryoverPageDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Unfinished orders entering/leaving a shift, reconstructed at its boundary; cancelled and cash-returned orders are excluded",
+        "tags": [
+          "accounting"
+        ]
+      }
+    },
+    "/api/v1/accounting/overview": {
+      "get": {
+        "operationId": "AccountingInspectionController_overview_v1",
+        "parameters": [
+          {
+            "name": "fromDate",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "example": "2026-08-20",
+              "type": "string"
+            }
+          },
+          {
+            "name": "toDate",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "example": "2026-08-26",
+              "type": "string"
+            }
+          },
+          {
+            "name": "shiftKey",
+            "required": false,
+            "in": "query",
+            "description": "Overrides calendar dates; submitted shifts use their frozen boundaries",
+            "schema": {
+              "example": "2026-09-27:second",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InspectionOverviewDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Read shift/date order counts, cancellations, demand and location analytics (accountant/owner only)",
+        "tags": [
+          "accounting"
+        ]
+      }
+    },
+    "/api/v1/accounting/orders": {
+      "get": {
+        "operationId": "AccountingInspectionController_orders_v1",
+        "parameters": [
+          {
+            "name": "fromDate",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "example": "2026-08-20",
+              "type": "string"
+            }
+          },
+          {
+            "name": "toDate",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "example": "2026-08-26",
+              "type": "string"
+            }
+          },
+          {
+            "name": "shiftKey",
+            "required": false,
+            "in": "query",
+            "description": "Overrides calendar dates; submitted shifts use their frozen boundaries",
+            "schema": {
+              "example": "2026-09-27:second",
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100000,
+              "default": 1,
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/Object"
+                }
+              ]
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25,
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/Object"
+                }
+              ]
+            }
+          },
+          {
+            "name": "basis",
+            "required": false,
+            "in": "query",
+            "description": "Select by creation time or cash return time; submitted shifts use frozen packet membership",
+            "schema": {
+              "default": "created",
+              "type": "string",
+              "enum": [
+                "created",
+                "cashReturned"
+              ]
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "COOKING",
+                "READY",
+                "ASSIGNED_TO_COURIER",
+                "OUT_FOR_DELIVERY",
+                "DELIVERED",
+                "CASH_RETURNED",
+                "RECONCILED",
+                "CANCELLED"
+              ]
+            }
+          },
+          {
+            "name": "number",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 2147483647,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InspectionOrdersPageDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Inspect orders created in a shift/date interval; read only",
+        "tags": [
+          "accounting"
+        ]
+      }
+    },
+    "/api/v1/accounting/orders/{id}": {
+      "get": {
+        "operationId": "AccountingInspectionController_order_v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InspectionOrderDetailDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Inspect order contents, customer, cash and status history; read only",
+        "tags": [
+          "accounting"
+        ]
+      }
+    },
+    "/api/v1/accounting/orders/{id}/audit": {
+      "get": {
+        "operationId": "AccountingInspectionController_orderAudit_v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "fromDate",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "example": "2026-08-20",
+              "type": "string"
+            }
+          },
+          {
+            "name": "toDate",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "example": "2026-08-26",
+              "type": "string"
+            }
+          },
+          {
+            "name": "shiftKey",
+            "required": false,
+            "in": "query",
+            "description": "Overrides calendar dates; submitted shifts use their frozen boundaries",
+            "schema": {
+              "example": "2026-09-27:second",
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100000,
+              "default": 1,
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/Object"
+                }
+              ]
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25,
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/Object"
+                }
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InspectionAuditPageDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Paginated lifetime order audit, independent of selected date interval",
+        "tags": [
+          "accounting"
+        ]
+      }
+    },
+    "/api/v1/accounting/audit": {
+      "get": {
+        "operationId": "AccountingInspectionController_audit_v1",
+        "parameters": [
+          {
+            "name": "fromDate",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "example": "2026-08-20",
+              "type": "string"
+            }
+          },
+          {
+            "name": "toDate",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "example": "2026-08-26",
+              "type": "string"
+            }
+          },
+          {
+            "name": "shiftKey",
+            "required": false,
+            "in": "query",
+            "description": "Overrides calendar dates; submitted shifts use their frozen boundaries",
+            "schema": {
+              "example": "2026-09-27:second",
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100000,
+              "default": 1,
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/Object"
+                }
+              ]
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25,
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/Object"
+                }
+              ]
+            }
+          },
+          {
+            "name": "actorId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "action",
+            "required": false,
+            "in": "query",
+            "description": "Exact audit action",
+            "schema": {
+              "maxLength": 120,
+              "type": "string"
+            }
+          },
+          {
+            "name": "entityType",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InspectionAuditPageDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Read persisted audit actions across admin domains, by event time, actor, action and entity",
         "tags": [
           "accounting"
         ]
@@ -6996,7 +7523,7 @@
           "preparationMinutes": {
             "type": "number",
             "minimum": 0,
-            "maximum": 240,
+            "maximum": 1440,
             "description": "Preparation time in minutes"
           },
           "loyaltyPoints": {
@@ -7088,7 +7615,7 @@
           "preparationMinutes": {
             "type": "number",
             "minimum": 0,
-            "maximum": 240,
+            "maximum": 1440,
             "description": "Preparation time in minutes"
           },
           "loyaltyPoints": {
@@ -13628,6 +14155,14 @@
       "AccountingReportSummaryResponseDto": {
         "type": "object",
         "properties": {
+          "declaredHandoffAmount": {
+            "type": "number",
+            "description": "Sum of declared cash for packets whose shift starts in the period"
+          },
+          "handoffDiscrepancy": {
+            "type": "number",
+            "description": "Declared minus expected cash for packets whose shift starts in the period; negative means shortage"
+          },
           "collectedAmount": {
             "type": "number"
           },
@@ -13654,6 +14189,8 @@
           }
         },
         "required": [
+          "declaredHandoffAmount",
+          "handoffDiscrepancy",
           "collectedAmount",
           "completedOrders",
           "averageOrderAmount",
@@ -13749,6 +14286,888 @@
           "daily",
           "handoffs",
           "popularProducts"
+        ]
+      },
+      "InspectionActorDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "firstName": {
+            "type": "string",
+            "nullable": true
+          },
+          "lastName": {
+            "type": "string",
+            "nullable": true
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "CUSTOMER",
+              "OPERATOR",
+              "COOK",
+              "COURIER",
+              "ACCOUNTANT",
+              "ADMIN",
+              "SUPER_ADMIN"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "firstName",
+          "lastName",
+          "role"
+        ]
+      },
+      "InspectionCarryoverOrderDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "number": {
+            "type": "number"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "COOKING",
+              "READY",
+              "ASSIGNED_TO_COURIER",
+              "OUT_FOR_DELIVERY",
+              "DELIVERED",
+              "CASH_RETURNED",
+              "RECONCILED",
+              "CANCELLED"
+            ]
+          },
+          "source": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "total": {
+            "type": "number"
+          },
+          "discount": {
+            "type": "number"
+          },
+          "deliveryFee": {
+            "type": "number"
+          },
+          "foodAmount": {
+            "type": "number"
+          },
+          "address": {
+            "type": "string"
+          },
+          "branchName": {
+            "type": "string",
+            "nullable": true
+          },
+          "deliveryEtrapName": {
+            "type": "string",
+            "nullable": true
+          },
+          "cancellationReason": {
+            "type": "string",
+            "nullable": true
+          },
+          "courier": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/InspectionActorDto"
+              }
+            ]
+          },
+          "statusAtBoundary": {
+            "type": "string",
+            "enum": [
+              "COOKING",
+              "READY",
+              "ASSIGNED_TO_COURIER",
+              "OUT_FOR_DELIVERY",
+              "DELIVERED",
+              "CASH_RETURNED",
+              "RECONCILED",
+              "CANCELLED"
+            ]
+          },
+          "historicalSnapshotAvailable": {
+            "type": "boolean",
+            "description": "False when a legacy edit prevents exact reconstruction of historical contents"
+          },
+          "snapshot": {
+            "type": "object",
+            "additionalProperties": true,
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "number",
+          "status",
+          "source",
+          "createdAt",
+          "total",
+          "discount",
+          "deliveryFee",
+          "foodAmount",
+          "address",
+          "branchName",
+          "deliveryEtrapName",
+          "cancellationReason",
+          "courier",
+          "statusAtBoundary",
+          "historicalSnapshotAvailable",
+          "snapshot"
+        ]
+      },
+      "InspectionCarryoverPageDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InspectionCarryoverOrderDto"
+            }
+          },
+          "total": {
+            "type": "number"
+          },
+          "page": {
+            "type": "number"
+          },
+          "limit": {
+            "type": "number"
+          },
+          "boundary": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "isProvisional": {
+            "type": "boolean",
+            "description": "For an unfinished shift, outgoing work is a live projection, not a final handoff"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "page",
+          "limit",
+          "boundary",
+          "isProvisional"
+        ]
+      },
+      "InspectionSummaryDto": {
+        "type": "object",
+        "properties": {
+          "createdOrders": {
+            "type": "number"
+          },
+          "cancelledOrders": {
+            "type": "number"
+          },
+          "cancellationRate": {
+            "type": "number"
+          },
+          "orderedFoodAmount": {
+            "type": "number"
+          },
+          "deliveredUnreturnedAmount": {
+            "type": "number"
+          },
+          "cancellationEvents": {
+            "type": "number"
+          },
+          "editEvents": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "createdOrders",
+          "cancelledOrders",
+          "cancellationRate",
+          "orderedFoodAmount",
+          "deliveredUnreturnedAmount",
+          "cancellationEvents",
+          "editEvents"
+        ]
+      },
+      "InspectionGroupDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "count": {
+            "type": "number"
+          },
+          "foodAmount": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "name",
+          "count",
+          "foodAmount"
+        ]
+      },
+      "InspectionProductDto": {
+        "type": "object",
+        "properties": {
+          "productId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "productId",
+          "name",
+          "quantity"
+        ]
+      },
+      "InspectionDailyDto": {
+        "type": "object",
+        "properties": {
+          "date": {
+            "type": "string"
+          },
+          "orders": {
+            "type": "number"
+          },
+          "cancelled": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "date",
+          "orders",
+          "cancelled"
+        ]
+      },
+      "InspectionOverviewDto": {
+        "type": "object",
+        "properties": {
+          "periodStart": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "periodEnd": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "timeZone": {
+            "type": "string"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/InspectionSummaryDto"
+          },
+          "districts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InspectionGroupDto"
+            }
+          },
+          "branches": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InspectionGroupDto"
+            }
+          },
+          "cancellationReasons": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InspectionGroupDto"
+            }
+          },
+          "mostOrderedProducts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InspectionProductDto"
+            }
+          },
+          "leastOrderedProducts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InspectionProductDto"
+            }
+          },
+          "daily": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InspectionDailyDto"
+            }
+          }
+        },
+        "required": [
+          "periodStart",
+          "periodEnd",
+          "timeZone",
+          "summary",
+          "districts",
+          "branches",
+          "cancellationReasons",
+          "mostOrderedProducts",
+          "leastOrderedProducts",
+          "daily"
+        ]
+      },
+      "InspectionOrderDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "number": {
+            "type": "number"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "COOKING",
+              "READY",
+              "ASSIGNED_TO_COURIER",
+              "OUT_FOR_DELIVERY",
+              "DELIVERED",
+              "CASH_RETURNED",
+              "RECONCILED",
+              "CANCELLED"
+            ]
+          },
+          "source": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "total": {
+            "type": "number"
+          },
+          "discount": {
+            "type": "number"
+          },
+          "deliveryFee": {
+            "type": "number"
+          },
+          "foodAmount": {
+            "type": "number"
+          },
+          "address": {
+            "type": "string"
+          },
+          "branchName": {
+            "type": "string",
+            "nullable": true
+          },
+          "deliveryEtrapName": {
+            "type": "string",
+            "nullable": true
+          },
+          "cancellationReason": {
+            "type": "string",
+            "nullable": true
+          },
+          "courier": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/InspectionActorDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "number",
+          "status",
+          "source",
+          "createdAt",
+          "total",
+          "discount",
+          "deliveryFee",
+          "foodAmount",
+          "address",
+          "branchName",
+          "deliveryEtrapName",
+          "cancellationReason",
+          "courier"
+        ]
+      },
+      "InspectionOrdersPageDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InspectionOrderDto"
+            }
+          },
+          "total": {
+            "type": "number"
+          },
+          "page": {
+            "type": "number"
+          },
+          "limit": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "page",
+          "limit"
+        ]
+      },
+      "InspectionOrderItemDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "productName": {
+            "type": "string"
+          },
+          "variantName": {
+            "type": "string",
+            "nullable": true
+          },
+          "quantity": {
+            "type": "number"
+          },
+          "unitPrice": {
+            "type": "number"
+          },
+          "lineTotal": {
+            "type": "number"
+          },
+          "preparationMinutes": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "id",
+          "productName",
+          "variantName",
+          "quantity",
+          "unitPrice",
+          "lineTotal",
+          "preparationMinutes"
+        ]
+      },
+      "InspectionTransitionDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "fromStatus": {
+            "type": "string",
+            "enum": [
+              "COOKING",
+              "READY",
+              "ASSIGNED_TO_COURIER",
+              "OUT_FOR_DELIVERY",
+              "DELIVERED",
+              "CASH_RETURNED",
+              "RECONCILED",
+              "CANCELLED"
+            ]
+          },
+          "toStatus": {
+            "type": "string",
+            "enum": [
+              "COOKING",
+              "READY",
+              "ASSIGNED_TO_COURIER",
+              "OUT_FOR_DELIVERY",
+              "DELIVERED",
+              "CASH_RETURNED",
+              "RECONCILED",
+              "CANCELLED"
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "note": {
+            "type": "string",
+            "nullable": true
+          },
+          "actor": {
+            "$ref": "#/components/schemas/InspectionActorDto"
+          }
+        },
+        "required": [
+          "id",
+          "fromStatus",
+          "toStatus",
+          "createdAt",
+          "note",
+          "actor"
+        ]
+      },
+      "InspectionSettlementDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "orderId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "courierId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "operatorId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "accountantId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "amount": {
+            "type": "number"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "RECORDED",
+              "CONFIRMED",
+              "RECONCILED"
+            ]
+          },
+          "courierGivenAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "operatorTakenAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "reconciledAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "cashHandoffId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "id",
+          "orderId",
+          "courierId",
+          "operatorId",
+          "accountantId",
+          "amount",
+          "status",
+          "courierGivenAt",
+          "operatorTakenAt",
+          "reconciledAt",
+          "cashHandoffId"
+        ]
+      },
+      "InspectionOrderDetailDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "number": {
+            "type": "number"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "COOKING",
+              "READY",
+              "ASSIGNED_TO_COURIER",
+              "OUT_FOR_DELIVERY",
+              "DELIVERED",
+              "CASH_RETURNED",
+              "RECONCILED",
+              "CANCELLED"
+            ]
+          },
+          "source": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "total": {
+            "type": "number"
+          },
+          "discount": {
+            "type": "number"
+          },
+          "deliveryFee": {
+            "type": "number"
+          },
+          "foodAmount": {
+            "type": "number"
+          },
+          "address": {
+            "type": "string"
+          },
+          "branchName": {
+            "type": "string",
+            "nullable": true
+          },
+          "deliveryEtrapName": {
+            "type": "string",
+            "nullable": true
+          },
+          "cancellationReason": {
+            "type": "string",
+            "nullable": true
+          },
+          "courier": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/InspectionActorDto"
+              }
+            ]
+          },
+          "subtotal": {
+            "type": "number"
+          },
+          "latitude": {
+            "type": "number"
+          },
+          "longitude": {
+            "type": "number"
+          },
+          "entrance": {
+            "type": "string",
+            "nullable": true
+          },
+          "floor": {
+            "type": "string",
+            "nullable": true
+          },
+          "apartment": {
+            "type": "string",
+            "nullable": true
+          },
+          "branchAddress": {
+            "type": "string",
+            "nullable": true
+          },
+          "assignedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "deliveredAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "completedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "packingConfirmedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "gifts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OrderGiftResponseDto"
+            }
+          },
+          "rating": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/OrderRatingResponseDto"
+              }
+            ]
+          },
+          "loyaltyPointsEarned": {
+            "type": "number"
+          },
+          "loyaltyPointsSpent": {
+            "type": "number"
+          },
+          "version": {
+            "type": "number"
+          },
+          "customerPhone": {
+            "type": "string"
+          },
+          "customerName": {
+            "type": "string"
+          },
+          "customerNote": {
+            "type": "string",
+            "nullable": true
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InspectionOrderItemDto"
+            }
+          },
+          "transitions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InspectionTransitionDto"
+            }
+          },
+          "settlement": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/InspectionSettlementDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "number",
+          "status",
+          "source",
+          "createdAt",
+          "total",
+          "discount",
+          "deliveryFee",
+          "foodAmount",
+          "address",
+          "branchName",
+          "deliveryEtrapName",
+          "cancellationReason",
+          "courier",
+          "subtotal",
+          "latitude",
+          "longitude",
+          "entrance",
+          "floor",
+          "apartment",
+          "branchAddress",
+          "assignedAt",
+          "deliveredAt",
+          "completedAt",
+          "packingConfirmedAt",
+          "gifts",
+          "rating",
+          "loyaltyPointsEarned",
+          "loyaltyPointsSpent",
+          "version",
+          "customerPhone",
+          "customerName",
+          "customerNote",
+          "items",
+          "transitions",
+          "settlement"
+        ]
+      },
+      "InspectionAuditDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "action": {
+            "type": "string"
+          },
+          "entityType": {
+            "type": "string"
+          },
+          "entityId": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "actor": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/InspectionActorDto"
+              }
+            ]
+          },
+          "metadata": {
+            "type": "object",
+            "nullable": true,
+            "additionalProperties": true,
+            "description": "Sanitized persisted domain evidence. Legacy events may lack before/after snapshots."
+          }
+        },
+        "required": [
+          "id",
+          "action",
+          "entityType",
+          "entityId",
+          "createdAt",
+          "actor",
+          "metadata"
+        ]
+      },
+      "InspectionAuditPageDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InspectionAuditDto"
+            }
+          },
+          "total": {
+            "type": "number"
+          },
+          "page": {
+            "type": "number"
+          },
+          "limit": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "page",
+          "limit"
         ]
       },
       "PublicAppVersionResponseDto": {

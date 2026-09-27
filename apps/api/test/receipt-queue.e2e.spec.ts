@@ -646,7 +646,7 @@ describe("durable receipt queue", () => {
       ).toEqual([{ name: slow.name, quantity: 2 }]);
     });
   });
-  it("delays a ten-minute dish by twenty minutes beside a thirty-minute dish", async () => {
+  it.each([30, 520])("schedules a ten-minute dish beside a %i-minute dish", async (minutes) => {
     const original = await prisma.product.findUniqueOrThrow({
       where: { id: productId },
     });
@@ -657,7 +657,7 @@ describe("durable receipt queue", () => {
         slug: `long-${randomUUID()}`,
         description: "Thirty minutes",
         price: 20,
-        preparationMinutes: 30,
+        preparationMinutes: minutes,
       },
     });
     await prisma.product.update({
@@ -690,13 +690,13 @@ describe("durable receipt queue", () => {
         ).items
           .map((item) => item.preparationMinutes)
           .sort((a, b) => a - b),
-      ).toEqual([10, 30]);
+      ).toEqual([10, minutes]);
       const items = await prisma.orderItem.findMany({
         where: { orderId: order.id },
       });
       expect(
         items.map((item) => item.preparationMinutes).sort((a, b) => a - b),
-      ).toEqual([10, 30]);
+      ).toEqual([10, minutes]);
       const tasks = await prisma.receiptPrintTask.findMany({
         where: { orderId: order.id },
         orderBy: { sequence: "asc" },
@@ -720,10 +720,10 @@ describe("durable receipt queue", () => {
       expect(delayed.mainCopies).toBe(1);
       expect(
         tasks[1].nextAttemptAt.getTime() - tasks[0].createdAt.getTime(),
-      ).toBeGreaterThan(19 * 60_000);
+      ).toBeGreaterThan((minutes - 11) * 60_000);
       expect(
         tasks[1].nextAttemptAt.getTime() - tasks[0].createdAt.getTime(),
-      ).toBeLessThan(21 * 60_000);
+      ).toBeLessThan((minutes - 9) * 60_000);
       await request(server)
         .post(`${root}/${tasks[1].id}/retry`)
         .set(auth())
@@ -746,7 +746,7 @@ describe("durable receipt queue", () => {
       ).toBe("CANCELLED");
       await prisma.product.update({
         where: { id: productId },
-        data: { preparationMinutes: 30 },
+        data: { preparationMinutes: minutes },
       });
       const equalOrder = await create(false, {
         ...body(),

@@ -245,6 +245,8 @@ export class UsersService {
           entityType: "User",
           entityId: updated.id,
           metadata: {
+            before: { firstName: target.firstName, lastName: target.lastName, phone: target.phone, role: target.role, isActive: target.isActive },
+            after: { firstName: updated.firstName, lastName: updated.lastName, phone: updated.phone, role: updated.role, isActive: updated.isActive },
             previousRole: target.role,
             role: updated.role,
             previousIsActive: target.isActive,

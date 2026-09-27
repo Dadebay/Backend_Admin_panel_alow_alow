@@ -1,0 +1,262 @@
+.accounting-inspection {
+  min-width: 0;
+  display: grid;
+  gap: 20px;
+}
+.inspection-shift-label {
+  display: grid;
+  gap: 8px;
+}
+.inspection-shift-label select {
+  width: 100%;
+  min-width: 0;
+}
+.inspection-tabs,
+.inspection-filters,
+.inspection-event-actions,
+.inspection-pagination,
+.inspection-pagination > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: end;
+}
+.inspection-tabs {
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 16px;
+}
+.inspection-filters {
+  margin-bottom: 20px;
+}
+.inspection-filters label {
+  display: grid;
+  gap: 6px;
+  flex: 1 1 200px;
+}
+.inspection-filters input,
+.inspection-filters select {
+  min-width: 0;
+  width: 100%;
+}
+.inspection-metrics {
+  margin-bottom: 16px;
+}
+.inspection-metrics article {
+  display: grid;
+  gap: 10px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+}
+.inspection-metrics article strong {
+  font-size: 1.4rem;
+  color: var(--brand-navy);
+}
+.inspection-shift-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 24px;
+  padding: 16px;
+  background: var(--brand-cream);
+  border-radius: 12px;
+}
+.inspection-chart-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+.inspection-chart {
+  min-width: 0;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  margin: 16px 0;
+}
+.inspection-chart ol {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: 14px;
+}
+.inspection-chart li > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+.inspection-chart meter {
+  width: 100%;
+  height: 14px;
+  accent-color: var(--brand-orange);
+}
+.inspection-chart meter::-webkit-meter-optimum-value {
+  background: #ec7a1b;
+}
+.inspection-chart meter::-moz-meter-bar {
+  background: #ec7a1b;
+}
+.inspection-days {
+  display: grid;
+  gap: 12px;
+  max-height: 440px;
+  overflow: auto;
+}
+.inspection-days > div {
+  display: grid;
+  grid-template-columns: 100px minmax(40px, 1fr) 150px;
+  align-items: center;
+  gap: 10px;
+}
+.inspection-event {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 16px;
+  margin: 12px 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.inspection-event-heading {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 16px;
+}
+.inspection-event-heading small,
+.accounting-inspection td small {
+  display: block;
+  margin-top: 6px;
+}
+.inspection-event-body {
+  display: grid;
+  gap: 16px;
+  margin-top: 16px;
+}
+.inspection-before-after {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.inspection-before-after > div {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow-wrap: anywhere;
+}
+.inspection-evidence {
+  display: grid;
+  gap: 8px;
+  margin: 8px 0;
+}
+.inspection-evidence > div {
+  display: grid;
+  grid-template-columns: minmax(100px, 1fr) minmax(0, 2fr);
+  gap: 12px;
+  border-bottom: 1px solid var(--line);
+  padding: 6px 0;
+}
+.inspection-evidence dd {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.inspection-evidence-list {
+  padding-left: 20px;
+}
+.inspection-pagination {
+  justify-content: space-between;
+  margin-top: 16px;
+}
+.inspection-order-detail {
+  min-width: 0;
+  padding: 20px;
+  border: 2px solid #ec7a1b;
+  border-radius: 16px;
+  scroll-margin-top: 20px;
+}
+.inspection-order-detail p {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.inspection-timeline {
+  display: grid;
+  gap: 16px;
+  padding-left: 22px;
+}
+.inspection-timeline span {
+  display: block;
+  margin-top: 4px;
+}
+.accounting-inspection summary {
+  cursor: pointer;
+  padding: 12px 0;
+}
+@media (max-width: 760px) {
+  .inspection-chart-grid,
+  .inspection-before-after {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .inspection-days > div {
+    grid-template-columns: 90px minmax(40px, 1fr);
+  }
+  .inspection-days > div > span {
+    grid-column: 1 / -1;
+  }
+  .inspection-event-heading {
+    flex-direction: column;
+  }
+  .inspection-evidence > div {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+  }
+  .inspection-order-detail {
+    padding: 12px;
+  }
+  .inspection-tabs > button {
+    flex: 1 1 140px;
+    min-height: 44px;
+  }
+}
+
+.accounting-inspection :is(input, select) {
+  min-height: 44px;
+  padding: 10px 12px;
+  color: var(--brand-navy);
+  background: var(--field-surface);
+  border: 1px solid var(--field-border);
+  border-radius: 10px;
+}
+
+.accounting-shifts .accounting-shift-grid {
+  max-height: 620px;
+  overflow-y: auto;
+  padding-right: 8px;
+  align-content: start;
+}
+.accounting-chart .accounting-bars {
+  max-height: 420px;
+  overflow-y: auto;
+}
+
+/* Keep the inspection below the fold while the financial summary loads. */
+.accounting-financial-report {
+  display: grid;
+  gap: 24px;
+  min-height: 520px;
+  align-content: start;
+}
+
+.inspection-day-button {
+  padding: 10px 2px;
+  min-height: 44px;
+  text-align: left;
+  color: var(--brand-navy);
+  text-decoration: underline;
+  cursor: pointer;
+  border: 0;
+  background: transparent;
+}
+.accounting-inspection {
+  scroll-margin-top: 20px;
+}

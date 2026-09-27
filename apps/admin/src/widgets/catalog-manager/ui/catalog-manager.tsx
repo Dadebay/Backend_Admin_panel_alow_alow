@@ -1407,7 +1407,7 @@ export function CatalogManager() {
                   data-testid="product-preparation-minutes"
                   type="number"
                   min="0"
-                  max="240"
+                  max="1440"
                   {...registerProduct("preparationMinutes", {
                     valueAsNumber: true,
                   })}

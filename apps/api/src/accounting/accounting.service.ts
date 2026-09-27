@@ -131,6 +131,7 @@ export class AccountingService {
       );
     }
     const settings = await this.prisma.$transaction(async (tx) => {
+      const before = await tx.accountingSettings.findUnique({ where: { id: "default" } });
       const updated = await tx.accountingSettings.upsert({
         where: { id: "default" },
         create: {
@@ -154,6 +155,8 @@ export class AccountingService {
           entityType: "AccountingSettings",
           entityId: updated.id,
           metadata: {
+            before: toApiResponse(before),
+            after: toApiResponse(updated),
             firstShiftName: firstName,
             firstShiftStart: dto.firstShiftStart,
             secondShiftName: secondName,
@@ -168,7 +171,7 @@ export class AccountingService {
 
   async shifts(query: AccountingRangeQueryDto) {
     const settings = await this.settingsRecord();
-    const range = this.range(query, 3, 62);
+    const range = this.range(query, 3, 366);
     const windows = enumerateShiftWindows(
       range.fromDate,
       range.toDate,
@@ -451,7 +454,7 @@ export class AccountingService {
 
   async report(actor: AuthUser, query: AccountingRangeQueryDto) {
     const range = this.range(query, 7, 366);
-    const [settlements, handoffs, cancelledOrders, productGroups] =
+    const [settlements, handoffs, cancelledOrders, productGroups, createdOrders] =
       await Promise.all([
         this.prisma.cashSettlement.findMany({
           where: {
@@ -481,7 +484,7 @@ export class AccountingService {
             createdAt: { gte: range.start, lt: range.end },
           },
         }),
-        actor.role === Role.SUPER_ADMIN
+        (actor.role === Role.SUPER_ADMIN || actor.role === Role.ACCOUNTANT)
           ? this.prisma.orderItem.groupBy({
               by: ["productId", "productName"],
               where: {
@@ -498,6 +501,7 @@ export class AccountingService {
               take: 10,
             })
           : Promise.resolve([]),
+        this.prisma.order.count({ where: { createdAt: { gte: range.start, lt: range.end } } }),
       ]);
     const collectedAmount = decimalSum(settlements);
     const submitted = settlements.filter(({ cashHandoffId }) => cashHandoffId);
@@ -537,6 +541,8 @@ export class AccountingService {
       toDate: range.toDate,
       timeZone: ACCOUNTING_TIME_ZONE,
       summary: {
+        declaredHandoffAmount: decimalSum(handoffs.map((handoff) => ({ amount: handoff.declaredAmount }))),
+        handoffDiscrepancy: decimalSum(handoffs.map((handoff) => ({ amount: handoff.declaredAmount.minus(handoff.expectedAmount) }))),
         collectedAmount,
         completedOrders,
         averageOrderAmount: completedOrders
@@ -547,9 +553,9 @@ export class AccountingService {
         outstandingAmount: decimalSum(outstanding),
         cancelledOrders,
         cancellationRate:
-          completedOrders + cancelledOrders
+          createdOrders
             ? Math.round(
-                (cancelledOrders / (completedOrders + cancelledOrders)) *
+                (cancelledOrders / createdOrders) *
                   10_000,
               ) / 100
             : 0,

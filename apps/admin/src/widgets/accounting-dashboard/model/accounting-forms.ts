@@ -1,6 +1,13 @@
 import { z } from "zod";
 
 const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Выберите дату");
+export const accountingMonthSchema = z.object({ month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "Выберите месяц") });
+export function accountingMonthRange(month: string) {
+  const parsed = accountingMonthSchema.parse({ month }).month;
+  const [year, index] = parsed.split("-").map(Number);
+  const last = new Date(Date.UTC(year!, index!, 0)).getUTCDate();
+  return { fromDate: `${parsed}-01`, toDate: `${parsed}-${last}` };
+}
 
 export const accountingRangeSchema = z
   .object({ fromDate: date, toDate: date })

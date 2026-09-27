@@ -9,7 +9,7 @@ import { BaseExceptionFilter, HttpAdapterHost } from "@nestjs/core";
 import type { Request } from "express";
 import { PrismaService } from "../prisma/prisma.service";
 
-/** Logs rejected inventory/order requests after their transaction has rolled back.
+/** Logs rejected operations requests after their transaction has rolled back.
  * Never persist headers, tokens, raw bodies, query strings or exception details.
  * A filter also sees authentication/role/validation failures before the service.
  */
@@ -27,7 +27,7 @@ export class OperationsAuditFilter extends BaseExceptionFilter {
 
   async catch(exception: unknown, host: ArgumentsHost) {
     const request = host.switchToHttp().getRequest<Request>();
-    const domain = /^\/api\/v1\/(inventory|orders)(?:\/|$)/.exec(
+    const domain = /^\/api\/v1\/(inventory|orders|receipt-print-tasks|accounting|catalog|branches|delivery|users|admin-page-access|contacts|ordering-hours|loyalty|marketing|app|notifications|media)(?:\/|$)/.exec(
       request.path,
     )?.[1];
     if (domain) {
@@ -45,8 +45,8 @@ export class OperationsAuditFilter extends BaseExceptionFilter {
         await this.prisma.auditLog.create({
           data: {
             actorId: request.user?.id,
-            action: `${domain === "orders" ? "order" : "inventory"}.request.rejected`,
-            entityType: domain === "orders" ? "Order" : "InventoryRequest",
+            action: `${domain === "orders" ? "order" : domain}.request.rejected`,
+            entityType: domain === "orders" ? "Order" : domain === "inventory" ? "InventoryRequest" : "OperationsRequest",
             entityId,
             ip: request.socket.remoteAddress,
             metadata: {

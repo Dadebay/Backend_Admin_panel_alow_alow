@@ -56,6 +56,7 @@ const kilometerPriceInput = moneyInput
 
 export const deliverySettingsFormSchema = z
   .object({
+    version: z.number().int().positive().optional(),
     mapPricingEnabled: z.boolean(),
     distancePricingEnabled: z.boolean(),
     dayPricePerKilometer: kilometerPriceInput,

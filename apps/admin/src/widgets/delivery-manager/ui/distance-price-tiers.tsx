@@ -19,6 +19,7 @@ type Props = {
   register: UseFormRegister<DeliverySettingsFormInput>;
   errors: FieldErrors<DeliverySettingsFormInput>;
   pending: boolean;
+  onEdit: (index: number) => void;
 };
 
 export function DistancePriceTiers({
@@ -26,6 +27,7 @@ export function DistancePriceTiers({
   register,
   errors,
   pending,
+  onEdit,
 }: Props) {
   const { fields, append, remove } = useFieldArray({
     control,
@@ -122,15 +124,26 @@ export function DistancePriceTiers({
               />
             </label>
           </div>
-          <button
-            type="button"
-            className="text-button"
-            data-testid="delivery-tier-remove"
-            aria-label={`Удалить ступень ${index + 1}`}
-            onClick={() => remove(index)}
-          >
-            Удалить ступень
-          </button>
+          <div className="delivery-tier-actions">
+            <button
+              type="button"
+              className="secondary-button compact"
+              data-testid="delivery-tier-edit"
+              aria-label={`Редактировать ступень ${index + 1}`}
+              onClick={() => onEdit(index)}
+            >
+              Редактировать
+            </button>
+            <button
+              type="button"
+              className="secondary-button compact danger-button"
+              data-testid="delivery-tier-remove"
+              aria-label={`Удалить ступень ${index + 1}`}
+              onClick={() => remove(index)}
+            >
+              Удалить ступень
+            </button>
+          </div>
         </fieldset>
       ))}
       <FormFieldError
@@ -154,6 +167,9 @@ export function DistancePriceTiers({
       >
         Добавить ступень
       </button>
+      <p className="delivery-pricing-hint">
+        После редактирования или удаления ступеней нажмите «Сохранить тарифы».
+      </p>
     </section>
   );
 }

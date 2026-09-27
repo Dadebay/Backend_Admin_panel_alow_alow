@@ -10817,7 +10817,10 @@ button:disabled {
 .delivery-distance-tier { min-width: 0; margin: 0; padding: 16px; border: 1px solid var(--line); border-radius: 12px; }
 .delivery-distance-tier legend { padding: 0 6px; font-weight: 600; }
 .delivery-distance-tier-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-.delivery-distance-tier .text-button { margin-top: 12px; }
+.delivery-tier-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.delivery-distance-tier .delivery-tier-actions { margin-top: 12px; }
+.delivery-settings-actions { display: grid; gap: 12px; padding: 16px; background: var(--brand-cream); border: 1px solid var(--line); border-radius: 12px; }
+.delivery-settings-actions p { margin: 0; }
 .delivery-distance-tiers > .secondary-button { justify-self: start; }
 @media (max-width: 760px) {
   .delivery-distance-tier-grid { grid-template-columns: 1fr; }

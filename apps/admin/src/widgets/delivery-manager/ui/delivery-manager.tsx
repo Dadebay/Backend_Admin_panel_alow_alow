@@ -13,6 +13,7 @@ import { Controller, useForm, useWatch } from "react-hook-form";
 import {
   flattenDeliveryEtraps,
   useAdminDeliveryConfig,
+  type DeliveryConfig,
   type DeliveryEtrapWithWelayat,
   type DeliveryZonePoint,
   type DeliveryZoneSuggestion,
@@ -79,7 +80,9 @@ export function DeliveryManager() {
     control: settingsControl,
     handleSubmit: handleSettingsSubmit,
     reset: resetSettings,
-    formState: { errors: settingsErrors },
+    getValues: getSettingsValues,
+    setFocus: focusSettings,
+    formState: { errors: settingsErrors, isDirty: settingsDirty },
   } = useForm<DeliverySettingsFormInput, unknown, DeliverySettingsFormValues>({
     resolver: zodResolver(deliverySettingsFormSchema),
     mode: "onBlur",
@@ -129,26 +132,32 @@ export function DeliveryManager() {
     },
   });
 
-  useEffect(() => {
-    if (!config.data) return;
+  const loadSettings = useCallback((data: DeliveryConfig) => {
     resetSettings({
-      mapPricingEnabled: config.data.mapPricingEnabled,
-      distancePricingEnabled: config.data.distancePricingEnabled,
-      dayPricePerKilometer: config.data.dayPricePerKilometer?.toFixed(2) ?? "5.00",
-      nightPricePerKilometer: config.data.nightPricePerKilometer?.toFixed(2) ?? "5.00",
-      distancePriceTiers: (config.data.distancePriceTiers ?? []).map((tier) => ({
+      version: data.version,
+      mapPricingEnabled: data.mapPricingEnabled,
+      distancePricingEnabled: data.distancePricingEnabled,
+      dayPricePerKilometer: data.dayPricePerKilometer?.toFixed(2) ?? "5.00",
+      nightPricePerKilometer: data.nightPricePerKilometer?.toFixed(2) ?? "5.00",
+      distancePriceTiers: (data.distancePriceTiers ?? []).map((tier) => ({
         afterKilometers: String(tier.afterKilometers),
         dayPricePerKilometer: tier.dayPricePerKilometer.toFixed(2),
         nightPricePerKilometer: tier.nightPricePerKilometer.toFixed(2),
       })),
-      fallbackPrice: config.data.fallbackPrice.toFixed(2),
-      fallbackNightPrice: config.data.fallbackNightPrice.toFixed(2),
+      fallbackPrice: data.fallbackPrice.toFixed(2),
+      fallbackNightPrice: data.fallbackNightPrice.toFixed(2),
       fallbackNightFreeDeliveryThreshold:
-        config.data.fallbackNightFreeDeliveryThreshold?.toFixed(2) ?? "",
+        data.fallbackNightFreeDeliveryThreshold?.toFixed(2) ?? "",
       fallbackFreeDeliveryThreshold:
-        config.data.fallbackFreeDeliveryThreshold?.toFixed(2) ?? "",
+        data.fallbackFreeDeliveryThreshold?.toFixed(2) ?? "",
     });
-  }, [config.data, resetSettings]);
+  }, [resetSettings]);
+
+  useEffect(() => {
+    if (config.data && !settingsDirty && !actions.updateSettings.isPending) {
+      loadSettings(config.data);
+    }
+  }, [config.data, settingsDirty, actions.updateSettings.isPending, loadSettings]);
 
   useEffect(() => {
     if (!welayatEditor) return;
@@ -615,10 +624,8 @@ export function DeliveryManager() {
 
   async function saveSettings(values: DeliverySettingsFormValues) {
     try {
-      await actions.updateSettings.mutateAsync({
-        ...values,
-        version: config.data?.version,
-      });
+      await actions.updateSettings.mutateAsync(values);
+      resetSettings(getSettingsValues());
     } catch {
       /* The mutation error is displayed above the form. */
     }
@@ -712,13 +719,19 @@ export function DeliveryManager() {
             type="button"
             className="text-button"
             data-testid="delivery-config-reload"
-            onClick={() => void config.refetch()}
+            onClick={async () => {
+              const latest = await config.refetch();
+              if (latest.data) {
+                loadSettings(latest.data);
+                actions.updateSettings.reset();
+              }
+            }}
           >
             Обновить настройки
           </button>
         </div>
       )}
-      {mutationSucceeded && (
+      {mutationSucceeded && !settingsDirty && (
         <div className="success-banner" role="status">
           Настройки доставки сохранены.
         </div>
@@ -805,7 +818,42 @@ export function DeliveryManager() {
             />
           </label>
         </div>
-        <DistancePriceTiers control={settingsControl} register={registerSettings} errors={settingsErrors} pending={actions.updateSettings.isPending} />
+        <DistancePriceTiers
+          control={settingsControl}
+          register={registerSettings}
+          errors={settingsErrors}
+          pending={actions.updateSettings.isPending}
+          onEdit={(index) =>
+            focusSettings(`distancePriceTiers.${index}.afterKilometers`, { shouldSelect: true })
+          }
+        />
+        <div className="delivery-settings-actions" data-testid="delivery-settings-actions">
+          <p role="status" data-testid="delivery-settings-draft-status">
+            {settingsDirty ? "Есть несохранённые изменения" : "Тарифы сохранены"}
+          </p>
+          <div className="delivery-tier-actions">
+            <button
+              type="submit"
+              className="primary-button delivery-settings-save"
+              data-testid="delivery-settings-save"
+              disabled={actions.updateSettings.isPending || !config.data}
+            >
+              {actions.updateSettings.isPending ? "Сохраняем…" : "Сохранить тарифы"}
+            </button>
+            <button
+              type="button"
+              className="secondary-button"
+              data-testid="delivery-settings-cancel"
+              disabled={!settingsDirty || actions.updateSettings.isPending || !config.data}
+              onClick={() => {
+                if (config.data) loadSettings(config.data);
+                actions.updateSettings.reset();
+              }}
+            >
+              Отменить изменения
+            </button>
+          </div>
+        </div>
         <h3>Настройки расчёта по улицам и районам</h3>
         {distancePricing && (
           <p
@@ -893,10 +941,10 @@ export function DeliveryManager() {
         </fieldset>
         <button
           className="primary-button delivery-settings-save"
-          data-testid="delivery-settings-save"
+          data-testid="delivery-area-settings-save"
           disabled={actions.updateSettings.isPending || !config.data}
         >
-          {actions.updateSettings.isPending ? "Сохраняем…" : "Сохранить"}
+          {actions.updateSettings.isPending ? "Сохраняем…" : "Сохранить настройки"}
         </button>
       </form>
 

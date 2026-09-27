@@ -2342,7 +2342,11 @@ before cash rounding for 6 km, resulting in 30 TMT. The 15 TMT minimum and cash
 rounding apply once to the complete fee, not separately to each segment.
 
 The `/delivery` configurator supports adding, editing and removing thresholds,
-with separate day/night rates. Thresholds must be positive, unique and ordered;
+with separate day/night rates. Each row offers explicit edit/delete actions;
+save/cancel controls beside the tier list commit or discard the draft. Deleting
+a row takes effect only after saving. Background configuration refreshes preserve
+dirty drafts and their original version, so concurrent saves produce a conflict
+instead of silently replacing newer settings. Thresholds must be positive, unique and ordered;
 distances and prices support two decimal places and values up to 10,000.
 Configuration writes retain role/page authorization, require the current
 settings version and audit the previous and resulting settings atomically.

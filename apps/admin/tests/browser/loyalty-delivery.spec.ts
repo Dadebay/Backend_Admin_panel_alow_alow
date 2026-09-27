@@ -29,7 +29,7 @@ async function mockAdmin(page: Page) {
   await page.route("**/styles/alowalow/**", (route) => route.fulfill({ status: 200, contentType: "image/png", body: png }));
   const session = { accessToken: "test-access", refreshToken: "test-refresh", expiresInSeconds: 3600, accessExpiresAt: Date.now() + 3_600_000, user: { id: "44444444-4444-4444-8444-444444444444", phone: "+99365123456", firstName: "Admin", lastName: null, role: "ADMIN" } };
   await page.addInitScript((value) => sessionStorage.setItem("alowalow.session.v1", JSON.stringify(value)), session);
-  const state = { gifts: [] as Record<string, unknown>[], productPosts: [] as Record<string, unknown>[], deliveryPatches: [] as Record<string, unknown>[], delivery: makeDeliveryConfig() };
+  const state = { gifts: [] as Record<string, unknown>[], productPosts: [] as Record<string, unknown>[], deliveryPatches: [] as Record<string, unknown>[], deliveryConfigReads: 0, delivery: makeDeliveryConfig() };
   await page.route("**/api/v1/**", async (route) => {
     const url = new URL(route.request().url());
     const path = url.pathname.replace(/^\/api\/v1/, "");
@@ -47,8 +47,12 @@ async function mockAdmin(page: Page) {
     else if (path === "/loyalty/admin/gifts" && method === "POST") { const body = route.request().postDataJSON() as Record<string, unknown>; const gift = { id: GIFT_ID, ...body, version: 1, createdAt: now, updatedAt: now }; state.gifts.push(gift); json = gift; status = 201; }
     else if (path === "/media/images" && method === "POST") { json = { url: IMAGE_URL, filename: `${GIFT_ID}.webp` }; status = 201; }
     else if (path === `/media/${GIFT_ID}.webp`) { await route.fulfill({ status: 200, contentType: "image/png", body: png }); return; }
-    else if (path === "/delivery/admin/config" && method === "GET") json = state.delivery;
-    else if (path === "/delivery/admin/settings" && method === "PATCH") { const body = route.request().postDataJSON() as Record<string, unknown>; state.deliveryPatches.push(body); state.delivery = { ...state.delivery, ...body, version: state.delivery.version + 1 }; json = { ...state.delivery, id: "default", createdAt: now, updatedAt: now }; }
+    else if (path === "/delivery/admin/config" && method === "GET") { state.deliveryConfigReads += 1; json = state.delivery; }
+    else if (path === "/delivery/admin/settings" && method === "PATCH") {
+      const body = route.request().postDataJSON() as Record<string, unknown>;
+      if (body.version !== state.delivery.version) { status = 409; json = { statusCode: 409, message: "Delivery settings changed; reload and try again" }; }
+      else { state.deliveryPatches.push(body); state.delivery = { ...state.delivery, ...body, version: state.delivery.version + 1 }; json = { ...state.delivery, id: "default", createdAt: now, updatedAt: now }; }
+    }
     await route.fulfill({ status, contentType: "application/json", body: JSON.stringify(json) });
   });
   return state;
@@ -188,4 +192,77 @@ test("a conflicting tier save keeps the draft and offers configuration reload", 
   await expect(page.getByTestId("delivery-settings-save")).toBeEnabled();
   // Expected HTTP conflict is surfaced in the UI; browsers also log its status.
   browserConsoleErrors.set(page, (browserConsoleErrors.get(page) ?? []).filter((message) => message.includes("409") === false));
+});
+
+test("saved kilometer tiers can be edited, cancelled and deleted with nearby save controls", async ({ page }, testInfo) => {
+  const state = await mockAdmin(page);
+  Object.assign(state.delivery, { distancePricingEnabled: true, dayPricePerKilometer: 4.2, nightPricePerKilometer: 4.2, distancePriceTiers: [
+    { afterKilometers: 4, dayPricePerKilometer: 3.5, nightPricePerKilometer: 3.5 },
+    { afterKilometers: 5, dayPricePerKilometer: 3.5, nightPricePerKilometer: 3.5 },
+    { afterKilometers: 10, dayPricePerKilometer: 2.5, nightPricePerKilometer: 2.5 },
+  ] });
+  await page.goto("/delivery");
+  await page.getByTestId("delivery-tier-edit").first().click();
+  await expect(page.getByTestId("delivery-tier-after-km").first()).toBeFocused();
+  await page.getByTestId("delivery-tier-after-km").first().fill("3");
+  await page.getByTestId("delivery-tier-day-price").first().fill("3,75");
+  await page.getByTestId("delivery-tier-remove").nth(1).click();
+  await expect(page.getByTestId("delivery-tier-after-km")).toHaveCount(2);
+  await expect(page.getByTestId("delivery-settings-draft-status")).toHaveText("Есть несохранённые изменения");
+  expect(state.deliveryPatches).toHaveLength(0);
+  await page.getByTestId("delivery-settings-cancel").click();
+  await expect(page.getByTestId("delivery-tier-after-km")).toHaveCount(3);
+  await expect(page.getByTestId("delivery-tier-after-km").first()).toHaveValue("4");
+  await expect(page.getByTestId("delivery-settings-cancel")).toBeDisabled();
+  await page.getByTestId("delivery-tier-edit").first().click();
+  await page.getByTestId("delivery-tier-after-km").first().fill("3");
+  await page.getByTestId("delivery-tier-day-price").first().fill("3,75");
+  await page.getByTestId("delivery-tier-remove").nth(1).click();
+  await page.getByTestId("delivery-settings-save").click();
+  await expect(page.getByTestId("delivery-settings-draft-status")).toHaveText("Тарифы сохранены");
+  expect(state.deliveryPatches[0]).toMatchObject({ version: 1, distancePriceTiers: [
+    { afterKilometers: 3, dayPricePerKilometer: 3.75, nightPricePerKilometer: 3.5 },
+    { afterKilometers: 10, dayPricePerKilometer: 2.5, nightPricePerKilometer: 2.5 },
+  ] });
+  await page.reload();
+  await expect(page.getByTestId("delivery-tier-after-km").first()).toHaveValue("3");
+  await expect(page.getByTestId("delivery-tier-day-price").first()).toHaveValue("3.75");
+  await page.getByTestId("delivery-distance-tiers").screenshot({ path: testInfo.outputPath("saved-tier-actions.png") });
+  await expectNoHorizontalOverflow(page);
+  await page.getByTestId("delivery-tier-remove").first().click();
+  await page.getByTestId("delivery-tier-remove").click();
+  await page.getByTestId("delivery-settings-save").click();
+  await expect.poll(() => state.deliveryPatches.length).toBe(2);
+  await page.reload();
+  await expect(page.getByTestId("delivery-distance-tiers-empty")).toBeVisible();
+  expect(state.deliveryPatches[1]).toMatchObject({ version: 2, distancePriceTiers: [] });
+});
+
+test("background config refresh preserves tier edits and the draft version until explicit reload", async ({ page }) => {
+  const state = await mockAdmin(page);
+  Object.assign(state.delivery, { dayPricePerKilometer: 5, nightPricePerKilometer: 5, distancePriceTiers: [
+    { afterKilometers: 5, dayPricePerKilometer: 4, nightPricePerKilometer: 4 },
+  ] });
+  await page.goto("/delivery");
+  await page.getByTestId("delivery-tier-day-price").fill("3");
+  const reads = state.deliveryConfigReads;
+  Object.assign(state.delivery, { version: 2, distancePriceTiers: [
+    { afterKilometers: 8, dayPricePerKilometer: 6, nightPricePerKilometer: 6 },
+  ] });
+  await page.clock.install();
+  await page.clock.fastForward(31_000);
+  await page.evaluate(() => window.dispatchEvent(new Event("visibilitychange")));
+  await expect.poll(() => state.deliveryConfigReads).toBeGreaterThan(reads);
+  await expect(page.getByTestId("delivery-tier-day-price")).toHaveValue("3");
+  await expect(page.getByTestId("delivery-tier-after-km")).toHaveValue("5");
+  const request = page.waitForRequest((r) => r.url().endsWith("/delivery/admin/settings") && r.method() === "PATCH");
+  await page.getByTestId("delivery-settings-save").click();
+  expect((await request).postDataJSON().version).toBe(1);
+  await expect(page.getByTestId("delivery-config-reload")).toBeVisible();
+  await expect(page.getByTestId("delivery-tier-day-price")).toHaveValue("3");
+  await page.getByTestId("delivery-config-reload").click();
+  await expect(page.getByTestId("delivery-tier-day-price")).toHaveValue("6.00");
+  await expect(page.getByTestId("delivery-tier-after-km")).toHaveValue("8");
+  await expect(page.getByTestId("delivery-settings-cancel")).toBeDisabled();
+  browserConsoleErrors.set(page, (browserConsoleErrors.get(page) ?? []).filter((message) => !message.includes("409")));
 });

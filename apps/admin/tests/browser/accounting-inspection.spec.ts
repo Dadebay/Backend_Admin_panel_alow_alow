@@ -416,6 +416,11 @@ test("narrow phone keeps order numbers, month controls and dialog usable", async
       () => document.documentElement.scrollWidth <= innerWidth + 1,
     ),
   ).toBe(true);
+  const rowBox = await page.locator(".inspection-orders-table tbody tr").first().boundingBox();
+  const cellBoxes = await page.locator(".inspection-orders-table tbody tr").first().locator("td").evaluateAll(cells=>cells.map(cell=>cell.getBoundingClientRect().bottom));
+  expect(Math.max(...cellBoxes)).toBeLessThanOrEqual(rowBox!.y + rowBox!.height);
+  const paginationBox=await page.getByTestId("inspection-orders-next").boundingBox();
+  expect(paginationBox!.y).toBeGreaterThanOrEqual(rowBox!.y + rowBox!.height);
   await page.getByTestId(`inspection-open-order-${orderId}`).click();
   await expect(page.getByTestId("inspection-participants")).toContainText(
     "Марат",

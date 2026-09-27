@@ -977,3 +977,17 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+.inspection-orders-table tbody tr { height: auto; cursor: default; }
+.inspection-orders-table td { font-size: 14px; }
+.inspection-orders-table td strong { font-size: inherit; }
+.inspection-orders-table .inspection-order-amount strong { font-size: 17px; }
+@media(max-width:760px) {
+  .accounting-dashboard > .section-head p, .accounting-period-heading span { display: none; }
+  .accounting-period-controls { gap: 12px; }
+  .accounting-month-picker { order: 0; }
+  .accounting-period-controls .accounting-presets { order: 1; width: auto; }
+  .accounting-period-controls .accounting-custom-period { order: 2; width: auto; margin-left: auto; }
+  .accounting-period-controls .accounting-custom-period[open] { width: 100%; }
+  .accounting-inspection { gap: 14px; }
+  .inspection-filters { margin-bottom: 0; }
+}

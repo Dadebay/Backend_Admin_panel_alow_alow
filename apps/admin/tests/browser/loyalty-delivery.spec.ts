@@ -73,9 +73,11 @@ test("per-dish points are sent with the product form", async ({ page }) => {
   await page.getByTestId("product-description").fill("Горячее блюдо");
   await page.getByTestId("product-price").fill("50");
   await page.getByTestId("product-loyalty-points").fill("7");
+  await page.getByTestId("product-preparation-minutes").fill("520");
   await page.getByTestId("product-save").click();
   await expect.poll(() => state.productPosts.length).toBe(1);
   expect(state.productPosts[0]?.loyaltyPoints).toBe(7);
+  expect(state.productPosts[0]?.preparationMinutes).toBe(520);
   await expectNoHorizontalOverflow(page);
   expect(errors).toEqual([]);
 });

@@ -75,7 +75,7 @@ export class MarketingService {
           action: "marketing.banner.updated",
           entityType: "Banner",
           entityId: id,
-          metadata: { title: banner.title, isActive: banner.isActive },
+          metadata: { title: banner.title, isActive: banner.isActive, before: toApiResponse(exists), after: toApiResponse(banner) },
         },
       });
       return toApiResponse(banner);
@@ -156,7 +156,7 @@ export class MarketingService {
           action: "marketing.promo.updated",
           entityType: "PromoCode",
           entityId: id,
-          metadata: { code: promo.code, isActive: promo.isActive },
+          metadata: { code: promo.code, isActive: promo.isActive, before: toApiResponse(exists), after: toApiResponse(promo) },
         },
       });
       return toApiResponse(promo);

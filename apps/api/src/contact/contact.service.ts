@@ -2,6 +2,7 @@ import { Injectable } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { toApiResponse } from "../common/api-response";
 import { UpdateContactSettingsDto } from "./contact.dto";
+import type { AuthUser } from "../common/auth.types";
 
 @Injectable()
 export class ContactService {
@@ -12,7 +13,12 @@ export class ContactService {
     });
     return toApiResponse(value);
   }
-  async update(dto: UpdateContactSettingsDto) {
-    return toApiResponse(await this.prisma.contactSettings.upsert({ where: { id: "default" }, create: { id: "default", ...dto }, update: dto }));
+  async update(actor: AuthUser, dto: UpdateContactSettingsDto) {
+    return this.prisma.$transaction(async (tx) => {
+      const before = await tx.contactSettings.findUnique({ where: { id: "default" } });
+      const after = await tx.contactSettings.upsert({ where: { id: "default" }, create: { id: "default", ...dto }, update: dto });
+      await tx.auditLog.create({ data: { actorId: actor.id, action: "contacts.updated", entityType: "ContactSettings", entityId: "default", metadata: { before: toApiResponse(before), after: toApiResponse(after) } } });
+      return toApiResponse(after);
+    });
   }
 }

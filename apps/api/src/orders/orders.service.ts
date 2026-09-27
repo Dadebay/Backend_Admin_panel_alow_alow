@@ -31,6 +31,7 @@ import {
 import { TrackingService } from "../tracking/tracking.service";
 import { OrderingHoursService } from "./ordering-hours.service";
 import { LoyaltyService } from "../loyalty/loyalty.service";
+import { orderAuditSnapshot } from "./order-audit-snapshot";
 import { earnedPoints } from "../loyalty/loyalty-points";
 import {
   AdminEditOrderDto,
@@ -967,6 +968,7 @@ export class OrdersService {
         entityType: "Order",
         entityId: order.id,
         metadata: {
+          after: orderAuditSnapshot(order),
           number: order.number,
           total,
           source,
@@ -1224,7 +1226,7 @@ export class OrdersService {
     const response = await this.prisma.$transaction(async (tx) => {
       const order = await tx.order.findUnique({
         where: { id },
-        include: { cashSettlement: true },
+        include: { cashSettlement: true, items: true },
       });
       if (!order) throw new NotFoundException("Order not found");
       if (order.version !== dto.version) {
@@ -1322,19 +1324,20 @@ export class OrdersService {
           note: dto.note,
         },
       });
+      const result = await tx.order.findUniqueOrThrow({
+        where: { id },
+        include: detailInclude,
+      });
       await tx.auditLog.create({
         data: {
           actorId: user.id,
           action: "order.transitioned",
           entityType: "Order",
           entityId: id,
-          metadata: { fromStatus: order.status, toStatus: dto.status },
+          metadata: { before: orderAuditSnapshot(order), after: orderAuditSnapshot(result), fromStatus: order.status, toStatus: dto.status },
         },
       });
-      const result = await tx.order.findUniqueOrThrow({
-        where: { id },
-        include: detailInclude,
-      });
+
       notifyTarget = { customerId: result.customerId, number: result.number };
       return toApiResponse(withItemImages(result));
     });
@@ -1571,6 +1574,10 @@ export class OrdersService {
           },
         });
       }
+      const result = await tx.order.findUniqueOrThrow({
+        where: { id },
+        include: detailInclude,
+      });
       await tx.auditLog.create({
         data: {
           actorId: user.id,
@@ -1578,6 +1585,8 @@ export class OrdersService {
           entityType: "Order",
           entityId: id,
           metadata: {
+            before: orderAuditSnapshot(order),
+            after: orderAuditSnapshot(result),
             previousVersion: order.version,
             previousStatus: order.status,
             nextStatus,
@@ -1594,10 +1603,7 @@ export class OrdersService {
         },
       });
 
-      const result = await tx.order.findUniqueOrThrow({
-        where: { id },
-        include: detailInclude,
-      });
+
       if (itemsChanged)
         await reconcileReceiptsAfterItemEdit(
           tx,
@@ -1639,7 +1645,7 @@ export class OrdersService {
       const order = await tx.order.findUnique({
         where: { id },
         include: {
-          items: { select: { id: true } },
+          items: true,
           gifts: { select: { id: true } },
         },
       });
@@ -1708,13 +1714,17 @@ export class OrdersService {
         });
       }
 
+      const result = await tx.order.findUniqueOrThrow({
+        where: { id },
+        include: detailInclude,
+      });
       await tx.auditLog.create({
         data: {
           actorId: user.id,
           action: "order.packing-confirmed",
           entityType: "Order",
           entityId: id,
-          metadata: {
+          metadata: { before: orderAuditSnapshot(order), after: orderAuditSnapshot(result),
             checkedItemIds: dto.checkedItemIds,
             confirmedAt: confirmedAt.toISOString(),
             previousStatus: order.status,
@@ -1722,10 +1732,7 @@ export class OrdersService {
         },
       });
 
-      const result = await tx.order.findUniqueOrThrow({
-        where: { id },
-        include: detailInclude,
-      });
+
       if (order.status === OrderStatus.COOKING) {
         notifyTarget = {
           customerId: result.customerId,
@@ -1747,7 +1754,7 @@ export class OrdersService {
   async assignCourier(user: AuthUser, id: string, dto: AssignCourierDto) {
     const outcome = await this.prisma.$transaction(async (tx) => {
       const [order, courier] = await Promise.all([
-        tx.order.findUnique({ where: { id } }),
+        tx.order.findUnique({ where: { id }, include: { items: true } }),
         tx.user.findUnique({ where: { id: dto.courierId } }),
       ]);
       if (!order) throw new NotFoundException("Order not found");
@@ -1799,6 +1806,10 @@ export class OrdersService {
           },
         });
       }
+      const result = await tx.order.findUniqueOrThrow({
+        where: { id },
+        include: detailInclude,
+      });
       await tx.auditLog.create({
         data: {
           actorId: user.id,
@@ -1807,16 +1818,13 @@ export class OrdersService {
             : "order.courier-assigned",
           entityType: "Order",
           entityId: id,
-          metadata: {
+          metadata: { before: orderAuditSnapshot(order), after: orderAuditSnapshot(result),
             previousCourierId: order.courierId,
             courierId: courier.id,
           },
         },
       });
-      const result = await tx.order.findUniqueOrThrow({
-        where: { id },
-        include: detailInclude,
-      });
+
       return {
         response: toApiResponse(withItemImages(result)),
         isReassignment,
@@ -1841,7 +1849,7 @@ export class OrdersService {
       const customerCancellationCutoff = new Date(
         cancelledAt.getTime() - CUSTOMER_CANCELLATION_WINDOW_MS,
       );
-      const order = await tx.order.findUnique({ where: { id } });
+      const order = await tx.order.findUnique({ where: { id }, include: { items: true } });
       if (!order) throw new NotFoundException("Order not found");
       if (order.version !== dto.version) {
         throw new ConflictException("Order changed; reload and try again");
@@ -1905,19 +1913,20 @@ export class OrdersService {
           note: dto.reason,
         },
       });
+      const result = await tx.order.findUniqueOrThrow({
+        where: { id },
+        include: detailInclude,
+      });
       await tx.auditLog.create({
         data: {
           actorId: user.id,
           action: "order.cancelled",
           entityType: "Order",
           entityId: id,
-          metadata: { fromStatus: order.status, reason: dto.reason },
+          metadata: { before: orderAuditSnapshot(order), after: orderAuditSnapshot(result), fromStatus: order.status, reason: dto.reason },
         },
       });
-      const result = await tx.order.findUniqueOrThrow({
-        where: { id },
-        include: detailInclude,
-      });
+
       await this.enqueueReceipt(tx, id, `ORDER_CANCELLED:${id}`);
       notifyTarget = { customerId: result.customerId, number: result.number };
       return toApiResponse(withItemImages(result));

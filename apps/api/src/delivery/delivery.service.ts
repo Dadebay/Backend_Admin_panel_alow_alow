@@ -445,6 +445,7 @@ export class DeliveryService {
           metadata: {
             changedFields: Object.keys(update),
             previous: toApiResponse(before),
+            current: toApiResponse(welayat),
           },
         },
       });
@@ -612,6 +613,7 @@ export class DeliveryService {
               ...(dto.deliveryZone !== undefined ? ["deliveryZone"] : []),
             ],
             previous: toApiResponse(before),
+            current: toApiResponse(etrap),
           },
         },
       });

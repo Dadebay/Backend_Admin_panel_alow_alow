@@ -95,6 +95,8 @@ alowalow/
 │   └── workflows/
 │       └── ci-cd.yml
 ├── docs/
+│   ├── ACCOUNTING_OVERSIGHT_MOBILE.md
+│   ├── ACCOUNTING_OVERSIGHT_QA.md
 │   ├── ANDROID_SMS_GATEWAY.md
 │   ├── ADMIN_TABLET_QA.md
 │   ├── APP_FORCE_UPDATE.md
@@ -223,7 +225,8 @@ Prisma access in React, or duplicate backend policies in client state.
   status mutation; packing confirmation is an administrator action.
 - `COURIER`: handles only assigned orders, confirms pickup and delivery, and
   confirms collected cash was returned.
-- `ACCOUNTANT`: sees the dedicated shift/cash workspace, verifies submitted
+- `ACCOUNTANT`: sees the dedicated shift/cash workspace, read-only order details,
+  complete operational audit and shift/calendar-month analytics; verifies submitted
   cash packets and performs final reconciliation for every included order.
 - `ADMIN`: operational administration, audited correction of active orders,
   backward workflow control before courier pickup, late cancellation before
@@ -284,8 +287,8 @@ paginated order API and mutation policy as the table. `ADMIN` and `SUPER_ADMIN`
 see two active lanes: kitchen (`COOKING` and `READY`) and courier (assignment
 through delivery). Cash-returned, reconciled, and cancelled orders remain in
 one collapsed archive. The separate `/accounting` workspace is the only admin
-navigation item for `ACCOUNTANT`; it exposes financial summaries and submitted
-shift packets without customer identity, delivery address, or dish composition.
+navigation item for `ACCOUNTANT`; it exposes financial summaries, submitted
+shift packets, read-only customer/order contents, business audit and shift carryover.
 `ADMIN` sees only shift totals and the amount to submit. `SUPER_ADMIN` sees the
 complete report, popular-product analytics, and shift settings. Frontend
 visibility is usability and data minimization only—the NestJS guards, role
@@ -497,7 +500,7 @@ An individual order attached to a packet cannot bypass packet confirmation.
 `/accounting` supports today, seven-day, thirty-day and custom ranges up to one
 year. Accountants and super administrators see collected, submitted,
 confirmed and outstanding cash, order count/average, cancellations, daily
-series and packet history. Only `SUPER_ADMIN` receives top-product quantity
+series and packet history. `ACCOUNTANT` and `SUPER_ADMIN` receive top-product quantity
 and revenue analytics. `ADMIN` is denied the financial report endpoint and
 sees only the shift amount they must submit. The UI is lazy-loaded and changes
 from three summary columns/two shift columns to one column on a phone.
@@ -2094,7 +2097,7 @@ push/deployment was explicitly authorized by the user on 2026-09-04.
 
 ## Preparation timing, receipt copies and ordering hours — 2026-09-24
 
-Each product has an administrator-managed `preparationMinutes` (0–240). The
+Each product has an administrator-managed `preparationMinutes` (0–1440). The
 public catalog exposes it, and each order line snapshots it. For a newly
 created order, the kitchen receipt for each line becomes eligible at
 `order.createdAt + max(order line preparationMinutes) - line preparationMinutes`.
@@ -2363,3 +2366,51 @@ The user authorized merging the configurator into `main` and deploying it on
 2026-09-27. Apply the additive `20260927100000_distance_price_tiers` migration
 before the matching API/admin release. Deployment must preserve the selected
 pricing mode and existing rates; the user configures thresholds in the admin.
+
+
+## Accountant oversight and monthly reports — 2026-09-27
+
+The user expanded ACCOUNTANT visibility to read-only order contents, customers,
+locations, cancellations/reasons, audit before/after evidence, product demand,
+and district/branch analytics through dedicated /accounting endpoints. Other
+roles cannot obtain the new inspection APIs merely through an expanded page
+grant. Order edits/cancellations remain governed by existing operational roles.
+The accountant continues to confirm submitted cash packets.
+
+/accounting offers exact calendar months as well as date ranges and individual
+shifts. Clicking a date in the orders chart selects that calendar day; each
+shift card has a direct inspection button. Order creation, cash return and
+audit action times are separate cohorts.
+Food after discounts is the amount owed by employees; delivery stays separate.
+Declared cash and packet discrepancies are visible; there is no system-fee
+commission. Packet membership and submitted shift boundaries remain frozen.
+
+Incoming/outgoing unfinished work is reconstructed at shift or calendar-period
+boundaries, including cooking, assembly, delivery and delivered orders awaiting
+cash return. Cash-returned, reconciled and cancelled orders do not carry over.
+Current periods show a provisional live boundary. Old edits without complete
+snapshots are explicitly marked unavailable, never reconstructed from guesses.
+New order mutations save before/after business snapshots atomically; the order
+audit also includes its receipt tasks and cash packet. Existing domain audits
+are exposed with paginated filters and secrets redacted. The journal has no
+write/delete API and does not claim to record menu clicks or prevent DB-owner
+tampering. Physical money/stock reconciliation remains necessary.
+
+The catalog and API accept preparation times from 0 through 1440 minutes; 520
+minutes is valid and follows the same durable kitchen-ticket scheduling.
+See ACCOUNTING_OVERSIGHT_MOBILE.md for mobile contracts, cohort semantics and
+legacy limitations. Apply additive 20260927160000_accounting_inspection_indexes
+before the matching API/admin release.
+
+
+The owner authorized merging this accountant release into main and production
+deployment on 2026-09-27. They also confirmed delivery and collected/returned
+cash for all active orders created before 2026-09-27 00:00 Asia/Ashgabat. The
+26 historical orders were completed through the existing authenticated API to
+CASH_RETURNED with audit/transition notes, at the current recording time. No
+unknown past timestamps were invented. Six orders without a courier received
+random active courier assignments at the owner's explicit instruction; an
+additional audit records that these are technical assignments, not evidence of
+who actually delivered them. Cancelled and already completed orders were not
+changed. The original database backup and scoped operation results are retained
+on the VDS under maintenance/complete-before-20260927.

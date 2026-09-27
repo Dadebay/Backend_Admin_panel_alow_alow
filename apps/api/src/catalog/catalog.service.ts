@@ -549,7 +549,7 @@ export class CatalogService {
             action: "catalog.cafe.updated",
             entityType: "Cafe",
             entityId: cafe.id,
-            metadata: { changedFields: Object.keys(dto) },
+            metadata: { changedFields: Object.keys(dto), before: toApiResponse(existing), after: toApiResponse(cafe) },
           },
         });
         const { _count, ...response } = cafe;
@@ -703,7 +703,7 @@ export class CatalogService {
             action: "catalog.category.updated",
             entityType: "Category",
             entityId: id,
-            metadata: { changedFields: Object.keys(dto) },
+            metadata: { changedFields: Object.keys(dto), before: toApiResponse(category), after: toApiResponse(updated) },
           },
         });
         return toApiResponse(categoryResponse(updated, true));
@@ -824,7 +824,7 @@ export class CatalogService {
             action: "catalog.receipt-printer.updated",
             entityType: "ReceiptPrinter",
             entityId: printer.id,
-            metadata: { changedFields: Object.keys(dto) },
+            metadata: { changedFields: Object.keys(dto), before: toApiResponse(existing), after: toApiResponse(printer) },
           },
         });
         return toApiResponse(printer);
@@ -1031,7 +1031,7 @@ export class CatalogService {
       .$transaction(async (tx) => {
         const existing = await tx.product.findUnique({
           where: { id },
-          include: { variants: true },
+          include: { variants: { include: { images: true } }, images: true },
         });
         if (!existing) throw new NotFoundException("Product not found");
         await assertActivePrinterReference(tx, receiptPrinterId);
@@ -1222,6 +1222,8 @@ export class CatalogService {
             entityType: "Product",
             entityId: id,
             metadata: {
+              before: toApiResponse(existing),
+              after: toApiResponse(updated),
               changedFields: Object.keys(dto),
               imageCount: updated.images.length,
               variantCount: updated.variants.length,

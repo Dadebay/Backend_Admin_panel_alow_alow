@@ -101,7 +101,7 @@ export class AccountingController {
   @AdminPages(AdminPage.ACCOUNTING)
   @ApiOperation({
     summary:
-      "Get cash totals, handoffs, daily series and super-admin product analytics",
+      "Get cash totals, handoffs, daily series and accountant/owner product analytics",
   })
   @ApiOkResponse({ type: AccountingReportResponseDto })
   report(

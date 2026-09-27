@@ -77,7 +77,7 @@ export class BranchesService {
           action: "branch.updated",
           entityType: "Branch",
           entityId: branch.id,
-          metadata: { changedFields: Object.keys(dto) },
+          metadata: { changedFields: Object.keys(dto), before: toApiResponse(exists), after: toApiResponse(branch) },
         },
       });
       return toApiResponse(branch);

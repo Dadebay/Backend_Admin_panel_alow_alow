@@ -50,16 +50,57 @@ const optionalIntegerInput = z
   .refine((value) => !value || /^\d+$/.test(value), "Укажите целое число")
   .transform((value) => (value ? Number(value) : null));
 
-export const deliverySettingsFormSchema = z.object({
-  mapPricingEnabled: z.boolean(),
-  distancePricingEnabled: z.boolean(),
-  dayPricePerKilometer: moneyInput.refine((value) => value > 0, "Цена должна быть больше нуля"),
-  nightPricePerKilometer: moneyInput.refine((value) => value > 0, "Цена должна быть больше нуля"),
-  fallbackPrice: moneyInput,
-  fallbackNightPrice: moneyInput.optional(),
-  fallbackNightFreeDeliveryThreshold: optionalMoneyInput.optional(),
-  fallbackFreeDeliveryThreshold: optionalMoneyInput,
-});
+const kilometerPriceInput = moneyInput
+  .refine((value) => value > 0, "Цена должна быть больше нуля")
+  .refine((value) => value <= 10_000, "Цена не должна превышать 10 000 TMT");
+
+export const deliverySettingsFormSchema = z
+  .object({
+    mapPricingEnabled: z.boolean(),
+    distancePricingEnabled: z.boolean(),
+    dayPricePerKilometer: kilometerPriceInput,
+    nightPricePerKilometer: kilometerPriceInput,
+    distancePriceTiers: z
+      .array(
+        z.object({
+          afterKilometers: z
+            .string()
+            .trim()
+            .regex(
+              /^\d+(?:[.,]\d{1,2})?$/,
+              "Укажите расстояние с точностью до 2 знаков",
+            )
+            .transform((value) => Number(value.replace(",", ".")))
+            .refine(
+              (value) => value > 0 && value <= 10_000,
+              "Расстояние должно быть от 0,01 до 10 000 км",
+            ),
+          dayPricePerKilometer: kilometerPriceInput,
+          nightPricePerKilometer: kilometerPriceInput,
+        }),
+      )
+      .max(20, "Можно добавить не более 20 ступеней")
+      .default([]),
+    fallbackPrice: moneyInput,
+    fallbackNightPrice: moneyInput.optional(),
+    fallbackNightFreeDeliveryThreshold: optionalMoneyInput.optional(),
+    fallbackFreeDeliveryThreshold: optionalMoneyInput,
+  })
+  .superRefine((value, ctx) => {
+    value.distancePriceTiers.forEach((tier, index) => {
+      if (
+        index > 0 &&
+        tier.afterKilometers <=
+          value.distancePriceTiers[index - 1].afterKilometers
+      ) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["distancePriceTiers", index, "afterKilometers"],
+          message: "Каждый следующий порог должен быть больше предыдущего",
+        });
+      }
+    });
+  });
 
 export const deliveryEtrapFormSchema = z.object({
   welayatId: integerInput,

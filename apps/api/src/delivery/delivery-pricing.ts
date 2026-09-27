@@ -12,6 +12,7 @@ export function calculateDeliveryFee(
 export function calculateDistanceDeliveryFee(
   distanceMeters: number,
   pricePerKilometer: number,
+  tiers: readonly { afterKilometers: number; pricePerKilometer: number }[] = [],
 ) {
   if (
     !Number.isFinite(distanceMeters) ||
@@ -21,7 +22,29 @@ export function calculateDistanceDeliveryFee(
   ) {
     throw new RangeError("Distance must be nonnegative and kilometer price positive");
   }
-  const rawFee = (distanceMeters * pricePerKilometer) / 1000;
+  let rawFee = 0;
+  let previousMeters = 0;
+  let rate = pricePerKilometer;
+  for (const tier of tiers) {
+    const thresholdMeters = tier.afterKilometers * 1000;
+    if (
+      !Number.isFinite(thresholdMeters) ||
+      thresholdMeters <= previousMeters ||
+      !Number.isFinite(tier.pricePerKilometer) ||
+      tier.pricePerKilometer <= 0
+    ) {
+      throw new RangeError(
+        "Distance tiers require ascending thresholds and positive prices",
+      );
+    }
+    rawFee +=
+      (Math.max(0, Math.min(distanceMeters, thresholdMeters) - previousMeters) *
+        rate) /
+      1000;
+    previousMeters = thresholdMeters;
+    rate = tier.pricePerKilometer;
+  }
+  rawFee += Math.max(0, distanceMeters - previousMeters) * rate / 1000;
   if (!Number.isFinite(rawFee) || rawFee > 1_000_000) {
     throw new RangeError("Distance delivery fee is outside the supported range");
   }

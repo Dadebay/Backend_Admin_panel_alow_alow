@@ -4120,7 +4120,7 @@
             "bearer": []
           }
         ],
-        "summary": "Update day/night fallback pricing and the night schedule",
+        "summary": "Update day/night delivery prices, distance tiers and the night schedule",
         "tags": [
           "delivery"
         ]
@@ -11811,6 +11811,35 @@
           "body"
         ]
       },
+      "DistancePriceTierDto": {
+        "type": "object",
+        "properties": {
+          "afterKilometers": {
+            "type": "number",
+            "minimum": 0.01,
+            "maximum": 10000,
+            "example": 5,
+            "description": "New rate applies only to kilometers after this threshold"
+          },
+          "dayPricePerKilometer": {
+            "type": "number",
+            "minimum": 0.01,
+            "maximum": 10000,
+            "example": 7
+          },
+          "nightPricePerKilometer": {
+            "type": "number",
+            "minimum": 0.01,
+            "maximum": 10000,
+            "example": 10
+          }
+        },
+        "required": [
+          "afterKilometers",
+          "dayPricePerKilometer",
+          "nightPricePerKilometer"
+        ]
+      },
       "DeliveryZonePointDto": {
         "type": "object",
         "properties": {
@@ -11938,6 +11967,12 @@
       "DeliveryConfigResponseDto": {
         "type": "object",
         "properties": {
+          "distancePriceTiers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DistancePriceTierDto"
+            }
+          },
           "mapPricingEnabled": {
             "type": "boolean"
           },
@@ -11992,6 +12027,7 @@
           }
         },
         "required": [
+          "distancePriceTiers",
           "mapPricingEnabled",
           "distancePricingEnabled",
           "dayPricePerKilometer",
@@ -12063,6 +12099,13 @@
       "DeliveryQuoteResponseDto": {
         "type": "object",
         "properties": {
+          "distancePriceTiers": {
+            "description": "Progressive kilometer rates; empty for area pricing. Use fee as the authoritative total.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DistancePriceTierDto"
+            }
+          },
           "pricingMode": {
             "type": "string",
             "enum": [
@@ -12077,7 +12120,8 @@
           },
           "pricePerKilometer": {
             "type": "number",
-            "nullable": true
+            "nullable": true,
+            "description": "Initial kilometer rate before any distancePriceTiers thresholds"
           },
           "tariff": {
             "type": "string",
@@ -12152,6 +12196,7 @@
           }
         },
         "required": [
+          "distancePriceTiers",
           "pricingMode",
           "distanceMeters",
           "pricePerKilometer",
@@ -12203,6 +12248,13 @@
       "DeliveryTariffQuoteResponseDto": {
         "type": "object",
         "properties": {
+          "distancePriceTiers": {
+            "description": "Progressive kilometer rates; empty for area pricing. Use fee as the authoritative total.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DistancePriceTierDto"
+            }
+          },
           "pricingMode": {
             "type": "string",
             "enum": [
@@ -12217,7 +12269,8 @@
           },
           "pricePerKilometer": {
             "type": "number",
-            "nullable": true
+            "nullable": true,
+            "description": "Initial kilometer rate before any distancePriceTiers thresholds"
           },
           "tariff": {
             "type": "string",
@@ -12261,6 +12314,7 @@
           }
         },
         "required": [
+          "distancePriceTiers",
           "pricingMode",
           "distanceMeters",
           "pricePerKilometer",
@@ -12320,6 +12374,14 @@
       "UpdateDeliverySettingsDto": {
         "type": "object",
         "properties": {
+          "distancePriceTiers": {
+            "maxItems": 20,
+            "description": "Ascending unique distance thresholds. Empty array removes tiers; omission preserves them. Requires version.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DistancePriceTierDto"
+            }
+          },
           "version": {
             "type": "number",
             "minimum": 1,
@@ -12387,6 +12449,12 @@
       "DeliverySettingsResponseDto": {
         "type": "object",
         "properties": {
+          "distancePriceTiers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DistancePriceTierDto"
+            }
+          },
           "mapPricingEnabled": {
             "type": "boolean"
           },
@@ -12442,6 +12510,7 @@
           }
         },
         "required": [
+          "distancePriceTiers",
           "mapPricingEnabled",
           "distancePricingEnabled",
           "dayPricePerKilometer",

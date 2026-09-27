@@ -2329,3 +2329,33 @@ delivery thresholds. A quote without coordinates is rejected in this mode;
 customer orders use their selected address coordinates. The public delivery
 config and quote disclose the selected mode, configured rates, calculated
 distance, and fee so mobile clients can render the authoritative result.
+
+## Configurable distance price tiers — 2026-09-27
+
+Kilometer delivery supports up to 20 administrator-configured thresholds in
+`distancePriceTiers`. Each threshold has `afterKilometers` plus its own day and
+night price per kilometer. The initial day/night rate applies up to the first
+threshold; each subsequent rate applies only to distance beyond its threshold,
+until the next threshold. Earlier kilometers are never repriced. For example,
+the first 5 km at 5 TMT/km and subsequent kilometers at 4 TMT/km give 29 TMT
+before cash rounding for 6 km, resulting in 30 TMT. The 15 TMT minimum and cash
+rounding apply once to the complete fee, not separately to each segment.
+
+The `/delivery` configurator supports adding, editing and removing thresholds,
+with separate day/night rates. Thresholds must be positive, unique and ordered;
+distances and prices support two decimal places and values up to 10,000.
+Configuration writes retain role/page authorization, require the current
+settings version and audit the previous and resulting settings atomically.
+An omitted array preserves existing rules; `[]` removes them and restores the
+single rate. The additive migration defaults to `[]`, preserving existing
+tariffs. Switching to area pricing retains the rules but does not apply them.
+
+Public config and delivery quotes expose the tiers; `pricePerKilometer` stays
+the initial rate and `fee` is authoritative. The same server calculation prices
+order quotes, customer and assisted orders, and explicit administrator edits.
+Changing settings alone never reprices saved orders or receipt snapshots.
+
+The user authorized merging the configurator into `main` and deploying it on
+2026-09-27. Apply the additive `20260927100000_distance_price_tiers` migration
+before the matching API/admin release. Deployment must preserve the selected
+pricing mode and existing rates; the user configures thresholds in the admin.

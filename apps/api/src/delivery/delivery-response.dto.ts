@@ -1,7 +1,10 @@
 import { ApiProperty } from "@nestjs/swagger";
-import { DeliveryZonePointDto } from "./delivery.dto";
+import { DeliveryZonePointDto, DistancePriceTierDto } from "./delivery.dto";
 
 export class DeliverySettingsResponseDto {
+  @ApiProperty({ type: [DistancePriceTierDto] })
+  distancePriceTiers: DistancePriceTierDto[];
+
   @ApiProperty()
   mapPricingEnabled: boolean;
 
@@ -133,6 +136,9 @@ export class DeliveryWelayatResponseDto {
 }
 
 export class DeliveryConfigResponseDto {
+  @ApiProperty({ type: [DistancePriceTierDto] })
+  distancePriceTiers: DistancePriceTierDto[];
+
   @ApiProperty()
   mapPricingEnabled: boolean;
 
@@ -194,13 +200,16 @@ export class DeliveryQuoteWelayatResponseDto {
 }
 
 export class DeliveryTariffQuoteResponseDto {
+  @ApiProperty({ type: [DistancePriceTierDto], description: "Progressive kilometer rates; empty for area pricing. Use fee as the authoritative total." })
+  distancePriceTiers: DistancePriceTierDto[];
+
   @ApiProperty({ enum: ["AREA", "DISTANCE"] })
   pricingMode: "AREA" | "DISTANCE";
 
   @ApiProperty({ type: Number, nullable: true, description: "Distance from the assigned branch" })
   distanceMeters: number | null;
 
-  @ApiProperty({ type: Number, nullable: true })
+  @ApiProperty({ type: Number, nullable: true, description: "Initial kilometer rate before any distancePriceTiers thresholds" })
   pricePerKilometer: number | null;
 
   @ApiProperty({ enum: ["DAY", "NIGHT"] })

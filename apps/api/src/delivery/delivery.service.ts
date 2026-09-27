@@ -32,6 +32,10 @@ import {
 } from "./delivery-pricing";
 import { findDeliveryAreaForAddress } from "./delivery-area-matcher";
 import {
+  parseDistancePriceTiers,
+  type DistancePriceTier,
+} from "./distance-price-tiers";
+import {
   deliveryZoneFromJson,
   deliveryZonesOverlap,
   deliveryZoneValidationError,
@@ -224,12 +228,25 @@ export class DeliveryService {
       const rate = Number(
         night ? settings.nightPricePerKilometer : settings.dayPricePerKilometer,
       );
-      const fee = calculateDistanceDeliveryFee(distanceMeters, rate);
+      const distancePriceTiers = parseDistancePriceTiers(
+        settings.distancePriceTiers,
+      );
+      const fee = calculateDistanceDeliveryFee(
+        distanceMeters,
+        rate,
+        distancePriceTiers.map((tier) => ({
+          afterKilometers: tier.afterKilometers,
+          pricePerKilometer: night
+            ? tier.nightPricePerKilometer
+            : tier.dayPricePerKilometer,
+        })),
+      );
       return {
         ...period,
         pricingMode: "DISTANCE" as const,
         distanceMeters,
         pricePerKilometer: rate,
+        distancePriceTiers,
         price: fee,
         freeDeliveryThreshold: null,
         fee,
@@ -257,6 +274,7 @@ export class DeliveryService {
       pricingMode: "AREA" as const,
       distanceMeters: null,
       pricePerKilometer: null,
+      distancePriceTiers: [],
       price,
       freeDeliveryThreshold,
       fee: calculateDeliveryFee(subtotal, price, freeDeliveryThreshold),
@@ -264,7 +282,21 @@ export class DeliveryService {
   }
 
   updateSettings(actor: AuthUser, dto: UpdateDeliverySettingsDto) {
-    const { version, ...update } = dto;
+    const { version, distancePriceTiers, ...fields } = dto;
+    let tiers: DistancePriceTier[] | undefined;
+    if (distancePriceTiers !== undefined) {
+      try {
+        tiers = parseDistancePriceTiers(distancePriceTiers);
+      } catch (error) {
+        throw new BadRequestException(
+          error instanceof Error ? error.message : "Invalid distance price tiers",
+        );
+      }
+    }
+    const update = {
+      ...fields,
+      ...(tiers === undefined ? {} : { distancePriceTiers: tiers }),
+    };
     const changedFields = Object.keys(update).filter(
       (key) => update[key as keyof typeof update] !== undefined,
     );
@@ -273,11 +305,12 @@ export class DeliveryService {
         key.toLowerCase().includes("night") ||
         key === "mapPricingEnabled" ||
         key === "distancePricingEnabled" ||
+        key === "distancePriceTiers" ||
         key === "dayPricePerKilometer",
     );
     if (changesVersionedSettings && version === undefined)
       throw new BadRequestException(
-        "Version is required when changing night or map pricing settings",
+        "Version is required when changing delivery pricing settings",
       );
     if (!Object.values(update).some((value) => value !== undefined)) {
       throw new BadRequestException(
@@ -302,7 +335,10 @@ export class DeliveryService {
       ) {
         throw new BadRequestException("Night start and end must be different");
       }
-      if (dto.distancePricingEnabled ?? before.distancePricingEnabled) {
+      if (
+        (dto.distancePricingEnabled ?? before.distancePricingEnabled) ||
+        (tiers ?? parseDistancePriceTiers(before.distancePriceTiers)).length > 0
+      ) {
         if (
           (dto.dayPricePerKilometer ?? Number(before.dayPricePerKilometer)) <= 0 ||
           (dto.nightPricePerKilometer ?? Number(before.nightPricePerKilometer)) <= 0
@@ -335,6 +371,7 @@ export class DeliveryService {
           metadata: {
             changedFields,
             previous: toApiResponse(before),
+            current: toApiResponse(settings),
           },
         },
       });
@@ -756,6 +793,7 @@ export class DeliveryService {
       distancePricingEnabled: settings.distancePricingEnabled,
       dayPricePerKilometer: settings.dayPricePerKilometer,
       nightPricePerKilometer: settings.nightPricePerKilometer,
+      distancePriceTiers: parseDistancePriceTiers(settings.distancePriceTiers),
       fallbackPrice: settings.fallbackPrice,
       fallbackFreeDeliveryThreshold: settings.fallbackFreeDeliveryThreshold,
       fallbackNightPrice: settings.fallbackNightPrice,

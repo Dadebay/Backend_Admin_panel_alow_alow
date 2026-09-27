@@ -11,13 +11,21 @@ test("night schedule accepts midnight crossings and requires distinct valid time
   }
 });
 test("day and night fallback prices have independent free-delivery thresholds", () => {
-  assert.deepEqual(deliverySettingsFormSchema.parse({ mapPricingEnabled: true, distancePricingEnabled: true, dayPricePerKilometer: "5", nightPricePerKilometer: "7,50", fallbackPrice: "15", fallbackFreeDeliveryThreshold: "150", fallbackNightPrice: "35,50", fallbackNightFreeDeliveryThreshold: "" }), { mapPricingEnabled: true, distancePricingEnabled: true, dayPricePerKilometer: 5, nightPricePerKilometer: 7.5, fallbackPrice: 15, fallbackFreeDeliveryThreshold: 150, fallbackNightPrice: 35.5, fallbackNightFreeDeliveryThreshold: null });
+  assert.deepEqual(deliverySettingsFormSchema.parse({ mapPricingEnabled: true, distancePricingEnabled: true, dayPricePerKilometer: "5", nightPricePerKilometer: "7,50", fallbackPrice: "15", fallbackFreeDeliveryThreshold: "150", fallbackNightPrice: "35,50", fallbackNightFreeDeliveryThreshold: "" }), { mapPricingEnabled: true, distancePricingEnabled: true, dayPricePerKilometer: 5, nightPricePerKilometer: 7.5, distancePriceTiers: [], fallbackPrice: 15, fallbackFreeDeliveryThreshold: 150, fallbackNightPrice: 35.5, fallbackNightFreeDeliveryThreshold: null });
 });
 test("district form preserves an independent night price and threshold", () => {
   const form = { welayatId: "1", nameEn: "", nameRu: "Район", nameTk: "Etrap", queuePosition: "", price: "20", freeDeliveryThreshold: "200", nightPrice: "40", nightFreeDeliveryThreshold: "400", isDeliveryEnabled: true };
   const result = deliveryEtrapFormSchema.parse(form);
   assert.equal(result.price, 20); assert.equal(result.nightPrice, 40); assert.equal(result.nightFreeDeliveryThreshold, 400);
   for (const price of ["-1", "1.111", "", "1000001"]) assert.equal(deliveryEtrapFormSchema.safeParse({ ...form, nightPrice: price }).success, false);
+});
+test("kilometer tiers accept editable fractional thresholds and validate ordered boundaries", () => {
+  const form = { mapPricingEnabled: false, distancePricingEnabled: true, dayPricePerKilometer: "5", nightPricePerKilometer: "8", fallbackPrice: "15", fallbackFreeDeliveryThreshold: "", distancePriceTiers: [{ afterKilometers: "5", dayPricePerKilometer: "4", nightPricePerKilometer: "6" }, { afterKilometers: "10,50", dayPricePerKilometer: "3,50", nightPricePerKilometer: "5" }] };
+  assert.deepEqual(deliverySettingsFormSchema.parse(form).distancePriceTiers, [{ afterKilometers: 5, dayPricePerKilometer: 4, nightPricePerKilometer: 6 }, { afterKilometers: 10.5, dayPricePerKilometer: 3.5, nightPricePerKilometer: 5 }]);
+  for (const tiers of [[form.distancePriceTiers[0], form.distancePriceTiers[0]], [...form.distancePriceTiers].reverse(), [{ ...form.distancePriceTiers[0], afterKilometers: "" }], [{ ...form.distancePriceTiers[0], afterKilometers: "0" }], [{ ...form.distancePriceTiers[0], afterKilometers: "5.001" }], [{ ...form.distancePriceTiers[0], dayPricePerKilometer: "10001" }], [{ ...form.distancePriceTiers[0], nightPricePerKilometer: "0" }], Array.from({ length: 21 }, (_, i) => ({ ...form.distancePriceTiers[0], afterKilometers: String(i + 1) }))]) {
+    assert.equal(deliverySettingsFormSchema.safeParse({ ...form, distancePriceTiers: tiers }).success, false);
+  }
+  assert.deepEqual(deliverySettingsFormSchema.parse({ ...form, distancePriceTiers: [] }).distancePriceTiers, []);
 });
 test("delivery quotes refresh at the server boundary without polling while disabled", () => {
   const now = Date.parse("2026-09-12T17:59:00Z");

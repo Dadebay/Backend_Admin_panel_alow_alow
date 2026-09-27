@@ -10813,4 +10813,13 @@ button:disabled {
 .delivery-pricing-modes legend { font-weight: 600; margin-bottom: 10px; }
 .delivery-area-settings { display: grid; gap: 12px; }
 .delivery-area-settings:disabled { opacity: 0.6; }
+.delivery-distance-tiers { display: grid; gap: 16px; min-width: 0; }
+.delivery-distance-tier { min-width: 0; margin: 0; padding: 16px; border: 1px solid var(--line); border-radius: 12px; }
+.delivery-distance-tier legend { padding: 0 6px; font-weight: 600; }
+.delivery-distance-tier-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.delivery-distance-tier .text-button { margin-top: 12px; }
+.delivery-distance-tiers > .secondary-button { justify-self: start; }
+@media (max-width: 760px) {
+  .delivery-distance-tier-grid { grid-template-columns: 1fr; }
+}
 .delivery-pricing-hint { border-left: 3px solid #EC7A1B; padding-left: 12px; font-size: 13px; }

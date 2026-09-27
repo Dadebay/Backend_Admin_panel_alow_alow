@@ -1,6 +1,11 @@
 import { Prisma } from "../generated/prisma/client";
 import type { AuthUser } from "../common/auth.types";
 import type { ReceiptPrintPlanResponseDto } from "./orders-response.dto";
+import { outstandingKitchenJobs } from "./receipt-kitchen-history";
+import {
+  partialReceiptCustomerNote,
+  ReceiptDocumentType,
+} from "./receipt-print-plan";
 
 type EditableReceiptItem = {
   id: string;
@@ -8,15 +13,15 @@ type EditableReceiptItem = {
   productVariantId: string | null;
   quantity: number;
   preparationMinutes: number;
+  productName: string;
+  variantName: string | null;
+  unitPrice: unknown;
 };
 
 function receiptLineKey(
-  item: Pick<
-    EditableReceiptItem,
-    "productId" | "productVariantId" | "quantity"
-  >,
+  item: Pick<EditableReceiptItem, "productId" | "productVariantId">,
 ) {
-  return `${item.productId}:${item.productVariantId ?? "base"}:${item.quantity}`;
+  return `${item.productId}:${item.productVariantId ?? "base"}`;
 }
 
 export async function reconcileReceiptsAfterItemEdit(
@@ -47,6 +52,86 @@ export async function reconcileReceiptsAfterItemEdit(
       currentByKey.get(receiptLineKey(item))?.id,
     ]),
   );
+  let printedJobs = await outstandingKitchenJobs(tx, orderId);
+  // Older releases replaced every line UUID on edit. A unique unchanged
+  // name/variant/price can recover that legacy identity without mutating the
+  // frozen dispatch. Persist the alias so later portion changes add up across
+  // both the old printed UUID and subsequent tickets with the retained UUID.
+  const previousIdForPrinted = (item: {
+    id: string;
+    name: string;
+    unitPrice: number;
+  }) => {
+    if (previousItems.some((previous) => previous.id === item.id))
+      return item.id;
+    const matches = previousItems.filter(
+      (previous) =>
+        (previous.variantName
+          ? `${previous.productName} · ${previous.variantName}`
+          : previous.productName) === item.name &&
+        Number(previous.unitPrice) === item.unitPrice,
+    );
+    return matches.length === 1 ? matches[0]!.id : item.id;
+  };
+  const aliases = [
+    ...new Map(
+      printedJobs
+        .flatMap((job) => job.items)
+        .flatMap((item) => {
+          const to = previousIdForPrinted(item);
+          return to === item.id
+            ? []
+            : [[item.id, { from: item.id, to }] as const];
+        }),
+    ).values(),
+  ];
+  if (aliases.length) {
+    await tx.auditLog.create({
+      data: {
+        actorId: actor.id,
+        action: "receipt.legacy_item_aliases",
+        entityType: "Order",
+        entityId: orderId,
+        metadata: { version, aliases },
+      },
+    });
+    printedJobs = await outstandingKitchenJobs(tx, orderId);
+  }
+  const printedByCurrentId = new Map<string, number>();
+  for (const job of printedJobs)
+    for (const item of job.items) {
+      const currentId = currentIdByPreviousId.get(previousIdForPrinted(item));
+      if (currentId)
+        printedByCurrentId.set(
+          currentId,
+          Math.max(printedByCurrentId.get(currentId) ?? 0, item.quantity),
+        );
+    }
+  const remainingQuantity = (id: string) =>
+    Math.max(
+      0,
+      (currentById.get(id)?.quantity ?? 0) - (printedByCurrentId.get(id) ?? 0),
+    );
+  const cancellationJobs = printedJobs
+    .map((job) => ({
+      ...job,
+      items: job.items
+        .map((item) => {
+          const currentId = currentIdByPreviousId.get(
+            previousIdForPrinted(item),
+          );
+          return {
+            ...item,
+            quantity: Math.max(
+              0,
+              item.quantity -
+                (currentId ? currentById.get(currentId)!.quantity : 0),
+            ),
+          };
+        })
+        .filter((item) => item.quantity > 0),
+    }))
+    .filter((job) => job.items.length > 0);
   const maxPreparation = Math.max(
     0,
     ...currentItems.map((item) => item.preparationMinutes),
@@ -61,12 +146,14 @@ export async function reconcileReceiptsAfterItemEdit(
   const resetSchedule = hasNewLine || maxPreparation !== previousMaxPreparation;
   const editedAt = new Date();
   const reissueOldIds = new Set<string>();
+  const retainedPendingIds = new Set<string>();
   let cancelled = 0;
   let adjusted = 0;
   let cancelledMainCopies = 0;
   const tasks = await tx.receiptPrintTask.findMany({
     where: {
       orderId,
+      documentType: "ORDER",
       status: { in: ["PENDING", "FAILED", "UNCERTAIN"] },
     },
     orderBy: { sequence: "asc" },
@@ -82,6 +169,15 @@ export async function reconcileReceiptsAfterItemEdit(
         return currentId !== undefined && currentId !== item.id;
       }),
     );
+    const hasChangedQuantity = plan.jobs.some((job) =>
+      job.items.some((item) => {
+        const currentId = currentIdByPreviousId.get(item.id);
+        return (
+          currentId !== undefined &&
+          item.quantity !== remainingQuantity(currentId)
+        );
+      }),
+    );
     const canChangeFrozenPlan =
       task.status === "PENDING" && task.attempts === 0;
     const keptJobs = plan.jobs
@@ -89,15 +185,16 @@ export async function reconcileReceiptsAfterItemEdit(
         ...job,
         items: job.items
           .filter((item) => !obsoleteIds.has(item.id))
-          .map((item) => ({
-            ...item,
-            id: currentIdByPreviousId.get(item.id) ?? item.id,
-          })),
+          .map((item) => {
+            const id = currentIdByPreviousId.get(item.id) ?? item.id;
+            return { ...item, id, quantity: remainingQuantity(id) };
+          })
+          .filter((item) => item.quantity > 0),
       }))
       .filter((job) => job.items.length > 0);
     const mustCancel =
       Boolean(plan.mainJob) ||
-      (hasObsoleteKitchenItem &&
+      ((hasObsoleteKitchenItem || hasChangedQuantity) &&
         (!canChangeFrozenPlan || keptJobs.length === 0));
     if (mustCancel) {
       for (const job of plan.jobs)
@@ -120,6 +217,8 @@ export async function reconcileReceiptsAfterItemEdit(
       cancelled += 1;
       continue;
     }
+    for (const job of keptJobs)
+      for (const item of job.items) retainedPendingIds.add(item.id);
     if (!canChangeFrozenPlan) continue;
     const firstItemId = keptJobs[0]?.items[0]?.id;
     const preparation = firstItemId
@@ -137,6 +236,7 @@ export async function reconcileReceiptsAfterItemEdit(
         : task.nextAttemptAt;
     if (
       hasObsoleteKitchenItem ||
+      hasChangedQuantity ||
       hasRemappedKitchenItem ||
       updatedDue.getTime() !== task.nextAttemptAt.getTime()
     ) {
@@ -166,6 +266,51 @@ export async function reconcileReceiptsAfterItemEdit(
   }
 
   const revisionKey = `ORDER_EDITED:${orderId}:VERSION:${version}`;
+  if (cancellationJobs.length) {
+    const items = [
+      ...new Map(
+        cancellationJobs
+          .flatMap((job) => job.items)
+          .map((item) => [item.id, item]),
+      ).values(),
+    ];
+    const task = await tx.receiptPrintTask.create({
+      data: {
+        orderId,
+        eventKey: `${revisionKey}:CANCELLATION`,
+        documentType: ReceiptDocumentType.CANCELLATION,
+        plan: {
+          ...currentPlan,
+          documentType: ReceiptDocumentType.CANCELLATION,
+          cancellationReason:
+            "Изменение заказа: отмена указанных блюд или порций",
+          mainJob: currentPlan.mainJob
+            ? { ...currentPlan.mainJob, items }
+            : null,
+          mainCopies: 1,
+          jobs: cancellationJobs,
+          unassignedItems: [],
+          metadata: currentPlan.metadata
+            ? {
+                ...currentPlan.metadata,
+                customerNote: partialReceiptCustomerNote(
+                  currentPlan.metadata.customerNote,
+                ),
+              }
+            : null,
+        } as unknown as Prisma.InputJsonValue,
+      },
+    });
+    await tx.auditLog.create({
+      data: {
+        actorId: actor.id,
+        action: "receipt.kitchen_cancellation_after_order_edit",
+        entityType: "ReceiptPrintTask",
+        entityId: task.id,
+        metadata: { orderId, version, itemIds: items.map((item) => item.id) },
+      },
+    });
+  }
   for (
     let copy = 1;
     copy <= cancelledMainCopies && currentPlan.mainJob;
@@ -199,7 +344,13 @@ export async function reconcileReceiptsAfterItemEdit(
     currentItems
       .filter((item) => {
         const previous = previousByKey.get(receiptLineKey(item));
-        return !previous || reissueOldIds.has(previous.id);
+        return (
+          !retainedPendingIds.has(item.id) &&
+          remainingQuantity(item.id) > 0 &&
+          (!previous ||
+            reissueOldIds.has(previous.id) ||
+            item.quantity > previous.quantity)
+        );
       })
       .map((item) => item.id),
   );
@@ -218,8 +369,9 @@ export async function reconcileReceiptsAfterItemEdit(
           candidate.printerPort === job.printerPort &&
           candidate.transport === job.transport,
       );
-      if (group) group.items.push(item);
-      else jobs.push({ ...job, items: [item] });
+      const remaining = { ...item, quantity: remainingQuantity(item.id) };
+      if (group) group.items.push(remaining);
+      else jobs.push({ ...job, items: [remaining] });
       jobsByDelay.set(delay, jobs);
     }
   }

@@ -2812,7 +2812,8 @@ describe("backend security and critical workflow", () => {
     expect(cancellationPlan.documentType).toBe("CANCELLATION");
     expect(cancellationPlan.cancellationReason).toBe("Customer cancelled");
     expect(cancellationPlan.mainJob?.items).toHaveLength(3);
-    expect(cancellationPlan.jobs).toHaveLength(2);
+    // Merely requesting a plan does not prove kitchen delivery.
+    expect(cancellationPlan.jobs).toHaveLength(0);
   });
 
   it("allows only administrators to manage branches", async () => {

@@ -975,8 +975,11 @@ resumes definitely unsent work on the original installation.
 
 The plan contains one complete main copy plus kitchen jobs grouped by each
 line's snapshotted endpoint. Missing kitchen routes remain visible as unassigned.
-Cancellation uses the same snapshotted items and a CANCELLATION document with
-its stored reason. The VDS never connects to private printer IPs; the admin
+Cancellation uses a CANCELLATION document with its stored reason: exactly one
+complete main copy, and kitchen cancellation only for transport-confirmed
+kitchen portions, at the endpoints recorded in delivered tasks. Unprinted
+items are removed from the queue without a kitchen cancellation. The VDS never
+connects to private printer IPs; the admin
 sends claimed plans to loopback 127.0.0.1:17873 on the printing workstation.
 
 The Go agent persists installation identity and per-copy dispatch results,
@@ -2101,8 +2104,10 @@ survives agent disconnection. The complete main receipt is immediate and its
 audited setting controls 1–3 copies, defaulting to two. The API queues one
 ordinary task per main copy, so the existing print agent and browser bridge
 print one main job per task without a software update. Kitchen jobs keep the
-line's snapshotted printer route. Cancelling an order cancels its pending
-automatic receipts before queuing a cancellation receipt.
+line's snapshotted printer route. Cancelling an order cancels its pending/failed
+ORDER receipts, including manual and edit tasks, before queuing one main
+cancellation copy and cancellation of only already delivered kitchen portions.
+The configured 1–3 ordinary main copies do not multiply automatic cancellations.
 
 Manual print from the order board sends selected lines immediately. An
 administrator may override each line's kitchen apparatus for that one print,
@@ -2132,15 +2137,28 @@ available to operations staff; scheduling, delivery results and manual routing
 are audit logged. A pending future task cannot be manually retried early.
 
 When an administrator changes food in an order, the API synchronizes waiting
-receipt tasks in the same transaction. It cancels tickets for removed or
-changed lines, preserves other dishes in a shared kitchen task, and updates
-the due time of retained unprinted dishes from the edit time when food is
-added or the longest preparation time changes. Newly added or changed dishes
-receive new kitchen tasks on the same schedule. A waiting
+receipt tasks in the same transaction. Removed unprinted dishes disappear from
+their tickets without a paper cancellation; other dishes in shared tasks stay.
+Quantity-only changes update the same unattempted kitchen ticket and preserve
+its deadline. Adding a new dish or changing the longest preparation time
+reschedules retained unprinted dishes from the edit time; new dishes follow
+the same preparation-time difference. Delivered kitchen portions are tracked
+separately: removing or reducing them queues an immediate cancellation for only
+the removed portions (one main copy and their actual kitchen endpoints), and
+increases queue only the additional portions. Already queued item cancellations
+survive subsequent edits/full cancellation and are not duplicated. A waiting
 main copy with stale food or totals is cancelled and replaced with a current
-copy; delivered copies remain in history. An edit conflicts while any receipt
-for that order is processing or has an uncertain outcome, because paper already
-in transit or with unknown delivery cannot safely be recalled or reissued.
+copy; delivered copies remain in history. Retained product/variant lines keep
+their UUIDs across edits. Unique legacy printed identities are reconciled with
+audited aliases without rewriting frozen dispatches. An edit conflicts while
+any receipt is processing, uncertain, or awaiting a retry after an attempt,
+because paper in transit or with unknown delivery cannot safely be rewritten.
+Full cancellation remains available during a send: a later matching successful
+acknowledgment queues only the outstanding kitchen cancellation, with no second
+main copy. A retry/expired lease after cancellation stops for inspection instead
+of resuming original food tickets. DELIVERED remains transport confirmation,
+not a physical-paper sensor. Claims, acknowledgments, edits and cancellation
+share the queue lock; optimistic order versions and audit remain authoritative.
 An `ADMIN` or `SUPER_ADMIN` can also cancel one `PENDING` receipt
 from the queue, including a future kitchen task; processing and delivered
 tasks cannot be cancelled. Both paths are audited, and the queue shows dish

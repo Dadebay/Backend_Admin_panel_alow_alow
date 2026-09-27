@@ -196,6 +196,456 @@ describe("durable receipt queue", () => {
     spy.mockRestore();
     expect(await prisma.order.count()).toBe(before);
   });
+  describe("cancellation follows kitchen delivery", () => {
+    type Plan = ReceiptClaimResponseDto["plan"];
+    const planOf = (task: { plan: unknown }) => task.plan as Plan;
+    const tickets = (orderId: string) =>
+      prisma.receiptPrintTask.findMany({
+        where: { orderId },
+        orderBy: { sequence: "asc" },
+      });
+    const edit = (
+      order: { id: string; version: number },
+      items: { productId: string; quantity: number }[],
+    ) =>
+      request(server)
+        .patch(`/api/v1/orders/${order.id}/admin-edit`)
+        .set(auth())
+        .send({
+          version: order.version,
+          items,
+          deliveryEtrapId: 25,
+          address: "Queue test address",
+          latitude: 37.98,
+          longitude: 58.34,
+        });
+    const fixture = async () => {
+      const original = await prisma.product.findUniqueOrThrow({
+        where: { id: productId },
+      });
+      const slow = await prisma.product.create({
+        data: {
+          categoryId: original.categoryId,
+          name: "Slow cancellation dish",
+          slug: randomUUID(),
+          description: "Receipt regression",
+          price: 20,
+          preparationMinutes: 30,
+          receiptPrinterIp: "192.168.0.87",
+        },
+      });
+      const quick = await prisma.product.create({
+        data: {
+          categoryId: original.categoryId,
+          name: "Quick cancellation dish",
+          slug: randomUUID(),
+          description: "Receipt regression",
+          price: 10,
+          preparationMinutes: 10,
+        },
+      });
+      await prisma.receiptPrintSettings.update({
+        where: { id: "default" },
+        data: {
+          mainPrinterIp: "192.168.0.100",
+          mainCopies: 3,
+        },
+      });
+      const items = [
+        { productId: slow.id, quantity: 2 },
+        { productId: quick.id, quantity: 2 },
+      ];
+      const order = await create(false, { ...body(), items });
+      return { order, slow, quick, items };
+    };
+
+    it.each([false, true])(
+      "full cancellation prints one main copy and only delivered kitchen lines (delivered=%s)",
+      async (delivered) => {
+        const { order } = await fixture();
+        if (delivered) await outcome((await claim())!, "DELIVERED").expect(201);
+        await request(server)
+          .patch(`/api/v1/orders/${order.id}/cancel`)
+          .set(auth())
+          .send({
+            version: order.version,
+            reason: "Cancel before delayed printing",
+          })
+          .expect(200);
+        const all = await tickets(order.id);
+        expect(
+          all.filter(
+            (task) =>
+              task.documentType === "ORDER" && task.status === "PENDING",
+          ),
+        ).toHaveLength(0);
+        const cancellations = all.filter(
+          (task) => task.documentType === "CANCELLATION",
+        );
+        expect(cancellations).toHaveLength(1);
+        expect(planOf(cancellations[0]).mainCopies).toBe(1);
+        expect(planOf(cancellations[0]).mainJob?.items).toHaveLength(2);
+        expect(
+          planOf(cancellations[0]).jobs.map((job) => ({
+            ip: job.printerIp,
+            names: job.items.map((item) => item.name),
+          })),
+        ).toEqual(
+          delivered
+            ? [{ ip: "192.168.0.87", names: ["Slow cancellation dish"] }]
+            : [],
+        );
+        const cancellation = (await claim())!;
+        await outcome(cancellation, "DELIVERED").expect(201);
+        expect(await claim()).toBeNull();
+      },
+    );
+
+    it.each([1, 4])(
+      "updates an unprinted quantity to %i in the same ticket at the same deadline",
+      async (quantity) => {
+        const { order, slow, quick } = await fixture();
+        await outcome((await claim())!, "DELIVERED").expect(201);
+        const delayed = (await tickets(order.id)).find((task) =>
+          task.eventKey.includes(":DELAY:"),
+        )!;
+        // Make elapsed time observable without waiting twenty minutes.
+        const due = new Date(Date.now() + 5 * 60_000);
+        await prisma.receiptPrintTask.update({
+          where: { id: delayed.id },
+          data: { nextAttemptAt: due },
+        });
+        await edit(order, [
+          { productId: slow.id, quantity: 2 },
+          { productId: quick.id, quantity },
+        ]).expect(200);
+        const revised = await prisma.receiptPrintTask.findUniqueOrThrow({
+          where: { id: delayed.id },
+        });
+        expect(revised.status).toBe("PENDING");
+        expect(revised.dispatchId).toBe(delayed.dispatchId);
+        expect(revised.nextAttemptAt).toEqual(due);
+        expect(planOf(revised).jobs[0].items[0].quantity).toBe(quantity);
+        expect(
+          (await tickets(order.id)).filter(
+            (task) => task.documentType === "CANCELLATION",
+          ),
+        ).toHaveLength(0);
+      },
+    );
+
+    it.each([false, true])(
+      "removing a dish prints cancellation only if its kitchen ticket was delivered (%s)",
+      async (delivered) => {
+        const { order, slow, quick } = await fixture();
+        if (delivered) await outcome((await claim())!, "DELIVERED").expect(201);
+        await edit(order, [{ productId: quick.id, quantity: 2 }]).expect(200);
+        const all = await tickets(order.id);
+        const cancellations = all.filter(
+          (task) => task.documentType === "CANCELLATION",
+        );
+        expect(cancellations).toHaveLength(delivered ? 1 : 0);
+        if (delivered) {
+          const plan = planOf(cancellations[0]);
+          expect(plan.mainCopies).toBe(1);
+          expect(plan.jobs).toEqual([
+            expect.objectContaining({
+              printerIp: "192.168.0.87",
+              items: [
+                expect.objectContaining({ name: slow.name, quantity: 2 }),
+              ],
+            }),
+          ]);
+        }
+        expect(
+          all
+            .filter(
+              (task) =>
+                task.status === "PENDING" && task.documentType === "ORDER",
+            )
+            .flatMap((task) => planOf(task).jobs.flatMap((job) => job.items))
+            .every((item) => item.name !== slow.name),
+        ).toBe(true);
+      },
+    );
+
+    it("retains printed line identity through repeated edits and cancels each removed portion once", async () => {
+      const { order, slow, quick } = await fixture();
+      const printed = (await claim())!;
+      const slowItemId = printed.plan.jobs[0].items[0].id;
+      await outcome(printed, "DELIVERED").expect(201);
+      const first = await edit(order, [
+        { productId: slow.id, quantity: 2 },
+        { productId: quick.id, quantity: 3 },
+      ]).expect(200);
+      const second = await edit(
+        { ...order, version: (first.body as { version: number }).version },
+        [{ productId: quick.id, quantity: 3 }],
+      ).expect(200);
+      let cancellation = (await tickets(order.id)).find(
+        (task) => task.documentType === "CANCELLATION",
+      );
+      expect(cancellation).toBeDefined();
+      expect(planOf(cancellation!).jobs[0].items[0].id).toBe(slowItemId);
+      await request(server)
+        .patch(`/api/v1/orders/${order.id}/cancel`)
+        .set(auth())
+        .send({
+          version: (second.body as { version: number }).version,
+          reason: "Cancel remaining unprinted food",
+        })
+        .expect(200);
+      const all = await tickets(order.id);
+      cancellation = all.find((task) => task.id === cancellation!.id);
+      expect(cancellation!.status).toBe("PENDING");
+      const full = all.find(
+        (task) => task.eventKey === `ORDER_CANCELLED:${order.id}`,
+      )!;
+      expect(planOf(full).jobs).toEqual([]);
+    });
+
+    it.each([1, 4])(
+      "changes a printed quantity from two to %i using only the portion difference",
+      async (quantity) => {
+        const { order, slow, quick } = await fixture();
+        await outcome((await claim())!, "DELIVERED").expect(201);
+        await edit(order, [
+          { productId: slow.id, quantity },
+          { productId: quick.id, quantity: 2 },
+        ]).expect(200);
+        const revised = (await tickets(order.id)).filter((task) =>
+          task.eventKey.startsWith("ORDER_EDITED:"),
+        );
+        const kitchen = revised.flatMap((task) =>
+          planOf(task).jobs.flatMap((job) =>
+            job.items.map((item) => ({
+              name: item.name,
+              quantity: item.quantity,
+              type: task.documentType,
+            })),
+          ),
+        );
+        expect(kitchen).toEqual([
+          {
+            name: slow.name,
+            quantity: Math.abs(quantity - 2),
+            type: quantity < 2 ? "CANCELLATION" : "ORDER",
+          },
+        ]);
+      },
+    );
+
+    it.each([false, true])(
+      "cancels a late kitchen delivery without another main cancellation (recovered lease=%s)",
+      async (recovered) => {
+        const { order } = await fixture();
+        const sending = (await claim())!;
+        if (recovered)
+          await prisma.receiptPrintTask.update({
+            where: { id: sending.id },
+            data: { status: "PENDING", lastError: "AGENT_UNAVAILABLE" },
+          });
+        await request(server)
+          .patch(`/api/v1/orders/${order.id}/cancel`)
+          .set(auth())
+          .send({ version: order.version, reason: "Cancel during send" })
+          .expect(200);
+        await outcome(sending, "DELIVERED").expect(201);
+        await outcome(sending, "DELIVERED").expect(201);
+        const cancellations = (await tickets(order.id)).filter(
+          (task) => task.documentType === "CANCELLATION",
+        );
+        expect(
+          cancellations.filter((task) => planOf(task).mainJob),
+        ).toHaveLength(1);
+        expect(
+          cancellations.flatMap((task) =>
+            planOf(task).jobs.flatMap((job) =>
+              job.items.map((item) => item.name),
+            ),
+          ),
+        ).toEqual(["Slow cancellation dish"]);
+      },
+    );
+
+    it.each(["retry", "expired"])(
+      "does not resume an original kitchen ticket after cancellation (%s)",
+      async (mode) => {
+        const { order } = await fixture();
+        const sending = (await claim())!;
+        await request(server)
+          .patch(`/api/v1/orders/${order.id}/cancel`)
+          .set(auth())
+          .send({
+            version: order.version,
+            reason: "Cancel during unavailable printer",
+          })
+          .expect(200);
+        if (mode === "retry") await outcome(sending, "RETRY").expect(201);
+        else
+          await prisma.receiptPrintTask.update({
+            where: { id: sending.id },
+            data: { leaseExpiresAt: new Date(0) },
+          });
+        const next = (await claim())!;
+        expect(next.plan.documentType).toBe("CANCELLATION");
+        expect(next.plan.jobs).toEqual([]);
+        await outcome(next, "DELIVERED").expect(201);
+        expect(await claim()).toBeNull();
+        await request(server)
+          .post(`${root}/${sending.id}/retry`)
+          .set(auth())
+          .expect(409);
+      },
+    );
+
+    it("keeps queued item cancellations while later edits change only waiting quantities", async () => {
+      const { order, slow, quick } = await fixture();
+      await outcome((await claim())!, "DELIVERED").expect(201);
+      const first = await edit(order, [
+        { productId: slow.id, quantity: 1 },
+        { productId: quick.id, quantity: 2 },
+      ]).expect(200);
+      const cancellation = (await tickets(order.id)).find(
+        (task) => task.documentType === "CANCELLATION",
+      )!;
+      await edit(
+        { ...order, version: (first.body as { version: number }).version },
+        [
+          { productId: slow.id, quantity: 1 },
+          { productId: quick.id, quantity: 4 },
+        ],
+      ).expect(200);
+      const all = await tickets(order.id);
+      expect(all.find((task) => task.id === cancellation.id)?.plan).toEqual(
+        cancellation.plan,
+      );
+      expect(
+        all.filter((task) => task.documentType === "CANCELLATION"),
+      ).toHaveLength(1);
+    });
+
+    it("does not count a delivered manual reprint as extra portions", async () => {
+      const { order } = await fixture();
+      await outcome((await claim())!, "DELIVERED").expect(201);
+      await request(server)
+        .post(`${root}/orders/${order.id}/reprint`)
+        .set(auth())
+        .send({ idempotencyKey: randomUUID(), mainCopies: 0 })
+        .expect(201);
+      await outcome((await claim())!, "DELIVERED").expect(201);
+      await request(server)
+        .patch(`/api/v1/orders/${order.id}/cancel`)
+        .set(auth())
+        .send({
+          version: order.version,
+          reason: "Cancel after deliberate copy",
+        })
+        .expect(200);
+      const cancellation = (await claim())!;
+      expect(
+        cancellation.plan.jobs.flatMap((job) =>
+          job.items.map((item) => item.quantity),
+        ),
+      ).toEqual([2, 2]);
+    });
+
+    it("preserves legacy printed identity when old edits replaced line UUIDs", async () => {
+      const { order, slow, quick } = await fixture();
+      const original = (await claim())!;
+      await outcome(original, "DELIVERED").expect(201);
+      const oldId = original.plan.jobs[0].items[0].id;
+      await prisma.orderItem.update({
+        where: { id: oldId },
+        data: { id: randomUUID() },
+      });
+      const first = await edit(order, [
+        { productId: slow.id, quantity: 4 },
+        { productId: quick.id, quantity: 2 },
+      ]).expect(200);
+      // Drain the immediate corrected main copies and the two added portions.
+      for (let next = await claim(); next; next = await claim())
+        await outcome(next, "DELIVERED").expect(201);
+      const second = await edit(
+        { ...order, version: (first.body as { version: number }).version },
+        [
+          { productId: slow.id, quantity: 3 },
+          { productId: quick.id, quantity: 2 },
+        ],
+      ).expect(200);
+      const cancellations = (await tickets(order.id)).filter(
+        (task) => task.documentType === "CANCELLATION",
+      );
+      expect(cancellations).toHaveLength(1);
+      expect(planOf(cancellations[0]).jobs[0].items[0].quantity).toBe(1);
+      await request(server)
+        .patch(`/api/v1/orders/${order.id}/cancel`)
+        .set(auth())
+        .send({
+          version: (second.body as { version: number }).version,
+          reason: "Remaining portions",
+        })
+        .expect(200);
+      const full = (await tickets(order.id)).find(
+        (task) => task.eventKey === `ORDER_CANCELLED:${order.id}`,
+      )!;
+      expect(
+        planOf(full).jobs.flatMap((job) =>
+          job.items.map((item) => item.quantity),
+        ),
+      ).toEqual([3]);
+    });
+
+    it("manual printing preserves pending cancellation of removed printed dishes", async () => {
+      const { order, quick } = await fixture();
+      await outcome((await claim())!, "DELIVERED").expect(201);
+      await edit(order, [{ productId: quick.id, quantity: 2 }]).expect(200);
+      const cancellation = (await tickets(order.id)).find(
+        (task) => task.documentType === "CANCELLATION",
+      )!;
+      await request(server)
+        .post(`${root}/orders/${order.id}/reprint`)
+        .set(auth())
+        .send({ idempotencyKey: randomUUID(), mainCopies: 1 })
+        .expect(201);
+      const retained = await prisma.receiptPrintTask.findUniqueOrThrow({
+        where: { id: cancellation.id },
+      });
+      expect(retained.status).toBe("PENDING");
+      expect(retained.plan).toEqual(cancellation.plan);
+    });
+
+    it("manual cancellation retains delivered quantities rather than unprinted quantity increases", async () => {
+      const { order, slow, quick } = await fixture();
+      await outcome((await claim())!, "DELIVERED").expect(201);
+      const edited = await edit(order, [
+        { productId: slow.id, quantity: 4 },
+        { productId: quick.id, quantity: 2 },
+      ]).expect(200);
+      await request(server)
+        .patch(`/api/v1/orders/${order.id}/cancel`)
+        .set(auth())
+        .send({
+          version: (edited.body as { version: number }).version,
+          reason: "Cancel before extra portions print",
+        })
+        .expect(200);
+      await request(server)
+        .post(`${root}/orders/${order.id}/reprint`)
+        .set(auth())
+        .send({ idempotencyKey: randomUUID() })
+        .expect(201);
+      const cancellation = (await claim())!;
+      expect(
+        cancellation.plan.jobs.flatMap((job) =>
+          job.items.map((item) => ({
+            name: item.name,
+            quantity: item.quantity,
+          })),
+        ),
+      ).toEqual([{ name: slow.name, quantity: 2 }]);
+    });
+  });
   it("delays a ten-minute dish by twenty minutes beside a thirty-minute dish", async () => {
     const original = await prisma.product.findUniqueOrThrow({
       where: { id: productId },
@@ -730,7 +1180,7 @@ describe("durable receipt queue", () => {
           where: { id: { in: revisedIds } },
           data: { nextAttemptAt: new Date(0) },
         });
-        for (let copy = 0; copy < 2; copy += 1) {
+        for (let copy = 0; copy < (action === "cancel" ? 1 : 2); copy += 1) {
           const next = (await claim())!;
           expect(next).not.toBeNull();
           expect(revisedIds).not.toContain(next.id);

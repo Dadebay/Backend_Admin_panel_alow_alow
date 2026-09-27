@@ -66,14 +66,32 @@ the current request explicitly excludes deployment.
   with a visible partial-print warning on the paper. Operators retain the
   saved full-order route. Reusing a key with a different selection returns
   a conflict.
-- Administrator food edits cancel obsolete waiting receipts in the same
-  transaction as the order change. Retained kitchen lines keep their place in
-  a shared task. When food is added or the longest preparation time changes,
-  untouched pending lines are rescheduled from the edit time and newly added
-  lines get kitchen tasks on that schedule. Waiting main copies are replaced
-  with the corrected order. An edit conflicts while a receipt for that order
-  is processing or has an uncertain outcome. The queue records every cancellation and
-  replacement in its audit history.
+- Full order cancellation removes pending/failed ORDER tasks (automatic, edited
+  and manual) from the queue. It queues exactly one full main cancellation,
+  regardless of the normal copy setting. Kitchen cancellation contains only
+  delivered kitchen portions, grouped by their actual sent endpoint. An
+  unprinted delayed dish produces neither its original ticket nor a cancellation.
+- Administrator food edits remove unprinted dishes without a paper cancellation.
+  Quantity-only changes update the same unattempted kitchen task without moving
+  its due time. Other dishes in a shared task remain. Adding food or changing the
+  longest preparation time reschedules unprinted lines from the edit time;
+  newly added dishes follow the same preparation-time difference. Delivered
+  reductions/removals create one cancellation for the removed portions; increases
+  print only additional portions. Main-only delivery never counts as kitchen
+  delivery, and a manual copy does not count as extra portions. Pending item
+  cancellations survive subsequent edits and full cancellation.
+- Retained product/variant lines keep their IDs. Old replaced line IDs can be
+  related through a unique name/variant/price match recorded in audit aliases;
+  frozen dispatch payloads are never rewritten. Waiting main copies are replaced
+  with the corrected order. Food edits conflict during processing, uncertainty
+  or a pending attempted send. Every adjustment/cancellation is transactional
+  and audited under the same queue lock as claims and acknowledgments.
+- Full cancellation may commit during a send. A later successful acknowledgment
+  queues the remaining kitchen cancellation only, without another main copy.
+  A retry or expired lease for an original ORDER after cancellation stops as
+  UNCERTAIN for inspection; it cannot resume cooking tickets. A matching late
+  successful acknowledgment can still resolve that stopped task. An offline
+  print agent never rolls back a committed order cancellation.
 - An administrator can manually cancel one `PENDING` task, including a future
   kitchen ticket. The queue displays the task's dish names. A processing or
   delivered task cannot be recalled from the apparatus.

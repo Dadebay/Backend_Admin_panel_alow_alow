@@ -21,6 +21,7 @@ import { OrdersService } from "./orders.service";
 import {
   expandMainReceiptCopies,
   partialReceiptCustomerNote,
+  ReceiptDocumentType,
 } from "./receipt-print-plan";
 import { ReceiptPrintPlanResponseDto } from "./orders-response.dto";
 import {
@@ -159,6 +160,15 @@ export class ReceiptQueueService {
       await this.lock(tx);
       const now = new Date();
       await tx.receiptPrintTask.updateMany({
+        where: {
+          status: "PROCESSING",
+          leaseExpiresAt: { lte: now },
+          documentType: "ORDER",
+          order: { status: "CANCELLED" },
+        },
+        data: { status: "UNCERTAIN", lastError: "ORDER_CANCELLED_DURING_SEND" },
+      });
+      await tx.receiptPrintTask.updateMany({
         where: { status: "PROCESSING", leaseExpiresAt: { lte: now } },
         data: { status: "PENDING", lastError: "AGENT_UNAVAILABLE" },
       });
@@ -255,7 +265,7 @@ export class ReceiptQueueService {
       await this.lock(tx);
       const task = await tx.receiptPrintTask.findUnique({
         where: { id },
-        include: { order: { select: { number: true } } },
+        include: { order: { select: { number: true, status: true } } },
       });
       if (!task) throw new NotFoundException("Receipt task not found");
       if (
@@ -264,14 +274,31 @@ export class ReceiptQueueService {
         task.claimToken !== dto.claimToken
       )
         throw new ConflictException("Receipt lease belongs to another worker");
-      if (task.status !== "PROCESSING") {
+      const cancelledDuringSend =
+        task.documentType === "ORDER" && task.order.status === "CANCELLED";
+      // A matching late acknowledgment may settle a lease stopped after order
+      // cancellation. It must not restart any original print work.
+      const lateCancelledDelivery =
+        cancelledDuringSend &&
+        dto.outcome === "DELIVERED" &&
+        ((task.status === "UNCERTAIN" &&
+          task.lastError === "ORDER_CANCELLED_DURING_SEND") ||
+          (task.status === "CANCELLED" &&
+            task.lastError === "ORDER_CANCELLED" &&
+            task.attempts > 0));
+      if (task.status !== "PROCESSING" && !lateCancelledDelivery) {
         // An HTTP acknowledgment can itself be retried, but cannot change a
         // terminal outcome or overwrite a replacement claim token.
         if (task.status === "DELIVERED" && dto.outcome === "DELIVERED")
           return this.view(task);
         throw new ConflictException("Receipt task is not processing");
       }
-      const status = dto.outcome === "RETRY" ? "PENDING" : dto.outcome;
+      const status =
+        dto.outcome === "RETRY"
+          ? cancelledDuringSend
+            ? "UNCERTAIN"
+            : "PENDING"
+          : dto.outcome;
       const updated = await tx.receiptPrintTask.update({
         where: { id },
         data: {
@@ -285,7 +312,9 @@ export class ReceiptQueueService {
           lastError:
             status === "DELIVERED"
               ? null
-              : (dto.errorCode ?? "AGENT_UNAVAILABLE"),
+              : cancelledDuringSend && dto.outcome === "RETRY"
+                ? "ORDER_CANCELLED_DURING_SEND"
+                : (dto.errorCode ?? "AGENT_UNAVAILABLE"),
         },
         include: { order: { select: { number: true } } },
       });
@@ -304,6 +333,12 @@ export class ReceiptQueueService {
           },
         },
       });
+      if (status === "DELIVERED" && task.documentType === "ORDER")
+        await this.orders.enqueueLateKitchenCancellation(
+          tx,
+          task.orderId,
+          task.id,
+        );
       return this.view(updated);
     });
   }
@@ -314,6 +349,7 @@ export class ReceiptQueueService {
       const result = await tx.receiptPrintTask.updateMany({
         where: {
           id,
+          NOT: { documentType: "ORDER", order: { status: "CANCELLED" } },
           OR: [
             { status: "FAILED" },
             { status: "PENDING", nextAttemptAt: { lte: new Date() } },
@@ -428,13 +464,33 @@ export class ReceiptQueueService {
         throw new BadRequestException(
           "Select at least one order item to print",
         );
+      const cancellation =
+        plan.documentType === ReceiptDocumentType.CANCELLATION;
+      const kitchenItems = plan.jobs.flatMap((job) => job.items);
+      const deliveredItemIds = new Set(kitchenItems.map((item) => item.id));
+      if (
+        cancellation &&
+        routes.some(
+          (route) => route.printerId && !deliveredItemIds.has(route.itemId),
+        )
+      )
+        throw new BadRequestException(
+          "Cannot cancel a kitchen item that was not delivered",
+        );
       const items = new Map(
         [
-          ...plan.jobs.flatMap((job) => job.items),
           ...plan.unassignedItems,
           ...(plan.mainJob?.items ?? []),
+          // Kitchen cancellation uses sent portions, which may be fewer than
+          // the complete order on the main copy (an increase still waiting).
+          ...kitchenItems,
         ]
-          .filter((item) => orderItemIds.has(item.id) && !skippedItemIds.has(item.id))
+          .filter(
+            (item) =>
+              (orderItemIds.has(item.id) ||
+                (cancellation && deliveredItemIds.has(item.id))) &&
+              !skippedItemIds.has(item.id),
+          )
           .map((item) => [item.id, item]),
       );
       if (dto.mainCopies !== undefined) {
@@ -529,7 +585,10 @@ export class ReceiptQueueService {
           orderId,
           OR: [
             { eventKey: { startsWith: "ORDER_CREATED:" } },
-            { eventKey: { startsWith: "ORDER_EDITED:" } },
+            {
+              eventKey: { startsWith: "ORDER_EDITED:" },
+              documentType: "ORDER",
+            },
             { eventKey: { startsWith: "ORDER_CANCELLED:" } },
           ],
           status: { in: ["PENDING", "FAILED", "UNCERTAIN"] },

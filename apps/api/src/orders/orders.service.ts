@@ -65,6 +65,7 @@ import {
   CourierRoutingStatus,
 } from "./orders-response.dto";
 import { reconcileReceiptsAfterItemEdit } from "./receipt-edit-queue";
+import { outstandingKitchenJobs } from "./receipt-kitchen-history";
 import {
   buildReceiptPrintMetadata,
   buildReceiptPrintPlan,
@@ -443,10 +444,7 @@ export class OrdersService {
       await tx.receiptPrintTask.updateMany({
         where: {
           orderId,
-          OR: [
-            { eventKey: { startsWith: "ORDER_CREATED:" } },
-            { eventKey: { startsWith: "ORDER_EDITED:" } },
-          ],
+          documentType: "ORDER",
           status: { in: ["PENDING", "FAILED"] },
         },
         data: { status: "CANCELLED", lastError: "ORDER_CANCELLED" },
@@ -1171,14 +1169,54 @@ export class OrdersService {
             transport: ReceiptPrinterTransport.JSPEED_HTTP,
           }
         : null;
-    return toApiResponse(
-      buildReceiptPrintPlan(
-        order,
-        mainPrinter,
-        buildReceiptPrintMetadata(order, contact?.phone ?? null),
-        settings?.mainCopies ?? 2,
-      ),
+    const plan = buildReceiptPrintPlan(
+      order,
+      mainPrinter,
+      buildReceiptPrintMetadata(order, contact?.phone ?? null),
+      order.status === OrderStatus.CANCELLED ? 1 : (settings?.mainCopies ?? 2),
     );
+    if (order.status === OrderStatus.CANCELLED) {
+      plan.jobs = await outstandingKitchenJobs(db, id);
+      plan.unassignedItems = [];
+    }
+    return toApiResponse(plan);
+  }
+
+  async enqueueLateKitchenCancellation(
+    tx: Prisma.TransactionClient,
+    orderId: string,
+    sourceTaskId: string,
+  ) {
+    const order = await tx.order.findUniqueOrThrow({
+      where: { id: orderId },
+      select: { status: true },
+    });
+    if (order.status !== OrderStatus.CANCELLED) return;
+    const jobs = await outstandingKitchenJobs(tx, orderId, true);
+    if (!jobs.length) return;
+    const plan = await this.receiptPrintPlan(orderId, tx);
+    const task = await tx.receiptPrintTask.create({
+      data: {
+        orderId,
+        eventKey: `ORDER_CANCELLED:${orderId}:DELIVERED:${sourceTaskId}`,
+        documentType: "CANCELLATION",
+        plan: {
+          ...plan,
+          mainJob: null,
+          mainCopies: 1,
+          jobs,
+          unassignedItems: [],
+        },
+      },
+    });
+    await tx.auditLog.create({
+      data: {
+        action: "receipt.cancelled_after_inflight_delivery",
+        entityType: "ReceiptPrintTask",
+        entityId: task.id,
+        metadata: { orderId, sourceTaskId },
+      },
+    });
   }
 
   async transition(user: AuthUser, id: string, dto: TransitionOrderDto) {
@@ -1430,7 +1468,10 @@ export class OrdersService {
           await tx.receiptPrintTask.count({
             where: {
               orderId: id,
-              status: { in: ["PROCESSING", "UNCERTAIN"] },
+              OR: [
+                { status: { in: ["PROCESSING", "UNCERTAIN"] } },
+                { status: "PENDING", attempts: { gt: 0 } },
+              ],
             },
           })
         )
@@ -1477,28 +1518,47 @@ export class OrdersService {
       }
 
       if (itemsChanged) {
-        await tx.orderItem.deleteMany({ where: { orderId: id } });
-        await tx.orderItem.createMany({
-          data: resolvedItems.map(({ product, variant, quantity }) => {
-            const unitPrice = variant?.price ?? product.price;
-            const receiptRoute = productRouteSnapshot(product);
-            return {
-              orderId: id,
-              productId: product.id,
-              productVariantId: variant?.id,
-              productName: product.name,
-              variantName: variant?.name,
-              preparationMinutes: product.preparationMinutes,
-              loyaltyPoints: product.loyaltyPoints * quantity,
-              receiptPrinterIp: receiptRoute?.receiptPrinterIp,
-              receiptPrinterPort: receiptRoute?.receiptPrinterPort,
-              receiptPrinterTransport: receiptRoute?.receiptPrinterTransport,
-              unitPrice,
-              quantity,
-              lineTotal: Number(unitPrice) * quantity,
-            };
-          }),
+        // Keep dish identity across edits so delivered, frozen receipts can be
+        // related to the current portions without rewriting print history.
+        const retainedIds = resolvedItems.flatMap(({ product, variant }) => {
+          const previous = order.items.find(
+            (item) =>
+              item.productId === product.id &&
+              item.productVariantId === (variant?.id ?? null),
+          );
+          return previous ? [previous.id] : [];
         });
+        await tx.orderItem.deleteMany({
+          where: { orderId: id, id: { notIn: retainedIds } },
+        });
+        for (const { product, variant, quantity } of resolvedItems) {
+          const unitPrice = variant?.price ?? product.price;
+          const receiptRoute = productRouteSnapshot(product);
+          const data = {
+            orderId: id,
+            productId: product.id,
+            productVariantId: variant?.id,
+            productName: product.name,
+            variantName: variant?.name,
+            preparationMinutes: product.preparationMinutes,
+            loyaltyPoints: product.loyaltyPoints * quantity,
+            receiptPrinterIp: receiptRoute?.receiptPrinterIp ?? null,
+            receiptPrinterPort: receiptRoute?.receiptPrinterPort ?? null,
+            receiptPrinterTransport:
+              receiptRoute?.receiptPrinterTransport ?? null,
+            unitPrice,
+            quantity,
+            lineTotal: Number(unitPrice) * quantity,
+          };
+          const previous = order.items.find(
+            (item) =>
+              item.productId === product.id &&
+              item.productVariantId === (variant?.id ?? null),
+          );
+          if (previous)
+            await tx.orderItem.update({ where: { id: previous.id }, data });
+          else await tx.orderItem.create({ data });
+        }
       }
       if (nextStatus !== order.status) {
         await tx.orderTransition.create({
@@ -1799,6 +1859,12 @@ export class OrdersService {
           "This role cannot cancel the order at its current stage",
         );
       }
+      // Serialize cancellation with claims, edit reconciliation and delivery
+      // acknowledgments before reading which kitchen instructions were sent.
+      await tx.receiptPrintQueue.update({
+        where: { id: "default" },
+        data: { revision: { increment: 1 } },
+      });
       const cancelled = await tx.order.updateMany({
         where: {
           id,

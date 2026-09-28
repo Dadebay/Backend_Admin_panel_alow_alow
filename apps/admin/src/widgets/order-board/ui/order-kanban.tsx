@@ -3,6 +3,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import {
   OrderPaymentBreakdown,
   canCancel,
+  canAdministratorCompleteOrder,
   canEditCourierAssignment,
   canAdministratorEditOrder,
   kanbanLanesForRole,
@@ -34,6 +35,7 @@ type OrderKanbanProps = {
   onTransition: (order: Order, status: OrderStatus, note?: string) => void;
   onPrintReceipt: (order: Order) => void;
   onCancel: (order: Order) => void;
+  onComplete: (order: Order) => void;
   onEditOrder: (order: Order) => void;
   onOpenDetails: (orderId: string) => void;
 };
@@ -85,6 +87,7 @@ function OrderCard({
   onTransition,
   onPrintReceipt,
   onCancel,
+  onComplete,
   onEditOrder,
   onOpenDetails,
 }: OrderCardProps) {
@@ -304,7 +307,7 @@ function OrderCard({
               Вернуть: {statusLabels[previous]}
             </button>
           )}
-          {next && (
+          {next && !(next === "CASH_RETURNED" && canAdministratorCompleteOrder(role, order.status)) && (
             <button
               type="button"
               className="primary-button compact"
@@ -313,6 +316,11 @@ function OrderCard({
               onClick={() => onTransition(order, next)}
             >
               {orderTransitionActionLabel(role, next)}
+            </button>
+          )}
+          {canAdministratorCompleteOrder(role, order.status) && (
+            <button type="button" className="primary-button compact" data-testid={`order-kanban-complete-${order.id}`} disabled={pending} onClick={() => onComplete(order)}>
+              Завершить заказ
             </button>
           )}
           {["OPERATOR", "ADMIN", "SUPER_ADMIN"].includes(role) && (

@@ -1726,6 +1726,52 @@
         ]
       }
     },
+    "/api/v1/orders/{id}/admin-complete": {
+      "patch": {
+        "operationId": "OrdersController_adminComplete_v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminCompleteOrderDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Complete an active order on behalf of its real courier with a detailed reason and full cash receipt confirmation",
+        "tags": [
+          "orders"
+        ]
+      }
+    },
     "/api/v1/orders/{id}/confirm-packing": {
       "patch": {
         "operationId": "OrdersController_confirmPacking_v1",
@@ -9745,6 +9791,38 @@
           "address",
           "latitude",
           "longitude",
+          "version"
+        ]
+      },
+      "AdminCompleteOrderDto": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "minLength": 20,
+            "maxLength": 500,
+            "description": "Detailed reason for completing on behalf of the real courier"
+          },
+          "cashReceived": {
+            "type": "boolean",
+            "enum": [
+              true
+            ],
+            "description": "Administrator confirms delivery and receipt of the entire order total, including delivery"
+          },
+          "courierId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Real active courier, required only when no courier is assigned; existing assignment cannot change"
+          },
+          "version": {
+            "type": "number",
+            "description": "Optimistic-lock version returned by the API"
+          }
+        },
+        "required": [
+          "reason",
+          "cashReceived",
           "version"
         ]
       },

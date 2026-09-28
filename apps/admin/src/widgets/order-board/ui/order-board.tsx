@@ -5,6 +5,7 @@ import { useForm } from "react-hook-form";
 import { formatBranchDistance, useBranches } from "@/src/entities/branch";
 import {
   canCancel,
+  canAdministratorCompleteOrder,
   canAdministratorEditOrder,
   canEditCourierAssignment,
   kanbanQueueStatusesForRole,
@@ -48,6 +49,9 @@ import { OrderKanban } from "./order-kanban";
 import { OrderPackingChecklist } from "./order-packing-checklist";
 
 const AssistedOrderDialog = lazy(() => import("@/src/widgets/assisted-order"));
+const OrderCompleteDialog = lazy(() =>
+  import("@/src/features/order-management/completion").then((module) => ({ default: module.OrderCompleteDialog })),
+);
 const OrderCourierEditDialog = lazy(() =>
   import("@/src/features/order-management/editor").then((module) => ({
     default: module.OrderCourierEditDialog,
@@ -135,6 +139,8 @@ export function OrderBoard({
   const [endHour, setEndHour] = useState(24);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
+  const [completingOrder, setCompletingOrder] = useState<Order | null>(null);
+  const [completionNotice, setCompletionNotice] = useState("");
   const [printOrder, setPrintOrder] = useState<Order | null>(null);
   const [showAssistedOrder, setShowAssistedOrder] = useState(false);
   const [courierByOrder, setCourierByOrder] = useState<Record<string, string>>(
@@ -450,7 +456,7 @@ export function OrderBoard({
                   Вернуть: {statusLabels[previous]}
                 </button>
               )}
-              {next && (
+              {next && !(next === "CASH_RETURNED" && canAdministratorCompleteOrder(role, order.status)) && (
                 <button
                   type="button"
                   className="primary-button compact"
@@ -459,6 +465,11 @@ export function OrderBoard({
                   onClick={() => transitionOrder(order, next)}
                 >
                   {orderTransitionActionLabel(role, next)}
+                </button>
+              )}
+              {canAdministratorCompleteOrder(role, order.status) && (
+                <button type="button" className="primary-button compact" data-testid={`order-table-complete-${order.id}`} disabled={pending} onClick={() => setCompletingOrder(order)}>
+                  Завершить заказ
                 </button>
               )}
               {["OPERATOR", "ADMIN", "SUPER_ADMIN"].includes(role) && (
@@ -767,6 +778,7 @@ export function OrderBoard({
               onTransition={transitionOrder}
               onPrintReceipt={setPrintOrder}
               onCancel={cancelOrder}
+              onComplete={setCompletingOrder}
               onEditOrder={setEditingOrder}
               onOpenDetails={setSelectedOrderId}
             />
@@ -815,6 +827,21 @@ export function OrderBoard({
           orderId={selectedOrderId}
           onClose={() => setSelectedOrderId(null)}
         />
+      )}
+      {completionNotice && <p className="inline-alert" role="status" data-testid="order-complete-success">{completionNotice}</p>}
+      {completingOrder && (
+        <Suspense fallback={<div className="async-state">Открываем завершение…</div>}>
+          <OrderCompleteDialog
+            order={completingOrder}
+            couriers={couriers.data ?? []}
+            couriersPending={couriers.isPending}
+            couriersError={couriers.error}
+            onRetryCouriers={() => void couriers.refetch()}
+            returnFocusTestId={`order-${viewMode}-complete-${completingOrder.id}`}
+            onClose={() => setCompletingOrder(null)}
+            onCompleted={() => setCompletionNotice(`Заказ №${completingOrder.number} завершён. Причина сохранена, деньги учтены в смене.`)}
+          />
+        </Suspense>
       )}
       {printOrder && (
         <Suspense

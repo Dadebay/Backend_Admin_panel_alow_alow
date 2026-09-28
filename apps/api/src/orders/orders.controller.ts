@@ -21,6 +21,7 @@ import { AdminPages, CurrentUser, Roles } from "../common/auth.decorators";
 import type { AuthUser } from "../common/auth.types";
 import { AdminPage, Role } from "../generated/prisma/client";
 import {
+  AdminCompleteOrderDto,
   AdminEditOrderDto,
   AssignCourierDto,
   CancelOrderDto,
@@ -208,6 +209,22 @@ export class OrdersController {
     @Body() dto: AdminEditOrderDto,
   ) {
     return this.orders.adminEdit(user, id, dto);
+  }
+
+  @Patch(":id/admin-complete")
+  @Roles(Role.ADMIN)
+  @AdminPages(AdminPage.ORDERS)
+  @ApiOperation({
+    summary:
+      "Complete an active order on behalf of its real courier with a detailed reason and full cash receipt confirmation",
+  })
+  @ApiOkResponse({ type: OrderResponseDto })
+  adminComplete(
+    @CurrentUser() user: AuthUser,
+    @Param("id", ParseUUIDPipe) id: string,
+    @Body() dto: AdminCompleteOrderDto,
+  ) {
+    return this.orders.adminComplete(user, id, dto);
   }
 
   @Patch(":id/confirm-packing")

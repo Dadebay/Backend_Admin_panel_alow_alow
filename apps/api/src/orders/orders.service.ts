@@ -34,6 +34,7 @@ import { LoyaltyService } from "../loyalty/loyalty.service";
 import { orderAuditSnapshot } from "./order-audit-snapshot";
 import { earnedPoints } from "../loyalty/loyalty-points";
 import {
+  AdminCompleteOrderDto,
   AdminEditOrderDto,
   AssignCourierDto,
   CancelOrderDto,
@@ -49,6 +50,7 @@ import {
 } from "./orders.dto";
 import {
   assertOrderTransition,
+  canAdministratorCompleteOrder,
   canAdministratorEditOrder,
   canCancelOrder,
   returnsInventoryOnCancellation,
@@ -1352,6 +1354,133 @@ export class OrdersService {
         dto.status,
       );
     }
+    return response;
+  }
+
+  async adminComplete(user: AuthUser, id: string, dto: AdminCompleteOrderDto) {
+    if (user.role !== Role.ADMIN && user.role !== Role.SUPER_ADMIN) {
+      throw new ForbiddenException("Only administrators can complete an order");
+    }
+    const reason = typeof dto.reason === "string" ? dto.reason.trim() : "";
+    if (
+      reason.length < 20 ||
+      reason.length > 500 ||
+      dto.cashReceived !== true
+    ) {
+      throw new BadRequestException(
+        "A detailed reason and confirmation of full cash receipt are required",
+      );
+    }
+    const response = await this.prisma.$transaction(async (tx) => {
+      const order = await tx.order.findUnique({
+        where: { id },
+        include: { cashSettlement: true, items: true },
+      });
+      if (!order) throw new NotFoundException("Order not found");
+      if (order.version !== dto.version) {
+        throw new ConflictException("Order changed; reload and try again");
+      }
+      if (
+        !canAdministratorCompleteOrder(order.status, user.role) ||
+        order.cashSettlement
+      ) {
+        throw new ConflictException(
+          "Only an active unsettled order can be completed",
+        );
+      }
+      if (
+        order.courierId &&
+        dto.courierId &&
+        order.courierId !== dto.courierId
+      ) {
+        throw new ConflictException(
+          "The assigned courier cannot change during completion",
+        );
+      }
+      const courierId = order.courierId ?? dto.courierId;
+      if (!courierId) throw new BadRequestException("Select the real courier");
+      if (!order.courierId) {
+        const courier = await tx.user.findFirst({
+          where: { id: courierId, role: Role.COURIER, isActive: true },
+          select: { id: true },
+        });
+        if (!courier) throw new ConflictException("Select an active courier");
+      }
+      const now = new Date();
+      const updated = await tx.order.updateMany({
+        where: { id, version: dto.version, status: order.status },
+        data: {
+          status: OrderStatus.CASH_RETURNED,
+          courierId,
+          assignedAt: order.assignedAt ?? now,
+          deliveredAt: order.deliveredAt ?? now,
+          completedAt: now,
+          version: { increment: 1 },
+        },
+      });
+      if (updated.count !== 1) {
+        throw new ConflictException("Order changed; reload and try again");
+      }
+      // Earlier stages may have been left behind when the courier went offline.
+      // Preserve real history; record one explicit recovery, never invented steps.
+      if (order.status !== OrderStatus.DELIVERED) {
+        await this.loyalty.award(
+          tx,
+          order.customerId,
+          id,
+          order.loyaltyPointsEarned,
+        );
+      }
+      await tx.cashSettlement.create({
+        data: {
+          orderId: id,
+          courierId,
+          operatorId: user.id,
+          amount: order.total.minus(order.deliveryFee),
+          courierGivenAt: now,
+          operatorTakenAt: now,
+          status: CashSettlementStatus.CONFIRMED,
+        },
+      });
+      await tx.orderTransition.create({
+        data: {
+          orderId: id,
+          actorId: user.id,
+          fromStatus: order.status,
+          toStatus: OrderStatus.CASH_RETURNED,
+          note: reason,
+          createdAt: now,
+        },
+      });
+      const result = await tx.order.findUniqueOrThrow({
+        where: { id },
+        include: detailInclude,
+      });
+      await tx.auditLog.create({
+        data: {
+          actorId: user.id,
+          action: "order.admin-completed",
+          entityType: "Order",
+          entityId: id,
+          metadata: {
+            before: orderAuditSnapshot(order),
+            after: orderAuditSnapshot(result),
+            reason,
+            cashReceived: true,
+            deliveryConfirmed: true,
+            receivedTotal: order.total.toString(),
+            accountingAmount: order.total.minus(order.deliveryFee).toString(),
+            courierId,
+          },
+        },
+      });
+      return toApiResponse(withItemImages(result));
+    });
+    this.notifyCustomer(
+      response.customerId,
+      response.number,
+      OrderStatus.CASH_RETURNED,
+    );
     return response;
   }
 

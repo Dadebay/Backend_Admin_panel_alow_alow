@@ -217,7 +217,7 @@ function OrderDetails({ order }: { order: Order }) {
                     {roleLabels[transition.actor.role]}
                   </p>
                   {transition.note && (
-                    <blockquote>{transition.note}</blockquote>
+                    <blockquote style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{transition.note}</blockquote>
                   )}
                   <time dateTime={transition.createdAt}>
                     {formatDate(transition.createdAt)}

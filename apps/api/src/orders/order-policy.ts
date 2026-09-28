@@ -85,6 +85,14 @@ export function canAdministratorEditOrder(status: OrderStatus, role: Role) {
   );
 }
 
+/** Audited recovery when the real courier could not use the application. */
+export function canAdministratorCompleteOrder(status: OrderStatus, role: Role) {
+  return (
+    (role === Role.ADMIN || role === Role.SUPER_ADMIN) &&
+    cancellableStatuses.includes(status)
+  );
+}
+
 const courierAssignmentRoles: Role[] = [
   Role.OPERATOR,
   Role.ADMIN,

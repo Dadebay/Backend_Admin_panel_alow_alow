@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { components } from "@alowalow/api-contract";
 import { inventoryQueryKeys } from "@/src/entities/inventory";
 import { courierQueryKeys } from "@/src/entities/courier";
+import { accountingQueryKeys } from "@/src/entities/accounting";
 import {
   orderQueryKeys,
   type Order,
@@ -15,6 +16,7 @@ type AssignBody = components["schemas"]["AssignCourierDto"];
 type AdminEditBody = components["schemas"]["AdminEditOrderDto"];
 type ConfirmPackingBody = components["schemas"]["ConfirmOrderPackingDto"];
 type CancelBody = components["schemas"]["CancelOrderDto"];
+type AdminCompleteBody = components["schemas"]["AdminCompleteOrderDto"];
 
 export function useOrderActions() {
   const queryClient = useQueryClient();
@@ -121,5 +123,20 @@ export function useOrderActions() {
     onSuccess: refresh,
   });
 
-  return { transition, assignCourier, confirmPacking, adminEdit, cancel };
+  const adminComplete = useMutation({
+    mutationFn: ({ orderId, body }: { orderId: string; body: AdminCompleteBody }) =>
+      authorizedRequest<Order>(`/orders/${orderId}/admin-complete`, {
+        method: "PATCH",
+        body: JSON.stringify(body),
+      }),
+    onSuccess: async () => {
+      await Promise.all([
+        refresh(),
+        queryClient.invalidateQueries({ queryKey: accountingQueryKeys.all }),
+      ]);
+    },
+    onError: refreshConflict,
+  });
+
+  return { transition, assignCourier, confirmPacking, adminEdit, cancel, adminComplete };
 }

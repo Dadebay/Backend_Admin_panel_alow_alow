@@ -4,6 +4,7 @@ import {
   allowedOrderTransitions,
   assertOrderTransition,
   canAdministratorEditOrder,
+  canAdministratorCompleteOrder,
   canCancelOrder,
   canEditCourierAssignment,
   canManageCourierAssignment,
@@ -128,6 +129,23 @@ describe("order workflow policy", () => {
               OrderStatus.COOKING,
               OrderStatus.READY,
               OrderStatus.ASSIGNED_TO_COURIER,
+            ].includes(status),
+        );
+      }
+    }
+  });
+
+  it("allows administrator completion only for active unsettled statuses", () => {
+    for (const status of Object.values(OrderStatus)) {
+      for (const role of Object.values(Role)) {
+        expect(canAdministratorCompleteOrder(status, role)).toBe(
+          [Role.ADMIN, Role.SUPER_ADMIN].includes(role) &&
+            [
+              OrderStatus.COOKING,
+              OrderStatus.READY,
+              OrderStatus.ASSIGNED_TO_COURIER,
+              OrderStatus.OUT_FOR_DELIVERY,
+              OrderStatus.DELIVERED,
             ].includes(status),
         );
       }

@@ -4,6 +4,7 @@ import {
   ArrayMaxSize,
   ArrayMinSize,
   ArrayUnique,
+  Equals,
   IsArray,
   IsDateString,
   IsEnum,
@@ -303,6 +304,44 @@ export class AssignCourierDto {
   courierId: string;
 
   @ApiProperty()
+  @IsInt()
+  @Min(1)
+  version: number;
+}
+
+export class AdminCompleteOrderDto {
+  @ApiProperty({
+    minLength: 20,
+    maxLength: 500,
+    description: "Detailed reason for completing on behalf of the real courier",
+  })
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === "string" ? value.trim() : value,
+  )
+  @IsString()
+  @MinLength(20)
+  @MaxLength(500)
+  reason: string;
+
+  @ApiProperty({
+    type: Boolean,
+    enum: [true],
+    description:
+      "Administrator confirms delivery and receipt of the entire order total, including delivery",
+  })
+  @Equals(true)
+  cashReceived: boolean;
+
+  @ApiPropertyOptional({
+    format: "uuid",
+    description:
+      "Real active courier, required only when no courier is assigned; existing assignment cannot change",
+  })
+  @ValidateIf((_object, value: unknown) => value !== undefined)
+  @IsUUID()
+  courierId?: string;
+
+  @ApiProperty({ description: "Optimistic-lock version returned by the API" })
   @IsInt()
   @Min(1)
   version: number;

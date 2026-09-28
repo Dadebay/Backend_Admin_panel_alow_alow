@@ -99,6 +99,7 @@ alowalow/
 │   ├── ACCOUNTING_OVERSIGHT_QA.md
 │   ├── ANDROID_SMS_GATEWAY.md
 │   ├── ADMIN_TABLET_QA.md
+│   ├── ADMIN_ORDER_COMPLETION_QA.md
 │   ├── APP_FORCE_UPDATE.md
 │   ├── CATALOG_CATEGORY_GROUPING.md
 │   ├── COURIER_MAP_AND_PRINTER_ROUTING_QA.md
@@ -472,6 +473,31 @@ Role ownership:
   settlement already belongs to a submitted cash packet; `ACCOUNTANT` and
   `ADMIN` cannot reconcile an individual order;
 - `SUPER_ADMIN` inherits admin transitions.
+
+## Administrator recovery for a courier without the app — 2026-09-28
+
+`ADMIN` and `SUPER_ADMIN` can use «Завершить заказ» from both the order board
+and table when the real courier left without installing/using the application.
+`PATCH /orders/:id/admin-complete` accepts an active unsettled order from
+`COOKING` through `DELIVERED`, the current version, a trimmed detailed reason
+of 20–500 characters, and `cashReceived=true`. This attests that delivery was
+verified and the entire customer total, including delivery, has already been
+received and handed to the administrator. The UI states this before submission.
+Other roles are denied, and cancelled/completed/reconciled orders cannot be
+completed again. The ordinary courier workflow remains compatible.
+
+Keep the real assigned courier. If none is assigned, require an existing active
+`COURIER` account; installing the app is not required. Completion cannot replace
+an existing assignment and never creates a fictitious courier or staged events.
+The transaction directly records the actual prior status → `CASH_RETURNED`,
+the complete multiline reason and administrator identity. Missing assignment
+and delivery timestamps record the time of administrative confirmation, while
+existing timestamps and packing checks remain unchanged. Increment the version
+once, confirm exactly one cash settlement and include it in the current shift.
+The settlement retains food-only accounting (`total - deliveryFee`); the audit
+also records the attested full received total. Award loyalty only when delivery
+had not already been recorded. Existing shift-packet reconciliation remains
+authoritative. Rejected/stale requests leave all business records unchanged.
 
 ## Shift cash handoff and reports
 

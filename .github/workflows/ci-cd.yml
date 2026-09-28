@@ -29,6 +29,8 @@ jobs:
     timeout-minutes: 25
     env:
       COMPOSE_PROJECT_NAME: alowalow-ci-${{ github.run_id }}-${{ github.run_attempt }}
+      MINIO_IMAGE: alowalow-ci-minio:release-20250907
+      MINIO_MC_IMAGE: alowalow-ci-mc:release-20250813
     steps:
       - name: Check out repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -46,6 +48,23 @@ jobs:
 
       - name: Install API dependencies
         run: npm ci --prefix apps/api --no-audit --no-fund
+
+      - name: Load pinned isolated MinIO images
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download ci-test-services-20260928 \
+            --repo "$GITHUB_REPOSITORY" \
+            --pattern minio-test-services-amd64.tar.gz \
+            --dir "$RUNNER_TEMP"
+          printf '%s  %s\n' \
+            02c5822eb3f2c250edacd74baa12a66d001c5c2029ecb67ff2e469c63ff8d929 \
+            "$RUNNER_TEMP/minio-test-services-amd64.tar.gz" | sha256sum --check -
+          docker load --input "$RUNNER_TEMP/minio-test-services-amd64.tar.gz"
+          test "$(docker image inspect "$MINIO_IMAGE" --format '{{.Id}}')" = \
+            sha256:69b2ec208575b69597784255eec6fa6a2985ee9e1a47f4411a51f7f5fdd193a9
+          test "$(docker image inspect "$MINIO_MC_IMAGE" --format '{{.Id}}')" = \
+            sha256:c2ad77420d33bb4ad8694457d3edf7188076428582bd24e3dd4d09d6a1d52872
 
       - name: Start isolated test services
         run: |

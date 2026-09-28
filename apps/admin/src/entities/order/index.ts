@@ -1,5 +1,6 @@
 export {
   canCancel,
+  canAdministratorCompleteOrder,
   canAdministratorEditOrder,
   canEditCourierAssignment,
   nextOrderStatus,

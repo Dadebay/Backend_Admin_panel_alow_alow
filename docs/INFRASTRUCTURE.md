@@ -183,11 +183,18 @@ The three active production data volumes are declared `external` in Compose.
 This protects them from normal project replacement and `compose down
 --volumes`; `prepare-production-host.sh` creates them explicitly on a new host.
 
-Local development and GitHub CI pull the pinned MinIO server and client images
-from the official `quay.io/minio` repositories. The image digests are unchanged
-from the previously pinned artifacts; only the registry source changed after
-Docker Hub stopped serving `minio/minio`. Production continues to use the
-Telecom Nexus mirror with those same upstream digests.
+Production pulls pinned MinIO server/client images from `nexus.telecom.tm`.
+GitHub CI loads the same upstream amd64 image configurations from the repository
+prerelease `ci-test-services-20260928`, asset
+`minio-test-services-amd64.tar.gz`. The workflow checks its SHA-256 and both
+upstream config digests before setting `MINIO_IMAGE` and `MINIO_MC_IMAGE`
+Compose overrides. No new secret or registry login is needed. Docker Hub stopped
+serving `minio/minio`; on 2026-09-28 Quay returned 401 and Telecom Nexus timed out
+from the hosted runner. The archived images were recovered domestically from
+Nexus and verified against the unchanged original pinned manifests. Local
+development keeps its Quay defaults and cached multi-architecture images; Nexus
+currently serves only cached amd64 artifacts. This CI dependency prerelease
+must not replace a normal application release or its assets be overwritten.
 
 All runtime images are pinned by digest. Repository-owned API, migration and
 admin images come from GHCR. Third-party images that the VDS cannot fetch from

@@ -179,9 +179,17 @@ Windows/macOS cross-builds, and hardened container checks.
 Coverage, admin-build and desktop-agent artifact uploads are convenience
 outputs rather than deployment inputs; storage-quota failures do not override
 successful quality gates or block immutable image publication.
-The isolated backend job starts its digest-pinned MinIO server and client from
-the official `quay.io/minio` repositories; production still pulls the same
-upstream digests through `nexus.telecom.tm`.
+The isolated amd64 backend job downloads `minio-test-services-amd64.tar.gz`
+from the repository's `ci-test-services-20260928` prerelease. It verifies the
+archive SHA-256 and both upstream image config digests before Compose starts
+them through `MINIO_IMAGE` and `MINIO_MC_IMAGE` overrides. The archive preserves
+the pinned MinIO server/client versions and contains no data or credentials.
+On 2026-09-28 Quay returned 401 and the hosted runner could not reach Telecom
+Nexus; the archive was recovered from the existing Nexus mirror and matched to
+the original pinned upstream manifests. Local Compose retains its existing
+Quay defaults and cached multi-architecture images. Production retains its
+existing digest-pinned Telecom images and volumes. Never replace the prerelease
+asset in place; changes require a new archive and reviewed workflow checksums.
 The workflow then:
 
 1. Builds API, migration and admin images with provenance and SBOM.

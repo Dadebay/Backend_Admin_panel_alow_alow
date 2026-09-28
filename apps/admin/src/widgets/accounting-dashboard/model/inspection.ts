@@ -76,6 +76,7 @@ export const auditActionLabels: Record<string, string> = {
     "Историческое завершение по поручению владельца",
   "order.historical-cash-reconciled": "Отмечена ранее сданная оплата",
   "order.admin-edited": "Заказ отредактирован",
+  "order.admin-completed": "Заказ завершён администратором",
   "order.cancelled": "Заказ отменён",
   "order.transitioned": "Статус заказа изменён",
   "order.packing-confirmed": "Сборка подтверждена",

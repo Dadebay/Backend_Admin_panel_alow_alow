@@ -84,6 +84,12 @@ instructions.
 - Use the order `version` field for optimistic concurrency on every status,
   cancellation, assignment, and administrator-edit mutation.
 - Record every successful state change in `OrderTransition`.
+- `ADMIN`/`SUPER_ADMIN` may recover an active unsettled order through
+  `admin-complete` when the real courier could not use the app. Require a
+  detailed reason and confirmation of delivery plus receipt of the full total.
+  Preserve its assigned courier, or require a real active courier if missing.
+  Atomically create `CASH_RETURNED`, one cash settlement, loyalty credit when
+  not yet delivered, the full transition reason and an administrator audit.
 - A successfully committed administrator cancellation must remain committed
   even if the workstation print agent is unavailable. Its subsequent receipt
   plan is typed as `CANCELLATION`, retains the snapshotted order lines and

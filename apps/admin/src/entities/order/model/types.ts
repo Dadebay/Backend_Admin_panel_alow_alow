@@ -91,6 +91,10 @@ export function canCancel(role: Role, status: OrderStatus) {
   );
 }
 
+export function canAdministratorCompleteOrder(role: Role, status: OrderStatus) {
+  return canCancel(role, status);
+}
+
 const previousByStatus: Partial<Record<OrderStatus, OrderStatus>> = {
   READY: "COOKING",
   ASSIGNED_TO_COURIER: "READY",

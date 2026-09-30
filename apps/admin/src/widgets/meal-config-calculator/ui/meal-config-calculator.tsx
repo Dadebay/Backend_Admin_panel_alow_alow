@@ -1,5 +1,5 @@
 import { lazy, Suspense, useState } from "react";
-import { useSearchParams } from "react-router";
+import { Navigate, useSearchParams } from "react-router";
 import { InventoryDashboard } from "@/src/widgets/inventory-dashboard";
 import "./meal-config-calculator.css";
 
@@ -13,18 +13,12 @@ const Recipes = lazy(() =>
     default: module.RecipeInventoryConfigurator,
   })),
 );
-const Budget = lazy(() =>
-  import("./menu-budget-planner").then((module) => ({
-    default: module.MenuBudgetPlanner,
-  })),
-);
 const Flow = lazy(() => import("./inventory-flow").then((module) => ({ default: module.InventoryFlow })));
 const sections = [
   { id: "stock", label: "Остатки", number: "01" },
   { id: "ingredients", label: "Ингредиенты", number: "02" },
   { id: "recipes", label: "Рецептуры", number: "03" },
-  { id: "budget", label: "Бюджет меню", number: "04" },
-  { id: "flow", label: "Партии и цех", number: "05" },
+  { id: "flow", label: "Партии и цех", number: "04" },
 ] as const;
 type Section = (typeof sections)[number]["id"];
 
@@ -49,6 +43,9 @@ export function MealConfigCalculator() {
     if (create) updated.set("new", "1");
     else updated.delete("new");
     setParams(updated);
+  }
+  if (params.get("view") === "budget") {
+    return <Navigate to="/meal-config?view=stock" replace />;
   }
   return (
     <section
@@ -116,7 +113,6 @@ export function MealConfigCalculator() {
               onAddIngredient={() => navigate("ingredients", true)}
             />
           )}
-          {section === "budget" && <Budget />}
           {section === "flow" && <Flow />}
         </Suspense>
       </div>

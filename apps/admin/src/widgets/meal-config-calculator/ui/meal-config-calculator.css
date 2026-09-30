@@ -593,166 +593,6 @@
 .recipe-save {
   width: 100%;
 }
-.budget-layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1.15fr) minmax(320px, 0.85fr);
-  align-items: start;
-  gap: 24px;
-}
-.budget-product-list {
-  margin-top: 16px;
-  border: 1px solid var(--inv-line);
-  border-radius: 14px;
-  overflow: hidden;
-}
-.budget-product {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 16px;
-  padding: 20px;
-  border-bottom: 1px solid var(--inv-line);
-  background: #fffdf760;
-}
-.budget-product:last-child {
-  border-bottom: 0;
-}
-.budget-product > div {
-  display: grid;
-  gap: 7px;
-}
-.budget-product strong {
-  font-size: 13px;
-}
-.budget-product span {
-  font-size: 11px;
-  color: #65758a;
-}
-.budget-product button {
-  flex-shrink: 0;
-}
-.budget-selection {
-  background: #fffdf7bd;
-  border: 1px solid var(--inv-line);
-  border-radius: 16px;
-  padding: 24px;
-}
-.budget-selection-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-.budget-selection-head h3 {
-  font-size: 20px;
-}
-.budget-selection-head h3 span {
-  font-size: 12px;
-  margin-left: 6px;
-  color: #65758a;
-}
-.budget-empty {
-  border: 1px dashed #062f5e26;
-  border-radius: 10px;
-  text-align: center;
-  padding: 25px 10px;
-  font-size: 12px;
-}
-.budget-empty span {
-  display: block;
-  color: #65758a;
-  font-size: 11px;
-  margin-top: 8px;
-}
-.inventory-optional {
-  font-weight: 400;
-  color: #65758a;
-  font-size: 10px;
-}
-.budget-chosen {
-  display: grid;
-  gap: 14px;
-  padding-bottom: 18px;
-  border-bottom: 1px solid var(--inv-line);
-}
-.budget-chosen-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-}
-.budget-chosen-row > div:first-child {
-  display: grid;
-  gap: 5px;
-}
-.budget-chosen-row strong {
-  font-size: 12px;
-}
-.budget-chosen-row span {
-  font-size: 11px;
-  color: #65758a;
-}
-.budget-stepper {
-  display: flex;
-  align-items: center;
-  gap: 3px;
-  border: 1px solid var(--inv-line);
-  border-radius: 8px;
-  flex-shrink: 0;
-}
-.budget-stepper button {
-  background: transparent;
-  border: 0;
-  color: #062f5e;
-  font-size: 17px;
-  width: 34px;
-  height: 36px;
-  cursor: pointer;
-}
-.budget-stepper output {
-  font-size: 12px;
-  min-width: 22px;
-  text-align: center;
-}
-.budget-result {
-  display: grid;
-  gap: 12px;
-  border-top: 1px solid var(--inv-line);
-  padding-top: 18px;
-}
-.budget-result > div {
-  display: flex;
-  justify-content: space-between;
-  font-size: 12px;
-  gap: 12px;
-}
-.budget-result > div > span {
-  color: #65758a;
-}
-.budget-result .budget-total {
-  align-items: baseline;
-  padding: 12px 0;
-}
-.budget-total strong {
-  font-size: 28px;
-}
-.budget-total small {
-  font-size: 12px;
-  font-weight: 500;
-}
-.budget-result p {
-  padding: 12px;
-  border-radius: 8px;
-  font-size: 12px;
-  line-height: 1.6;
-}
-.budget-fits {
-  color: #345926;
-  background: #eaf1e4;
-}
-.budget-exceeds {
-  color: #925014;
-  background: #fff0d3;
-}
 @media (max-width: 1050px) {
   .inventory-tabs button {
     padding: 15px 12px;
@@ -763,17 +603,6 @@
   }
   .recipe-editor {
     padding: 18px;
-  }
-  .budget-layout {
-    grid-template-columns: 1fr 1fr;
-    gap: 16px;
-  }
-  .budget-selection {
-    padding: 18px;
-  }
-  .budget-product {
-    padding: 16px;
-    flex-wrap: wrap;
   }
   .ingredient-row {
     gap: 14px;
@@ -838,8 +667,7 @@
     grid-column: 1 / -1;
     justify-self: start;
   }
-  .recipe-layout,
-  .budget-layout {
+  .recipe-layout {
     grid-template-columns: 1fr;
   }
   .recipe-layout-selected .recipe-products {
@@ -868,12 +696,6 @@
   .recipe-cost strong {
     font-size: 27px;
   }
-  .budget-product {
-    flex-wrap: nowrap;
-  }
-  .budget-selection {
-    margin-top: 8px;
-  }
   .inventory-dialog {
     padding: 22px 18px;
   }
@@ -895,27 +717,6 @@
   .inventory-balance-preview strong {
     font-size: 18px;
   }
-}
-.budget-advice {
-  font-size: 12px;
-  line-height: 1.6;
-}
-.budget-advice summary {
-  cursor: pointer;
-  font-weight: 650;
-  padding: 8px 0;
-}
-.budget-advice ul {
-  padding-left: 18px;
-  margin: 8px 0;
-}
-.budget-advice li {
-  margin-bottom: 8px;
-}
-.budget-advice p {
-  color: #65758a;
-  padding: 0;
-  font-size: 11px;
 }
 .inventory-dialog {
   inset: 0;

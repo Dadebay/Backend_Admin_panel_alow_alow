@@ -179,7 +179,7 @@ alowalow/
 │       ├── src/            # FSD product layers
 │       │   ├── app/        # SPA bootstrap, routes, providers, global styles
 │       │   ├── widgets/    # inventory-dashboard, meal/recipe configurator, boards/maps/managers, incl. gift management
-│       │   ├── features/   # inventory/page-access/gift actions, notifications/calculator, typed mutations and app-version management
+│       │   ├── features/   # inventory/page-access/gift actions, notifications, typed mutations and app-version management
 │       │   ├── entities/   # typed queries/models, incl. inventory/accounting/delivery/loyalty/page-access/app-version
 │       │   └── shared/     # HTTP/query clients, auth, Zod form helpers, UI
 │       ├── public/
@@ -335,12 +335,11 @@ claims, preventing two consumers. Lost connections preserve the server task and
 stable `dispatchId`; the local journal suppresses duplicate paper after API loss
 or EXE restart. Main and kitchen copies remain intentionally separate.
 
-The budget planner and recipe/stock configurator (`/meal-config`) are an
-`ADMIN`/`SUPER_ADMIN` only screen. The budget section builds an authoritative
-quote from `/orders/quote`, which permits customers and administrators while
-keeping other staff roles denied. It previews pricing without placing an order
-or consuming stock/promo usage; promo eligibility uses the signed-in account.
-The configurator manages product recipes, ingredient
+The recipe/stock configurator (`/meal-config`) is an `ADMIN`/`SUPER_ADMIN` only
+screen. The separate menu-budget planner has been removed. `/orders/quote`
+remains an authoritative, side-effect-free pricing API for customers and
+administrators; other staff roles are denied, and promo eligibility uses the
+signed-in account. The configurator manages product recipes, ingredient
 base units (`GRAM`, `MILLILITER`, `PIECE`), cost per unit, branch stock and
 reorder alerts through `/inventory`. `OPERATOR` and `COOK` may read inventory
 endpoints for kitchen visibility, while ingredient, recipe and stock mutations
@@ -408,7 +407,8 @@ inventory reconciliation; these application controls do not prove absence of
 theft. See [inventory QA and case matrix](INVENTORY_QA.md).
 
 `/meal-config` (sidebar «Склад и рецептуры») has four focused views selected
-by the `view=stock|ingredients|recipes|budget` query parameter. Stock is the
+by the `view=stock|ingredients|recipes|flow` query parameter. Old
+`view=budget` links redirect to `view=stock`. Stock is the
 default: branch filter, name search, status count filters and per-position
 threshold meters; an empty warehouse explains ingredient → receipt → recipe
 setup. Counts represent branch/ingredient positions, never mixed-unit totals.
@@ -421,10 +421,8 @@ idempotency key for an unchanged retry after a failed/lost response.
 The recipe view separates the dish picker from its composition editor and
 shows batch/per-portion cost. Quantities remain explicitly in g/ml/pieces for
 the entire recipe yield; unsaved edits warn before changing dishes or tabs.
-The budget view separates catalog selection from chosen portions and the
-server quote. Changing quantities, budget, promotion or delivery marks an old
-quote stale. Reduction suggestions are approximate and require a fresh quote;
-no order is created by this preview.
+The flow view tracks locations, purchased lots, transfers to the kitchen,
+preparation yield, waste and lot-linked inventory documents.
 React Hook Form/Zod forms write through the real inventory API. The global
 administrator «Склад» button shows the latest 20 decreases from
 `GET /inventory/movements`; read markers are local to the browser and staff

@@ -221,5 +221,11 @@ test("admin links bottled water, receives a lot and follows its document", async
     path: testInfo.outputPath("inventory-flow.png"),
     fullPage: true,
   });
+  await page.goto("/meal-config?view=budget");
+  await expect(page).toHaveURL(/\/meal-config\?view=stock$/);
+  await expect(page.getByTestId("inventory-tab-stock")).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
   expect(errors).toEqual([]);
 });

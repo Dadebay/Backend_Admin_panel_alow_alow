@@ -28,6 +28,7 @@ export class InventoryRecipeIngredientResponseDto {
 export class InventoryRecipeResponseDto {
   @ApiProperty({ format: "uuid" }) id: string;
   @ApiProperty({ format: "uuid" }) productId: string;
+  @ApiProperty() version: number;
   @ApiProperty() productName: string;
   @ApiProperty() yieldQuantity: number;
   @ApiProperty() estimatedCost: number;

@@ -182,6 +182,9 @@ describe("order ingredient reservations and courier-handoff cancellation", () =>
     const key = randomUUID();
     const order = body(await create(f.productId, 3, key).expect(201));
     expect(await stock(f.ingredientId)).toBe(850);
+    const originalRequirement = await prisma.inventoryOrderRequirement.findFirstOrThrow({ where: { orderId: order.id } });
+    expect(originalRequirement).toMatchObject({ source: "RECIPE", recipeVersion: 1 });
+    expect(Number(originalRequirement.quantity)).toBe(150);
     await create(f.productId, 3, key).expect(201);
     expect(await stock(f.ingredientId)).toBe(850);
     // A later recipe change must not change the original refund amount.
@@ -205,6 +208,7 @@ describe("order ingredient reservations and courier-handoff cancellation", () =>
     expect(movements.map((movement) => Number(movement.quantityDelta))).toEqual(
       [-150, 150],
     );
+    expect((await prisma.inventoryOrderRequirement.findFirstOrThrow({ where: { orderId: order.id } })).recipeVersion).toBe(1);
   });
 
   it("returns stock after packing or courier assignment, but not after actual pickup or delivery", async () => {
@@ -240,6 +244,79 @@ describe("order ingredient reservations and courier-handoff cancellation", () =>
     );
     await cancel(order, Role.ADMIN).expect(200);
     expect(await stock(f.ingredientId)).toBe(900);
+  });
+
+  it("reserves and physically issues directly sold water without a recipe", async () => {
+    const water = await prisma.ingredient.create({ data: {
+      name: `Water bottle ${randomUUID()}`, unit: "PIECE", costPerUnit: 2,
+    } });
+    const product = await prisma.product.create({ data: {
+      categoryId, name: "Water 0.5 L", slug: `water-${randomUUID()}`,
+      description: "Direct sale", price: 10,
+    } });
+    const warehouse = await request(server).post(api("/inventory/locations"))
+      .set(auth()).send({ branchId, code: `W-${randomUUID()}`, name: "Warehouse" }).expect(201);
+    const locationId = (warehouse.body as { id: string }).id;
+    await request(server).post(api("/inventory/documents/receipt"))
+      .set(auth(Role.OPERATOR)).send({ branchId, locationId,
+        ingredientId: water.id, lotCode: `WATER-${randomUUID()}`,
+        quantity: 24, unitCost: 2, reason: "Supplier delivery", idempotencyKey: randomUUID() }).expect(403);
+    const receiptPayload = { branchId, locationId, ingredientId: water.id,
+      lotCode: `WATER-${randomUUID()}`, quantity: 24, unitCost: 2,
+      reason: "Two boxes of 12 bottles", idempotencyKey: randomUUID() };
+    const receipt = await request(server).post(api("/inventory/documents/receipt"))
+      .set(auth()).send(receiptPayload).expect(201);
+    await request(server).post(api("/inventory/documents/receipt"))
+      .set(auth()).send(receiptPayload).expect(201);
+    expect(await stock(water.id)).toBe(24);
+    const lotId = (receipt.body as { lines: Array<{ lotId: string }> }).lines[0]!.lotId;
+    await request(server).put(api(`/inventory/product-links/${product.id}`))
+      .set(auth()).send({ ingredientId: water.id, quantity: 1 }).expect(200);
+    let order = body(await create(product.id, 3).expect(201));
+    expect(await stock(water.id)).toBe(21);
+    const waterRequirement = await prisma.inventoryOrderRequirement.findFirstOrThrow({ where: { orderId: order.id } });
+    expect(waterRequirement).toMatchObject({ source: "DIRECT_PRODUCT", orderItemId: order.items[0]!.id });
+    expect(Number(waterRequirement.quantity)).toBe(3);
+    expect(Number((await prisma.inventoryLotBalance.findFirstOrThrow({ where: { lotId } })).quantity)).toBe(24);
+    await cancel(order).expect(200);
+    expect(await stock(water.id)).toBe(24);
+    order = body(await create(product.id, 3).expect(201));
+    order = body(await assign(body(await pack(order).expect(200))).expect(200));
+    await pickup(order).expect(200);
+    expect(await stock(water.id)).toBe(21);
+    expect(Number((await prisma.inventoryLotBalance.findFirstOrThrow({ where: { lotId } })).quantity)).toBe(21);
+    const issue = await prisma.inventoryDocument.findUniqueOrThrow({ where: {
+      orderId_kind: { orderId: order.id, kind: "ORDER_ISSUE" },
+    }, include: { lines: true } });
+    expect(issue.lines.map((line) => Number(line.quantity))).toEqual([3]);
+    expect(issue.lines[0]?.orderItemId).toBe(order.items[0]!.id);
+  });
+
+  it("uses a variant-specific direct stock quantity and snapshots the selected variant", async () => {
+    const water = await prisma.ingredient.create({ data: {
+      name: `Pack water ${randomUUID()}`, unit: "PIECE", costPerUnit: 2,
+      stocks: { create: { branchId, quantity: 24 } },
+    } });
+    const product = await prisma.product.create({ data: {
+      categoryId, name: "Water pack", slug: `water-pack-${randomUUID()}`,
+      description: "Direct variants", pricingType: "VARIANT", price: 0,
+      variants: { create: [{ name: "Six bottles", price: 50 }] },
+    }, include: { variants: true } });
+    const variant = product.variants[0]!;
+    await request(server).put(api(`/inventory/product-links/${product.id}`))
+      .set(auth()).send({ ingredientId: water.id, quantity: 1 }).expect(200);
+    await request(server).put(api(`/inventory/product-links/${product.id}`))
+      .set(auth()).send({ variantId: variant.id, ingredientId: water.id, quantity: 6 }).expect(200);
+    const order = body(await request(server).post(api("/orders"))
+      .set(auth(Role.CUSTOMER)).send({ ...location, idempotencyKey: randomUUID(),
+        items: [{ productId: product.id, variantId: variant.id, quantity: 2 }] }).expect(201));
+    expect(await stock(water.id)).toBe(12);
+    const requirement = await prisma.inventoryOrderRequirement.findFirstOrThrow({ where: { orderId: order.id } });
+    expect(requirement).toMatchObject({ source: "DIRECT_VARIANT", productVariantId: variant.id });
+    expect(Number(requirement.perSaleQuantity)).toBe(6);
+    expect(Number(requirement.quantity)).toBe(12);
+    await cancel(order).expect(200);
+    expect(await stock(water.id)).toBe(24);
   });
 
   it("preserves the 15-minute cancellation authorization and denies unrelated roles", async () => {

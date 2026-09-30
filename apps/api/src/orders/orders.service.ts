@@ -1242,6 +1242,7 @@ export class OrdersService {
         throw new ForbiddenException("This order is not assigned to you");
       }
 
+
       const updateData: Record<string, unknown> = {
         status: dto.status,
         version: { increment: 1 },
@@ -1277,6 +1278,11 @@ export class OrdersService {
       });
       if (updated.count !== 1) {
         throw new ConflictException("Order changed; reload and try again");
+      }
+
+      if (order.status === OrderStatus.ASSIGNED_TO_COURIER &&
+        dto.status === OrderStatus.OUT_FOR_DELIVERY) {
+        await this.inventory.issueOrder(tx, user, order);
       }
 
       if (dto.status === OrderStatus.DELIVERED) {
@@ -1420,6 +1426,10 @@ export class OrdersService {
       });
       if (updated.count !== 1) {
         throw new ConflictException("Order changed; reload and try again");
+      }
+      if (order.status === OrderStatus.COOKING || order.status === OrderStatus.READY ||
+        order.status === OrderStatus.ASSIGNED_TO_COURIER) {
+        await this.inventory.issueOrder(tx, user, order);
       }
       // Earlier stages may have been left behind when the courier went offline.
       // Preserve real history; record one explicit recovery, never invented steps.

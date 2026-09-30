@@ -69,9 +69,9 @@
   },
   "overrides": {
     "@prisma/dev": "0.24.17",
-    "brace-expansion": "5.0.9",
+    "brace-expansion": "5.0.12",
     "deepmerge-ts": "8.0.1",
-    "fast-uri": "4.1.4",
+    "fast-uri": "4.2.1",
     "find-my-way": "9.7.0",
     "js-yaml": "4.3.2",
     "minimatch": "10.2.5",
@@ -81,6 +81,6 @@
     "qs": "6.16.0",
     "uuid": "11.1.1",
     "valibot": "1.4.2",
-    "multer": "2.3.0"
+    "multer": "2.4.0"
   }
 }

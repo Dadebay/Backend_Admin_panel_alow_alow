@@ -18,11 +18,13 @@ const Budget = lazy(() =>
     default: module.MenuBudgetPlanner,
   })),
 );
+const Flow = lazy(() => import("./inventory-flow").then((module) => ({ default: module.InventoryFlow })));
 const sections = [
   { id: "stock", label: "Остатки", number: "01" },
   { id: "ingredients", label: "Ингредиенты", number: "02" },
   { id: "recipes", label: "Рецептуры", number: "03" },
   { id: "budget", label: "Бюджет меню", number: "04" },
+  { id: "flow", label: "Партии и цех", number: "05" },
 ] as const;
 type Section = (typeof sections)[number]["id"];
 
@@ -57,22 +59,22 @@ export function MealConfigCalculator() {
         <div>
           <span className="inventory-kicker">УЧЁТ КУХНИ</span>
           <h1>Склад и рецептуры</h1>
-          <p>Запасы в филиалах, состав блюд и стоимость приготовления.</p>
+          <p>Запасы, партии, передача в цех, состав блюд и фактические потери.</p>
         </div>
         <details className="inventory-help">
           <summary data-testid="inventory-help-toggle">
             Как работает учёт <span aria-hidden="true">?</span>
           </summary>
           <div>
-            <strong>Один раз настройте — дальше автоматически</strong>
+            <strong>Резерв заказа и движение партии</strong>
             <ol>
               <li>Добавьте ингредиенты и их закупочные цены.</li>
-              <li>Внесите начальные остатки в каждом филиале.</li>
-              <li>Укажите состав блюда и количество порций.</li>
+              <li>Создайте место хранения и проведите приход партии или сверьте начальный остаток.</li>
+              <li>Свяжите продаваемый товар со складской позицией либо укажите состав блюда.</li>
             </ol>
             <p>
-              Новый заказ спишет продукты по рецепту. Разрешённая отмена до
-              передачи курьеру вернёт их на склад. После передачи возврата нет.
+              Новый заказ резервирует продукты. Передача курьеру фиксирует физическую выдачу.
+              Отменённый до выдачи резерв возвращается; после выдачи товар не восстанавливается автоматически.
             </p>
           </div>
         </details>
@@ -115,6 +117,7 @@ export function MealConfigCalculator() {
             />
           )}
           {section === "budget" && <Budget />}
+          {section === "flow" && <Flow />}
         </Suspense>
       </div>
     </section>

@@ -886,6 +886,211 @@ export interface paths {
         patch: operations["OrderingHoursController_update_v1"];
         trace?: never;
     };
+    "/api/v1/inventory/product-links": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List direct-sale stock links, including product variants */
+        get: operations["InventoryController_productLinks_v1"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/inventory/product-links/{productId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Set or clear a direct-sale stock link */
+        put: operations["InventoryController_linkProduct_v1"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/inventory/locations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List physical stock locations in a branch */
+        get: operations["InventoryController_locations_v1"];
+        put?: never;
+        /** Create a stock location such as a kitchen */
+        post: operations["InventoryController_createLocation_v1"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/inventory/lots": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List physical lots and their location balances */
+        get: operations["InventoryController_lots_v1"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/inventory/lots/{id}/trace": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Trace a lot through source, transfer, process, waste and order documents */
+        get: operations["InventoryController_traceLot_v1"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/inventory/documents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List the most recent stock documents */
+        get: operations["InventoryController_documents_v1"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/inventory/documents/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get a stock document with all lot lines */
+        get: operations["InventoryController_document_v1"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/inventory/documents/receipt": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Receive a supplier lot */
+        post: operations["InventoryController_receipt_v1"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/inventory/documents/transfer": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Transfer a lot to another location */
+        post: operations["InventoryController_transfer_v1"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/inventory/documents/process": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Process input lots into output lots and measured waste */
+        post: operations["InventoryController_process_v1"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/inventory/documents/waste": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Write off spoiled or damaged lots with a reason */
+        post: operations["InventoryController_waste_v1"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/inventory/documents/stocktake": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Record a counted physical lot balance and unexplained variance */
+        post: operations["InventoryController_stocktake_v1"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/inventory/ingredients": {
         parameters: {
             query?: never;
@@ -3526,6 +3731,230 @@ export interface components {
             closesAt: string;
             version: number;
         };
+        InventoryProductVariantLinkResponseDto: {
+            /** Format: uuid */
+            variantId: string;
+            variantName: string;
+            /** Format: uuid */
+            ingredientId: string | null;
+            quantity: number | null;
+        };
+        InventoryProductLinkResponseDto: {
+            /** Format: uuid */
+            productId: string;
+            productName: string;
+            hasActiveRecipe: boolean;
+            /** Format: uuid */
+            ingredientId: string | null;
+            quantity: number | null;
+            variants: components["schemas"]["InventoryProductVariantLinkResponseDto"][];
+        };
+        InventoryProductLinkDto: {
+            /** Format: uuid */
+            variantId?: string;
+            /** Format: uuid */
+            ingredientId?: string | null;
+            /** @example 1 */
+            quantity?: number | null;
+        };
+        InventorySavedProductLinkResponseDto: {
+            /** Format: uuid */
+            productId: string;
+            /** Format: uuid */
+            variantId: string | null;
+            /** Format: uuid */
+            ingredientId: string | null;
+            quantity: number | null;
+        };
+        InventoryLocationResponseDto: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            branchId: string;
+            code: string;
+            name: string;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        InventoryLocationDto: {
+            /** Format: uuid */
+            branchId: string;
+            /** @example KITCHEN */
+            code: string;
+            /** @example Холодный цех */
+            name: string;
+        };
+        InventoryLotBalanceResponseDto: {
+            /** Format: uuid */
+            locationId: string;
+            locationName: string;
+            locationCode: string;
+            quantity: number;
+        };
+        InventoryLotResponseDto: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            branchId: string;
+            code: string;
+            /** Format: uuid */
+            ingredientId: string;
+            ingredientName: string;
+            unit: string;
+            unitCost: number;
+            /** Format: date-time */
+            expiresAt: string | null;
+            originNote: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            balances: components["schemas"]["InventoryLotBalanceResponseDto"][];
+        };
+        InventoryDocumentLineResponseDto: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            orderItemId: string | null;
+            /** Format: uuid */
+            lotId: string;
+            lotCode: string;
+            /** Format: uuid */
+            ingredientId: string;
+            ingredientName: string;
+            unit: string;
+            /** Format: uuid */
+            locationId: string;
+            locationName: string;
+            /** @enum {string} */
+            kind: "IN" | "OUT" | "PROCESS_WASTE";
+            quantity: number;
+            unitCost: number;
+        };
+        InventoryDocumentResponseDto: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            branchId: string;
+            /** Format: uuid */
+            actorId: string | null;
+            /** Format: uuid */
+            orderId: string | null;
+            kind: string;
+            reason: string;
+            stocktakeExpectedQuantity: number | null;
+            stocktakeCountedQuantity: number | null;
+            /** Format: date-time */
+            createdAt: string;
+            lines: components["schemas"]["InventoryDocumentLineResponseDto"][];
+        };
+        InventoryLotTraceResponseDto: {
+            /** Format: uuid */
+            lotId: string;
+            documents: components["schemas"]["InventoryDocumentResponseDto"][];
+        };
+        InventoryReceiptDto: {
+            /** Format: uuid */
+            branchId: string;
+            /**
+             * Format: uuid
+             * @description Same key for retries of the same document
+             */
+            idempotencyKey: string;
+            reason: string;
+            /** Format: uuid */
+            ingredientId: string;
+            /** Format: uuid */
+            locationId: string;
+            /** @example SUPPLIER-42 */
+            lotCode: string;
+            /** Format: date-time */
+            expiresAt?: string;
+            /** @example 0.03 */
+            unitCost: number;
+            /**
+             * @description Pieces or other base units; package multiplication is done before posting
+             * @example 12
+             */
+            quantity: number;
+        };
+        InventoryTransferDto: {
+            /** Format: uuid */
+            branchId: string;
+            /**
+             * Format: uuid
+             * @description Same key for retries of the same document
+             */
+            idempotencyKey: string;
+            reason: string;
+            /** Format: uuid */
+            lotId: string;
+            /** Format: uuid */
+            fromLocationId: string;
+            /** Format: uuid */
+            toLocationId: string;
+            /** @example 8000 */
+            quantity: number;
+        };
+        InventoryLotQuantityDto: {
+            /** @example 1000 */
+            quantity: number;
+            /** Format: uuid */
+            lotId: string;
+            /** Format: uuid */
+            locationId: string;
+        };
+        InventoryOutputDto: {
+            /** @example 1000 */
+            quantity: number;
+            /** Format: uuid */
+            ingredientId: string;
+            /** Format: uuid */
+            locationId: string;
+            lotCode: string;
+        };
+        InventoryProcessDto: {
+            /** Format: uuid */
+            branchId: string;
+            /**
+             * Format: uuid
+             * @description Same key for retries of the same document
+             */
+            idempotencyKey: string;
+            reason: string;
+            inputs: components["schemas"]["InventoryLotQuantityDto"][];
+            outputs: components["schemas"]["InventoryOutputDto"][];
+            /** @description Measured technological loss from input lots */
+            waste: components["schemas"]["InventoryLotQuantityDto"][];
+        };
+        InventoryWasteDto: {
+            /** Format: uuid */
+            branchId: string;
+            /**
+             * Format: uuid
+             * @description Same key for retries of the same document
+             */
+            idempotencyKey: string;
+            reason: string;
+            lines: components["schemas"]["InventoryLotQuantityDto"][];
+        };
+        InventoryStocktakeDto: {
+            /** Format: uuid */
+            branchId: string;
+            /**
+             * Format: uuid
+             * @description Same key for retries of the same document
+             */
+            idempotencyKey: string;
+            reason: string;
+            /** Format: uuid */
+            lotId: string;
+            /** Format: uuid */
+            locationId: string;
+            /**
+             * @description Counted physical quantity in base units
+             * @example 5000
+             */
+            countedQuantity: number;
+        };
         InventoryIngredientResponseDto: {
             /** Format: uuid */
             id: string;
@@ -3590,6 +4019,7 @@ export interface components {
             id: string;
             /** Format: uuid */
             productId: string;
+            version: number;
             productName: string;
             yieldQuantity: number;
             estimatedCost: number;
@@ -6404,6 +6834,293 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OrderingHoursResponseDto"];
+                };
+            };
+        };
+    };
+    InventoryController_productLinks_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InventoryProductLinkResponseDto"][];
+                };
+            };
+        };
+    };
+    InventoryController_linkProduct_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                productId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InventoryProductLinkDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InventorySavedProductLinkResponseDto"];
+                };
+            };
+        };
+    };
+    InventoryController_locations_v1: {
+        parameters: {
+            query: {
+                branchId: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InventoryLocationResponseDto"][];
+                };
+            };
+        };
+    };
+    InventoryController_createLocation_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InventoryLocationDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InventoryLocationResponseDto"];
+                };
+            };
+        };
+    };
+    InventoryController_lots_v1: {
+        parameters: {
+            query: {
+                branchId: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InventoryLotResponseDto"][];
+                };
+            };
+        };
+    };
+    InventoryController_traceLot_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InventoryLotTraceResponseDto"];
+                };
+            };
+        };
+    };
+    InventoryController_documents_v1: {
+        parameters: {
+            query: {
+                branchId: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InventoryDocumentResponseDto"][];
+                };
+            };
+        };
+    };
+    InventoryController_document_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InventoryDocumentResponseDto"];
+                };
+            };
+        };
+    };
+    InventoryController_receipt_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InventoryReceiptDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InventoryDocumentResponseDto"];
+                };
+            };
+        };
+    };
+    InventoryController_transfer_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InventoryTransferDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InventoryDocumentResponseDto"];
+                };
+            };
+        };
+    };
+    InventoryController_process_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InventoryProcessDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InventoryDocumentResponseDto"];
+                };
+            };
+        };
+    };
+    InventoryController_waste_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InventoryWasteDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InventoryDocumentResponseDto"];
+                };
+            };
+        };
+    };
+    InventoryController_stocktake_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InventoryStocktakeDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InventoryDocumentResponseDto"];
                 };
             };
         };

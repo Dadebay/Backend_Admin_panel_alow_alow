@@ -2436,6 +2436,494 @@
         ]
       }
     },
+    "/api/v1/inventory/product-links": {
+      "get": {
+        "operationId": "InventoryController_productLinks_v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/InventoryProductLinkResponseDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "List direct-sale stock links, including product variants",
+        "tags": [
+          "inventory"
+        ]
+      }
+    },
+    "/api/v1/inventory/product-links/{productId}": {
+      "put": {
+        "operationId": "InventoryController_linkProduct_v1",
+        "parameters": [
+          {
+            "name": "productId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InventoryProductLinkDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InventorySavedProductLinkResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Set or clear a direct-sale stock link",
+        "tags": [
+          "inventory"
+        ]
+      }
+    },
+    "/api/v1/inventory/locations": {
+      "get": {
+        "operationId": "InventoryController_locations_v1",
+        "parameters": [
+          {
+            "name": "branchId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/InventoryLocationResponseDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "List physical stock locations in a branch",
+        "tags": [
+          "inventory"
+        ]
+      },
+      "post": {
+        "operationId": "InventoryController_createLocation_v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InventoryLocationDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InventoryLocationResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Create a stock location such as a kitchen",
+        "tags": [
+          "inventory"
+        ]
+      }
+    },
+    "/api/v1/inventory/lots": {
+      "get": {
+        "operationId": "InventoryController_lots_v1",
+        "parameters": [
+          {
+            "name": "branchId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/InventoryLotResponseDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "List physical lots and their location balances",
+        "tags": [
+          "inventory"
+        ]
+      }
+    },
+    "/api/v1/inventory/lots/{id}/trace": {
+      "get": {
+        "operationId": "InventoryController_traceLot_v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InventoryLotTraceResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Trace a lot through source, transfer, process, waste and order documents",
+        "tags": [
+          "inventory"
+        ]
+      }
+    },
+    "/api/v1/inventory/documents": {
+      "get": {
+        "operationId": "InventoryController_documents_v1",
+        "parameters": [
+          {
+            "name": "branchId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/InventoryDocumentResponseDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "List the most recent stock documents",
+        "tags": [
+          "inventory"
+        ]
+      }
+    },
+    "/api/v1/inventory/documents/{id}": {
+      "get": {
+        "operationId": "InventoryController_document_v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InventoryDocumentResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Get a stock document with all lot lines",
+        "tags": [
+          "inventory"
+        ]
+      }
+    },
+    "/api/v1/inventory/documents/receipt": {
+      "post": {
+        "operationId": "InventoryController_receipt_v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InventoryReceiptDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InventoryDocumentResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Receive a supplier lot",
+        "tags": [
+          "inventory"
+        ]
+      }
+    },
+    "/api/v1/inventory/documents/transfer": {
+      "post": {
+        "operationId": "InventoryController_transfer_v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InventoryTransferDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InventoryDocumentResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Transfer a lot to another location",
+        "tags": [
+          "inventory"
+        ]
+      }
+    },
+    "/api/v1/inventory/documents/process": {
+      "post": {
+        "operationId": "InventoryController_process_v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InventoryProcessDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InventoryDocumentResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Process input lots into output lots and measured waste",
+        "tags": [
+          "inventory"
+        ]
+      }
+    },
+    "/api/v1/inventory/documents/waste": {
+      "post": {
+        "operationId": "InventoryController_waste_v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InventoryWasteDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InventoryDocumentResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Write off spoiled or damaged lots with a reason",
+        "tags": [
+          "inventory"
+        ]
+      }
+    },
+    "/api/v1/inventory/documents/stocktake": {
+      "post": {
+        "operationId": "InventoryController_stocktake_v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InventoryStocktakeDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InventoryDocumentResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Record a counted physical lot balance and unexplained variance",
+        "tags": [
+          "inventory"
+        ]
+      }
+    },
     "/api/v1/inventory/ingredients": {
       "get": {
         "operationId": "InventoryController_listIngredients_v1",
@@ -10344,6 +10832,653 @@
           "version"
         ]
       },
+      "InventoryProductVariantLinkResponseDto": {
+        "type": "object",
+        "properties": {
+          "variantId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "variantName": {
+            "type": "string"
+          },
+          "ingredientId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "quantity": {
+            "type": "number",
+            "nullable": true
+          }
+        },
+        "required": [
+          "variantId",
+          "variantName",
+          "ingredientId",
+          "quantity"
+        ]
+      },
+      "InventoryProductLinkResponseDto": {
+        "type": "object",
+        "properties": {
+          "productId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "productName": {
+            "type": "string"
+          },
+          "hasActiveRecipe": {
+            "type": "boolean"
+          },
+          "ingredientId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "quantity": {
+            "type": "number",
+            "nullable": true
+          },
+          "variants": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InventoryProductVariantLinkResponseDto"
+            }
+          }
+        },
+        "required": [
+          "productId",
+          "productName",
+          "hasActiveRecipe",
+          "ingredientId",
+          "quantity",
+          "variants"
+        ]
+      },
+      "InventoryProductLinkDto": {
+        "type": "object",
+        "properties": {
+          "variantId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "ingredientId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "quantity": {
+            "type": "number",
+            "example": 1,
+            "nullable": true
+          }
+        }
+      },
+      "InventorySavedProductLinkResponseDto": {
+        "type": "object",
+        "properties": {
+          "productId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "variantId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "ingredientId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "quantity": {
+            "type": "number",
+            "nullable": true
+          }
+        },
+        "required": [
+          "productId",
+          "variantId",
+          "ingredientId",
+          "quantity"
+        ]
+      },
+      "InventoryLocationResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "branchId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "code": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "branchId",
+          "code",
+          "name",
+          "createdAt"
+        ]
+      },
+      "InventoryLocationDto": {
+        "type": "object",
+        "properties": {
+          "branchId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "code": {
+            "type": "string",
+            "example": "KITCHEN"
+          },
+          "name": {
+            "type": "string",
+            "example": "Холодный цех"
+          }
+        },
+        "required": [
+          "branchId",
+          "code",
+          "name"
+        ]
+      },
+      "InventoryLotBalanceResponseDto": {
+        "type": "object",
+        "properties": {
+          "locationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "locationName": {
+            "type": "string"
+          },
+          "locationCode": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "locationId",
+          "locationName",
+          "locationCode",
+          "quantity"
+        ]
+      },
+      "InventoryLotResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "branchId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "code": {
+            "type": "string"
+          },
+          "ingredientId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "ingredientName": {
+            "type": "string"
+          },
+          "unit": {
+            "type": "string"
+          },
+          "unitCost": {
+            "type": "number"
+          },
+          "expiresAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "originNote": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "balances": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InventoryLotBalanceResponseDto"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "branchId",
+          "code",
+          "ingredientId",
+          "ingredientName",
+          "unit",
+          "unitCost",
+          "expiresAt",
+          "originNote",
+          "createdAt",
+          "balances"
+        ]
+      },
+      "InventoryDocumentLineResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "orderItemId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "lotId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "lotCode": {
+            "type": "string"
+          },
+          "ingredientId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "ingredientName": {
+            "type": "string"
+          },
+          "unit": {
+            "type": "string"
+          },
+          "locationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "locationName": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "IN",
+              "OUT",
+              "PROCESS_WASTE"
+            ]
+          },
+          "quantity": {
+            "type": "number"
+          },
+          "unitCost": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "id",
+          "orderItemId",
+          "lotId",
+          "lotCode",
+          "ingredientId",
+          "ingredientName",
+          "unit",
+          "locationId",
+          "locationName",
+          "kind",
+          "quantity",
+          "unitCost"
+        ]
+      },
+      "InventoryDocumentResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "branchId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "actorId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "orderId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "stocktakeExpectedQuantity": {
+            "type": "number",
+            "nullable": true
+          },
+          "stocktakeCountedQuantity": {
+            "type": "number",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InventoryDocumentLineResponseDto"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "branchId",
+          "actorId",
+          "orderId",
+          "kind",
+          "reason",
+          "stocktakeExpectedQuantity",
+          "stocktakeCountedQuantity",
+          "createdAt",
+          "lines"
+        ]
+      },
+      "InventoryLotTraceResponseDto": {
+        "type": "object",
+        "properties": {
+          "lotId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "documents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InventoryDocumentResponseDto"
+            }
+          }
+        },
+        "required": [
+          "lotId",
+          "documents"
+        ]
+      },
+      "InventoryReceiptDto": {
+        "type": "object",
+        "properties": {
+          "branchId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "idempotencyKey": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Same key for retries of the same document"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "ingredientId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "locationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "lotCode": {
+            "type": "string",
+            "example": "SUPPLIER-42"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "unitCost": {
+            "type": "number",
+            "example": 0.03
+          },
+          "quantity": {
+            "type": "number",
+            "example": 12,
+            "description": "Pieces or other base units; package multiplication is done before posting"
+          }
+        },
+        "required": [
+          "branchId",
+          "idempotencyKey",
+          "reason",
+          "ingredientId",
+          "locationId",
+          "lotCode",
+          "unitCost",
+          "quantity"
+        ]
+      },
+      "InventoryTransferDto": {
+        "type": "object",
+        "properties": {
+          "branchId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "idempotencyKey": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Same key for retries of the same document"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "lotId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "fromLocationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "toLocationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "quantity": {
+            "type": "number",
+            "example": 8000
+          }
+        },
+        "required": [
+          "branchId",
+          "idempotencyKey",
+          "reason",
+          "lotId",
+          "fromLocationId",
+          "toLocationId",
+          "quantity"
+        ]
+      },
+      "InventoryLotQuantityDto": {
+        "type": "object",
+        "properties": {
+          "quantity": {
+            "type": "number",
+            "example": 1000
+          },
+          "lotId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "locationId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "quantity",
+          "lotId",
+          "locationId"
+        ]
+      },
+      "InventoryOutputDto": {
+        "type": "object",
+        "properties": {
+          "quantity": {
+            "type": "number",
+            "example": 1000
+          },
+          "ingredientId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "locationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "lotCode": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "quantity",
+          "ingredientId",
+          "locationId",
+          "lotCode"
+        ]
+      },
+      "InventoryProcessDto": {
+        "type": "object",
+        "properties": {
+          "branchId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "idempotencyKey": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Same key for retries of the same document"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "inputs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InventoryLotQuantityDto"
+            }
+          },
+          "outputs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InventoryOutputDto"
+            }
+          },
+          "waste": {
+            "description": "Measured technological loss from input lots",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InventoryLotQuantityDto"
+            }
+          }
+        },
+        "required": [
+          "branchId",
+          "idempotencyKey",
+          "reason",
+          "inputs",
+          "outputs",
+          "waste"
+        ]
+      },
+      "InventoryWasteDto": {
+        "type": "object",
+        "properties": {
+          "branchId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "idempotencyKey": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Same key for retries of the same document"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InventoryLotQuantityDto"
+            }
+          }
+        },
+        "required": [
+          "branchId",
+          "idempotencyKey",
+          "reason",
+          "lines"
+        ]
+      },
+      "InventoryStocktakeDto": {
+        "type": "object",
+        "properties": {
+          "branchId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "idempotencyKey": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Same key for retries of the same document"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "lotId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "locationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "countedQuantity": {
+            "type": "number",
+            "example": 5000,
+            "description": "Counted physical quantity in base units"
+          }
+        },
+        "required": [
+          "branchId",
+          "idempotencyKey",
+          "reason",
+          "lotId",
+          "locationId",
+          "countedQuantity"
+        ]
+      },
       "InventoryIngredientResponseDto": {
         "type": "object",
         "properties": {
@@ -10507,6 +11642,9 @@
             "type": "string",
             "format": "uuid"
           },
+          "version": {
+            "type": "number"
+          },
           "productName": {
             "type": "string"
           },
@@ -10533,6 +11671,7 @@
         "required": [
           "id",
           "productId",
+          "version",
           "productName",
           "yieldQuantity",
           "estimatedCost",

@@ -428,6 +428,17 @@ are not seeded or backfilled; configure ingredients, branch balances and recipes
 through the administrator UI. Check authenticated inventory role gates and the
 public `/meal-config` bundle after deployment.
 
+The 2026-09-30 lot-flow release adds four further additive migrations:
+`20260930070000_inventory_flow`, `20260930080000_order_inventory_snapshots`,
+`20260930090000_lot_code_per_item`, and `20260930100000_stocktake_facts`.
+Apply them after a verified PostgreSQL backup through the normal migration
+container. Verify receipt, location transfer, processing yield and waste,
+spoilage, stocktake facts, and physical order issue in the administrator UI.
+Existing branch balances receive clearly labeled estimated legacy lots on
+first physical operation; confirm those balances with a physical stocktake.
+Once new inventory documents or order requirement snapshots exist, keep the
+new API and fix forward so reservations and physical issues remain coherent.
+
 After any `InventoryAllocatedProduct`, `InventoryMovement`, or `Recipe` row
 exists, do not roll back to an API without inventory integration: it would omit
 reservation updates on order creation, editing or cancellation. Keep the new API

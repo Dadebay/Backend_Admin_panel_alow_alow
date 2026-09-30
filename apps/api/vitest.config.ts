@@ -17,7 +17,9 @@ export default defineConfig({
     fileParallelism: false,
     maxWorkers: 1,
     globalSetup: ["./test/global-setup.ts"],
-    testTimeout: 20_000,
+    // Real PostgreSQL/Redis/MinIO suites run serially with coverage. Later
+    // cases can exceed 20s on a loaded workstation or CI runner.
+    testTimeout: 60_000,
     hookTimeout: 60_000,
     env: {
       NODE_ENV: "test",

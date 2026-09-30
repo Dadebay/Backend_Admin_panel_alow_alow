@@ -7,6 +7,7 @@ import {
 import type { AuthUser } from "../common/auth.types";
 import {
   InventoryMovementType,
+  InventoryRequirementSource,
   InventoryUnit,
   Prisma,
 } from "../generated/prisma/client";
@@ -25,6 +26,8 @@ import {
   validateRecipeIngredientIds,
   validateStockMovement,
 } from "./inventory-policy";
+import { InventoryFlowService } from "./inventory-flow.service";
+import { InventoryProductLinkDto } from "./inventory-flow.dto";
 
 const recipeInclude = {
   product: { select: { name: true } },
@@ -66,6 +69,7 @@ function ingredientAudit(ingredient: Parameters<typeof ingredientResponse>[0]) {
 function recipeAudit(recipe: RecipeWithRelations) {
   return {
     productId: recipe.productId,
+    version: recipe.version,
     yieldQuantity: recipe.yieldQuantity.toString(),
     isActive: recipe.isActive,
     ingredients: recipe.ingredients.map((line) => ({
@@ -92,6 +96,7 @@ function recipeResponse(recipe: RecipeWithRelations) {
   return {
     id: recipe.id,
     productId: recipe.productId,
+    version: recipe.version,
     productName: recipe.product.name,
     yieldQuantity: Number(recipe.yieldQuantity),
     estimatedCost: calculateRecipeCost(
@@ -108,7 +113,7 @@ function recipeResponse(recipe: RecipeWithRelations) {
 
 @Injectable()
 export class InventoryService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService, private readonly flow: InventoryFlowService) {}
 
   private async configurationTransaction<T>(
     work: (tx: Prisma.TransactionClient) => Promise<T>,
@@ -175,7 +180,7 @@ export class InventoryService {
       const current = await tx.ingredient.findUnique({ where: { id } });
       if (!current) throw new NotFoundException("Ingredient not found");
       if (dto.unit !== undefined && dto.unit !== current?.unit) {
-        const [usedInRecipe, hasStock, hasHistory] = await Promise.all([
+        const [usedInRecipe, hasStock, hasHistory, directProduct, directVariant, hasLots, hasRequirements] = await Promise.all([
           tx.recipeIngredient.findFirst({
             where: { ingredientId: id },
             select: { id: true },
@@ -188,10 +193,14 @@ export class InventoryService {
             where: { ingredientId: id },
             select: { id: true },
           }),
+          tx.product.findFirst({ where: { stockIngredientId: id }, select: { id: true } }),
+          tx.productVariant.findFirst({ where: { stockIngredientId: id }, select: { id: true } }),
+          tx.inventoryLot.findFirst({ where: { ingredientId: id }, select: { id: true } }),
+          tx.inventoryOrderRequirement.findFirst({ where: { ingredientId: id }, select: { id: true } }),
         ]);
-        if (usedInRecipe || hasStock || hasHistory)
+        if (usedInRecipe || hasStock || hasHistory || directProduct || directVariant || hasLots || hasRequirements)
           throw new ConflictException(
-            "Cannot change unit while ingredient has a recipe or stock",
+            "Cannot change unit while the stock item has links, history or balances",
           );
       }
       try {
@@ -252,15 +261,74 @@ export class InventoryService {
     return recipeResponse(recipe);
   }
 
+  async listProductLinks() {
+    const products = await this.prisma.product.findMany({
+      select: { id: true, name: true, stockIngredientId: true, stockQuantity: true,
+        variants: { select: { id: true, name: true, stockIngredientId: true, stockQuantity: true } },
+        recipe: { select: { isActive: true } } },
+      orderBy: { name: "asc" },
+    });
+    return products.map((product) => ({
+      productId: product.id, productName: product.name,
+      hasActiveRecipe: product.recipe?.isActive ?? false,
+      ingredientId: product.stockIngredientId,
+      quantity: product.stockQuantity ? Number(product.stockQuantity) : null,
+      variants: product.variants.map((variant) => ({
+        variantId: variant.id, variantName: variant.name,
+        ingredientId: variant.stockIngredientId,
+        quantity: variant.stockQuantity ? Number(variant.stockQuantity) : null,
+      })),
+    }));
+  }
+
+  linkProduct(actor: AuthUser, productId: string, dto: InventoryProductLinkDto) {
+    return this.configurationTransaction(async (tx) => {
+      const product = await tx.product.findUnique({
+        where: { id: productId }, include: { recipe: true },
+      });
+      if (!product) throw new NotFoundException("Товар не найден.");
+      if (dto.variantId) {
+        const variant = await tx.productVariant.findUnique({ where: { id: dto.variantId } });
+        if (!variant || variant.productId !== productId)
+          throw new BadRequestException("Вариант не принадлежит товару.");
+      }
+      if (!!dto.ingredientId !== !!dto.quantity)
+        throw new BadRequestException("Укажите складскую позицию и количество вместе либо очистите оба поля.");
+      if (dto.ingredientId) {
+        const ingredient = await tx.ingredient.findUnique({ where: { id: dto.ingredientId } });
+        if (!ingredient?.isActive)
+          throw new BadRequestException("Активная складская позиция не найдена.");
+        if (product.recipe?.isActive)
+          throw new ConflictException("Товар уже списывается по рецептуре.");
+      }
+      const before = dto.variantId
+        ? await tx.productVariant.findUniqueOrThrow({ where: { id: dto.variantId }, select: { stockIngredientId: true, stockQuantity: true } })
+        : { stockIngredientId: product.stockIngredientId, stockQuantity: product.stockQuantity };
+      const data = { stockIngredientId: dto.ingredientId ?? null, stockQuantity: dto.quantity ?? null };
+      if (dto.variantId) await tx.productVariant.update({ where: { id: dto.variantId }, data });
+      else await tx.product.update({ where: { id: productId }, data });
+      await tx.auditLog.create({ data: { actorId: actor.id, action: "inventory.product-link.updated",
+        entityType: dto.variantId ? "ProductVariant" : "Product",
+        entityId: dto.variantId ?? productId,
+        metadata: { productId, variantId: dto.variantId ?? null,
+          before: { ingredientId: before.stockIngredientId, quantity: before.stockQuantity?.toString() ?? null },
+          after: { ingredientId: data.stockIngredientId, quantity: data.stockQuantity } } } });
+      return { productId, variantId: dto.variantId ?? null, ingredientId: data.stockIngredientId,
+        quantity: data.stockQuantity };
+    });
+  }
+
   upsertRecipe(actor: AuthUser, productId: string, dto: UpsertRecipeDto) {
     return this.configurationTransaction(async (tx) => {
-      if (
-        !(await tx.product.findUnique({
-          where: { id: productId },
-          select: { id: true },
-        }))
-      )
+      const product = await tx.product.findUnique({
+        where: { id: productId },
+        select: { id: true, stockIngredientId: true, variants: { select: { stockIngredientId: true } } },
+      });
+      if (!product)
         throw new NotFoundException("Product not found");
+      if ((dto.isActive ?? true) &&
+        (product.stockIngredientId || product.variants.some((variant) => variant.stockIngredientId)))
+        throw new ConflictException("Отключите прямую складскую привязку перед активацией рецептуры.");
       const ingredientIds = dto.ingredients.map(
         ({ ingredientId }) => ingredientId,
       );
@@ -291,6 +359,7 @@ export class InventoryService {
           },
         },
         update: {
+          version: { increment: 1 },
           yieldQuantity: dto.yieldQuantity,
           isActive: dto.isActive ?? true,
           ingredients: {
@@ -432,36 +501,65 @@ export class InventoryService {
 
   private async orderRequirements(
     tx: Prisma.TransactionClient,
-    portions: Map<string, number>,
+    orderId: string,
+    items: Array<{ id: string; productId: string; productVariantId?: string | null; quantity: number }>,
   ) {
+    const productIds = [...new Set(items.map((item) => item.productId))];
     const recipes = await tx.recipe.findMany({
-      where: { productId: { in: [...portions.keys()] }, isActive: true },
+      where: { productId: { in: productIds }, isActive: true },
       include: { ingredients: { include: { ingredient: true } } },
     });
-    const requirements = new Map<string, Prisma.Decimal>();
-    for (const recipe of recipes) {
-      for (const line of recipe.ingredients) {
-        if (!line.ingredient.isActive)
-          throw new ConflictException(
-            `Ингредиент «${line.ingredient.name}» выключен. Обновите рецептуру.`,
-          );
-        const amount = line.quantity
-          .mul(portions.get(recipe.productId)!)
-          .div(recipe.yieldQuantity);
-        requirements.set(
-          line.ingredientId,
-          (requirements.get(line.ingredientId) ?? new Prisma.Decimal(0)).plus(
-            amount,
-          ),
-        );
+    const recipeByProduct = new Map(recipes.map((recipe) => [recipe.productId, recipe]));
+    const products = await tx.product.findMany({
+      where: { id: { in: productIds } }, include: { variants: true },
+    });
+    const productById = new Map(products.map((product) => [product.id, product]));
+    const exactTotals = new Map<string, Prisma.Decimal>();
+    const allocations: Prisma.InventoryOrderRequirementCreateManyInput[] = [];
+    const add = (item: (typeof items)[number], ingredientId: string,
+      exactAmount: Prisma.Decimal, source: InventoryRequirementSource,
+      perSaleQuantity: Prisma.Decimal, recipeVersion?: number,
+      recipeYieldQuantity?: Prisma.Decimal) => {
+      const before = exactTotals.get(ingredientId) ?? new Prisma.Decimal(0);
+      const after = before.plus(exactAmount);
+      exactTotals.set(ingredientId, after);
+      const rounded = after.toDecimalPlaces(3, Prisma.Decimal.ROUND_UP)
+        .minus(before.toDecimalPlaces(3, Prisma.Decimal.ROUND_UP));
+      allocations.push({ orderId, orderItemId: item.id, productId: item.productId,
+        productVariantId: item.productVariantId ?? null, ingredientId, source,
+        quantity: rounded, recipeVersion: recipeVersion ?? null,
+        recipeYieldQuantity: recipeYieldQuantity ?? null, perSaleQuantity });
+    };
+    for (const item of [...items].sort((a, b) => a.id.localeCompare(b.id))) {
+      const recipe = recipeByProduct.get(item.productId);
+      if (recipe) {
+        for (const line of recipe.ingredients) {
+          if (!line.ingredient.isActive)
+            throw new ConflictException(`Ингредиент «${line.ingredient.name}» выключен. Обновите рецептуру.`);
+          add(item, line.ingredientId, line.quantity.mul(item.quantity).div(recipe.yieldQuantity),
+            InventoryRequirementSource.RECIPE, line.quantity, recipe.version, recipe.yieldQuantity);
+        }
+        continue;
       }
+      const product = productById.get(item.productId);
+      if (!product) throw new ConflictException("Товар для складского резерва не найден.");
+      const variant = item.productVariantId
+        ? product.variants.find((candidate) => candidate.id === item.productVariantId)
+        : null;
+      if (item.productVariantId && !variant)
+        throw new ConflictException("Вариант товара для складского резерва не найден.");
+      const ingredientId = variant?.stockIngredientId ?? product.stockIngredientId;
+      const quantity = variant?.stockQuantity ?? product.stockQuantity;
+      if (!ingredientId || !quantity) continue;
+      const ingredient = await tx.ingredient.findUnique({ where: { id: ingredientId } });
+      if (!ingredient?.isActive)
+        throw new ConflictException("Складская позиция продаваемого товара выключена.");
+      add(item, ingredientId, quantity.mul(item.quantity),
+        variant?.stockIngredientId ? InventoryRequirementSource.DIRECT_VARIANT
+          : InventoryRequirementSource.DIRECT_PRODUCT, quantity);
     }
-    return new Map(
-      [...requirements].map(([id, amount]) => [
-        id,
-        amount.toDecimalPlaces(3, Prisma.Decimal.ROUND_UP),
-      ]),
-    );
+    return { totals: new Map([...exactTotals].map(([id, amount]) => [id,
+      amount.toDecimalPlaces(3, Prisma.Decimal.ROUND_UP)])), allocations };
   }
 
   private async orderBalance(tx: Prisma.TransactionClient, orderId: string) {
@@ -561,7 +659,7 @@ export class InventoryService {
       id: string;
       number: number;
       branchId: string | null;
-      items: Array<{ productId: string; quantity: number }>;
+      items: Array<{ id: string; productId: string; productVariantId?: string | null; quantity: number }>;
     },
     replaceReservation = false,
   ) {
@@ -594,15 +692,17 @@ export class InventoryService {
         .map(([id, quantity]) => [id, quantity - (previous.get(id) ?? 0)]),
     );
     if (!additions.size && !replaceReservation) return;
-    const requirements = await this.orderRequirements(tx, additions);
-    if (requirements.size && !order.branchId)
+    const requirements = await this.orderRequirements(tx, order.id, replaceReservation
+      ? order.items
+      : order.items.filter((item) => additions.has(item.productId)));
+    if (requirements.totals.size && !order.branchId)
       throw new ConflictException(
         "Укажите филиал заказа перед резервированием ингредиентов.",
       );
     const deltas = replaceReservation
       ? await this.orderBalance(tx, order.id)
       : [];
-    for (const [ingredientId, quantity] of requirements)
+    for (const [ingredientId, quantity] of requirements.totals)
       deltas.push({
         ingredientId,
         branchId: order.branchId!,
@@ -619,6 +719,10 @@ export class InventoryService {
       await tx.inventoryAllocatedProduct.deleteMany({
         where: { orderId: order.id },
       });
+    if (replaceReservation)
+      await tx.inventoryOrderRequirement.deleteMany({ where: { orderId: order.id } });
+    if (requirements.allocations.length)
+      await tx.inventoryOrderRequirement.createMany({ data: requirements.allocations });
     for (const [productId] of additions) {
       const quantity = quantities.get(productId)!;
       await tx.inventoryAllocatedProduct.upsert({
@@ -643,6 +747,14 @@ export class InventoryService {
     );
   }
 
+  issueOrder(
+    tx: Prisma.TransactionClient,
+    actor: { id: string },
+    order: { id: string; number: number; branchId: string | null },
+  ) {
+    return this.flow.issueOrder(tx, actor.id, order);
+  }
+
   async adjustStock(
     actor: AuthUser,
     ingredientId: string,
@@ -663,6 +775,7 @@ export class InventoryService {
         ]);
         if (!ingredient) throw new NotFoundException("Ingredient not found");
         if (!branch) throw new NotFoundException("Branch not found");
+        await this.flow.ensureOpening(tx, ingredientId, dto.branchId);
         const stock = await this.changeStock(
           tx,
           ingredientId,
@@ -683,6 +796,7 @@ export class InventoryService {
             reason: dto.reason?.trim() || null,
           },
         });
+        await this.flow.recordLegacyAdjustment(tx, actor.id, movement);
         await tx.auditLog.create({
           data: {
             actorId: actor.id,

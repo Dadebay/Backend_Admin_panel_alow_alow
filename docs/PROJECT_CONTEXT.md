@@ -149,7 +149,7 @@ alowalow/
 │   │   ├── src/
 │   │   │   ├── auth/      # OTP, JWT, refresh, Android pull SMS gateway
 │   │   │   ├── accounting/ # configurable shifts, cash handoffs, reports
-│   │   │   ├── inventory/ # ingredients, recipes, branch stock, order reservations and audit
+│   │   │   ├── inventory/ # stock items, recipes, lot/location documents, order reservations and audit
 │   │   │   ├── users/     # staff, customer addresses and admin page-access policy
 │   │   │   ├── branches/  # branch CRUD and nearest-branch selection
 │   │   │   ├── delivery/  # welayat/etrap tariffs and delivery pricing
@@ -354,7 +354,8 @@ packing workflow. No separate kitchen-start action is required. Creating either
 customer or assisted orders atomically reserves ingredients from the assigned
 branch: recipe quantity × ordered portions ÷ recipe yield. Displayed stock is
 availability after reservations. Active product recipes apply to all variants;
-products without active recipes remain orderable without ingredient debits.
+products without active recipes use a configured direct stock link, if present,
+and otherwise remain orderable without ingredient debits.
 A configured recipe with insufficient stock returns `409` and rolls back the
 entire order transaction. Ingredient totals use Decimal arithmetic and round
 up to the supported 0.001 base-unit precision.
@@ -431,6 +432,69 @@ account. Inventory notifications are UI-only: no FCM, SMS, browser permission
 or operating-system notification is used. The single feed observer and mounted
 stock view poll every 15 seconds while the document is visible; leaving the
 stock tab unmounts its observer. Mutations invalidate affected stock/feed caches.
+
+## Physical inventory flow and lot trace — 2026-09-30
+
+`Ingredient` is the common stock item for both recipe components and directly
+sold goods such as bottled water. A product or variant can have a direct stock
+link with quantity per sale; an active product recipe and direct links are
+mutually exclusive. A variant link overrides its product-level default.
+Order creation reserves the linked stock in the same availability balance as
+recipe ingredients. The existing pre-pickup cancellation and edit policies
+continue to apply. `InventoryOrderRequirement` snapshots each order item's
+ingredient, applied quantity, source (recipe, product or variant), recipe
+version and batch yield. Rounding is cumulative at 0.001 per ingredient so
+item allocations sum to the branch-level reservation. Later configuration
+changes do not alter an existing refund or physical issue.
+
+`IngredientStock.quantity` remains **available to promise**, not a physical
+count. `InventoryLotBalance` records physical quantity by lot and branch
+location. Stock documents are append-only: receipt, transfer, processing,
+waste/spoilage, stocktake, order issue, and legacy adjustment. All user-posted
+documents require an administrator role, a reason and an idempotency key;
+operator/cook roles can read locations, lots, documents and lot trace. Posting
+uses a transaction with conditional nonnegative balances and audit history.
+Transfer changes location only, processing consumes input lots and creates new
+output lots with explicit measured technological waste, and spoilage is a
+separate document against the lot that spoiled. `PROCESS_WASTE` is an
+annotation of consumed input material, not a second quantity decrease.
+Stocktake records both the expected and counted quantity along with the
+unexplained variance until a cause is established. A
+processed output lot and all its input lots share one document, so following
+lot → process → upstream lot → receipt, or downstream lot → order/waste,
+reveals the provenance chain.
+
+Physical order issue is posted exactly once when a courier moves the order
+from `ASSIGNED_TO_COURIER` to `OUT_FOR_DELIVERY`, or when an administrator
+completes a pre-pickup order through the offline recovery path. It consumes
+physical lots FIFO without decreasing available stock again. Early
+cancellation returns only the unissued reservation; late cancellation never
+recreates physically issued stock. The order version and issue document share
+one transaction. A recipe or direct link changed after reservation cannot
+change its order-level issued ingredient total.
+Lot selection for order issue currently uses FIFO across a branch's locations;
+the selected location is an accounting allocation, so a physical pick from a
+different place requires a transfer or stocktake correction. The admin list
+currently shows the newest 500 lots and 100 documents, while the per-lot trace
+includes the full history of that lot.
+
+Existing branch balances have no known historic lots. On first physical
+operation the API creates a clearly marked **estimated legacy lot** whose
+physical quantity is current availability plus outstanding reservations of
+active pre-pickup orders. This is not evidence of a supplier delivery or a
+physical count. Administrators should conduct a lot stocktake to confirm it;
+the variance is recorded without automatically calling it spoilage. Existing
+manual adjustment calls continue to work and now also create lot documents.
+New receipts should use a named supplier lot and explicit base-unit quantity.
+The initial admin «Партии и цех» form handles one input and one output per
+processing document; the API supports multiple inputs and outputs. The current
+trace UI follows links one document hop at a time. New order issues connect
+each physical lot line to its immutable order-item requirement snapshot;
+pre-existing orders without snapshots fall back to order-level totals.
+Historical recipe versions before this release are unknown and are not
+backfilled.
+
+Research and source comparisons: [inventory flow research](INVENTORY_FLOW_RESEARCH.md).
 
 ## Order state machine
 

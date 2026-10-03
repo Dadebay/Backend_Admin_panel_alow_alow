@@ -151,8 +151,10 @@ export class TrackingService {
               number: true,
               status: true,
               address: true,
+              addressLocationStatus: true,
               latitude: true,
               longitude: true,
+              addressLandmark: true,
               branchId: true,
               branchName: true,
               branchAddress: true,
@@ -243,8 +245,10 @@ export class TrackingService {
           number: order.number,
           status: order.status,
           address: order.address,
-          latitude: Number(order.latitude),
-          longitude: Number(order.longitude),
+          addressLocationStatus: order.addressLocationStatus,
+          latitude: order.latitude === null ? null : Number(order.latitude),
+          longitude: order.longitude === null ? null : Number(order.longitude),
+          addressLandmark: order.addressLandmark,
           branch: order.branchId
             ? {
                 id: order.branchId,

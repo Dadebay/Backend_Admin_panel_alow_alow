@@ -919,8 +919,24 @@ heights; visual density must not be reduced to the previous pale compact map.
   label is stored with the address snapshot. Every such order is marked
   `STAFF_PHONE`, keeps the normal audit trail, prices/promos/branch rules, and
   remains otherwise identical to a customer-app order.
+- Staff phone orders use a protected `/orders/new` workspace shared by web and
+  desktop UI. Its steps are menu, caller/delivery, and confirmation. The
+  operator explicitly chooses an exact map point or a text-only address. A
+  text-only address is stored as `MANUAL_UNVERIFIED` with null coordinates;
+  switching from map to text clears the former point. Map mode requires a
+  point. Courier/dispatcher views and receipts mark the unverified address;
+  no route geometry or map marker is invented. The backend assigns the primary
+  active branch as a manual-address fallback. In kilometer mode only a
+  `STAFF_PHONE` order with that status may use the configured fallback
+  day/night delivery fee; customer orders always need a map point, and public
+  distance quotes still need a map point. `OPERATOR`, `ADMIN`, and
+  `SUPER_ADMIN` may override the phone-order delivery fee from 0 to 10,000 TMT
+  (two decimals) with a required 5–200
+  character reason; the backend recomputes total and audits actor, price,
+  calculated tariff, and reason. The UI amount remains preliminary.
 - A new order is assigned inside its creation transaction to the nearest active
-  branch by straight-line Haversine distance from the selected delivery address.
+  branch by straight-line Haversine distance from a mapped delivery address.
+  Text-only phone orders instead use the primary active branch fallback.
 - The order stores `branchId`, the computed distance, and an immutable branch
   name/address/coordinate snapshot. Renaming, moving, or disabling a branch
   does not rewrite historical orders.

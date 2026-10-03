@@ -36,6 +36,7 @@ function NavIcon({ name }: { name: AdminNavIconName }) {
     "meal-config": <><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M7 8h10M7 12h8M7 16h6" /><path d="m16 12-1-1v3z" /></>,
     "app-versions": <><rect x="6" y="2" width="12" height="20" rx="3" /><path d="M10 18h4M12 6v7m-3-3 3 3 3-3" /></>,
     orders: <><rect x="5" y="3" width="14" height="18" rx="2" /><path d="M9 3h6v3H9zM9 11h6M9 15h4" /></>,
+    "phone-order": <><path d="M5 3h4l2 5-2 2a15 15 0 0 0 5 5l2-2 5 2v4a2 2 0 0 1-2 2C10.2 21 3 13.8 3 5a2 2 0 0 1 2-2z" /></>,
     map: <><path d="m9 18-6 3V6l6-3 6 3 6-3v15l-6 3zM9 3v15M15 6v15" /></>,
     branches: <><path d="M4 21V5l8-3 8 3v16M8 21v-5h8v5M8 8h.01M12 8h.01M16 8h.01M8 12h.01M12 12h.01M16 12h.01" /></>,
     delivery: <><path d="M3 7h11v10H3zM14 10h4l3 3v4h-7z" /><circle cx="7" cy="18" r="2" /><circle cx="18" cy="18" r="2" /></>,
@@ -276,6 +277,7 @@ export function AdminDashboard() {
               aria-label={item.label}
               title={item.label}
               data-testid={`admin-nav-${item.id}`}
+              data-nav-action={item.id === "phone-order" ? "primary" : undefined}
               end
               to={item.path}
               onClick={() => closeNavigation()}

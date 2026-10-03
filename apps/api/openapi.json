@@ -8557,6 +8557,16 @@
             "example": "Magtymguly şaýoly, 72",
             "description": "New address; omitted fields use the active saved address"
           },
+          "addressLocationStatus": {
+            "type": "string",
+            "enum": [
+              "MAP_CONFIRMED",
+              "PIN_DROPPED",
+              "MANUAL_UNVERIFIED",
+              "VERIFIED_LATER"
+            ],
+            "description": "MANUAL_UNVERIFIED marks a text-only address without coordinates"
+          },
           "latitude": {
             "type": "number",
             "example": 37.9601,
@@ -8895,11 +8905,26 @@
           "address": {
             "type": "string"
           },
+          "locationStatus": {
+            "type": "string",
+            "enum": [
+              "MAP_CONFIRMED",
+              "PIN_DROPPED",
+              "MANUAL_UNVERIFIED",
+              "VERIFIED_LATER"
+            ]
+          },
           "latitude": {
-            "type": "number"
+            "type": "number",
+            "nullable": true
           },
           "longitude": {
-            "type": "number"
+            "type": "number",
+            "nullable": true
+          },
+          "landmark": {
+            "type": "string",
+            "nullable": true
           },
           "entrance": {
             "type": "string",
@@ -8931,8 +8956,10 @@
           "userId",
           "label",
           "address",
+          "locationStatus",
           "latitude",
           "longitude",
+          "landmark",
           "entrance",
           "floor",
           "apartment",
@@ -9130,11 +9157,26 @@
           "address": {
             "type": "string"
           },
+          "addressLocationStatus": {
+            "type": "string",
+            "enum": [
+              "MAP_CONFIRMED",
+              "PIN_DROPPED",
+              "MANUAL_UNVERIFIED",
+              "VERIFIED_LATER"
+            ]
+          },
           "latitude": {
-            "type": "number"
+            "type": "number",
+            "nullable": true
           },
           "longitude": {
-            "type": "number"
+            "type": "number",
+            "nullable": true
+          },
+          "addressLandmark": {
+            "type": "string",
+            "nullable": true
           },
           "entrance": {
             "type": "string",
@@ -9302,8 +9344,10 @@
           "loyaltyPointsEarned",
           "loyaltyPointsSpent",
           "address",
+          "addressLocationStatus",
           "latitude",
           "longitude",
+          "addressLandmark",
           "entrance",
           "floor",
           "apartment",
@@ -9352,11 +9396,26 @@
           "address": {
             "type": "string"
           },
+          "locationStatus": {
+            "type": "string",
+            "enum": [
+              "MAP_CONFIRMED",
+              "PIN_DROPPED",
+              "MANUAL_UNVERIFIED",
+              "VERIFIED_LATER"
+            ]
+          },
           "latitude": {
-            "type": "number"
+            "type": "number",
+            "nullable": true
           },
           "longitude": {
-            "type": "number"
+            "type": "number",
+            "nullable": true
+          },
+          "landmark": {
+            "type": "string",
+            "nullable": true
           },
           "entrance": {
             "type": "string",
@@ -9379,8 +9438,10 @@
           "deliveryEtrapId",
           "label",
           "address",
+          "locationStatus",
           "latitude",
           "longitude",
+          "landmark",
           "entrance",
           "floor",
           "apartment",
@@ -9474,6 +9535,16 @@
             "example": "Magtymguly şaýoly, 72",
             "description": "New address; omitted fields use the active saved address"
           },
+          "addressLocationStatus": {
+            "type": "string",
+            "enum": [
+              "MAP_CONFIRMED",
+              "PIN_DROPPED",
+              "MANUAL_UNVERIFIED",
+              "VERIFIED_LATER"
+            ],
+            "description": "MANUAL_UNVERIFIED marks a text-only address without coordinates"
+          },
           "latitude": {
             "type": "number",
             "example": 37.9601,
@@ -9516,6 +9587,17 @@
           "customerLastName": {
             "type": "string",
             "example": "Ataýew"
+          },
+          "manualDeliveryFee": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 10000,
+            "description": "Staff-set delivery fee in TMT; requires a reason"
+          },
+          "manualDeliveryReason": {
+            "type": "string",
+            "minLength": 5,
+            "maxLength": 200
           }
         },
         "required": [
@@ -9655,11 +9737,26 @@
           "address": {
             "type": "string"
           },
+          "addressLocationStatus": {
+            "type": "string",
+            "enum": [
+              "MAP_CONFIRMED",
+              "PIN_DROPPED",
+              "MANUAL_UNVERIFIED",
+              "VERIFIED_LATER"
+            ]
+          },
           "latitude": {
-            "type": "number"
+            "type": "number",
+            "nullable": true
           },
           "longitude": {
-            "type": "number"
+            "type": "number",
+            "nullable": true
+          },
+          "addressLandmark": {
+            "type": "string",
+            "nullable": true
           },
           "entrance": {
             "type": "string",
@@ -9713,8 +9810,10 @@
           "orderNumber",
           "status",
           "address",
+          "addressLocationStatus",
           "latitude",
           "longitude",
+          "addressLandmark",
           "entrance",
           "floor",
           "apartment",
@@ -12436,6 +12535,15 @@
             "type": "string",
             "example": "Magtymguly şaýoly, 72"
           },
+          "locationStatus": {
+            "type": "string",
+            "enum": [
+              "MAP_CONFIRMED",
+              "PIN_DROPPED",
+              "MANUAL_UNVERIFIED",
+              "VERIFIED_LATER"
+            ]
+          },
           "latitude": {
             "type": "number",
             "example": 37.9601
@@ -12443,6 +12551,10 @@
           "longitude": {
             "type": "number",
             "example": 58.3261
+          },
+          "landmark": {
+            "type": "string",
+            "example": "Вход со стороны школы"
           },
           "entrance": {
             "type": "string"
@@ -12455,9 +12567,7 @@
           }
         },
         "required": [
-          "address",
-          "latitude",
-          "longitude"
+          "address"
         ]
       },
       "UpdateAddressDto": {
@@ -12475,6 +12585,15 @@
             "type": "string",
             "example": "Magtymguly şaýoly, 72"
           },
+          "locationStatus": {
+            "type": "string",
+            "enum": [
+              "MAP_CONFIRMED",
+              "PIN_DROPPED",
+              "MANUAL_UNVERIFIED",
+              "VERIFIED_LATER"
+            ]
+          },
           "latitude": {
             "type": "number",
             "example": 37.9601
@@ -12482,6 +12601,10 @@
           "longitude": {
             "type": "number",
             "example": 58.3261
+          },
+          "landmark": {
+            "type": "string",
+            "example": "Вход со стороны школы"
           },
           "entrance": {
             "type": "string"
@@ -12997,11 +13120,26 @@
           "address": {
             "type": "string"
           },
+          "addressLocationStatus": {
+            "type": "string",
+            "enum": [
+              "MAP_CONFIRMED",
+              "PIN_DROPPED",
+              "MANUAL_UNVERIFIED",
+              "VERIFIED_LATER"
+            ]
+          },
           "latitude": {
-            "type": "number"
+            "type": "number",
+            "nullable": true
           },
           "longitude": {
-            "type": "number"
+            "type": "number",
+            "nullable": true
+          },
+          "addressLandmark": {
+            "type": "string",
+            "nullable": true
           },
           "branch": {
             "nullable": true,
@@ -13050,8 +13188,10 @@
           "number",
           "status",
           "address",
+          "addressLocationStatus",
           "latitude",
           "longitude",
+          "addressLandmark",
           "branch",
           "entrance",
           "floor",

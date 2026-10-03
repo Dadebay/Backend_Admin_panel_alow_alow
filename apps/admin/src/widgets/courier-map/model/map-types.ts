@@ -1,7 +1,7 @@
 import type { components } from "@alowalow/api-contract";
-import type { CourierRoute, DispatchCourier } from "@/src/entities/courier";
+import type { CourierRoute, DispatchCourier, DispatchOrder } from "@/src/entities/courier";
 
-export type { DispatchCourier };
+export type { DispatchCourier, DispatchOrder };
 export type DispatchBranchDto =
   components["schemas"]["DispatchBranchDto"];
 

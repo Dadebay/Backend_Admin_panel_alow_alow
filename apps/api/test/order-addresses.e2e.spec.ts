@@ -344,4 +344,177 @@ describe("checkout address reuse and capacity", () => {
     expect(Number(historical.deliveryFee)).toBe(27);
     expect(await countAddresses()).toBe(1);
   });
+  it("lets only phone-order staff set a delivery fee and audits the reason", async () => {
+    for (const [role, fee] of [[Role.OPERATOR, 0], [Role.ADMIN, 12.5], [Role.SUPER_ADMIN, 19]] as const) {
+      const response = await request(server)
+        .post("/api/v1/orders/assisted")
+        .set(auth(staffTokens.get(role) ?? ""))
+        .send({ ...body(), customerPhone: customer.phone, manualDeliveryFee: fee, manualDeliveryReason: "Цена согласована по телефону" })
+        .expect(201);
+      const created = response.body as OrderResponseDto;
+      expect(created.deliveryFee).toBe(fee);
+      expect(created.total).toBe(10 + fee);
+      const audit = await prisma.auditLog.findFirstOrThrow({
+        where: { entityId: created.id, action: "order.created_by_staff" },
+      });
+      expect(audit.actorId).toBe((await prisma.user.findFirstOrThrow({ where: { role, phone: { startsWith: "+993610090" } } })).id);
+      expect(audit.metadata).toMatchObject({
+        deliveryFee: fee,
+        deliveryFeeSource: "MANUAL_STAFF",
+        manualDeliveryReason: "Цена согласована по телефону",
+      });
+    }
+    const payload = { ...body(), customerPhone: customer.phone, manualDeliveryFee: 5, manualDeliveryReason: "Цена согласована по телефону" };
+    for (const role of [Role.CUSTOMER, Role.COOK, Role.COURIER, Role.ACCOUNTANT]) {
+      await request(server).post("/api/v1/orders/assisted").set(auth(staffTokens.get(role) ?? "")).send(payload).expect(403);
+    }
+    for (const override of [
+      { manualDeliveryFee: -1, manualDeliveryReason: "Согласовано" },
+      { manualDeliveryFee: 3.141, manualDeliveryReason: "Согласовано" },
+      { manualDeliveryFee: 0 },
+      { manualDeliveryReason: "Согласовано" },
+      { manualDeliveryFee: null, manualDeliveryReason: "Согласовано" },
+    ]) {
+      await request(server).post("/api/v1/orders/assisted")
+        .set(auth(staffTokens.get(Role.OPERATOR) ?? ""))
+        .send({ ...body(), customerPhone: customer.phone, ...override })
+        .expect(400);
+    }
+    await order({ manualDeliveryFee: 1, manualDeliveryReason: "Согласовано" }).expect(400);
+  });
+  it("stores a text-only manual address without inventing a map point", async () => {
+    const settings = await prisma.deliverySettings.findUniqueOrThrow({
+      where: { id: "default" },
+    });
+    await prisma.deliverySettings.update({
+      where: { id: "default" },
+      data: { distancePricingEnabled: false, mapPricingEnabled: false },
+    });
+    try {
+      const saved = await request(server)
+        .post("/api/v1/users/me/addresses")
+        .set(auth())
+        .send({
+          address: "За школой, синий подъезд",
+          locationStatus: "MANUAL_UNVERIFIED",
+          landmark: "Вход со стороны двора",
+        })
+        .expect(201);
+      expect(saved.body).toMatchObject({
+        locationStatus: "MANUAL_UNVERIFIED",
+        latitude: null,
+        longitude: null,
+        landmark: "Вход со стороны двора",
+      });
+
+      const created = await request(server)
+        .post("/api/v1/orders/assisted")
+        .set(auth(staffTokens.get(Role.OPERATOR) ?? ""))
+        .send({
+          customerPhone: customer.phone,
+          items: [{ productId, quantity: 1 }],
+          addressId: (saved.body as { id: string }).id,
+        })
+        .expect(201);
+      expect(created.body).toMatchObject({
+        source: "STAFF_PHONE",
+        addressLocationStatus: "MANUAL_UNVERIFIED",
+        latitude: null,
+        longitude: null,
+        addressLandmark: "Вход со стороны двора",
+        branchDistanceMeters: null,
+      });
+      await request(server)
+        .post("/api/v1/orders")
+        .set(auth())
+        .send({
+          items: [{ productId, quantity: 1 }],
+          addressId: (saved.body as { id: string }).id,
+        })
+        .expect(400);
+
+      const assisted = await request(server)
+        .post("/api/v1/orders/assisted")
+        .set(auth(staffTokens.get(Role.OPERATOR) ?? ""))
+        .send({
+          customerPhone: customer.phone,
+          items: [{ productId, quantity: 1 }],
+          addressLabel: "По телефону",
+          address: "Ашхабад, улица 1, дом 7",
+          addressLocationStatus: "MANUAL_UNVERIFIED",
+        })
+        .expect(201);
+      expect(assisted.body).toMatchObject({
+        source: "STAFF_PHONE",
+        address: "Ашхабад, улица 1, дом 7",
+        addressLocationStatus: "MANUAL_UNVERIFIED",
+        latitude: null,
+        longitude: null,
+        branchDistanceMeters: null,
+      });
+
+      await prisma.deliverySettings.update({
+        where: { id: "default" },
+        data: {
+          distancePricingEnabled: true,
+          dayPricePerKilometer: 5,
+          nightPricePerKilometer: 8,
+        },
+      });
+      const distanceFallback = await request(server)
+        .post("/api/v1/orders/assisted")
+        .set(auth(staffTokens.get(Role.OPERATOR) ?? ""))
+        .send({
+          customerPhone: customer.phone,
+          items: [{ productId, quantity: 1 }],
+          address: "Ашхабад, улица 1, дом 8",
+          addressLocationStatus: "MANUAL_UNVERIFIED",
+        })
+        .expect(201);
+      expect(distanceFallback.body).toMatchObject({
+        source: "STAFF_PHONE",
+        addressLocationStatus: "MANUAL_UNVERIFIED",
+        latitude: null,
+        longitude: null,
+        branchDistanceMeters: null,
+      });
+      await request(server)
+        .post("/api/v1/orders")
+        .set(auth())
+        .send({
+          items: [{ productId, quantity: 1 }],
+          addressId: (saved.body as { id: string }).id,
+        })
+        .expect(400);
+
+      await request(server)
+        .post("/api/v1/users/me/addresses")
+        .set(auth())
+        .send({
+          address: "Неверная ручная точка",
+          locationStatus: "MANUAL_UNVERIFIED",
+          latitude: location.latitude,
+          longitude: location.longitude,
+        })
+        .expect(400);
+      await request(server)
+        .post("/api/v1/orders")
+        .set(auth())
+        .send({
+          items: [{ productId, quantity: 1 }],
+          address: "Адрес без статуса и координат",
+        })
+        .expect(400);
+    } finally {
+      await prisma.deliverySettings.update({
+        where: { id: settings.id },
+        data: {
+          distancePricingEnabled: settings.distancePricingEnabled,
+          mapPricingEnabled: settings.mapPricingEnabled,
+          dayPricePerKilometer: settings.dayPricePerKilometer,
+          nightPricePerKilometer: settings.nightPricePerKilometer,
+        },
+      });
+    }
+  });
 });

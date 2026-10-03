@@ -38,7 +38,7 @@ export function toSavedAddressSelection(address: AssistedCustomerAddress): {
     floor: string;
     apartment: string;
   };
-  coordinates: AssistedOrderCoordinates;
+  coordinates: AssistedOrderCoordinates | null;
 } {
   return {
     values: {
@@ -52,9 +52,9 @@ export function toSavedAddressSelection(address: AssistedCustomerAddress): {
       floor: address.floor ?? "",
       apartment: address.apartment ?? "",
     },
-    coordinates: {
-      latitude: address.latitude,
-      longitude: address.longitude,
-    },
+    coordinates:
+      address.latitude !== null && address.longitude !== null
+        ? { latitude: address.latitude, longitude: address.longitude }
+        : null,
   };
 }

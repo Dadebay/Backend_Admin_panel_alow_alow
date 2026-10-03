@@ -1,5 +1,6 @@
 import { ApiProperty } from "@nestjs/swagger";
 import {
+  AddressLocationStatus,
   CashSettlementStatus,
   OrderSource,
   OrderStatus,
@@ -37,11 +38,17 @@ export class AssistedCustomerAddressResponseDto {
   @ApiProperty()
   address: string;
 
-  @ApiProperty()
-  latitude: number;
+  @ApiProperty({ enum: AddressLocationStatus })
+  locationStatus: AddressLocationStatus;
 
-  @ApiProperty()
-  longitude: number;
+  @ApiProperty({ type: Number, nullable: true })
+  latitude: number | null;
+
+  @ApiProperty({ type: Number, nullable: true })
+  longitude: number | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  landmark: string | null;
 
   @ApiProperty({ type: String, nullable: true })
   entrance: string | null;
@@ -402,11 +409,17 @@ export class OrderSavedAddressResponseDto {
   @ApiProperty()
   address: string;
 
-  @ApiProperty()
-  latitude: number;
+  @ApiProperty({ enum: AddressLocationStatus })
+  locationStatus: AddressLocationStatus;
 
-  @ApiProperty()
-  longitude: number;
+  @ApiProperty({ type: Number, nullable: true })
+  latitude: number | null;
+
+  @ApiProperty({ type: Number, nullable: true })
+  longitude: number | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  landmark: string | null;
 
   @ApiProperty({ type: String, nullable: true })
   entrance: string | null;
@@ -516,11 +529,17 @@ export class OrderResponseDto {
   @ApiProperty()
   address: string;
 
-  @ApiProperty()
-  latitude: number;
+  @ApiProperty({ enum: AddressLocationStatus })
+  addressLocationStatus: AddressLocationStatus;
 
-  @ApiProperty()
-  longitude: number;
+  @ApiProperty({ type: Number, nullable: true })
+  latitude: number | null;
+
+  @ApiProperty({ type: Number, nullable: true })
+  longitude: number | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  addressLandmark: string | null;
 
   @ApiProperty({ type: String, nullable: true })
   entrance: string | null;
@@ -662,11 +681,17 @@ export class CourierRouteStopResponseDto {
   @ApiProperty()
   address: string;
 
-  @ApiProperty()
-  latitude: number;
+  @ApiProperty({ enum: AddressLocationStatus })
+  addressLocationStatus: AddressLocationStatus;
 
-  @ApiProperty()
-  longitude: number;
+  @ApiProperty({ type: Number, nullable: true })
+  latitude: number | null;
+
+  @ApiProperty({ type: Number, nullable: true })
+  longitude: number | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  addressLandmark: string | null;
 
   @ApiProperty({ type: String, nullable: true })
   entrance: string | null;

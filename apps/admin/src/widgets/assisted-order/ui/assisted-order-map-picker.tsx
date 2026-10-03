@@ -153,7 +153,7 @@ export default function AssistedOrderMapPicker({
       >
         {mapStatus === "loading" && "Карта загружается…"}
         {mapStatus === "ready" && "Карта готова"}
-        {mapStatus === "error" && "Не удалось загрузить слой карты"}
+        {mapStatus === "error" && "Карта недоступна — введите адрес текстом"}
       </div>
     </div>
   );

@@ -57,12 +57,37 @@ function productOptions(products: Product[]) {
   });
 }
 
+type MappedOrder = Order & { latitude: number; longitude: number };
+
 export function OrderAdminEditDialog({
   order,
   couriers,
   onClose,
 }: {
   order: Order;
+  couriers: Courier[];
+  onClose: () => void;
+}) {
+  if (order.latitude === null || order.longitude === null) {
+    return (
+      <div className="modal-backdrop" data-testid="order-admin-edit-manual-address">
+        <section className="modal-card" role="dialog" aria-modal="true">
+          <h2>Ручной адрес без точки</h2>
+          <p>Сначала уточните точку доставки: без неё нельзя пересчитать заказ по карте.</p>
+          <button type="button" onClick={onClose}>Закрыть</button>
+        </section>
+      </div>
+    );
+  }
+  return <MappedOrderAdminEditDialog order={order as MappedOrder} couriers={couriers} onClose={onClose} />;
+}
+
+function MappedOrderAdminEditDialog({
+  order,
+  couriers,
+  onClose,
+}: {
+  order: MappedOrder;
   couriers: Courier[];
   onClose: () => void;
 }) {

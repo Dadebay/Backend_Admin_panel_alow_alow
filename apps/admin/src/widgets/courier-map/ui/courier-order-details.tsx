@@ -54,6 +54,12 @@ export function CourierOrderDetails({ courier }: { courier: DispatchCourier }) {
               <small>Куда доставить</small>
               {order.address}
             </p>
+            {order.addressLocationStatus === "MANUAL_UNVERIFIED" && (
+              <p className="dispatch-detail-notice">Адрес со слов клиента: точка на карте не проверена.</p>
+            )}
+            {order.addressLandmark && (
+              <p className="dispatch-address-extra">Ориентир: {order.addressLandmark}</p>
+            )}
             {(order.entrance || order.floor || order.apartment) && (
               <p className="dispatch-address-extra">
                 {[

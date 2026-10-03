@@ -3086,6 +3086,11 @@ export interface components {
              */
             address?: string;
             /**
+             * @description MANUAL_UNVERIFIED marks a text-only address without coordinates
+             * @enum {string}
+             */
+            addressLocationStatus?: "MAP_CONFIRMED" | "PIN_DROPPED" | "MANUAL_UNVERIFIED" | "VERIFIED_LATER";
+            /**
              * @description Legacy clients may send null; it is treated as omitted when selecting a saved address
              * @example 37.9601
              */
@@ -3200,8 +3205,11 @@ export interface components {
             userId: string;
             label: string;
             address: string;
-            latitude: number;
-            longitude: number;
+            /** @enum {string} */
+            locationStatus: "MAP_CONFIRMED" | "PIN_DROPPED" | "MANUAL_UNVERIFIED" | "VERIFIED_LATER";
+            latitude: number | null;
+            longitude: number | null;
+            landmark: string | null;
             entrance: string | null;
             floor: string | null;
             apartment: string | null;
@@ -3265,8 +3273,11 @@ export interface components {
             loyaltyPointsEarned: number;
             loyaltyPointsSpent: number;
             address: string;
-            latitude: number;
-            longitude: number;
+            /** @enum {string} */
+            addressLocationStatus: "MAP_CONFIRMED" | "PIN_DROPPED" | "MANUAL_UNVERIFIED" | "VERIFIED_LATER";
+            latitude: number | null;
+            longitude: number | null;
+            addressLandmark: string | null;
             entrance: string | null;
             floor: string | null;
             apartment: string | null;
@@ -3308,8 +3319,11 @@ export interface components {
             deliveryEtrapId: number | null;
             label: string | null;
             address: string;
-            latitude: number;
-            longitude: number;
+            /** @enum {string} */
+            locationStatus: "MAP_CONFIRMED" | "PIN_DROPPED" | "MANUAL_UNVERIFIED" | "VERIFIED_LATER";
+            latitude: number | null;
+            longitude: number | null;
+            landmark: string | null;
             entrance: string | null;
             floor: string | null;
             apartment: string | null;
@@ -3350,6 +3364,11 @@ export interface components {
              */
             address?: string;
             /**
+             * @description MANUAL_UNVERIFIED marks a text-only address without coordinates
+             * @enum {string}
+             */
+            addressLocationStatus?: "MAP_CONFIRMED" | "PIN_DROPPED" | "MANUAL_UNVERIFIED" | "VERIFIED_LATER";
+            /**
              * @description Legacy clients may send null; it is treated as omitted when selecting a saved address
              * @example 37.9601
              */
@@ -3376,6 +3395,9 @@ export interface components {
             customerFirstName?: string;
             /** @example Ataýew */
             customerLastName?: string;
+            /** @description Staff-set delivery fee in TMT; requires a reason */
+            manualDeliveryFee?: number;
+            manualDeliveryReason?: string;
         };
         OrderListResponseDto: {
             items: components["schemas"]["OrderResponseDto"][];
@@ -3410,8 +3432,11 @@ export interface components {
             /** @enum {string} */
             status: "COOKING" | "READY" | "ASSIGNED_TO_COURIER" | "OUT_FOR_DELIVERY" | "DELIVERED" | "CASH_RETURNED" | "RECONCILED" | "CANCELLED";
             address: string;
-            latitude: number;
-            longitude: number;
+            /** @enum {string} */
+            addressLocationStatus: "MAP_CONFIRMED" | "PIN_DROPPED" | "MANUAL_UNVERIFIED" | "VERIFIED_LATER";
+            latitude: number | null;
+            longitude: number | null;
+            addressLandmark: string | null;
             entrance: string | null;
             floor: string | null;
             apartment: string | null;
@@ -4247,10 +4272,14 @@ export interface components {
             label?: string;
             /** @example Magtymguly şaýoly, 72 */
             address: string;
+            /** @enum {string} */
+            locationStatus?: "MAP_CONFIRMED" | "PIN_DROPPED" | "MANUAL_UNVERIFIED" | "VERIFIED_LATER";
             /** @example 37.9601 */
-            latitude: number;
+            latitude?: number;
             /** @example 58.3261 */
-            longitude: number;
+            longitude?: number;
+            /** @example Вход со стороны школы */
+            landmark?: string;
             entrance?: string;
             floor?: string;
             apartment?: string;
@@ -4262,10 +4291,14 @@ export interface components {
             label?: string;
             /** @example Magtymguly şaýoly, 72 */
             address?: string;
+            /** @enum {string} */
+            locationStatus?: "MAP_CONFIRMED" | "PIN_DROPPED" | "MANUAL_UNVERIFIED" | "VERIFIED_LATER";
             /** @example 37.9601 */
             latitude?: number;
             /** @example 58.3261 */
             longitude?: number;
+            /** @example Вход со стороны школы */
+            landmark?: string;
             entrance?: string;
             floor?: string;
             apartment?: string;
@@ -4422,8 +4455,11 @@ export interface components {
             /** @enum {string} */
             status: "ASSIGNED_TO_COURIER" | "OUT_FOR_DELIVERY";
             address: string;
-            latitude: number;
-            longitude: number;
+            /** @enum {string} */
+            addressLocationStatus: "MAP_CONFIRMED" | "PIN_DROPPED" | "MANUAL_UNVERIFIED" | "VERIFIED_LATER";
+            latitude: number | null;
+            longitude: number | null;
+            addressLandmark: string | null;
             branch: components["schemas"]["DispatchOrderBranchDto"] | null;
             entrance: string | null;
             floor: string | null;

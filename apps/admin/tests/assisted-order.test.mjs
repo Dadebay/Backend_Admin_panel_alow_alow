@@ -6,6 +6,8 @@ import {
   getPreferredAssistedAddress,
   toSavedAddressSelection,
 } from "../src/widgets/assisted-order/model/assisted-customer-selection.ts";
+import { buildAssistedOrderDeliverySelection } from "../src/widgets/assisted-order/model/assisted-order-delivery.ts";
+import { repeatPreviousOrder } from "../src/widgets/assisted-order/model/repeat-previous-order.ts";
 
 const addresses = [
   {
@@ -62,9 +64,66 @@ test("exact caller match selects their active saved address and all address fiel
   });
 });
 
-test("phone order uses real typed APIs and is lazy-loaded from the order board", async () => {
+test("text-only delivery is explicitly unverified and never invents coordinates", () => {
+  const values = {
+    addressId: undefined,
+    deliveryEtrapId: undefined,
+    addressLabel: "Дом",
+    address: "  ул. Махтумкули, дом 7  ",
+    entrance: "2",
+    floor: "3",
+    apartment: "12",
+  };
+  assert.deepEqual(
+    buildAssistedOrderDeliverySelection({ values, coordinates: null }),
+    {
+      addressLabel: "Дом",
+      address: "ул. Махтумкули, дом 7",
+      addressLocationStatus: "MANUAL_UNVERIFIED",
+      entrance: "2",
+      floor: "3",
+      apartment: "12",
+    },
+  );
+  assert.equal(
+    buildAssistedOrderDeliverySelection({
+      values: { ...values, address: "   " },
+      coordinates: null,
+    }),
+    null,
+  );
+});
+
+test("repeat fills only available current items, not historical prices", () => {
+  const products = [
+    { id: "meal-1", pricingType: "FIXED", variants: [] },
+    {
+      id: "meal-2",
+      pricingType: "VARIANT",
+      variants: [
+        { id: "active-size", isActive: true },
+        { id: "old-size", isActive: false },
+      ],
+    },
+  ];
+  const items = [
+    { productId: "meal-1", productVariantId: null, productName: "Лагман", variantName: null, quantity: 2, unitPrice: 1 },
+    { productId: "meal-2", productVariantId: "old-size", productName: "Пицца", variantName: "Старая", quantity: 1, unitPrice: 1 },
+    { productId: "meal-2", productVariantId: "active-size", productName: "Пицца", variantName: "Большая", quantity: 1, unitPrice: 1 },
+  ];
+  assert.deepEqual(repeatPreviousOrder({ items }, products), {
+    quantities: { "meal-1:base": 2, "meal-2:active-size": 1 },
+    unavailable: ["Пицца · Старая"],
+  });
+});
+
+test("phone order uses real typed APIs on a lazy-loaded protected route", async () => {
   const board = await readFile(
     new URL("../src/widgets/order-board/ui/order-board.tsx", import.meta.url),
+    "utf8",
+  );
+  const app = await readFile(
+    new URL("../src/app/ui/app.tsx", import.meta.url),
     "utf8",
   );
   const action = await readFile(
@@ -82,10 +141,9 @@ test("phone order uses real typed APIs and is lazy-loaded from the order board",
     "utf8",
   );
 
-  assert.match(
-    board,
-    /lazy\(\(\) => import\("@\/src\/widgets\/assisted-order"\)\)/,
-  );
+  assert.match(app, /lazy\(\(\) => import\("@\/src\/widgets\/assisted-order"\)\)/);
+  assert.match(app, /path="\/orders\/new"/);
+  assert.match(board, /to="\/orders\/new"/);
   assert.match(board, /data-testid="assisted-order-open"/);
   assert.match(board, /"OPERATOR", "ADMIN", "SUPER_ADMIN"/);
   assert.match(action, /authorizedRequest<Order>\("\/orders\/assisted"/);
@@ -150,8 +208,8 @@ test("address search uses an in-flow choose-then-map workflow", async () => {
     dialog,
     /function findAddress[\s\S]*?setIsAddressEditing\(true\);[\s\S]*?setIsAddressDropdownOpen\(true\);/,
   );
-  assert.match(dialog, /Эти поля не двигают маркер/);
-  assert.match(dialog, /Ориентир для курьера \(необязательно\)/);
+  assert.match(dialog, /data-testid="assisted-order-address"/);
+  assert.match(dialog, /data-testid="assisted-map-toggle"/);
   assert.match(dialog, /buildAssistedOrderDeliverySelection/);
   assert.match(deliverySelection, /buildAssistedDeliveryAddress/);
   assert.match(deliverySelection, /canReuseAssistedSavedAddress/);
@@ -193,7 +251,7 @@ test("address search uses an in-flow choose-then-map workflow", async () => {
   assert.doesNotMatch(geocoding, /setTimeout|debounce/);
   assert.match(
     styles,
-    /\.assisted-order-modal \{[\s\S]*?width: min\(1580px, 100%\);[\s\S]*?max-height: calc\(100dvh - 24px\);/,
+    /\.assisted-order-workspace \.assisted-order-modal \{[\s\S]*?width: 100%;[\s\S]*?max-height: 100dvh;/,
   );
   assert.match(
     styles,

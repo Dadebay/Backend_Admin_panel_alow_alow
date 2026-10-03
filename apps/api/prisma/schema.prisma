@@ -55,6 +55,13 @@ enum OrderSource {
   STAFF_PHONE
 }
 
+enum AddressLocationStatus {
+  MAP_CONFIRMED
+  PIN_DROPPED
+  MANUAL_UNVERIFIED
+  VERIFIED_LATER
+}
+
 enum PromoType {
   PERCENT
   FIXED
@@ -208,8 +215,10 @@ model UserAddress {
   deliveryEtrapId Int?
   label           String?   @db.VarChar(60)
   address         String    @db.VarChar(500)
-  latitude        Decimal   @db.Decimal(10, 7)
-  longitude       Decimal   @db.Decimal(10, 7)
+  locationStatus  AddressLocationStatus @default(MAP_CONFIRMED)
+  latitude        Decimal?  @db.Decimal(10, 7)
+  longitude       Decimal?  @db.Decimal(10, 7)
+  landmark        String?   @db.VarChar(160)
   entrance        String?   @db.VarChar(40)
   floor           String?   @db.VarChar(20)
   apartment       String?   @db.VarChar(20)
@@ -552,8 +561,10 @@ model Order {
   loyaltyPointsEarned  Int                         @default(0)
   loyaltyPointsSpent   Int                         @default(0)
   address              String                      @db.VarChar(500)
-  latitude             Decimal                     @db.Decimal(10, 7)
-  longitude            Decimal                     @db.Decimal(10, 7)
+  addressLocationStatus AddressLocationStatus       @default(MAP_CONFIRMED)
+  latitude             Decimal?                    @db.Decimal(10, 7)
+  longitude            Decimal?                    @db.Decimal(10, 7)
+  addressLandmark      String?                     @db.VarChar(160)
   entrance             String?                     @db.VarChar(40)
   floor                String?                     @db.VarChar(20)
   apartment            String?                     @db.VarChar(20)

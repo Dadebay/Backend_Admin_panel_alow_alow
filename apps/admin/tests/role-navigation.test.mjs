@@ -17,6 +17,7 @@ function views(role) {
 const administratorViews = [
   "login-attempts",
   "orders",
+  "phone-order",
   "meal-config",
   "accounting",
   "map",
@@ -73,7 +74,7 @@ test("accountant navigation contains only shift accounting", () => {
 });
 
 test("operator and cook navigation matches their supported workspaces", () => {
-  assert.deepEqual(views("OPERATOR"), ["orders", "map"]);
+  assert.deepEqual(views("OPERATOR"), ["orders", "phone-order", "map"]);
   assert.deepEqual(views("COOK"), ["orders"]);
 });
 
@@ -85,7 +86,7 @@ test("administrators retain all management sections represented outside the full
 test("server-provided page access controls and expands role navigation", () => {
   assert.deepEqual(
     navigationForRole("ADMIN", ["ORDERS", "CATALOG"]).map(({ id }) => id),
-    ["orders", "catalog"],
+    ["orders", "phone-order", "catalog"],
   );
   assert.deepEqual(
     navigationForRole("ACCOUNTANT", ["ORDERS", "ACCOUNTING"]).map(
@@ -95,12 +96,15 @@ test("server-provided page access controls and expands role navigation", () => {
   );
   assert.deepEqual(
     navigationForRole("OPERATOR", ["ORDERS"]).map(({ id }) => id),
-    ["orders"],
+    ["orders", "phone-order"],
   );
   assert.deepEqual(
     navigationForRole("COOK", []).map(({ id }) => id),
     [],
   );
+  assert.equal(navigationForRole("COOK", ["ORDERS"]).some(({ id }) => id === "phone-order"), false);
+  assert.equal(navigationForRole("ACCOUNTANT", ["ORDERS"]).some(({ id }) => id === "phone-order"), false);
+  assert.equal(navigationForRole("COURIER", ["ORDERS"]).some(({ id }) => id === "phone-order"), false);
   assert.deepEqual(
     navigationForRole("SUPER_ADMIN", []).map(({ id }) => id),
     [...administratorViews, "access"],

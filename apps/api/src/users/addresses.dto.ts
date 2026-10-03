@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional, PartialType } from "@nestjs/swagger";
 import {
   IsInt,
+  IsEnum,
   IsLatitude,
   IsLongitude,
   IsNotEmpty,
@@ -10,6 +11,7 @@ import {
   Min,
 } from "class-validator";
 import { Type } from "class-transformer";
+import { AddressLocationStatus } from "../generated/prisma/client";
 
 export class CreateAddressDto {
   @ApiPropertyOptional({
@@ -33,13 +35,26 @@ export class CreateAddressDto {
   @MaxLength(500)
   address: string;
 
-  @ApiProperty({ example: 37.9601 })
-  @IsLatitude()
-  latitude: number;
+  @ApiPropertyOptional({ enum: AddressLocationStatus })
+  @IsOptional()
+  @IsEnum(AddressLocationStatus)
+  locationStatus?: AddressLocationStatus;
 
-  @ApiProperty({ example: 58.3261 })
+  @ApiPropertyOptional({ example: 37.9601 })
+  @IsOptional()
+  @IsLatitude()
+  latitude?: number;
+
+  @ApiPropertyOptional({ example: 58.3261 })
+  @IsOptional()
   @IsLongitude()
-  longitude: number;
+  longitude?: number;
+
+  @ApiPropertyOptional({ example: "Вход со стороны школы" })
+  @IsOptional()
+  @IsString()
+  @MaxLength(160)
+  landmark?: string;
 
   @ApiPropertyOptional()
   @IsOptional()

@@ -21,6 +21,7 @@ export type AssistedOrderDeliverySelection = {
   addressId?: string;
   addressLabel?: string;
   address?: string;
+  addressLocationStatus?: "MANUAL_UNVERIFIED";
   latitude?: number;
   longitude?: number;
   entrance?: string;
@@ -72,7 +73,23 @@ export function buildAssistedOrderDeliverySelection({
     };
   }
 
-  if (!coordinates) return null;
+  if (!coordinates) {
+    const manualAddress =
+      normalizedDetail(values.address) ||
+      (savedAddress && values.addressId === savedAddress.id
+        ? normalizedDetail(savedAddress.address)
+        : "");
+    if (!manualAddress) return null;
+    return {
+      ...deliveryEtrap,
+      addressLabel: values.addressLabel,
+      address: manualAddress,
+      addressLocationStatus: "MANUAL_UNVERIFIED",
+      entrance: values.entrance,
+      floor: values.floor,
+      apartment: values.apartment,
+    };
+  }
 
   return {
     ...deliveryEtrap,

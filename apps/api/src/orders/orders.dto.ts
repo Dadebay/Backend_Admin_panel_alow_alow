@@ -11,6 +11,7 @@ import {
   IsInt,
   IsLatitude,
   IsLongitude,
+  IsNumber,
   IsNotEmpty,
   IsOptional,
   IsPhoneNumber,
@@ -24,7 +25,7 @@ import {
   ValidateIf,
   ValidateNested,
 } from "class-validator";
-import { OrderStatus } from "../generated/prisma/client";
+import { AddressLocationStatus, OrderStatus } from "../generated/prisma/client";
 
 export class CreateOrderItemDto {
   @ApiProperty()
@@ -121,6 +122,14 @@ export class CreateOrderDto {
   @IsString()
   @MaxLength(500)
   address?: string;
+
+  @ApiPropertyOptional({
+    enum: AddressLocationStatus,
+    description: "MANUAL_UNVERIFIED marks a text-only address without coordinates",
+  })
+  @IsOptional()
+  @IsEnum(AddressLocationStatus)
+  addressLocationStatus?: AddressLocationStatus;
 
   @ApiPropertyOptional({
     example: 37.9601,
@@ -259,6 +268,21 @@ export class CreateAssistedOrderDto extends CreateOrderDto {
   @IsString()
   @MaxLength(80)
   customerLastName?: string;
+
+  @ApiPropertyOptional({ minimum: 0, maximum: 10000, description: "Staff-set delivery fee in TMT; requires a reason" })
+  @ValidateIf((dto: CreateAssistedOrderDto) => dto.manualDeliveryFee !== undefined)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @Max(10000)
+  manualDeliveryFee?: number;
+
+  @ApiPropertyOptional({ minLength: 5, maxLength: 200 })
+  @Transform(({ value }: { value: unknown }) => typeof value === "string" ? value.trim() : value)
+  @ValidateIf((dto: CreateAssistedOrderDto) => dto.manualDeliveryFee !== undefined || dto.manualDeliveryReason !== undefined)
+  @IsString()
+  @MinLength(5)
+  @MaxLength(200)
+  manualDeliveryReason?: string;
 }
 
 export class SearchAssistedCustomersQueryDto {

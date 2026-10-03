@@ -8,6 +8,7 @@ import {
 import { createHash } from "node:crypto";
 import { parsePhoneNumberFromString } from "libphonenumber-js";
 import {
+  AddressLocationStatus,
   CashSettlementStatus,
   OrderSource,
   OrderStatus,
@@ -559,8 +560,10 @@ export class OrdersService {
             id: true,
             label: true,
             address: true,
+            locationStatus: true,
             latitude: true,
             longitude: true,
+            landmark: true,
             entrance: true,
             floor: true,
             apartment: true,
@@ -581,8 +584,21 @@ export class OrdersService {
   }
 
   createAssisted(actor: AuthUser, dto: CreateAssistedOrderDto) {
-    const { customerPhone, customerFirstName, customerLastName, ...orderDto } =
+    const { customerPhone, customerFirstName, customerLastName, manualDeliveryFee, manualDeliveryReason, ...orderDto } =
       dto;
+    if (actor.role !== Role.OPERATOR && actor.role !== Role.ADMIN && actor.role !== Role.SUPER_ADMIN) {
+      throw new ForbiddenException("Only order staff can set a phone-order delivery price");
+    }
+    if (manualDeliveryFee === undefined && manualDeliveryReason !== undefined) {
+      throw new BadRequestException("Manual delivery reason requires a manual fee");
+    }
+    if (manualDeliveryFee !== undefined && (
+      !Number.isFinite(manualDeliveryFee) || manualDeliveryFee < 0 || manualDeliveryFee > 10000 ||
+      !/^\d+(?:\.\d{1,2})?$/.test(String(manualDeliveryFee)) ||
+      !manualDeliveryReason || manualDeliveryReason.trim().length < 5 || manualDeliveryReason.trim().length > 200
+    )) {
+      throw new BadRequestException("Manual delivery price requires a valid fee and reason");
+    }
     return this.createOnce(actor.id, dto, async (tx) => {
       const customer = await this.resolveAssistedCustomer(tx, actor, {
         phone: customerPhone,
@@ -594,6 +610,10 @@ export class OrdersService {
         customerId: customer.id,
         dto: orderDto,
         source: OrderSource.STAFF_PHONE,
+        manualDelivery: manualDeliveryFee === undefined ? undefined : {
+          fee: manualDeliveryFee,
+          reason: manualDeliveryReason!.trim(),
+        },
       });
     });
   }
@@ -809,9 +829,10 @@ export class OrdersService {
       customerId: string;
       dto: CreateOrderDto;
       source: OrderSource;
+      manualDelivery?: { fee: number; reason: string };
     },
   ) {
-    const { actorId, customerId, dto, source } = input;
+    const { actorId, customerId, dto, source, manualDelivery } = input;
     if (source === OrderSource.STAFF_PHONE && dto.gifts?.length)
       throw new ForbiddenException(
         "Gift redemption requires the customer's own session",
@@ -837,24 +858,33 @@ export class OrdersService {
       ignoresSelectedEtrap ? { ...dto, deliveryEtrapId: undefined } : dto,
       actorId,
     );
-    const nearest = await this.branches.findNearestActive(
-      tx,
-      {
-        latitude: Number(selectedAddress.latitude),
-        longitude: Number(selectedAddress.longitude),
-      },
-      true,
-    );
+    if (
+      source !== OrderSource.STAFF_PHONE &&
+      selectedAddress.locationStatus === AddressLocationStatus.MANUAL_UNVERIFIED
+    ) {
+      throw new BadRequestException(
+        "A customer order requires a mapped delivery address",
+      );
+    }
+    const hasCoordinates = selectedAddress.latitude !== null && selectedAddress.longitude !== null;
+    const nearest = hasCoordinates
+      ? await this.branches.findNearestActive(tx, {
+          latitude: Number(selectedAddress.latitude),
+          longitude: Number(selectedAddress.longitude),
+        }, true)
+      : await this.branches.findFallbackActive(tx);
     const deliveryPricing = await this.delivery.resolvePricing(
       tx,
       subtotal,
       selectedAddress.deliveryEtrapId,
       createdAt,
-      {
+      hasCoordinates ? {
         latitude: Number(selectedAddress.latitude),
         longitude: Number(selectedAddress.longitude),
-      },
-      nearest.distanceMeters,
+      } : undefined,
+      nearest.distanceMeters ?? undefined,
+      { allowManualFallback: source === OrderSource.STAFF_PHONE &&
+          selectedAddress.locationStatus === AddressLocationStatus.MANUAL_UNVERIFIED },
     );
     if (
       selectedAddress.deliveryEtrapId !== (deliveryPricing.etrap?.id ?? null)
@@ -864,7 +894,7 @@ export class OrdersService {
         data: { deliveryEtrapId: deliveryPricing.etrap?.id ?? null },
       });
     }
-    const deliveryFee = deliveryPricing.fee;
+    const deliveryFee = manualDelivery?.fee ?? deliveryPricing.fee;
     const total = roundMoney(subtotal - discount + deliveryFee);
     const redemption = await this.loyalty.prepareRedemption(tx, dto.gifts);
     const loyaltyPointsEarned = earnedPoints(
@@ -907,8 +937,10 @@ export class OrdersService {
         loyaltyPointsEarned,
         loyaltyPointsSpent: redemption.pointsSpent,
         address: selectedAddress.address,
+        addressLocationStatus: selectedAddress.locationStatus,
         latitude: selectedAddress.latitude,
         longitude: selectedAddress.longitude,
+        addressLandmark: selectedAddress.landmark,
         entrance: selectedAddress.entrance,
         floor: selectedAddress.floor,
         apartment: selectedAddress.apartment,
@@ -979,6 +1011,9 @@ export class OrdersService {
           branchDistanceMeters: nearest.distanceMeters,
           deliveryEtrapId: deliveryPricing.etrap?.id ?? null,
           deliveryFee,
+          deliveryFeeSource: manualDelivery ? "MANUAL_STAFF" : "AUTOMATIC",
+          calculatedDeliveryFee: deliveryPricing.fee,
+          ...(manualDelivery ? { manualDeliveryReason: manualDelivery.reason } : {}),
         },
       },
     });
@@ -1122,6 +1157,8 @@ export class OrdersService {
           createdAt: true,
           branchName: true,
           address: true,
+          addressLocationStatus: true,
+          addressLandmark: true,
           entrance: true,
           floor: true,
           apartment: true,
@@ -2168,8 +2205,10 @@ export class OrdersService {
       orderNumber: order.number,
       status: order.status,
       address: order.address,
+      addressLocationStatus: order.addressLocationStatus,
       latitude: order.latitude,
       longitude: order.longitude,
+      addressLandmark: order.addressLandmark,
       entrance: order.entrance,
       floor: order.floor,
       apartment: order.apartment,
@@ -2198,6 +2237,16 @@ export class OrdersService {
         courierId,
         stops,
         routingStatus: CourierRoutingStatus.NO_STOPS,
+        recalculateAfterSeconds: ROUTE_RECALCULATION_SECONDS,
+        route: null,
+      });
+    }
+
+    if (orders.some((order) => order.latitude === null || order.longitude === null)) {
+      return toApiResponse({
+        courierId,
+        stops,
+        routingStatus: CourierRoutingStatus.UNAVAILABLE,
         recalculateAfterSeconds: ROUTE_RECALCULATION_SECONDS,
         route: null,
       });

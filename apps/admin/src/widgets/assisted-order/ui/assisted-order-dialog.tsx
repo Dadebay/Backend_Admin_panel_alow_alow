@@ -36,11 +36,13 @@ import { type Order } from "@/src/entities/order";
 import {
   type CreateAssistedOrderBody,
   useAssistedOrderActions,
+  useAssistedOrderHistory,
 } from "@/src/features/assisted-order";
 import { ApiError, resolveApiUrl } from "@/src/shared/api/api-client";
 import { FormFieldError } from "@/src/shared/forms";
 import {
   assistedOrderFormSchema,
+  buildAssistedDeliveryAddress,
   type AssistedOrderCoordinates,
   type AssistedOrderFormInput,
   type AssistedOrderFormValues,
@@ -51,6 +53,7 @@ import {
   getPreferredAssistedAddress,
   toSavedAddressSelection,
 } from "../model/assisted-customer-selection";
+import { repeatPreviousOrder } from "../model/repeat-previous-order";
 
 const AssistedOrderMapPicker = lazy(
   () => import("./assisted-order-map-picker"),
@@ -93,6 +96,9 @@ type SelectedProductItem = {
   quantity: number;
 };
 
+type OrderStep = "menu" | "delivery" | "review";
+type AddressMode = "manual" | "map";
+
 export default function AssistedOrderDialog({
   onClose,
 }: {
@@ -122,20 +128,34 @@ export default function AssistedOrderDialog({
   const [productSearch, setProductSearch] = useState("");
   const [productCategoryFilter, setProductCategoryFilter] = useState("");
   const [selectionError, setSelectionError] = useState("");
+  const [repeatNotice, setRepeatNotice] = useState("");
+  const [addressMode, setAddressMode] = useState<AddressMode>("manual");
+  const [showMap, setShowMap] = useState(false);
   const [customerSearchError, setCustomerSearchError] = useState("");
   const [addressSearchError, setAddressSearchError] = useState("");
   const [createdOrder, setCreatedOrder] = useState<Order | null>(null);
+  const [step, setStep] = useState<OrderStep>("menu");
   const addressComboboxRef = useRef<HTMLDivElement>(null);
+  const extraDetailsRef = useRef<HTMLDetailsElement>(null);
+  const phoneLookupTimer = useRef<number | null>(null);
+  const phoneLookupSequence = useRef(0);
   const customers = useAssistedCustomerSearch();
+  const history = useAssistedOrderHistory(
+    selectedCustomer?.id ?? null,
+    selectedCustomer?.phone ?? "",
+  );
   const addressResults = useGeocodeSearch(submittedAddressQuery);
   const {
     register,
     control,
     handleSubmit,
     getValues,
+    getFieldState,
     setValue,
+    setFocus,
+    trigger,
     reset,
-    formState: { errors },
+    formState: { errors, isDirty },
   } = useForm<AssistedOrderFormInput, unknown, AssistedOrderFormValues>({
     resolver: zodResolver(assistedOrderFormSchema),
     mode: "onBlur",
@@ -153,6 +173,9 @@ export default function AssistedOrderDialog({
       customerNote: "",
       promoCode: "",
       addressSearch: "",
+      deliveryPriceMode: "AUTO",
+      manualDeliveryFee: "",
+      manualDeliveryReason: "",
     },
   });
   const selectedAddressId = useWatch({ control, name: "addressId" });
@@ -161,16 +184,53 @@ export default function AssistedOrderDialog({
     name: "deliveryEtrapId",
   });
   const addressSearchValue = useWatch({ control, name: "addressSearch" });
+  const deliveryPriceMode = useWatch({ control, name: "deliveryPriceMode" });
+  const manualDeliveryFeeValue = useWatch({ control, name: "manualDeliveryFee" });
   const customerPhoneField = register("customerPhone");
   const addressSearchField = register("addressSearch");
+  const deliveryAddressField = register("address");
+
+  const hasDraft =
+    isDirty || Object.values(quantityBySelection).some((quantity) => quantity > 0);
+
+  function requestClose() {
+    if (
+      !hasDraft ||
+      window.confirm("Заказ ещё не создан. Закрыть и потерять введённые данные?")
+    ) {
+      onClose();
+    }
+  }
 
   useEffect(() => {
     function closeOnEscape(event: KeyboardEvent) {
-      if (event.key === "Escape") onClose();
+      if (event.key !== "Escape") return;
+      if (isAddressDropdownOpen) {
+        setIsAddressDropdownOpen(false);
+        return;
+      }
+      if (
+        !hasDraft ||
+        window.confirm("Заказ ещё не создан. Закрыть и потерять введённые данные?")
+      ) {
+        onClose();
+      }
     }
     window.addEventListener("keydown", closeOnEscape);
     return () => window.removeEventListener("keydown", closeOnEscape);
-  }, [onClose]);
+  }, [hasDraft, isAddressDropdownOpen, onClose]);
+
+  useEffect(
+    () => () => {
+      if (phoneLookupTimer.current !== null)
+        window.clearTimeout(phoneLookupTimer.current);
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (step === "delivery") setFocus("customerPhone");
+  }, [setFocus, step]);
 
   useEffect(() => {
     function closeAddressDropdown(event: PointerEvent) {
@@ -232,16 +292,50 @@ export default function AssistedOrderDialog({
     }
     return items;
   }, [products.data, quantityBySelection]);
+
+  function goToDelivery() {
+    setSelectionError("");
+    setStep("delivery");
+  }
+
+  async function goToReview() {
+    if (!selectedItems.length) {
+      setSelectionError("Добавьте хотя бы одно блюдо");
+      setStep("menu");
+      return;
+    }
+    const valid = await trigger();
+    if (!valid) {
+      if (getFieldState("promoCode").invalid || getFieldState("customerNote").invalid) {
+        extraDetailsRef.current?.setAttribute("open", "");
+      }
+      return;
+    }
+    if (addressMode === "map" && !coordinates) {
+      setSelectionError("Поставьте точку на карте или выберите ввод адреса текстом");
+      return;
+    }
+    if (!getValues("addressId") && !coordinates && !getValues("address")?.trim()) {
+      setSelectionError("Введите адрес доставки или укажите точку на карте");
+      return;
+    }
+    setSelectionError("");
+    setStep("review");
+  }
   const estimatedSubtotal = selectedItems.reduce(
     (sum, item) =>
       sum + (item.variant?.price ?? item.product.price) * item.quantity,
     0,
   );
+  const distancePricingEnabled =
+    deliveryConfig.data?.distancePricingEnabled ?? false;
+  const useCoordinateQuote =
+    step !== "menu" && addressMode === "map" && Boolean(coordinates) && (!selectedAddressId || distancePricingEnabled);
   const deliveryQuote = useDeliveryQuote(
     coordinates?.latitude ?? null,
     coordinates?.longitude ?? null,
     estimatedSubtotal,
-    !selectedAddressId,
+    useCoordinateQuote,
   );
   const deliveryEtraps = useMemo(
     () => flattenDeliveryEtraps(deliveryConfig.data),
@@ -255,19 +349,27 @@ export default function AssistedOrderDialog({
   );
   const suggestedDeliveryEtrap = deliveryQuote.data?.etrap ?? null;
   const savedAddressQuote = useDeliveryTariffQuote(
-    selectedSavedAddress?.deliveryEtrapId ?? null,
+    selectedSavedAddress?.deliveryEtrapId ??
+      (selectedDeliveryEtrapId ? Number(selectedDeliveryEtrapId) : null),
     estimatedSubtotal,
-    Boolean(selectedSavedAddress),
+    step !== "menu" && !distancePricingEnabled && Boolean(selectedSavedAddress || !coordinates),
   );
-  const activeDeliveryQuote = selectedAddressId ? savedAddressQuote : deliveryQuote;
+  const activeDeliveryQuote =
+    useCoordinateQuote ? deliveryQuote : savedAddressQuote;
   const estimatedDeliveryFee = activeDeliveryQuote.data?.fee ?? null;
+  const manualDeliveryFee = deliveryPriceMode === "MANUAL" && /^\d+(?:[.,]\d{1,2})?$/.test(manualDeliveryFeeValue.trim())
+    ? Number(manualDeliveryFeeValue.replace(",", "."))
+    : null;
+  const displayedDeliveryFee = deliveryPriceMode === "MANUAL" ? manualDeliveryFee : estimatedDeliveryFee;
   const estimatedTotal =
-    estimatedDeliveryFee === null
+    displayedDeliveryFee === null
       ? null
-      : estimatedSubtotal + estimatedDeliveryFee;
+      : estimatedSubtotal + displayedDeliveryFee;
 
   useEffect(() => {
     if (
+      addressMode !== "map" ||
+      !coordinates ||
       selectedAddressId ||
       selectedDeliveryEtrapId ||
       !suggestedDeliveryEtrap
@@ -279,6 +381,8 @@ export default function AssistedOrderDialog({
       shouldValidate: true,
     });
   }, [
+    addressMode,
+    coordinates,
     selectedAddressId,
     selectedDeliveryEtrapId,
     setValue,
@@ -315,7 +419,40 @@ export default function AssistedOrderDialog({
     setSelectedAddressResult(null);
     setSelectedLocationLabel("");
     setIsAddressEditing(false);
+    setAddressMode("manual");
+    setShowMap(false);
   }, [setValue]);
+
+  function useManualAddress() {
+    if (addressMode === "manual") return;
+    const typedAddress = getValues("address").trim();
+    const mappedAddress = selectedSavedAddress?.address || selectedLocationLabel;
+    const manualAddress = mappedAddress
+      ? typedAddress && typedAddress !== mappedAddress
+        ? `${mappedAddress} — ${typedAddress}`
+        : mappedAddress
+      : typedAddress;
+    setValue("addressId", "", { shouldDirty: true, shouldValidate: true });
+    setValue("deliveryEtrapId", "", { shouldDirty: true, shouldValidate: true });
+    setValue("address", manualAddress, { shouldDirty: true, shouldValidate: true });
+    setValue("addressSearch", "");
+    setCoordinates(null);
+    setSelectedAddressResult(null);
+    setSelectedLocationLabel("");
+    setSubmittedAddressQuery("");
+    setIsAddressEditing(false);
+    setIsAddressDropdownOpen(false);
+    setAddressSearchError("");
+    setAddressMode("manual");
+    setShowMap(false);
+    setSelectionError("");
+  }
+
+  function useMapAddress() {
+    setAddressMode("map");
+    setShowMap(true);
+    setSelectionError("");
+  }
 
   const selectAddress = useCallback(
     (address: AssistedCustomerAddress) => {
@@ -336,17 +473,20 @@ export default function AssistedOrderDialog({
       setSelectedLocationLabel(address.address);
       setIsAddressEditing(false);
       setIsAddressDropdownOpen(false);
+      setAddressMode(selection.coordinates ? "map" : "manual");
+      setShowMap(false);
       setSelectionError("");
     },
     [setValue],
   );
 
   const selectCustomer = useCallback(
-    (customer: AssistedCustomer) => {
+    (customer: AssistedCustomer, preserveAddress = false) => {
       setSelectedCustomer(customer);
       setValue("customerPhone", customer.phone, { shouldValidate: true });
       setValue("customerFirstName", customer.firstName ?? "");
       setValue("customerLastName", customer.lastName ?? "");
+      if (preserveAddress) return;
       const preferredAddress = getPreferredAssistedAddress(customer);
       if (preferredAddress) selectAddress(preferredAddress);
       else clearSelectedAddress();
@@ -364,38 +504,59 @@ export default function AssistedOrderDialog({
       latitude: result.latitude,
       longitude: result.longitude,
     });
+    setAddressMode("map");
     setIsAddressEditing(false);
     setIsAddressDropdownOpen(false);
+    setShowMap(true);
     setSelectionError("");
   }
 
-  async function findCustomer() {
-    const phone = getValues("customerPhone").trim();
+  async function findCustomerForPhone(phoneValue: string) {
+    const phone = phoneValue.trim();
     if (phone.replace(/\D/g, "").length < 4) {
       setCustomerSearchError("Введите хотя бы 4 цифры номера");
       return;
     }
+    const sequence = ++phoneLookupSequence.current;
     setCustomerSearchError("");
     customers.reset();
     setSelectedCustomer(null);
-    clearSelectedAddress();
     setSubmittedCustomerPhone(phone);
     try {
       const result = await customers.mutateAsync(phone);
+      if (sequence !== phoneLookupSequence.current) return;
       const exactCustomer = findExactAssistedCustomer(result.items, phone);
-      if (exactCustomer) selectCustomer(exactCustomer);
+      if (exactCustomer)
+        selectCustomer(exactCustomer, Boolean(getValues("address")?.trim() || coordinates));
     } catch {
       // TanStack Query owns the normalized search error rendered below.
     }
   }
 
+  function findCustomer() {
+    if (phoneLookupTimer.current !== null)
+      window.clearTimeout(phoneLookupTimer.current);
+    void findCustomerForPhone(getValues("customerPhone"));
+  }
+
   function editCustomerPhone(event: ChangeEvent<HTMLInputElement>) {
     void customerPhoneField.onChange(event);
-    if (!selectedCustomer && !submittedCustomerPhone) return;
-    setSelectedCustomer(null);
-    setSubmittedCustomerPhone("");
-    customers.reset();
-    clearSelectedAddress();
+    phoneLookupSequence.current += 1;
+    if (phoneLookupTimer.current !== null)
+      window.clearTimeout(phoneLookupTimer.current);
+    if (selectedCustomer || submittedCustomerPhone) {
+      setSelectedCustomer(null);
+      setSubmittedCustomerPhone("");
+      customers.reset();
+      clearSelectedAddress();
+    }
+    const nextPhone = event.target.value;
+    const digits = nextPhone.replace(/\D/g, "");
+    if (digits.startsWith("993") && digits.length === 11) {
+      phoneLookupTimer.current = window.setTimeout(() => {
+        void findCustomerForPhone(nextPhone);
+      }, 350);
+    }
   }
 
   function findAddress() {
@@ -405,6 +566,7 @@ export default function AssistedOrderDialog({
       return;
     }
     setIsAddressEditing(true);
+    setShowMap(true);
     setAddressSearchError("");
     setActiveAddressResultIndex(0);
     setIsAddressDropdownOpen(true);
@@ -442,6 +604,7 @@ export default function AssistedOrderDialog({
   function keepCurrentCoordinates() {
     setIsAddressEditing(false);
     setIsAddressDropdownOpen(false);
+    setShowMap(true);
     setAddressSearchError("");
   }
 
@@ -480,6 +643,7 @@ export default function AssistedOrderDialog({
     setValue("addressId", "", { shouldValidate: true });
     setValue("deliveryEtrapId", "", { shouldValidate: true });
     setCoordinates(next);
+    setAddressMode("map");
     setSelectedAddressResult(null);
     setSelectedLocationLabel("");
     setIsAddressEditing(false);
@@ -487,13 +651,47 @@ export default function AssistedOrderDialog({
     setSelectionError("");
   }
 
+  function fillFromPreviousOrder(order: Order) {
+    if (
+      selectedItems.length > 0 &&
+      !window.confirm("Заменить текущую корзину блюдами из прошлого заказа?")
+    ) {
+      return;
+    }
+    const result = repeatPreviousOrder(
+      order,
+      filterOrderableProducts(products.data ?? []),
+    );
+    setQuantityBySelection(result.quantities);
+    setSelectedVariantByProduct(
+      Object.fromEntries(
+        order.items
+          .flatMap((item) =>
+            item.productVariantId
+              ? [[item.productId, item.productVariantId]]
+              : [],
+          ),
+      ),
+    );
+    setRepeatNotice(
+      result.unavailable.length
+        ? `Недоступные позиции не добавлены: ${result.unavailable.join(", ")}. Проверьте корзину и новые цены.`
+        : "Блюда добавлены по текущему меню. Проверьте корзину и новые цены.",
+    );
+  }
+
   async function submit(values: AssistedOrderFormValues) {
     if (!selectedItems.length) {
       setSelectionError("Добавьте хотя бы одно блюдо");
       return;
     }
-    if (!values.addressId && !coordinates) {
-      setSelectionError("Поставьте маркер адреса доставки на карте");
+    if (addressMode === "map" && !coordinates) {
+      setSelectionError("Поставьте точку на карте или выберите ввод адреса текстом");
+      setStep("delivery");
+      return;
+    }
+    if (!values.addressId && !coordinates && !values.address?.trim()) {
+      setSelectionError("Введите адрес доставки или укажите точку на карте");
       return;
     }
 
@@ -507,7 +705,7 @@ export default function AssistedOrderDialog({
         selectedAddressResult?.label,
     });
     if (!deliverySelection) {
-      setSelectionError("Поставьте маркер адреса доставки на карте");
+      setSelectionError("Введите адрес доставки или укажите точку на карте");
       return;
     }
 
@@ -523,6 +721,10 @@ export default function AssistedOrderDialog({
       ...deliverySelection,
       customerNote: values.customerNote,
       promoCode: values.promoCode,
+      ...(values.deliveryPriceMode === "MANUAL" ? {
+        manualDeliveryFee: Number(values.manualDeliveryFee.replace(",", ".")),
+        manualDeliveryReason: values.manualDeliveryReason,
+      } : {}),
     } satisfies CreateAssistedOrderBody;
 
     try {
@@ -543,10 +745,14 @@ export default function AssistedOrderDialog({
     setIsAddressDropdownOpen(false);
     setSelectedAddressResult(null);
     setCoordinates(null);
+    setAddressMode("manual");
     setQuantityBySelection({});
     setSelectedVariantByProduct({});
     setProductSearch("");
+    setRepeatNotice("");
+    setShowMap(false);
     setSelectionError("");
+    setStep("menu");
     reset();
   }
 
@@ -593,42 +799,81 @@ export default function AssistedOrderDialog({
   }
 
   return (
-    <div
-      aria-labelledby="assisted-order-title"
-      aria-modal="true"
-      className="modal-backdrop assisted-order-backdrop"
-      role="dialog"
-    >
+    <main className={`assisted-order-workspace assisted-step-${step}`} data-testid="assisted-order-workspace">
       <form
         className="modal assisted-order-modal"
         data-testid="assisted-order-form"
         noValidate
-        onSubmit={handleSubmit(submit)}
+        onSubmit={(event) => {
+          if (step === "review") {
+            void handleSubmit(submit)(event);
+            return;
+          }
+          event.preventDefault();
+          if (step === "menu") goToDelivery();
+          else void goToReview();
+        }}
       >
         <header className="modal-head assisted-order-head">
           <div>
-            <span className="eyebrow">ЗАКАЗ ПО ЗВОНКУ</span>
-            <h2 id="assisted-order-title">Создать заказ за клиента</h2>
-            <p>
-              Наличная оплата. Backend сам выберет ближайший активный филиал.
-            </p>
+            <span className="eyebrow">НОВЫЙ ЗАКАЗ · ПО ЗВОНКУ</span>
+            <h2 id="assisted-order-title">Приём заказа</h2>
           </div>
+          <nav aria-label="Этапы заказа" className="assisted-order-steps" data-testid="assisted-order-steps">
+            <button aria-current={step === "menu" ? "step" : undefined} data-testid="assisted-step-menu" onClick={() => setStep("menu")} type="button">1 · Блюда</button>
+            <button aria-current={step === "delivery" ? "step" : undefined} data-testid="assisted-step-delivery" onClick={goToDelivery} type="button">2 · Клиент и доставка</button>
+            <button aria-current={step === "review" ? "step" : undefined} data-testid="assisted-step-review" disabled={step !== "review"} type="button">3 · Проверка</button>
+          </nav>
           <button
             aria-label="Закрыть"
             data-testid="assisted-order-close"
             type="button"
-            onClick={onClose}
+            onClick={requestClose}
           >
             ×
           </button>
         </header>
 
-        <div className="assisted-order-layout">
-          <div className="assisted-order-column">
-            <section className="assisted-order-card">
+        {step === "review" && (
+          <section className="assisted-order-review" data-testid="assisted-order-review">
+            <h3>Проверьте заказ с клиентом</h3>
+            <div className="assisted-review-grid">
+              <section>
+                <h4>Блюда</h4>
+                {selectedItems.map(({ product, variant, quantity }) => (
+                  <p key={selectionKey(product.id, variant?.id)}>{product.name}{variant ? ` · ${variant.name}` : ""} ×{quantity}</p>
+                ))}
+                <strong>{estimatedSubtotal.toFixed(2)} TMT · блюда</strong>
+                <button className="text-button" data-testid="assisted-review-edit-menu" onClick={() => setStep("menu")} type="button">Изменить блюда</button>
+              </section>
+              <section>
+                <h4>Клиент и доставка</h4>
+                <p>{getValues("customerPhone")}{getValues("customerFirstName") ? ` · ${getValues("customerFirstName")}` : ""}</p>
+                <p>{selectedSavedAddress && !getValues("address")?.trim() ? selectedSavedAddress.address : (coordinates
+                  ? buildAssistedDeliveryAddress({
+                      officialAddress: deliveryQuote.data?.addressLine || selectedLocationLabel || selectedAddressResult?.label,
+                      unofficialAddress: getValues("address"),
+                      coordinates,
+                    })
+                  : getValues("address") || "Адрес не указан")}</p>
+                <p className="assisted-review-address-status" data-testid="assisted-review-address-status">
+                  {coordinates ? "Точка на карте выбрана" : "Адрес текстом · точка на карте не подтверждена"}
+                </p>
+                {(getValues("entrance") || getValues("floor") || getValues("apartment")) && (
+                  <p>Подъезд {getValues("entrance") || "—"} · этаж {getValues("floor") || "—"} · кв. {getValues("apartment") || "—"}</p>
+                )}
+                <strong>{displayedDeliveryFee === null ? "Доставка уточняется сервером" : `Доставка ${displayedDeliveryFee.toFixed(2)} TMT${deliveryPriceMode === "MANUAL" ? " · вручную" : ""}`}</strong>
+                {deliveryPriceMode === "MANUAL" && <p>Причина: {getValues("manualDeliveryReason")}</p>}
+                <button className="text-button" data-testid="assisted-review-edit-delivery" onClick={() => setStep("delivery")} type="button">Изменить доставку</button>
+              </section>
+            </div>
+            <p className="assisted-review-payment">Оплата наличными при получении · итоговую цену и скидку подтвердит сервер.</p>
+          </section>
+        )}
+
+        <section className="assisted-order-card assisted-customer-card" data-testid="assisted-customer-card">
               <div className="assisted-order-section-title">
                 <div>
-                  <span>1</span>
                   <strong>Клиент</strong>
                 </div>
                 {selectedCustomer && (
@@ -654,7 +899,7 @@ export default function AssistedOrderDialog({
                   type="button"
                   onClick={findCustomer}
                 >
-                  Найти клиента
+                  Найти
                 </button>
               </div>
               {customerSearchError && (
@@ -666,8 +911,7 @@ export default function AssistedOrderDialog({
               )}
               {customers.data && !customers.data.items.length && (
                 <p className="assisted-order-hint">
-                  Клиент не найден. Он будет безопасно создан при оформлении без
-                  выдачи сессии или OTP.
+                  Новый клиент — оформим заказ по этому номеру.
                 </p>
               )}
               {customers.data && customers.data.items.length > 0 && (
@@ -698,8 +942,8 @@ export default function AssistedOrderDialog({
                   className="assisted-order-hint"
                   data-testid="assisted-saved-address-hint"
                 >
-                  Клиент найден. Активный или последний использованный адрес
-                  подставлен автоматически; ниже можно выбрать другой.
+                  Последний адрес выбран автоматически. При необходимости
+                  смените его в блоке доставки.
                 </p>
               ) : null}
               <div className="modal-grid assisted-name-grid">
@@ -722,38 +966,41 @@ export default function AssistedOrderDialog({
                   <FormFieldError message={errors.customerLastName?.message} />
                 </label>
               </div>
-              {selectedCustomer?.addresses.length ? (
-                <label>
-                  <span>Сохранённый адрес</span>
-                  <select
-                    data-testid="assisted-saved-address"
-                    value={selectedAddressId ?? ""}
-                    onChange={(event) => {
-                      const address = selectedCustomer.addresses.find(
-                        (item) => item.id === event.target.value,
-                      );
-                      if (address) selectAddress(address);
-                      else clearSelectedAddress();
-                    }}
-                  >
-                    <option value="">Новый адрес через карту</option>
-                    {selectedCustomer.addresses.map((address) => (
-                      <option value={address.id} key={address.id}>
-                        {address.isActive ? "Активный · " : ""}
-                        {address.label ? `${address.label} · ` : ""}
-                        {address.address}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              ) : null}
-            </section>
-
+              {selectedCustomer && (
+                <details className="assisted-customer-history" data-testid="assisted-customer-history">
+                  <summary data-testid="assisted-history-toggle">История заказов {history.data?.length ? `· ${history.data.length}` : ""}</summary>
+                  <strong>Последние заказы</strong>
+                  {history.isPending && <small>Загружаем историю…</small>}
+                  {history.isError && (
+                    <small className="form-error">История недоступна: {history.error.message}</small>
+                  )}
+                  {history.data?.length === 0 && <small>Заказов пока нет.</small>}
+                  {history.data?.slice(0, 3).map((order) => (
+                    <div className="assisted-history-order" key={order.id}>
+                      <span>
+                        <b>#{order.number}</b> · {new Date(order.createdAt).toLocaleDateString("ru-RU")}
+                        <small>{order.items.map((item) => `${item.productName} ×${item.quantity}`).join(", ")}</small>
+                      </span>
+                      <button
+                        className="secondary-button compact"
+                        data-testid={`assisted-repeat-${order.id}`}
+                        disabled={products.isPending}
+                        onClick={() => fillFromPreviousOrder(order)}
+                        type="button"
+                      >
+                        В корзину
+                      </button>
+                    </div>
+                  ))}
+                </details>
+              )}
+        </section>
+        <div className="assisted-order-layout">
+          <div className="assisted-order-column">
             <section className="assisted-order-card assisted-products-card">
               <div className="assisted-order-section-title">
                 <div>
-                  <span>2</span>
-                  <strong>Блюда</strong>
+                  <strong>Меню</strong>
                 </div>
                 <small>
                   {selectedItems.reduce((sum, item) => sum + item.quantity, 0)}{" "}
@@ -762,10 +1009,12 @@ export default function AssistedOrderDialog({
               </div>
               <input
                 aria-label="Поиск блюда"
+                autoFocus
                 className="assisted-product-search"
                 data-testid="assisted-product-search"
                 value={productSearch}
                 onChange={(event) => setProductSearch(event.target.value)}
+                onKeyDown={(event) => { if (event.key === "Enter") event.preventDefault(); }}
                 placeholder="Найти блюдо или категорию"
                 type="search"
               />
@@ -930,34 +1179,28 @@ export default function AssistedOrderDialog({
                               aria-label={`Количество ${product.name}`}
                               role="group"
                             >
+                              {quantity > 0 && (
+                                <>
+                                  <button
+                                    aria-label={`Убрать ${product.name}`}
+                                    data-testid={`assisted-product-minus-${product.id}`}
+                                    type="button"
+                                    onClick={() => changeQuantity(product.id, selectedVariant?.id, -1)}
+                                  >
+                                    −
+                                  </button>
+                                  <output>{quantity}</output>
+                                </>
+                              )}
                               <button
-                                data-testid={`assisted-product-minus-${product.id}`}
-                                type="button"
-                                disabled={requiresVariant && !selectedVariant}
-                                onClick={() =>
-                                  changeQuantity(
-                                    product.id,
-                                    selectedVariant?.id,
-                                    -1,
-                                  )
-                                }
-                              >
-                                −
-                              </button>
-                              <output>{quantity}</output>
-                              <button
+                                aria-label={`Добавить ${product.name}`}
+                                className={quantity === 0 ? "assisted-add-product" : ""}
                                 data-testid={`assisted-product-plus-${product.id}`}
                                 type="button"
                                 disabled={requiresVariant && !selectedVariant}
-                                onClick={() =>
-                                  changeQuantity(
-                                    product.id,
-                                    selectedVariant?.id,
-                                    1,
-                                  )
-                                }
+                                onClick={() => changeQuantity(product.id, selectedVariant?.id, 1)}
                               >
-                                +
+                                {quantity === 0 ? "Добавить" : "+"}
                               </button>
                             </div>
                           </article>
@@ -967,34 +1210,153 @@ export default function AssistedOrderDialog({
                   </section>
                 ))}
               </div>
-              {!products.isPending && !visibleProducts.length && (
-                <p className="assisted-order-hint">
-                  Подходящих активных блюд нет.
+              {!products.isPending && !products.data?.length && (
+                <p className="assisted-order-hint" role="status">
+                  На сервере нет активного меню. Загрузите каталог, чтобы
+                  принимать заказы.
                 </p>
               )}
-              <div className="assisted-order-total">
-                <span>Предварительно без скидки</span>
-                <strong>{estimatedSubtotal.toFixed(2)} TMT</strong>
-              </div>
+              {!products.isPending && Boolean(products.data?.length) && !visibleProducts.length && (
+                <p className="assisted-order-hint">
+                  По этому запросу блюд нет. Попробуйте другое название или категорию.
+                </p>
+              )}
             </section>
           </div>
 
           <div className="assisted-order-column">
+            <section className="assisted-order-card assisted-cart-card" data-testid="assisted-order-cart">
+              <div className="assisted-order-section-title">
+                <div><strong>Состав заказа</strong></div>
+                <small>{selectedItems.reduce((sum, item) => sum + item.quantity, 0)} шт.</small>
+              </div>
+              {selectedItems.length === 0 ? (
+                <p className="assisted-order-hint">Нажимайте «+» у блюд — они появятся здесь.</p>
+              ) : (
+                <div className="assisted-cart-lines">
+                  {selectedItems.map(({ product, variant, quantity }) => (
+                    <div className="assisted-cart-line" key={selectionKey(product.id, variant?.id)}>
+                      <span>
+                        <strong>{product.name}{variant ? ` · ${variant.name}` : ""}</strong>
+                        <small>{((variant?.price ?? product.price) * quantity).toFixed(2)} TMT</small>
+                      </span>
+                      <div className="quantity-stepper" role="group" aria-label={`Количество ${product.name}`}>
+                        <button data-testid={`assisted-cart-minus-${selectionKey(product.id, variant?.id)}`} type="button" onClick={() => changeQuantity(product.id, variant?.id, -1)}>−</button>
+                        <output>{quantity}</output>
+                        <button data-testid={`assisted-cart-plus-${selectionKey(product.id, variant?.id)}`} type="button" onClick={() => changeQuantity(product.id, variant?.id, 1)}>+</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {repeatNotice && <p className="assisted-order-hint" role="status">{repeatNotice}</p>}
+              <div className="assisted-order-total"><span>Блюда по текущему меню</span><strong>{estimatedSubtotal.toFixed(2)} TMT</strong></div>
+            </section>
+            <div className="assisted-order-details-column" data-testid="assisted-order-details">
             <section
               className="assisted-order-card assisted-address-card"
               data-testid="assisted-address-workflow"
             >
               <div className="assisted-order-section-title">
                 <div>
-                  <span>3</span>
-                  <strong>Адрес доставки</strong>
+                  <strong>Доставка</strong>
                 </div>
               </div>
-              <p className="assisted-order-hint">
-                Найдите улицу вместе с номером дома и выберите вариант — после
-                этого маркер переместится. Если нужного дома нет, укажите точку
-                прямо на карте.
-              </p>
+              {selectedCustomer?.addresses.length ? (
+                <label className="assisted-address-saved-select">
+                  <span>Адрес клиента</span>
+                  <select
+                    data-testid="assisted-saved-address"
+                    value={selectedAddressId ?? ""}
+                    onChange={(event) => {
+                      const address = selectedCustomer.addresses.find(
+                        (item) => item.id === event.target.value,
+                      );
+                      if (address) selectAddress(address);
+                      else clearSelectedAddress();
+                    }}
+                  >
+                    <option value="">Новый адрес</option>
+                    {selectedCustomer.addresses.map((address) => (
+                      <option value={address.id} key={address.id}>
+                        {address.isActive ? "Активный · " : ""}
+                        {address.label ? `${address.label} · ` : ""}
+                        {address.address}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
+              {selectedSavedAddress && (
+                <div className="assisted-selected-address" data-testid="assisted-saved-address-summary">
+                  <div>
+                    <span>{selectedSavedAddress.locationStatus === "MANUAL_UNVERIFIED" ? "Адрес без точки на карте" : "Сохранённый адрес"}</span>
+                    <strong>{selectedSavedAddress.address}</strong>
+                  </div>
+                </div>
+              )}
+              <fieldset className="assisted-address-method" data-testid="assisted-address-method">
+                <legend>Как указать место доставки?</legend>
+                <div className="assisted-address-method-options">
+                  <button
+                    aria-pressed={addressMode === "manual"}
+                    className={addressMode === "manual" ? "active" : ""}
+                    data-testid="assisted-address-method-manual"
+                    onClick={useManualAddress}
+                    type="button"
+                  >
+                    Ввести адрес текстом
+                  </button>
+                  <button
+                    aria-pressed={addressMode === "map"}
+                    className={addressMode === "map" ? "active" : ""}
+                    data-testid="assisted-address-method-map"
+                    onClick={useMapAddress}
+                    type="button"
+                  >
+                    Указать точку на карте
+                  </button>
+                </div>
+                <small className="assisted-order-hint" data-testid="assisted-address-method-hint">
+                  {addressMode === "manual"
+                    ? "Напишите улицу, дом и ориентир. Заказ сохранится без координат с пометкой для курьера."
+                    : "Поставьте маркер в точное место доставки. Если адреса нет в поиске, нажмите на карту вручную."}
+                </small>
+              </fieldset>
+              <label className="assisted-address-primary">
+                <span>{addressMode === "map" ? "Уточнение для курьера (необязательно)" : "Адрес доставки"}</span>
+                <textarea
+                  data-testid="assisted-order-address"
+                  {...deliveryAddressField}
+                  onChange={(event) => {
+                    void deliveryAddressField.onChange(event);
+                    if (addressMode === "manual" && selectedAddressId) {
+                      setValue("addressId", "", { shouldDirty: true });
+                      setValue("deliveryEtrapId", "", { shouldDirty: true });
+                      setSelectedLocationLabel("");
+                    }
+                    setSelectionError("");
+                  }}
+                  aria-invalid={Boolean(errors.address)}
+                  maxLength={500}
+                  rows={2}
+                  placeholder={addressMode === "map" ? "Например: вход со двора" : "Улица, дом, ориентир — как продиктовал клиент"}
+                />
+                <FormFieldError message={errors.address?.message} />
+              </label>
+              {addressMode === "map" && (
+                <button
+                  aria-expanded={showMap}
+                  className="secondary-button compact assisted-map-toggle"
+                  data-testid="assisted-map-toggle"
+                  onClick={() => setShowMap((current) => !current)}
+                  type="button"
+                >
+                  {showMap ? "Скрыть карту" : "Показать карту и уточнить точку"}
+                </button>
+              )}
+              {addressMode === "map" && showMap && (
+                <>
               {(!coordinates || isAddressEditing) && (
                 <section
                   className="assisted-address-search-panel"
@@ -1124,8 +1486,8 @@ export default function AssistedOrderDialog({
                           !addressResults.isFetching &&
                           !addressResults.data.items.length && (
                             <p className="assisted-address-empty">
-                              Такого адреса нет в базе. Нажмите точное место на
-                              карте ниже — заказ всё равно можно создать.
+                              Адреса нет в базе. Можно поставить точку на карте
+                              или ввести адрес текстом ниже.
                             </p>
                           )}
                         {addressResults.data && (
@@ -1183,12 +1545,14 @@ export default function AssistedOrderDialog({
                   onChange={selectMapCoordinates}
                 />
               </Suspense>
+                </>
+              )}
               <div
                 className="assisted-delivery-summary"
                 data-testid="assisted-delivery-pricing"
               >
                 <input type="hidden" {...register("deliveryEtrapId")} />
-                <strong>Доставка по выбранной точке</strong>
+                <strong>{coordinates || selectedAddressId ? "Доставка по выбранному адресу" : "Доставка по адресу без точки"}</strong>
                 {activeDeliveryQuote.data?.tariff === "NIGHT" && <span data-testid="assisted-delivery-night-tariff">Ночной тариф · время Ашхабада</span>}
                 {!selectedAddressId && suggestedDeliveryEtrap && (
                   <span
@@ -1223,7 +1587,11 @@ export default function AssistedOrderDialog({
                 )}
                 {selectedAddressId && (
                   <span className="assisted-order-hint" role="status">
-                    {selectedDeliveryEtrap
+                    {distancePricingEnabled && coordinates
+                      ? estimatedDeliveryFee === null
+                        ? "Сохранённый адрес · рассчитываем цену по расстоянию"
+                        : `Сохранённый адрес · по расстоянию ${estimatedDeliveryFee.toFixed(2)} TMT`
+                      : selectedDeliveryEtrap
                       ? `${selectedDeliveryEtrap.nameRu} · доставка ${estimatedDeliveryFee?.toFixed(2)} TMT`
                       : estimatedDeliveryFee === null
                         ? "Сохранённый адрес · рассчитываем цену доставки"
@@ -1232,33 +1600,40 @@ export default function AssistedOrderDialog({
                 )}
                 {!coordinates && !selectedAddressId && (
                   <span className="assisted-order-hint">
-                    Найдите адрес или поставьте маркер — район и цена
-                    подставятся автоматически.
+                    Без точки на карте адрес помечается «не проверен».
+                    {distancePricingEnabled && " Доставка — по резервному тарифу."}
                   </span>
                 )}
               </div>
-              <section
+              <fieldset className="assisted-delivery-fee-control" data-testid="assisted-delivery-fee-control">
+                <legend>Цена доставки</legend>
+                <p className="assisted-order-hint">Автоматический тариф — подсказка. Для заказа по звонку вы можете назначить свою цену, в том числе 0 TMT.</p>
+                <div className="assisted-delivery-fee-modes">
+                  <label><input data-testid="assisted-delivery-fee-auto" type="radio" value="AUTO" {...register("deliveryPriceMode")} /> По тарифу{estimatedDeliveryFee === null ? " · рассчитывается" : ` · ${estimatedDeliveryFee.toFixed(2)} TMT`}</label>
+                  <label><input data-testid="assisted-delivery-fee-manual" type="radio" value="MANUAL" {...register("deliveryPriceMode")} /> Указать вручную</label>
+                </div>
+                {deliveryPriceMode === "MANUAL" && (
+                  <div className="assisted-delivery-fee-fields">
+                    <label>
+                      <span>Доставка, TMT</span>
+                      <input data-testid="assisted-manual-delivery-fee" {...register("manualDeliveryFee")} inputMode="decimal" placeholder="Например: 12,50" aria-invalid={Boolean(errors.manualDeliveryFee)} />
+                      <FormFieldError message={errors.manualDeliveryFee?.message} />
+                    </label>
+                    <label>
+                      <span>Причина ручной цены</span>
+                      <input data-testid="assisted-manual-delivery-reason" {...register("manualDeliveryReason")} maxLength={200} placeholder="Например: согласовано с клиентом" aria-invalid={Boolean(errors.manualDeliveryReason)} />
+                      <FormFieldError message={errors.manualDeliveryReason?.message} />
+                    </label>
+                    <small>Сумма и причина сохранятся в журнале вместе с именем сотрудника. Итог проверит сервер.</small>
+                  </div>
+                )}
+              </fieldset>
+              <details
                 className="assisted-courier-address-details"
                 data-testid="assisted-courier-address-details"
               >
-                <header>
-                  <div>
-                    <strong>Детали для курьера</strong>
-                    <small>
-                      Эти поля не двигают маркер: они помогают найти вход после
-                      прибытия к выбранной точке.
-                    </small>
-                  </div>
-                  <span>Не влияют на карту</span>
-                </header>
+                <summary data-testid="assisted-address-details-toggle">Подъезд, этаж, квартира</summary>
                 <div className="modal-grid assisted-address-details">
-                  <div
-                    className="wide-field assisted-map-details-note"
-                    role="note"
-                  >
-                    Номер дома вводите в поиске выше. Подъезд, этаж и квартира
-                    добавляются к заказу отдельно и не меняют координаты.
-                  </div>
                   <label>
                     <span>Название адреса</span>
                     <input
@@ -1291,22 +1666,12 @@ export default function AssistedOrderDialog({
                       placeholder="Например: 18"
                     />
                   </label>
-                  <label className="wide-field">
-                    <span>Ориентир для курьера (необязательно)</span>
-                    <textarea
-                      data-testid="assisted-order-address"
-                      {...register("address")}
-                      aria-invalid={Boolean(errors.address)}
-                      maxLength={500}
-                      placeholder="Например: синий подъезд со стороны двора"
-                    />
-                    <FormFieldError message={errors.address?.message} />
-                  </label>
                 </div>
-              </section>
+              </details>
             </section>
 
-            <section className="assisted-order-card assisted-order-extra">
+            <details className="assisted-order-card assisted-order-extra" ref={extraDetailsRef}>
+              <summary data-testid="assisted-order-extra-toggle">Комментарий и промокод</summary>
               <div className="modal-grid">
                 <label>
                   <span>Промокод</span>
@@ -1333,7 +1698,8 @@ export default function AssistedOrderDialog({
                   <FormFieldError message={errors.customerNote?.message} />
                 </label>
               </div>
-            </section>
+            </details>
+            </div>
           </div>
         </div>
 
@@ -1344,20 +1710,17 @@ export default function AssistedOrderDialog({
         )}
         <footer className="modal-actions assisted-order-actions">
           <div>
-            <small>Итог и скидку проверяет backend</small>
+            <small>{step === "menu" ? "Блюда по текущему меню" : "Наличные · окончательная сумма после проверки сервером"}</small>
             <strong>
-              {estimatedDeliveryFee === null || estimatedTotal === null
+              {step === "menu"
+                ? `${estimatedSubtotal.toFixed(2)} TMT`
+                : displayedDeliveryFee === null || estimatedTotal === null
                 ? `${estimatedSubtotal.toFixed(2)} TMT + доставка`
-                : `${estimatedTotal.toFixed(2)} TMT · доставка ${estimatedDeliveryFee.toFixed(2)} TMT`}
+                : `${estimatedTotal.toFixed(2)} TMT · доставка ${displayedDeliveryFee.toFixed(2)} TMT${deliveryPriceMode === "MANUAL" ? " вручную" : ""}`}
             </strong>
           </div>
-          <button
-            className="secondary-button"
-            data-testid="assisted-order-cancel"
-            type="button"
-            onClick={onClose}
-          >
-            Отмена
+          <button className="secondary-button" data-testid="assisted-order-cancel" type="button" onClick={step === "menu" ? requestClose : () => setStep(step === "review" ? "delivery" : "menu")}>
+            {step === "menu" ? "Отмена" : "← Назад"}
           </button>
           <button
             className="primary-button"
@@ -1365,10 +1728,10 @@ export default function AssistedOrderDialog({
             disabled={actions.create.isPending}
             type="submit"
           >
-            {actions.create.isPending ? "Создаём…" : "Создать заказ"}
+            {actions.create.isPending ? "Создаём…" : step === "menu" ? "Далее →" : step === "delivery" ? "К проверке →" : "Подтвердить заказ"}
           </button>
         </footer>
       </form>
-    </div>
+    </main>
   );
 }

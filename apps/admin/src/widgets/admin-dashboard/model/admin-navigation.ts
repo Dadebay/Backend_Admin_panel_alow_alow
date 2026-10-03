@@ -17,10 +17,11 @@ export type AdminView =
   | "accounting"
   | "access";
 
-export type AdminNavIconName = AdminView;
+export type AdminNavigationId = AdminView | "phone-order";
+export type AdminNavIconName = AdminNavigationId;
 
 export type AdminNavigationItem = {
-  id: AdminView;
+  id: AdminNavigationId;
   label: string;
   icon: AdminNavIconName;
   path: `/${string}`;
@@ -43,6 +44,14 @@ export const adminNavigation: AdminNavigationItem[] = [
     icon: "orders",
     path: "/orders",
     roles: ["OPERATOR", "COOK", "ADMIN", "SUPER_ADMIN"],
+    page: "ORDERS",
+  },
+  {
+    id: "phone-order",
+    label: "Заказ по звонку",
+    icon: "phone-order",
+    path: "/orders/new",
+    roles: ["OPERATOR", "ADMIN", "SUPER_ADMIN"],
     page: "ORDERS",
   },
   {
@@ -145,6 +154,7 @@ export const adminNavigation: AdminNavigationItem[] = [
 
 export function navigationForRole(role: Role, allowedPages?: AdminPage[]) {
   return adminNavigation.filter((item) => {
+    if (item.id === "phone-order" && !item.roles.includes(role)) return false;
     if (item.page === null) return item.roles.includes(role);
     if (role === "SUPER_ADMIN") return true;
     if (allowedPages === undefined) return item.roles.includes(role);

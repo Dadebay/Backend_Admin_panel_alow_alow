@@ -3,7 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import { Prisma, type UserAddress } from "../generated/prisma/client";
+import { AddressLocationStatus, Prisma, type UserAddress } from "../generated/prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { CreateAddressDto, UpdateAddressDto } from "./addresses.dto";
 
@@ -14,8 +14,10 @@ export type OrderAddressInput = {
   deliveryEtrapId?: number;
   addressLabel?: string;
   address?: string;
+  addressLocationStatus?: AddressLocationStatus;
   latitude?: number;
   longitude?: number;
+  landmark?: string;
   entrance?: string;
   floor?: string;
   apartment?: string;
@@ -41,6 +43,7 @@ export class AddressesService {
       await this.lockUser(tx, userId);
       await this.assertCapacity(tx, userId);
       await this.assertDeliveryEtrap(tx, dto.deliveryEtrapId);
+      const location = this.locationData(dto);
       await tx.userAddress.updateMany({
         where: { userId, isActive: true },
         data: { isActive: false },
@@ -51,8 +54,8 @@ export class AddressesService {
           deliveryEtrapId: dto.deliveryEtrapId,
           label: dto.label,
           address: dto.address,
-          latitude: dto.latitude,
-          longitude: dto.longitude,
+          ...location,
+          landmark: dto.landmark,
           entrance: dto.entrance,
           floor: dto.floor,
           apartment: dto.apartment,
@@ -71,11 +74,11 @@ export class AddressesService {
 
     return this.prisma.$transaction(async (tx) => {
       await this.lockUser(tx, userId);
-      await this.findOwned(tx, userId, id);
+      const existing = await this.findOwned(tx, userId, id);
       await this.assertDeliveryEtrap(tx, dto.deliveryEtrapId);
       const address = await tx.userAddress.update({
         where: { id },
-        data: this.addressData(dto),
+        data: this.addressData(dto, existing),
       });
       await this.audit(tx, userId, "address.updated", id);
       return address;
@@ -134,8 +137,10 @@ export class AddressesService {
     const inlineFields = [
       input.addressLabel,
       input.address,
+      input.addressLocationStatus,
       input.latitude,
       input.longitude,
+      input.landmark,
       input.entrance,
       input.floor,
       input.apartment,
@@ -147,14 +152,14 @@ export class AddressesService {
         "Provide addressId or a new address, not both",
       );
     }
-    if (
-      hasInlineAddress &&
-      (!input.address ||
-        input.latitude == null ||
-        input.longitude == null)
-    ) {
-      throw new BadRequestException(
-        "A new address requires address, latitude and longitude",
+    if (hasInlineAddress) {
+      if (!input.address?.trim()) {
+        throw new BadRequestException("A new address requires address text");
+      }
+      this.assertLocation(
+        input.addressLocationStatus ?? AddressLocationStatus.MAP_CONFIRMED,
+        input.latitude,
+        input.longitude,
       );
     }
 
@@ -205,12 +210,16 @@ export class AddressesService {
 
     // Mobile clients can submit the same inline address on every checkout.
     // Compare at PostgreSQL's coordinate precision before consuming a slot.
+    const locationStatus = input.addressLocationStatus ?? AddressLocationStatus.MAP_CONFIRMED;
     const candidates = await tx.userAddress.findMany({
-      where: {
-        userId,
-        latitude: new Prisma.Decimal(input.latitude!).toDecimalPlaces(7),
-        longitude: new Prisma.Decimal(input.longitude!).toDecimalPlaces(7),
-      },
+      where: locationStatus === AddressLocationStatus.MANUAL_UNVERIFIED
+        ? { userId, locationStatus }
+        : {
+            userId,
+            locationStatus,
+            latitude: new Prisma.Decimal(input.latitude!).toDecimalPlaces(7),
+            longitude: new Prisma.Decimal(input.longitude!).toDecimalPlaces(7),
+          },
       orderBy: [
         { isActive: "desc" },
         { lastUsedAt: { sort: "desc", nulls: "last" } },
@@ -220,7 +229,7 @@ export class AddressesService {
     });
     const normalize = (value: string | null | undefined) => value?.trim() || null;
     const existing = candidates.find((candidate) =>
-      (["address", "entrance", "floor", "apartment"] as const).every(
+      (["address", "landmark", "entrance", "floor", "apartment"] as const).every(
         (field) => normalize(candidate[field]) === normalize(input[field]),
       ),
     );
@@ -254,8 +263,10 @@ export class AddressesService {
         deliveryEtrapId: input.deliveryEtrapId,
         label: input.addressLabel,
         address: input.address!,
-        latitude: input.latitude!,
-        longitude: input.longitude!,
+        locationStatus,
+        latitude: locationStatus === AddressLocationStatus.MANUAL_UNVERIFIED ? null : input.latitude!,
+        longitude: locationStatus === AddressLocationStatus.MANUAL_UNVERIFIED ? null : input.longitude!,
+        landmark: input.landmark,
         entrance: input.entrance,
         floor: input.floor,
         apartment: input.apartment,
@@ -267,19 +278,49 @@ export class AddressesService {
     return created;
   }
 
-  private addressData(dto: UpdateAddressDto) {
+  private addressData(dto: UpdateAddressDto, existing: UserAddress) {
+    const location = this.locationData(dto, existing);
     return {
       ...(dto.deliveryEtrapId !== undefined
         ? { deliveryEtrapId: dto.deliveryEtrapId }
         : {}),
       ...(dto.label !== undefined ? { label: dto.label } : {}),
       ...(dto.address !== undefined ? { address: dto.address } : {}),
-      ...(dto.latitude !== undefined ? { latitude: dto.latitude } : {}),
-      ...(dto.longitude !== undefined ? { longitude: dto.longitude } : {}),
+      ...location,
+      ...(dto.landmark !== undefined ? { landmark: dto.landmark } : {}),
       ...(dto.entrance !== undefined ? { entrance: dto.entrance } : {}),
       ...(dto.floor !== undefined ? { floor: dto.floor } : {}),
       ...(dto.apartment !== undefined ? { apartment: dto.apartment } : {}),
     };
+  }
+
+  private locationData(
+    dto: Pick<CreateAddressDto, "locationStatus" | "latitude" | "longitude">,
+    existing?: UserAddress,
+  ) {
+    const locationStatus = dto.locationStatus ?? existing?.locationStatus ?? AddressLocationStatus.MAP_CONFIRMED;
+    if (locationStatus === AddressLocationStatus.MANUAL_UNVERIFIED) {
+      this.assertLocation(locationStatus, dto.latitude, dto.longitude);
+      return { locationStatus, latitude: null, longitude: null };
+    }
+    const latitude = dto.latitude ?? existing?.latitude ?? null;
+    const longitude = dto.longitude ?? existing?.longitude ?? null;
+    this.assertLocation(locationStatus, latitude, longitude);
+    return { locationStatus, latitude, longitude };
+  }
+
+  private assertLocation(
+    status: AddressLocationStatus,
+    latitude: number | Prisma.Decimal | null | undefined,
+    longitude: number | Prisma.Decimal | null | undefined,
+  ) {
+    const hasLatitude = latitude !== null && latitude !== undefined;
+    const hasLongitude = longitude !== null && longitude !== undefined;
+    if (status === AddressLocationStatus.MANUAL_UNVERIFIED) {
+      if (hasLatitude || hasLongitude) throw new BadRequestException("A manual unverified address must not include map coordinates");
+      return;
+    }
+    if (!hasLatitude || !hasLongitude) throw new BadRequestException("A map-confirmed or pinned address requires latitude and longitude");
   }
 
   private async lockUser(tx: Prisma.TransactionClient, userId: string) {

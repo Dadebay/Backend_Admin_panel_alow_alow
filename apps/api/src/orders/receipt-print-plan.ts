@@ -1,4 +1,5 @@
 import {
+  AddressLocationStatus,
   OrderStatus,
   ReceiptPrinterTransport,
 } from "../generated/prisma/client";
@@ -103,6 +104,8 @@ export function buildReceiptPrintMetadata(
       lastName: string | null;
     };
     address: string;
+    addressLocationStatus: AddressLocationStatus;
+    addressLandmark: string | null;
     entrance: string | null;
     floor: string | null;
     apartment: string | null;
@@ -123,6 +126,12 @@ export function buildReceiptPrintMetadata(
     address: order.address,
     addressDetails:
       [
+        order.addressLocationStatus === AddressLocationStatus.MANUAL_UNVERIFIED
+          ? "Адрес со слов клиента · точка на карте не проверена"
+          : order.addressLocationStatus === AddressLocationStatus.PIN_DROPPED
+            ? "Точка поставлена вручную"
+            : null,
+        order.addressLandmark ? `Ориентир: ${order.addressLandmark}` : null,
         order.entrance ? `Подъезд: ${order.entrance}` : null,
         order.floor ? `Этаж: ${order.floor}` : null,
         order.apartment ? `Кв.: ${order.apartment}` : null,

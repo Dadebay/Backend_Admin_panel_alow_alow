@@ -1,4 +1,5 @@
 import { lazy, Suspense, useCallback, useMemo, useState } from "react";
+import { Link } from "react-router";
 import { zodResolver } from "@hookform/resolvers/zod";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useForm } from "react-hook-form";
@@ -48,7 +49,6 @@ import { OrderDetailDialog } from "./order-detail-dialog";
 import { OrderKanban } from "./order-kanban";
 import { OrderPackingChecklist } from "./order-packing-checklist";
 
-const AssistedOrderDialog = lazy(() => import("@/src/widgets/assisted-order"));
 const OrderCompleteDialog = lazy(() =>
   import("@/src/features/order-management/completion").then((module) => ({ default: module.OrderCompleteDialog })),
 );
@@ -142,7 +142,6 @@ export function OrderBoard({
   const [completingOrder, setCompletingOrder] = useState<Order | null>(null);
   const [completionNotice, setCompletionNotice] = useState("");
   const [printOrder, setPrintOrder] = useState<Order | null>(null);
-  const [showAssistedOrder, setShowAssistedOrder] = useState(false);
   const [courierByOrder, setCourierByOrder] = useState<Record<string, string>>(
     {},
   );
@@ -571,14 +570,9 @@ export function OrderBoard({
             </div>
           )}
           {["OPERATOR", "ADMIN", "SUPER_ADMIN"].includes(role) && (
-            <button
-              className="primary-button"
-              data-testid="assisted-order-open"
-              type="button"
-              onClick={() => setShowAssistedOrder(true)}
-            >
+            <Link className="primary-button link-button" data-testid="assisted-order-open" to="/orders/new">
               + Заказ по звонку
-            </button>
+            </Link>
           )}
           <button
             className="secondary-button"
@@ -871,13 +865,6 @@ export function OrderBoard({
               onClose={() => setEditingOrder(null)}
             />
           )}
-        </Suspense>
-      )}
-      {showAssistedOrder && (
-        <Suspense
-          fallback={<div className="async-state">Открываем форму заказа…</div>}
-        >
-          <AssistedOrderDialog onClose={() => setShowAssistedOrder(false)} />
         </Suspense>
       )}
     </section>

@@ -40,6 +40,18 @@ export const assistedOrderFormSchema = z.object({
     .max(40, "Не больше 40 символов")
     .transform((value) => value.toUpperCase() || undefined),
   addressSearch: z.string().trim().max(160, "Не больше 160 символов"),
+  deliveryPriceMode: z.enum(["AUTO", "MANUAL"]),
+  manualDeliveryFee: z.string().trim(),
+  manualDeliveryReason: z.string().trim().max(200, "Не больше 200 символов"),
+}).superRefine((values, context) => {
+  if (values.deliveryPriceMode !== "MANUAL") return;
+  const fee = values.manualDeliveryFee.replace(",", ".");
+  if (!/^\d+(?:\.\d{1,2})?$/.test(fee) || Number(fee) > 10000) {
+    context.addIssue({ code: "custom", path: ["manualDeliveryFee"], message: "Введите сумму от 0 до 10 000 TMT, не больше 2 знаков после запятой" });
+  }
+  if (values.manualDeliveryReason.length < 5) {
+    context.addIssue({ code: "custom", path: ["manualDeliveryReason"], message: "Укажите причину (не меньше 5 символов)" });
+  }
 });
 
 export type AssistedOrderFormInput = z.input<typeof assistedOrderFormSchema>;

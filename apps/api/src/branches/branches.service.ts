@@ -150,4 +150,13 @@ export class BranchesService {
     }
     return nearest;
   }
+
+  async findFallbackActive(tx: Prisma.TransactionClient) {
+    const branch = await tx.branch.findFirst({
+      where: { isActive: true },
+      orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }, { id: "asc" }],
+    });
+    if (!branch) throw new ConflictException("No active branch can accept orders");
+    return { branch, distanceMeters: null };
+  }
 }

@@ -5,7 +5,7 @@ import {
   type LazyExoticComponent,
   type ReactNode,
 } from "react";
-import { BrowserRouter, Link, Navigate, Route, Routes } from "react-router";
+import { BrowserRouter, Link, Navigate, Route, Routes, useNavigate } from "react-router";
 import {
   AdminDashboard,
   adminNavigation,
@@ -97,6 +97,18 @@ const CourierTrackingScreen = lazy(() =>
     default: module.CourierTrackingScreen,
   })),
 );
+
+const AssistedOrderScreen = lazy(() => import("@/src/widgets/assisted-order"));
+const phoneOrderNavigationItem = adminNavigation.find((item) => item.id === "phone-order");
+
+function NewAssistedOrderRoute() {
+  const navigate = useNavigate();
+  const { session } = useSession();
+  if (!session || !["OPERATOR", "ADMIN", "SUPER_ADMIN"].includes(session.user.role)) {
+    return <Navigate replace to="/orders" />;
+  }
+  return <AssistedOrderScreen onClose={() => navigate("/orders")} />;
+}
 
 function RouteFallback() {
   return (
@@ -197,10 +209,11 @@ function RoleProtectedView({
   navigationItem: AdminNavigationItem;
   children: ReactNode;
 }) {
-  const { session } = useSession();
+  const { session, ready } = useSession();
   const pageAccess = useMyAdminPageAccess();
 
-  if (!session) return null;
+  if (!ready) return <RouteFallback />;
+  if (!session) return <Navigate replace to="/orders" />;
   if (pageAccess.isPending) return <RouteFallback />;
   if (pageAccess.isError || !pageAccess.data) return <PageAccessLoadError />;
   const allowedNavigation = navigationForRole(
@@ -260,8 +273,19 @@ function AdminRoutes() {
       <Route path="/" element={<RootRedirect />} />
       <Route path="/courier" element={<CourierRoute />} />
       <Route path="/access-denied" element={<NoPageAccess />} />
+      {phoneOrderNavigationItem && (
+        <Route
+          path="/orders/new"
+          element={
+            <RoleProtectedView navigationItem={phoneOrderNavigationItem}>
+              <NewAssistedOrderRoute />
+            </RoleProtectedView>
+          }
+        />
+      )}
       <Route element={<AdminDashboard />}>
         {adminNavigation.map((navigationItem) => {
+          if (navigationItem.id === "phone-order") return null;
           const Component = adminRouteComponents[navigationItem.id];
           return (
             <Route

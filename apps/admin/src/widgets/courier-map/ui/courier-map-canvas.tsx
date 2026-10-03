@@ -26,9 +26,14 @@ import type {
   CourierRouteOverlay,
   DispatchBranchDto,
   DispatchCourier,
+  DispatchOrder,
 } from "../model/map-types";
 
 const ASHGABAT_CENTER: LatLngTuple = [37.9601, 58.3261];
+
+function hasMapPoint(order: DispatchOrder): order is DispatchOrder & { latitude: number; longitude: number } {
+  return order.latitude !== null && order.longitude !== null;
+}
 function FitMap({ points, scope }: { points: LatLngTuple[]; scope: string }) {
   const map = useMap();
   const fittedScope = useRef<string | null>(null);
@@ -156,7 +161,7 @@ export default function CourierMapCanvas({
     points.push([branch.latitude, branch.longitude]);
   for (const { stops } of stopGroups)
     for (const order of stops) {
-      points.push([order.latitude, order.longitude]);
+      if (hasMapPoint(order)) points.push([order.latitude, order.longitude]);
       if (order.branch?.latitude != null && order.branch.longitude != null)
         points.push([order.branch.latitude, order.branch.longitude]);
     }
@@ -221,7 +226,7 @@ export default function CourierMapCanvas({
         </CircleMarker>
       ))}
       {stopGroups.flatMap(({ color, courier, stops }) =>
-        stops.map((order) => (
+        stops.filter(hasMapPoint).map((order) => (
           <CircleMarker
             key={order.id}
             center={[order.latitude, order.longitude]}

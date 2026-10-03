@@ -159,6 +159,7 @@ export class DeliveryService {
     at = new Date(),
     coordinates?: DeliveryZonePoint,
     distanceMeters?: number,
+    options: { allowManualFallback?: boolean } = {},
   ) {
     const settings = await tx.deliverySettings.findUnique({
       where: { id: SETTINGS_ID },
@@ -197,6 +198,7 @@ export class DeliveryService {
         subtotal,
         at,
         distanceMeters ?? nearest?.distanceMeters,
+        options.allowManualFallback ?? false,
       ),
       etrap,
     };
@@ -217,10 +219,11 @@ export class DeliveryService {
     subtotal: number,
     at: Date,
     distanceMeters?: number,
+    allowManualFallback = false,
   ) {
     const period = resolveDeliveryPeriod(settings, at);
     const night = period.tariff === "NIGHT";
-    if (settings.distancePricingEnabled) {
+    if (settings.distancePricingEnabled && !(distanceMeters === undefined && allowManualFallback)) {
       if (distanceMeters === undefined)
         throw new BadRequestException(
           "Coordinates are required for kilometer delivery pricing",

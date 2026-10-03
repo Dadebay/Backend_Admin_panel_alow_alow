@@ -8,6 +8,7 @@ import {
   Max,
   Min,
 } from "class-validator";
+import { AddressLocationStatus } from "../generated/prisma/client";
 
 export class UpdateCourierLocationDto {
   @ApiProperty({ example: 37.9601 })
@@ -169,11 +170,17 @@ export class DispatchOrderDto {
   @ApiProperty()
   address: string;
 
-  @ApiProperty()
-  latitude: number;
+  @ApiProperty({ enum: AddressLocationStatus })
+  addressLocationStatus: AddressLocationStatus;
 
-  @ApiProperty()
-  longitude: number;
+  @ApiProperty({ type: Number, nullable: true })
+  latitude: number | null;
+
+  @ApiProperty({ type: Number, nullable: true })
+  longitude: number | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  addressLandmark: string | null;
 
   @ApiProperty({ type: DispatchOrderBranchDto, nullable: true })
   branch: DispatchOrderBranchDto | null;

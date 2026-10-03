@@ -10,6 +10,7 @@ import {
 const expectedPaths = {
   "login-attempts": "/login-attempts",
   orders: "/orders",
+  "phone-order": "/orders/new",
   accounting: "/accounting",
   "meal-config": "/meal-config",
   map: "/couriers/map",
@@ -74,6 +75,7 @@ test("the SPA uses history routing, role guards and a nested admin layout", asyn
   assert.match(appSource, /<BrowserRouter>/);
   assert.match(appSource, /<Routes>/);
   assert.match(appSource, /adminNavigation\.map/);
+  assert.match(appSource, /path="\/orders\/new"/);
   assert.match(appSource, /navigationForRole\(/);
   assert.match(appSource, /pageAccess\.data\.allowedPages/);
   assert.match(appSource, /function RootRedirect/);

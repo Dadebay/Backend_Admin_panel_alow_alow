@@ -489,6 +489,9 @@ test("assisted order keeps the optional unofficial address and always builds a d
     customerNote: " позвонить ",
     promoCode: " welcome15 ",
     addressSearch: "",
+    deliveryPriceMode: "AUTO",
+    manualDeliveryFee: "",
+    manualDeliveryReason: "",
   });
 
   assert.equal(parsed.customerPhone, "+99365123456");
@@ -510,6 +513,9 @@ test("assisted order keeps the optional unofficial address and always builds a d
       customerNote: "",
       promoCode: "",
       addressSearch: "",
+      deliveryPriceMode: "AUTO",
+      manualDeliveryFee: "",
+      manualDeliveryReason: "",
     }).deliveryEtrapId,
     undefined,
   );
@@ -562,6 +568,9 @@ test("assisted address details never move the marker and changed saved details a
     customerNote: "",
     promoCode: "",
     addressSearch: "",
+    deliveryPriceMode: "AUTO",
+    manualDeliveryFee: "",
+    manualDeliveryReason: "",
   });
 
   assert.deepEqual(

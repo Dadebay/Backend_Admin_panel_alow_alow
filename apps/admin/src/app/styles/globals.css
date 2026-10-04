@@ -7176,6 +7176,70 @@ button:disabled {
   .assisted-address-method-options { grid-template-columns: 1fr; }
 }
 
+/* Editing has a scrollable form and a persistent action row. The assisted-order
+   composer uses the same card styles but owns a different, clipped layout. */
+.order-admin-edit-modal {
+  width: min(1180px, 100%);
+  height: calc(100dvh - 40px);
+  max-height: calc(100dvh - 40px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.order-admin-edit-modal > .modal-head {
+  flex: 0 0 auto;
+  margin-bottom: 12px;
+}
+
+.order-admin-edit-modal > form {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.order-admin-edit-modal .assisted-order-layout {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-content: start;
+  align-items: start;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.order-admin-edit-modal .modal-actions {
+  flex: 0 0 auto;
+  margin-top: 12px;
+  background: var(--canvas);
+}
+
+@media (max-width: 980px) {
+  .order-admin-edit-modal .assisted-order-layout {
+    display: block;
+  }
+
+  .order-admin-edit-modal .assisted-order-card + .assisted-order-card {
+    margin-top: 12px;
+  }
+}
+
+@media (max-width: 620px) {
+  .order-admin-edit-backdrop { padding: 0; }
+
+  .order-admin-edit-modal {
+    height: 100dvh;
+    max-height: 100dvh;
+  }
+
+  .order-admin-edit-modal .modal-actions {
+    flex-wrap: wrap;
+  }
+}
+
 .editor-card > .primary-button {
   justify-self: start;
 }

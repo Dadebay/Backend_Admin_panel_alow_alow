@@ -225,7 +225,7 @@ function MappedOrderAdminEditDialog({
   }
 
   return (
-    <div className="modal-backdrop" data-testid="order-admin-edit-dialog">
+    <div className="modal-backdrop order-admin-edit-backdrop" data-testid="order-admin-edit-dialog">
       <section
         aria-labelledby="order-admin-edit-title"
         aria-modal="true"
@@ -259,6 +259,7 @@ function MappedOrderAdminEditDialog({
                     <div className="quantity-stepper">
                       <button
                         type="button"
+                        aria-label={`Убрать ${item.name}`}
                         onClick={() => changeQuantity(item.key, -1)}
                       >
                         −
@@ -266,6 +267,7 @@ function MappedOrderAdminEditDialog({
                       <strong>{item.quantity}</strong>
                       <button
                         type="button"
+                        aria-label={`Добавить ${item.name}`}
                         onClick={() => changeQuantity(item.key, 1)}
                       >
                         +
@@ -279,6 +281,8 @@ function MappedOrderAdminEditDialog({
               )}
               <div className="assisted-customer-search">
                 <select
+                  aria-label="Блюдо для добавления"
+                  data-testid="order-admin-edit-product-select"
                   value={productToAdd}
                   onChange={(event) => setProductToAdd(event.target.value)}
                 >
@@ -291,6 +295,7 @@ function MappedOrderAdminEditDialog({
                 </select>
                 <button
                   className="secondary-button"
+                  data-testid="order-admin-edit-add-product"
                   type="button"
                   disabled={!productToAdd}
                   onClick={addProduct}

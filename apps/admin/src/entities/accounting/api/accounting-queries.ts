@@ -2,30 +2,16 @@ import { useQuery } from "@tanstack/react-query";
 import { useSession } from "@/src/shared/auth";
 import type {
   AccountingReport,
-  AccountingSettings,
   AccountingShift,
 } from "../model/types";
 
 export const accountingQueryKeys = {
   all: ["accounting"] as const,
-  settings: (userId: string) =>
-    [...accountingQueryKeys.all, "settings", userId] as const,
   shifts: (userId: string, fromDate: string, toDate: string) =>
     [...accountingQueryKeys.all, "shifts", userId, fromDate, toDate] as const,
   report: (userId: string, fromDate: string, toDate: string) =>
     [...accountingQueryKeys.all, "report", userId, fromDate, toDate] as const,
 };
-
-export function useAccountingSettings() {
-  const { session, authorizedRequest } = useSession();
-  return useQuery({
-    queryKey: accountingQueryKeys.settings(session?.user.id ?? "anonymous"),
-    queryFn: ({ signal }) =>
-      authorizedRequest<AccountingSettings>("/accounting/settings", { signal }),
-    enabled: Boolean(session),
-    staleTime: 60_000,
-  });
-}
 
 export function useAccountingShifts(fromDate: string, toDate: string) {
   const { session, authorizedRequest } = useSession();
@@ -37,7 +23,7 @@ export function useAccountingShifts(fromDate: string, toDate: string) {
       toDate,
     ),
     queryFn: ({ signal }) =>
-      authorizedRequest<AccountingShift[]>(`/accounting/shifts?${search}`, {
+      authorizedRequest<AccountingShift[]>(`/accounting/days?${search}`, {
         signal,
       }),
     enabled: Boolean(session),

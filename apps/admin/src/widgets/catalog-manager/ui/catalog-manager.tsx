@@ -924,10 +924,10 @@ export function CatalogManager() {
           }
           description={
             catalogDelete.kind === "category"
-              ? `Категория «${catalogDelete.name}» и все её блюда (${catalogDelete.productCount}) исчезнут из каталога.`
+              ? `Категория «${catalogDelete.name}» и все её блюда (${catalogDelete.productCount}) исчезнут из каталога. История заказов сохранится.`
               : `Блюдо «${catalogDelete.name}» исчезнет из каталога.`
           }
-          note="Если блюдо уже есть в истории заказов, API сохранит данные и откажет в удалении. В таком случае используйте «Скрыть». Изображения останутся в приватном хранилище."
+          note={catalogDelete.kind === "category" ? "Блюда, история заказов и изображения сохранятся для учёта." : "Если блюдо уже есть в истории заказов, API сохранит данные и откажет в удалении. Изображения останутся в приватном хранилище."}
           error={
             errorMessage(
               actions.deleteCategory.error || actions.deleteProduct.error,

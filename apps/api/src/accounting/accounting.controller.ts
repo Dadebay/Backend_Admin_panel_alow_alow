@@ -21,7 +21,6 @@ import {
   AccountingRangeQueryDto,
   ConfirmCashHandoffDto,
   SubmitCashHandoffDto,
-  UpdateAccountingSettingsDto,
 } from "./accounting.dto";
 import {
   AccountingReportResponseDto,
@@ -41,32 +40,31 @@ export class AccountingController {
   @Roles(Role.ACCOUNTANT, Role.ADMIN)
   @AdminPages(AdminPage.ACCOUNTING)
   @ApiOperation({
-    summary: "Get the configurable Ashgabat cash shift schedule",
+    summary: "Read the legacy shift schedule for historical accounting periods",
   })
   @ApiOkResponse({ type: AccountingSettingsResponseDto })
   settings() {
     return this.accounting.settings();
   }
 
-  @Patch("settings")
-  @Roles(Role.SUPER_ADMIN)
+  @Get("days")
+  @Roles(Role.ACCOUNTANT, Role.ADMIN)
+  @AdminPages(AdminPage.ACCOUNTING)
   @ApiOperation({
-    summary: "Update shift names and boundaries for future handoffs",
+    summary: "List Ashgabat calendar-day food revenue and cash handoff state",
   })
-  @ApiOkResponse({ type: AccountingSettingsResponseDto })
-  updateSettings(
-    @CurrentUser() actor: AuthUser,
-    @Body() dto: UpdateAccountingSettingsDto,
-  ) {
-    return this.accounting.updateSettings(actor, dto);
+  @ApiOkResponse({ type: [AccountingShiftResponseDto] })
+  shifts(@Query() query: AccountingRangeQueryDto) {
+    return this.accounting.shifts(query);
   }
 
+  // Legacy route retained for clients deployed before the daily accounting change.
   @Get("shifts")
   @Roles(Role.ACCOUNTANT, Role.ADMIN)
   @AdminPages(AdminPage.ACCOUNTING)
-  @ApiOperation({ summary: "List shift totals and cash handoff state" })
+  @ApiOperation({ summary: "Legacy alias for daily cash totals" })
   @ApiOkResponse({ type: [AccountingShiftResponseDto] })
-  shifts(@Query() query: AccountingRangeQueryDto) {
+  legacyShifts(@Query() query: AccountingRangeQueryDto) {
     return this.accounting.shifts(query);
   }
 
@@ -74,7 +72,7 @@ export class AccountingController {
   @Roles(Role.ADMIN)
   @AdminPages(AdminPage.ACCOUNTING)
   @ApiOperation({
-    summary: "Submit one completed shift cash packet to accounting",
+    summary: "Submit one completed calendar day's cash to accounting",
   })
   @ApiOkResponse({ type: CashHandoffResponseDto })
   submit(@CurrentUser() actor: AuthUser, @Body() dto: SubmitCashHandoffDto) {

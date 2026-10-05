@@ -18,7 +18,6 @@ import {
   type AccountingRangeQueryDto,
   type ConfirmCashHandoffDto,
   type SubmitCashHandoffDto,
-  type UpdateAccountingSettingsDto,
 } from "./accounting.dto";
 import {
   ACCOUNTING_TIME_ZONE,
@@ -27,8 +26,7 @@ import {
   localDateForInstant,
   localDateRange,
   minutesToTime,
-  resolveShiftWindow,
-  timeToMinutes,
+  resolveDayWindow,
 } from "./accounting-period";
 
 const handoffInclude = {
@@ -117,66 +115,9 @@ export class AccountingService {
     return toApiResponse(this.settingsResponse(await this.settingsRecord()));
   }
 
-  async updateSettings(actor: AuthUser, dto: UpdateAccountingSettingsDto) {
-    const firstStart = timeToMinutes(dto.firstShiftStart);
-    const secondStart = timeToMinutes(dto.secondShiftStart);
-    const firstName = dto.firstShiftName.trim();
-    const secondName = dto.secondShiftName.trim();
-    if (!firstName || !secondName) {
-      throw new BadRequestException("Shift names cannot be empty");
-    }
-    if (firstStart >= secondStart) {
-      throw new BadRequestException(
-        "The first shift must start before the second shift",
-      );
-    }
-    const settings = await this.prisma.$transaction(async (tx) => {
-      const before = await tx.accountingSettings.findUnique({ where: { id: "default" } });
-      const updated = await tx.accountingSettings.upsert({
-        where: { id: "default" },
-        create: {
-          id: "default",
-          firstShiftName: firstName,
-          firstShiftStartMinutes: firstStart,
-          secondShiftName: secondName,
-          secondShiftStartMinutes: secondStart,
-        },
-        update: {
-          firstShiftName: firstName,
-          firstShiftStartMinutes: firstStart,
-          secondShiftName: secondName,
-          secondShiftStartMinutes: secondStart,
-        },
-      });
-      await tx.auditLog.create({
-        data: {
-          actorId: actor.id,
-          action: "accounting.settings_updated",
-          entityType: "AccountingSettings",
-          entityId: updated.id,
-          metadata: {
-            before: toApiResponse(before),
-            after: toApiResponse(updated),
-            firstShiftName: firstName,
-            firstShiftStart: dto.firstShiftStart,
-            secondShiftName: secondName,
-            secondShiftStart: dto.secondShiftStart,
-          },
-        },
-      });
-      return updated;
-    });
-    return toApiResponse(this.settingsResponse(settings));
-  }
-
   async shifts(query: AccountingRangeQueryDto) {
-    const settings = await this.settingsRecord();
     const range = this.range(query, 3, 366);
-    const windows = enumerateShiftWindows(
-      range.fromDate,
-      range.toDate,
-      settings,
-    );
+    const windows = enumerateShiftWindows(range.fromDate, range.toDate);
     const first = windows[0];
     const last = windows.at(-1);
     if (!first || !last) return [];
@@ -199,7 +140,9 @@ export class AccountingService {
         },
       }),
       this.prisma.cashHandoff.findMany({
-        where: { shiftKey: { in: windows.map(({ shiftKey }) => shiftKey) } },
+        where: {
+          periodStart: { gte: first.periodStart, lt: last.periodEnd },
+        },
         include: handoffInclude,
       }),
     ]);
@@ -210,6 +153,13 @@ export class AccountingService {
     return toApiResponse(
       windows.map((window) => {
         const handoff = handoffByShift.get(window.shiftKey) ?? null;
+        const historicalHandoffs = handoffs.filter(
+          (item) =>
+            item.shiftKey !== window.shiftKey &&
+            /:(first|second)$/.test(item.shiftKey) &&
+            localDateForInstant(item.periodStart) ===
+              window.shiftKey.slice(0, 10),
+        );
         const periodStart = handoff?.periodStart ?? window.periodStart;
         const periodEnd = handoff?.periodEnd ?? window.periodEnd;
         const shiftSettlements = settlements.filter(
@@ -230,36 +180,40 @@ export class AccountingService {
             ? "OPEN"
             : available.length
               ? "READY"
-              : "EMPTY";
+              : historicalHandoffs.some(
+                    (item) => item.status === CashHandoffStatus.SUBMITTED,
+                  )
+                ? "SUBMITTED"
+                : historicalHandoffs.length
+                  ? "CONFIRMED"
+                  : "EMPTY";
         return {
           ...window,
           shiftName: handoff?.shiftName ?? window.shiftName,
           periodStart,
           periodEnd,
           isComplete,
-          expectedAmount: handoff
-            ? Number(handoff.expectedAmount)
-            : decimalSum(shiftSettlements),
+          expectedAmount: decimalSum(shiftSettlements),
           availableAmount: decimalSum(available),
-          settlementCount: handoff?.settlementCount ?? shiftSettlements.length,
+          settlementCount: shiftSettlements.length,
           canSubmit: isComplete && !handoff && available.length > 0,
           state,
           handoff: handoff ? handoffResponse(handoff) : null,
+          historicalHandoffs: historicalHandoffs.map(handoffResponse),
         };
       }),
     );
   }
 
   async submit(actor: AuthUser, dto: SubmitCashHandoffDto) {
-    const settings = await this.settingsRecord();
-    let window: ReturnType<typeof resolveShiftWindow>;
+    let window: ReturnType<typeof resolveDayWindow>;
     try {
-      window = resolveShiftWindow(dto.shiftKey, settings);
+      window = resolveDayWindow(dto.shiftKey.slice(0, 10));
     } catch {
-      throw new BadRequestException("Invalid shift key");
+      throw new BadRequestException("Invalid accounting day");
     }
     if (window.periodEnd > new Date()) {
-      throw new ConflictException("The shift is still open");
+      throw new ConflictException("The day is still open");
     }
     try {
       const handoff = await this.prisma.$transaction(
@@ -268,7 +222,7 @@ export class AccountingService {
             where: { shiftKey: window.shiftKey },
           });
           if (exists)
-            throw new ConflictException("This shift was already submitted");
+            throw new ConflictException("This day was already submitted");
           const settlements = await tx.cashSettlement.findMany({
             where: {
               status: CashSettlementStatus.CONFIRMED,
@@ -282,7 +236,7 @@ export class AccountingService {
           });
           if (!settlements.length) {
             throw new ConflictException(
-              "This shift has no cash ready for handoff",
+              "This day has no cash ready for handoff",
             );
           }
           const expectedAmount = decimalSum(settlements);
@@ -309,7 +263,7 @@ export class AccountingService {
           });
           if (claimed.count !== settlements.length) {
             throw new ConflictException(
-              "Cash changed while the shift was submitted",
+              "Cash changed while the day was submitted",
             );
           }
           await tx.auditLog.create({
@@ -343,7 +297,7 @@ export class AccountingService {
           (error.code === "P2002" || error.code === "P2034"))
       ) {
         throw new ConflictException(
-          "This shift was already submitted or changed",
+          "This day was already submitted or changed",
         );
       }
       throw error;
@@ -454,55 +408,62 @@ export class AccountingService {
 
   async report(actor: AuthUser, query: AccountingRangeQueryDto) {
     const range = this.range(query, 7, 366);
-    const [settlements, handoffs, cancelledOrders, productGroups, createdOrders] =
-      await Promise.all([
-        this.prisma.cashSettlement.findMany({
-          where: {
-            operatorTakenAt: { gte: range.start, lt: range.end },
-            status: {
-              in: [
-                CashSettlementStatus.CONFIRMED,
-                CashSettlementStatus.RECONCILED,
-              ],
-            },
+    const [
+      settlements,
+      handoffs,
+      cancelledOrders,
+      productGroups,
+      createdOrders,
+    ] = await Promise.all([
+      this.prisma.cashSettlement.findMany({
+        where: {
+          operatorTakenAt: { gte: range.start, lt: range.end },
+          status: {
+            in: [
+              CashSettlementStatus.CONFIRMED,
+              CashSettlementStatus.RECONCILED,
+            ],
           },
-          select: {
-            amount: true,
-            status: true,
-            operatorTakenAt: true,
-            cashHandoffId: true,
-          },
-        }),
-        this.prisma.cashHandoff.findMany({
-          where: { periodStart: { gte: range.start, lt: range.end } },
-          include: handoffInclude,
-          orderBy: { periodStart: "desc" },
-        }),
-        this.prisma.order.count({
-          where: {
-            status: OrderStatus.CANCELLED,
-            createdAt: { gte: range.start, lt: range.end },
-          },
-        }),
-        (actor.role === Role.SUPER_ADMIN || actor.role === Role.ACCOUNTANT)
-          ? this.prisma.orderItem.groupBy({
-              by: ["productId", "productName"],
-              where: {
-                order: {
-                  cashSettlement: {
-                    is: {
-                      operatorTakenAt: { gte: range.start, lt: range.end },
-                    },
+        },
+        select: {
+          amount: true,
+          status: true,
+          operatorTakenAt: true,
+          cashHandoffId: true,
+        },
+      }),
+      this.prisma.cashHandoff.findMany({
+        where: { periodStart: { gte: range.start, lt: range.end } },
+        include: handoffInclude,
+        orderBy: { periodStart: "desc" },
+      }),
+      this.prisma.order.count({
+        where: {
+          status: OrderStatus.CANCELLED,
+          createdAt: { gte: range.start, lt: range.end },
+        },
+      }),
+      actor.role === Role.SUPER_ADMIN || actor.role === Role.ACCOUNTANT
+        ? this.prisma.orderItem.groupBy({
+            by: ["productId", "productName"],
+            where: {
+              order: {
+                cashSettlement: {
+                  is: {
+                    operatorTakenAt: { gte: range.start, lt: range.end },
                   },
                 },
               },
-              _sum: { quantity: true, lineTotal: true },
-              orderBy: { _sum: { quantity: "desc" } },
-              take: 10,
-            })
-          : Promise.resolve([]),
-        this.prisma.order.count({ where: { createdAt: { gte: range.start, lt: range.end } } }),
-      ]);
+            },
+            _sum: { quantity: true, lineTotal: true },
+            orderBy: { _sum: { quantity: "desc" } },
+            take: 10,
+          })
+        : Promise.resolve([]),
+      this.prisma.order.count({
+        where: { createdAt: { gte: range.start, lt: range.end } },
+      }),
+    ]);
     const collectedAmount = decimalSum(settlements);
     const submitted = settlements.filter(({ cashHandoffId }) => cashHandoffId);
     const reconciled = settlements.filter(
@@ -541,8 +502,14 @@ export class AccountingService {
       toDate: range.toDate,
       timeZone: ACCOUNTING_TIME_ZONE,
       summary: {
-        declaredHandoffAmount: decimalSum(handoffs.map((handoff) => ({ amount: handoff.declaredAmount }))),
-        handoffDiscrepancy: decimalSum(handoffs.map((handoff) => ({ amount: handoff.declaredAmount.minus(handoff.expectedAmount) }))),
+        declaredHandoffAmount: decimalSum(
+          handoffs.map((handoff) => ({ amount: handoff.declaredAmount })),
+        ),
+        handoffDiscrepancy: decimalSum(
+          handoffs.map((handoff) => ({
+            amount: handoff.declaredAmount.minus(handoff.expectedAmount),
+          })),
+        ),
         collectedAmount,
         completedOrders,
         averageOrderAmount: completedOrders
@@ -552,13 +519,9 @@ export class AccountingService {
         confirmedAmount: decimalSum(reconciled),
         outstandingAmount: decimalSum(outstanding),
         cancelledOrders,
-        cancellationRate:
-          createdOrders
-            ? Math.round(
-                (cancelledOrders / createdOrders) *
-                  10_000,
-              ) / 100
-            : 0,
+        cancellationRate: createdOrders
+          ? Math.round((cancelledOrders / createdOrders) * 10_000) / 100
+          : 0,
       },
       daily,
       handoffs: handoffs.map(handoffResponse),

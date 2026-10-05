@@ -5,7 +5,6 @@ import { useForm } from "react-hook-form";
 import {
   type AccountingShift,
   useAccountingReport,
-  useAccountingSettings,
   useAccountingShifts,
 } from "@/src/entities/accounting";
 import { useMyAdminPageAccess } from "@/src/entities/admin-page-access";
@@ -14,9 +13,7 @@ import { FormFieldError } from "@/src/shared/forms";
 import { useSession } from "@/src/shared/auth";
 import { AsyncPanel } from "@/src/shared/ui";
 import {
-  accountingSettingsSchema,
   cashHandoffSchema,
-  type AccountingSettingsValues,
   type CashHandoffValues,
 } from "../model/accounting-forms";
 
@@ -47,7 +44,7 @@ function periodLabel(start: string, end: string) {
 }
 
 const stateLabels: Record<AccountingShift["state"], string> = {
-  OPEN: "Смена идёт",
+  OPEN: "День ещё идёт",
   EMPTY: "Нет денег к сдаче",
   READY: "Готово к сдаче",
   SUBMITTED: "Передано бухгалтеру",
@@ -87,7 +84,6 @@ export function AccountingCash() {
   const [selectedShift, setSelectedShift] = useState<AccountingShift | null>(
     null,
   );
-  const settings = useAccountingSettings();
   const shifts = useAccountingShifts(range.fromDate, range.toDate);
   const report = useAccountingReport(
     range.fromDate,
@@ -95,29 +91,10 @@ export function AccountingCash() {
     hasExpandedAccess,
   );
   const actions = useAccountingActions();
-  const settingsForm = useForm<AccountingSettingsValues>({
-    resolver: zodResolver(accountingSettingsSchema),
-    defaultValues: {
-      firstShiftName: "",
-      firstShiftStart: "09:30",
-      secondShiftName: "",
-      secondShiftStart: "19:00",
-    },
-  });
   const handoffForm = useForm<CashHandoffValues>({
     resolver: zodResolver(cashHandoffSchema),
     defaultValues: { declaredAmount: 0, note: "" },
   });
-
-  useEffect(() => {
-    if (!settings.data || settingsForm.formState.isDirty) return;
-    settingsForm.reset({
-      firstShiftName: settings.data.firstShiftName,
-      firstShiftStart: settings.data.firstShiftStart,
-      secondShiftName: settings.data.secondShiftName,
-      secondShiftStart: settings.data.secondShiftStart,
-    });
-  }, [settings.data, settingsForm]);
 
   useEffect(() => {
     if (!selectedShift) return;
@@ -135,11 +112,6 @@ export function AccountingCash() {
       note: values.note || undefined,
     });
     setSelectedShift(null);
-  }
-
-  async function updateSettings(values: AccountingSettingsValues) {
-    await actions.updateSettings.mutateAsync(values);
-    settingsForm.reset(values);
   }
 
   const maxDaily = Math.max(
@@ -219,7 +191,7 @@ export function AccountingCash() {
                     <strong>
                       {money(report.data.summary.declaredHandoffAmount)}
                     </strong>
-                    <small>по пакетам смен, начавшихся в периоде</small>
+                    <small>по дневным сдачам за период</small>
                   </article>
                   <article
                     className={
@@ -290,7 +262,7 @@ export function AccountingCash() {
                   : "Пакеты еды на подтверждение"}
               </h2>
               <p>
-                Доставка исключена. Границы смен не меняют уже созданные пакеты.
+                Доставка исключена. День считается с 00:00 до 00:00 по Ашхабаду.
               </p>
             </div>
           </div>
@@ -303,7 +275,12 @@ export function AccountingCash() {
               >
                 <div className="accounting-shift-title">
                   <div>
-                    <strong>{shift.shiftName}</strong>
+                    <strong>
+                      За{" "}
+                      {new Date(
+                        `${shift.shiftKey.slice(0, 10)}T00:00:00Z`,
+                      ).toLocaleDateString("ru-RU", { timeZone: "UTC" })}
+                    </strong>
                     <small>
                       {periodLabel(shift.periodStart, shift.periodEnd)}
                     </small>
@@ -339,6 +316,32 @@ export function AccountingCash() {
                     )}
                   </div>
                 )}
+                {shift.historicalHandoffs.map((packet) => (
+                  <div className="accounting-handoff-detail" key={packet.id}>
+                    <span>
+                      Ранее передано:{" "}
+                      <strong>{money(packet.declaredAmount)}</strong>
+                    </span>
+                    <span>
+                      {periodLabel(packet.periodStart, packet.periodEnd)}
+                    </span>
+                    {canSeeReport && packet.status === "SUBMITTED" && (
+                      <button
+                        className="primary-button"
+                        disabled={actions.confirmHandoff.isPending}
+                        type="button"
+                        onClick={() =>
+                          void actions.confirmHandoff.mutateAsync({
+                            id: packet.id,
+                            body: {},
+                          })
+                        }
+                      >
+                        Подтвердить деньги
+                      </button>
+                    )}
+                  </div>
+                ))}
                 {(role === "ACCOUNTANT" || isSuperAdmin) && (
                   <button
                     className="secondary-button"
@@ -365,7 +368,7 @@ export function AccountingCash() {
                       });
                     }}
                   >
-                    Открыть заказы смены
+                    Открыть заказы дня
                   </button>
                 )}
                 {isAdmin && shift.canSubmit && (
@@ -400,7 +403,7 @@ export function AccountingCash() {
             ))}
           </div>
           {!shifts.data?.length && (
-            <p className="async-state">За выбранный период смен нет.</p>
+            <p className="async-state">За выбранный период данных нет.</p>
           )}
         </section>
       </AsyncPanel>
@@ -413,7 +416,7 @@ export function AccountingCash() {
         >
           <div className="editor-title">
             <div>
-              <h2>Сдать «{selectedShift.shiftName}»</h2>
+              <h2>Сдать деньги за день</h2>
               <p>
                 {periodLabel(
                   selectedShift.periodStart,
@@ -455,7 +458,7 @@ export function AccountingCash() {
             <div className="inline-alert" role="alert">
               {actions.submitHandoff.error instanceof Error
                 ? actions.submitHandoff.error.message
-                : "Не удалось сдать смену."}
+                : "Не удалось сдать деньги за день."}
             </div>
           )}
           <button
@@ -504,95 +507,6 @@ export function AccountingCash() {
             <p className="async-state">За период нет продаж.</p>
           )}
         </section>
-      )}
-
-      {isSuperAdmin && settings.data && (
-        <details className="accounting-settings-disclosure">
-          <summary data-testid="accounting-settings-toggle">
-            Настроить время смен
-          </summary>
-          <form
-            className="editor-card accounting-settings"
-            data-testid="accounting-settings-form"
-            onSubmit={settingsForm.handleSubmit(updateSettings)}
-          >
-            <div className="editor-title">
-              <div>
-                <h2>Настройка смен</h2>
-                <p>
-                  Время применяется к новым отчётным периодам, часовой пояс
-                  Asia/Ashgabat.
-                </p>
-              </div>
-            </div>
-            <div className="form-grid">
-              <label>
-                Первая смена
-                <input {...settingsForm.register("firstShiftName")} />
-                <FormFieldError
-                  message={
-                    settingsForm.formState.errors.firstShiftName?.message
-                  }
-                />
-              </label>
-              <label>
-                Начало
-                <input
-                  type="time"
-                  {...settingsForm.register("firstShiftStart")}
-                />
-                <FormFieldError
-                  message={
-                    settingsForm.formState.errors.firstShiftStart?.message
-                  }
-                />
-              </label>
-              <label>
-                Вторая смена
-                <input {...settingsForm.register("secondShiftName")} />
-                <FormFieldError
-                  message={
-                    settingsForm.formState.errors.secondShiftName?.message
-                  }
-                />
-              </label>
-              <label>
-                Начало
-                <input
-                  type="time"
-                  {...settingsForm.register("secondShiftStart")}
-                />
-                <FormFieldError
-                  message={
-                    settingsForm.formState.errors.secondShiftStart?.message
-                  }
-                />
-              </label>
-            </div>
-            {actions.updateSettings.error && (
-              <div className="inline-alert" role="alert">
-                {actions.updateSettings.error instanceof Error
-                  ? actions.updateSettings.error.message
-                  : "Не удалось сохранить смены."}
-              </div>
-            )}
-            {actions.updateSettings.isSuccess && (
-              <div className="inline-success" role="status">
-                Настройки смен сохранены.
-              </div>
-            )}
-            <button
-              className="primary-button"
-              disabled={
-                actions.updateSettings.isPending ||
-                !settingsForm.formState.isDirty
-              }
-              type="submit"
-            >
-              Сохранить смены
-            </button>
-          </form>
-        </details>
       )}
     </section>
   );

@@ -209,11 +209,10 @@ export class CatalogController {
   @Roles(Role.ADMIN)
   @AdminPages(AdminPage.CATALOG)
   @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: "Permanently delete an unused category" })
-  @ApiNoContentResponse({ description: "Category deleted" })
-  @ApiConflictResponse({
-    description: "Category contains a product referenced by order history",
+  @ApiOperation({
+    summary: "Remove a category from the catalog, retaining order history",
   })
+  @ApiNoContentResponse({ description: "Category archived" })
   deleteCategory(
     @CurrentUser() actor: AuthUser,
     @Param("id", ParseUUIDPipe) id: string,

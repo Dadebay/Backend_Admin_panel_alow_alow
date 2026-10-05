@@ -645,26 +645,16 @@ describe("complete catalog, order and multi-courier journey", () => {
     await request(server)
       .delete(`/api/v1/catalog/categories/${kitchenCategory.id}`)
       .set(bearer(tokens.admin))
-      .expect(409);
-    await request(server)
-      .patch(`/api/v1/catalog/products/${inheritedProduct.id}`)
-      .set(bearer(tokens.admin))
-      .send({ isActive: false })
-      .expect(200);
-    await request(server)
-      .patch(`/api/v1/catalog/categories/${kitchenCategory.id}`)
-      .set(bearer(tokens.admin))
-      .send({ isActive: false })
-      .expect(200);
+      .expect(204);
     const hiddenAdminCategoryResponse = await request(server)
       .get("/api/v1/catalog/admin/categories")
       .set(bearer(tokens.admin))
       .expect(200);
     expect(
-      (hiddenAdminCategoryResponse.body as CategoryResponse[]).find(
+      (hiddenAdminCategoryResponse.body as CategoryResponse[]).some(
         ({ id }) => id === kitchenCategory.id,
       ),
-    ).toMatchObject({ isActive: false });
+    ).toBe(false);
     const publicCategoriesResponse = await request(server)
       .get("/api/v1/catalog/categories")
       .expect(200);

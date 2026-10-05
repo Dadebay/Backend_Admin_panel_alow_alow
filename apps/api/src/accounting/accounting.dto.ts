@@ -11,7 +11,6 @@ import {
 } from "class-validator";
 
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;
-const timePattern = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
 
 export class AccountingRangeQueryDto {
   @ApiPropertyOptional({ example: "2026-08-20" })
@@ -25,29 +24,9 @@ export class AccountingRangeQueryDto {
   toDate?: string;
 }
 
-export class UpdateAccountingSettingsDto {
-  @ApiProperty({ example: "Дневная смена", maxLength: 80 })
-  @IsString()
-  @MaxLength(80)
-  firstShiftName: string;
-
-  @ApiProperty({ example: "09:30", pattern: timePattern.source })
-  @Matches(timePattern)
-  firstShiftStart: string;
-
-  @ApiProperty({ example: "Ночная смена", maxLength: 80 })
-  @IsString()
-  @MaxLength(80)
-  secondShiftName: string;
-
-  @ApiProperty({ example: "19:00", pattern: timePattern.source })
-  @Matches(timePattern)
-  secondShiftStart: string;
-}
-
 export class SubmitCashHandoffDto {
-  @ApiProperty({ example: "2026-08-25:first" })
-  @Matches(/^\d{4}-\d{2}-\d{2}:(first|second)$/)
+  @ApiProperty({ example: "2026-10-05:day" })
+  @Matches(/^\d{4}-\d{2}-\d{2}:day$/)
   shiftKey: string;
 
   @ApiPropertyOptional({ example: 1250.5, minimum: 0, maximum: 99999999 })

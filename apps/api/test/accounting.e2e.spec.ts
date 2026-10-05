@@ -37,7 +37,7 @@ type ReportResponse = {
   }>;
 };
 
-describe("shift cash handoffs and accounting reports", () => {
+describe("daily cash handoffs and accounting reports", () => {
   let app: INestApplication;
   let prisma: PrismaService;
   let jwt: JwtService;
@@ -142,59 +142,31 @@ describe("shift cash handoffs and accounting reports", () => {
     await app.close();
   });
 
-  it("denies settings and financial report mutations to the wrong roles", async () => {
-    const settings = await request(server)
+  it("keeps legacy settings read-only and denies financial reports to admins", async () => {
+    await request(server)
       .get("/api/v1/accounting/settings")
       .set(bearer(tokens.admin))
       .expect(200);
-    expect((settings.body as { firstShiftStart: string }).firstShiftStart).toBe(
-      "09:30",
-    );
-    await request(server)
-      .patch("/api/v1/accounting/settings")
-      .set(bearer(tokens.admin))
-      .send({
-        firstShiftName: "Day",
-        firstShiftStart: "09:30",
-        secondShiftName: "Night",
-        secondShiftStart: "19:00",
-      })
-      .expect(403);
     await request(server)
       .patch("/api/v1/accounting/settings")
       .set(bearer(tokens.superAdmin))
-      .send({
-        firstShiftName: "Дневная смена",
-        firstShiftStart: "19:00",
-        secondShiftName: "Ночная смена",
-        secondShiftStart: "09:30",
-      })
-      .expect(400);
-    await request(server)
-      .patch("/api/v1/accounting/settings")
-      .set(bearer(tokens.superAdmin))
-      .send({
-        firstShiftName: "Дневная смена",
-        firstShiftStart: "09:30",
-        secondShiftName: "Ночная смена",
-        secondShiftStart: "19:00",
-      })
-      .expect(200);
+      .send({ firstShiftName: "Changed" })
+      .expect(404);
     await request(server)
       .get("/api/v1/accounting/report?fromDate=2026-08-20&toDate=2026-08-20")
       .set(bearer(tokens.admin))
       .expect(403);
   });
 
-  it("submits one completed shift exactly once and reconciles it atomically", async () => {
+  it("submits one completed day exactly once and reconciles it atomically", async () => {
     const shifts = await request(server)
-      .get("/api/v1/accounting/shifts?fromDate=2026-08-20&toDate=2026-08-20")
+      .get("/api/v1/accounting/days?fromDate=2026-08-20&toDate=2026-08-20")
       .set(bearer(tokens.admin))
       .expect(200);
     expect(shifts.body).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          shiftKey: "2026-08-20:first",
+          shiftKey: "2026-08-20:day",
           state: "READY",
           expectedAmount: 250,
           settlementCount: 2,
@@ -226,14 +198,14 @@ describe("shift cash handoffs and accounting reports", () => {
       .post("/api/v1/accounting/handoffs")
       .set(bearer(tokens.admin))
       .send({
-        shiftKey: "2026-08-20:first",
+        shiftKey: "2026-08-20:day",
         declaredAmount: 249,
         note: "Short by 1",
       })
       .expect(201);
     const submitted = submittedResponse.body as HandoffResponse;
     expect(submitted).toMatchObject({
-      shiftKey: "2026-08-20:first",
+      shiftKey: "2026-08-20:day",
       expectedAmount: 250,
       declaredAmount: 249,
       settlementCount: 2,
@@ -242,7 +214,7 @@ describe("shift cash handoffs and accounting reports", () => {
     await request(server)
       .post("/api/v1/accounting/handoffs")
       .set(bearer(tokens.admin))
-      .send({ shiftKey: "2026-08-20:first" })
+      .send({ shiftKey: "2026-08-20:day" })
       .expect(409);
     await request(server)
       .patch(`/api/v1/accounting/handoffs/${submitted.id}/confirm`)
@@ -259,7 +231,9 @@ describe("shift cash handoffs and accounting reports", () => {
         .set(bearer(tokens.accountant))
         .send({ note: "Concurrent duplicate" }),
     ]);
-    expect(confirmations.map(({ status }) => status).sort()).toEqual([200, 409]);
+    expect(confirmations.map(({ status }) => status).sort()).toEqual([
+      200, 409,
+    ]);
     const confirmation = confirmations.find(({ status }) => status === 200);
     expect((confirmation?.body as HandoffResponse).status).toBe("CONFIRMED");
 
@@ -285,6 +259,77 @@ describe("shift cash handoffs and accounting reports", () => {
     ).toBe(true);
   });
 
+  it("keeps a pending historical shift packet visible and confirmable on its day", async () => {
+    const legacyHandoff = await prisma.cashHandoff.create({
+      data: {
+        shiftKey: "2026-08-19:first",
+        shiftName: "Дневная смена",
+        periodStart: new Date("2026-08-19T04:30:00.000Z"),
+        periodEnd: new Date("2026-08-19T14:00:00.000Z"),
+        submittedById: users.admin.id,
+        expectedAmount: 60,
+        declaredAmount: 60,
+        settlementCount: 1,
+      },
+    });
+    const legacyOrder = await prisma.order.create({
+      data: {
+        customerId: users.customer.id,
+        courierId: users.courier.id,
+        status: OrderStatus.CASH_RETURNED,
+        subtotal: 60,
+        total: 60,
+        address: "Historical handoff test address",
+        latitude: 37.95,
+        longitude: 58.38,
+        cashSettlement: {
+          create: {
+            courierId: users.courier.id,
+            amount: 60,
+            status: CashSettlementStatus.CONFIRMED,
+            operatorTakenAt: new Date("2026-08-19T05:00:00.000Z"),
+            cashHandoffId: legacyHandoff.id,
+          },
+        },
+      },
+    });
+
+    const days = await request(server)
+      .get("/api/v1/accounting/days?fromDate=2026-08-19&toDate=2026-08-19")
+      .set(bearer(tokens.accountant))
+      .expect(200);
+    expect(days.body).toEqual([
+      expect.objectContaining({
+        shiftKey: "2026-08-19:day",
+        expectedAmount: 60,
+        availableAmount: 0,
+        canSubmit: false,
+        state: "SUBMITTED",
+        historicalHandoffs: [
+          expect.objectContaining({
+            id: legacyHandoff.id,
+            shiftKey: "2026-08-19:first",
+            status: "SUBMITTED",
+          }),
+        ],
+      }),
+    ]);
+
+    await request(server)
+      .patch(`/api/v1/accounting/handoffs/${legacyHandoff.id}/confirm`)
+      .set(bearer(tokens.accountant))
+      .send({})
+      .expect(200);
+    expect(
+      await prisma.order.findUniqueOrThrow({ where: { id: legacyOrder.id } }),
+    ).toMatchObject({ status: OrderStatus.RECONCILED, version: 2 });
+    expect(
+      await prisma.cashHandoff.findUniqueOrThrow({
+        where: { id: legacyHandoff.id },
+      }),
+    ).toMatchObject({ shiftKey: "2026-08-19:first", status: "CONFIRMED" });
+  });
+
   it("shows financial data to accountants and product analytics to accountants and super admins", async () => {
     const accountant = await request(server)
       .get("/api/v1/accounting/report?fromDate=2026-08-20&toDate=2026-08-20")
@@ -299,7 +344,10 @@ describe("shift cash handoffs and accounting reports", () => {
       declaredHandoffAmount: 249,
       handoffDiscrepancy: -1,
     });
-    expect(accountantReport.popularProducts[0]).toMatchObject({ quantity: 3, revenue: 250 });
+    expect(accountantReport.popularProducts[0]).toMatchObject({
+      quantity: 3,
+      revenue: 250,
+    });
 
     const superAdmin = await request(server)
       .get("/api/v1/accounting/report?fromDate=2026-08-20&toDate=2026-08-20")

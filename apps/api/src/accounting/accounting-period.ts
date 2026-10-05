@@ -60,10 +60,13 @@ export function resolveShiftWindow(
   shiftKey: string,
   settings: AccountingShiftSettings,
 ): AccountingShiftWindow {
-  const match = /^(\d{4}-\d{2}-\d{2}):(first|second)$/.exec(shiftKey);
+  const match = /^(\d{4}-\d{2}-\d{2}):(day|first|second)$/.exec(shiftKey);
   if (!match) throw new Error("Invalid shift key");
   const localDate = match[1]!;
   parseLocalDate(localDate);
+  if (match[2] === "day") {
+    return resolveDayWindow(localDate);
+  }
   if (match[2] === "first") {
     return {
       shiftKey,
@@ -83,17 +86,22 @@ export function resolveShiftWindow(
   };
 }
 
-export function enumerateShiftWindows(
-  fromDate: string,
-  toDate: string,
-  settings: AccountingShiftSettings,
-) {
+export function resolveDayWindow(localDate: string): AccountingShiftWindow {
+  parseLocalDate(localDate);
+  return {
+    shiftKey: `${localDate}:day`,
+    shiftName: "За день",
+    periodStart: localDateTime(localDate, 0),
+    periodEnd: localDateTime(addLocalDays(localDate, 1), 0),
+  };
+}
+
+export function enumerateShiftWindows(fromDate: string, toDate: string) {
   parseLocalDate(fromDate);
   parseLocalDate(toDate);
   const windows: AccountingShiftWindow[] = [];
   for (let date = fromDate; date <= toDate; date = addLocalDays(date, 1)) {
-    windows.push(resolveShiftWindow(`${date}:first`, settings));
-    windows.push(resolveShiftWindow(`${date}:second`, settings));
+    windows.push(resolveDayWindow(date));
   }
   return windows;
 }

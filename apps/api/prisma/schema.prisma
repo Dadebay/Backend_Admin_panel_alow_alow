@@ -272,6 +272,7 @@ model Category {
   receiptPrinterIp String?         @db.VarChar(15)
   sortOrder        Int             @default(0)
   isActive         Boolean         @default(true)
+  deletedAt        DateTime?
   createdAt        DateTime        @default(now())
   updatedAt        DateTime        @updatedAt
   cafe             Cafe            @relation(fields: [cafeId], references: [id], onDelete: Restrict)
@@ -280,6 +281,7 @@ model Category {
 
   @@index([cafeId, isActive, sortOrder])
   @@index([isActive, sortOrder])
+  @@index([deletedAt])
   @@index([receiptPrinterId])
 }
 
@@ -543,7 +545,8 @@ model Order {
   printTasks           ReceiptPrintTask[]
   creationRequest      OrderCreationRequest?
   id                   String                      @id @default(uuid()) @db.Uuid
-  number               Int                         @unique @default(autoincrement())
+  number               Int                         @default(autoincrement())
+  numberDate           String?                     @db.VarChar(10)
   customerId           String                      @db.Uuid
   addressId            String?                     @db.Uuid
   branchId             String?                     @db.Uuid
@@ -600,6 +603,8 @@ model Order {
   cashSettlement       CashSettlement?
 
   @@index([createdAt, id])
+  @@unique([numberDate, number])
+  @@index([number])
   @@index([status, createdAt])
   @@index([customerId, createdAt])
   @@index([addressId])
@@ -607,6 +612,11 @@ model Order {
   @@index([branchId, status, createdAt])
   @@index([cookId, status])
   @@index([courierId, status, assignedAt])
+}
+
+model OrderDailyCounter {
+  date       String   @id @db.VarChar(10)
+  lastNumber Int
 }
 
 model OrderItem {

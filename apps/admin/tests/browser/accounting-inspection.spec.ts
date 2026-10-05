@@ -92,22 +92,13 @@ async function setup(page: Page) {
         editable: false,
         version: 1,
       };
-    else if (path === "/accounting/settings")
-      json = {
-        firstShiftName: "Дневная",
-        firstShiftStart: "09:30",
-        secondShiftName: "Ночная",
-        secondShiftStart: "19:00",
-        timeZone: "Asia/Ashgabat",
-        updatedAt: start,
-      };
-    else if (path === "/accounting/shifts")
+    else if (path === "/accounting/days")
       json = [
         {
-          shiftKey: "2025-02-01:first",
-          shiftName: "Дневная",
-          periodStart: start,
-          periodEnd: end,
+          shiftKey: "2025-02-01:day",
+          shiftName: "За день",
+          periodStart: "2025-01-31T19:00:00.000Z",
+          periodEnd: "2025-02-01T19:00:00.000Z",
           isComplete: true,
           expectedAmount: 100,
           availableAmount: 0,
@@ -115,6 +106,7 @@ async function setup(page: Page) {
           canSubmit: false,
           state: "CONFIRMED",
           handoff: null,
+          historicalHandoffs: [],
         },
       ];
     else if (path === "/accounting/report")
@@ -243,6 +235,7 @@ test("accountant inspects the calendar month, real query parameters, edits and c
   page,
 }, testInfo) => {
   const state = await setup(page);
+  const navigationStarted = Date.now();
   await page.goto("/accounting?fromDate=2025-02-01&toDate=2025-02-28");
   await expect(page.getByTestId("inspection-orders")).toContainText(
     "Заказ №520",
@@ -250,6 +243,7 @@ test("accountant inspects the calendar month, real query parameters, edits and c
   await expect(page.getByTestId("inspection-orders")).toContainText(
     "Марат Доставкин",
   );
+  const navigationReadyMs = Date.now() - navigationStarted;
   await page.screenshot({
     path: testInfo.outputPath("orders.png"),
     fullPage: true,
@@ -284,10 +278,14 @@ test("accountant inspects the calendar month, real query parameters, edits and c
       ),
     )
     .toBe(true);
+  const cashStarted = Date.now();
   await page.getByTestId("inspection-tab-shifts").click();
-  await page.getByTestId("accounting-inspect-2025-02-01:first").click();
+  await expect(page.getByTestId("accounting-shift-2025-02-01:day")).toBeVisible();
+  const cashReadyMs = Date.now() - cashStarted;
+  await expect(page.locator(".accounting-shift-card")).toHaveCount(1);
+  await page.getByTestId("accounting-inspect-2025-02-01:day").click();
   await expect(page.getByTestId("inspection-shift")).toHaveValue(
-    "2025-02-01:first",
+    "2025-02-01:day",
   );
   await page.getByTestId("inspection-tab-out").click();
   await expect(page.getByTestId("inspection-carryover")).toContainText(
@@ -373,6 +371,15 @@ test("accountant inspects the calendar month, real query parameters, edits and c
     fullPage: true,
   });
   expect(state.errors).toEqual([]);
+  expect(state.requests.some((path) => path.startsWith("/accounting/settings"))).toBe(false);
+  const dayRequests = state.requests.filter(
+    (path) => path === "/accounting/days?fromDate=2025-02-01&toDate=2025-02-01",
+  ).length;
+  expect(dayRequests).toBeLessThanOrEqual(process.env.ADMIN_QA_PRODUCTION === "1" ? 1 : 2);
+  await testInfo.attach("daily-accounting-metrics", {
+    body: JSON.stringify({ navigationReadyMs, cashReadyMs, dayRequests }),
+    contentType: "application/json",
+  });
 });
 
 test("overview failures can be retried and empty audit is explicit", async ({

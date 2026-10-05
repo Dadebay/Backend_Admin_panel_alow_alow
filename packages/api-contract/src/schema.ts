@@ -303,7 +303,7 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** Permanently delete an unused category */
+        /** Remove a category from the catalog, retaining order history */
         delete: operations["CatalogController_deleteCategory_v1"];
         options?: never;
         head?: never;
@@ -2138,15 +2138,31 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get the configurable Ashgabat cash shift schedule */
+        /** Read the legacy shift schedule for historical accounting periods */
         get: operations["AccountingController_settings_v1"];
         put?: never;
         post?: never;
         delete?: never;
         options?: never;
         head?: never;
-        /** Update shift names and boundaries for future handoffs */
-        patch: operations["AccountingController_updateSettings_v1"];
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/accounting/days": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Ashgabat calendar-day food revenue and cash handoff state */
+        get: operations["AccountingController_shifts_v1"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/accounting/shifts": {
@@ -2156,8 +2172,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List shift totals and cash handoff state */
-        get: operations["AccountingController_shifts_v1"];
+        /** Legacy alias for daily cash totals */
+        get: operations["AccountingController_legacyShifts_v1"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2175,7 +2191,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Submit one completed shift cash packet to accounting */
+        /** Submit one completed calendar day's cash to accounting */
         post: operations["AccountingController_submit_v1"];
         delete?: never;
         options?: never;
@@ -5078,16 +5094,6 @@ export interface components {
             /** Format: date-time */
             updatedAt: string;
         };
-        UpdateAccountingSettingsDto: {
-            /** @example Дневная смена */
-            firstShiftName: string;
-            /** @example 09:30 */
-            firstShiftStart: string;
-            /** @example Ночная смена */
-            secondShiftName: string;
-            /** @example 19:00 */
-            secondShiftStart: string;
-        };
         CashHandoffActorResponseDto: {
             /** Format: uuid */
             id: string;
@@ -5132,9 +5138,10 @@ export interface components {
             /** @enum {string} */
             state: "OPEN" | "EMPTY" | "READY" | "SUBMITTED" | "CONFIRMED";
             handoff?: components["schemas"]["CashHandoffResponseDto"] | null;
+            historicalHandoffs: components["schemas"]["CashHandoffResponseDto"][];
         };
         SubmitCashHandoffDto: {
-            /** @example 2026-08-25:first */
+            /** @example 2026-10-05:day */
             shiftKey: string;
             /** @example 1250.5 */
             declaredAmount?: number;
@@ -5928,15 +5935,8 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Category deleted */
+            /** @description Category archived */
             204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Category contains a product referenced by order history */
-            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -8802,30 +8802,29 @@ export interface operations {
             };
         };
     };
-    AccountingController_updateSettings_v1: {
+    AccountingController_shifts_v1: {
         parameters: {
-            query?: never;
+            query?: {
+                fromDate?: string;
+                toDate?: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;
         };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["UpdateAccountingSettingsDto"];
-            };
-        };
+        requestBody?: never;
         responses: {
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["AccountingSettingsResponseDto"];
+                    "application/json": components["schemas"]["AccountingShiftResponseDto"][];
                 };
             };
         };
     };
-    AccountingController_shifts_v1: {
+    AccountingController_legacyShifts_v1: {
         parameters: {
             query?: {
                 fromDate?: string;

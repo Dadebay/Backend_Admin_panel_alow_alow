@@ -111,6 +111,9 @@ export class AccountingShiftResponseDto {
 
   @ApiPropertyOptional({ type: CashHandoffResponseDto, nullable: true })
   handoff: CashHandoffResponseDto | null;
+
+  @ApiProperty({ type: [CashHandoffResponseDto] })
+  historicalHandoffs: CashHandoffResponseDto[];
 }
 
 export class AccountingReportSummaryResponseDto {

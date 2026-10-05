@@ -16,14 +16,13 @@ const actionUrl = new URL(
 );
 const stylesUrl = new URL("../src/app/styles/globals.css", import.meta.url);
 
-test("shift accounting uses the real API with role-scoped report loading", async () => {
+test("daily accounting uses the real API with role-scoped report loading", async () => {
   const [queries, actions] = await Promise.all([
     readFile(queryUrl, "utf8"),
     readFile(actionUrl, "utf8"),
   ]);
   for (const path of [
-    "/accounting/settings",
-    "/accounting/shifts?",
+    "/accounting/days?",
     "/accounting/report?",
   ]) {
     assert.ok(queries.includes(path), path);
@@ -41,17 +40,16 @@ test("the screen exposes distinct admin, accountant and super-admin duties", asy
   assert.match(source, /role === "SUPER_ADMIN"/);
   assert.match(source, /data-testid="accounting-handoff-form"/);
   assert.match(source, /data-testid=\{`accounting-confirm-/);
-  assert.match(source, /data-testid="accounting-settings-form"/);
+  assert.doesNotMatch(source, /data-testid="accounting-settings-form"/);
   assert.match(source, /data-testid="accounting-products"/);
   assert.match(source, /zodResolver\(accountingRangeSchema\)/);
-  assert.match(source, /zodResolver\(accountingSettingsSchema\)/);
   assert.match(source, /zodResolver\(cashHandoffSchema\)/);
   assert.match(source, /Бухгалтерия/);
   assert.match(source, /Доставка исключена/);
   assert.match(source, /Еда по системе/);
 });
 
-test("shift accounting collapses to one column on phones", async () => {
+test("daily accounting collapses to one column on phones", async () => {
   const styles = await readFile(stylesUrl, "utf8");
   assert.match(styles, /\.accounting-metrics\s*\{[^}]*grid-template-columns: repeat\(3,/s);
   assert.match(styles, /\.accounting-shift-grid\s*\{[^}]*grid-template-columns: repeat\(2,/s);

@@ -148,7 +148,7 @@ alowalow/
 │   │   │   └── seed.ts
 │   │   ├── src/
 │   │   │   ├── auth/      # OTP, JWT, refresh, Android pull SMS gateway
-│   │   │   ├── accounting/ # configurable shifts, cash handoffs, reports
+│   │   │   ├── accounting/ # Ashgabat calendar days, cash handoffs, reports
 │   │   │   ├── inventory/ # stock items, recipes, lot/location documents, order reservations and audit
 │   │   │   ├── users/     # staff, customer addresses and admin page-access policy
 │   │   │   ├── branches/  # branch CRUD and nearest-branch selection
@@ -226,12 +226,12 @@ Prisma access in React, or duplicate backend policies in client state.
   status mutation; packing confirmation is an administrator action.
 - `COURIER`: handles only assigned orders, confirms pickup and delivery, and
   confirms collected cash was returned.
-- `ACCOUNTANT`: sees the dedicated shift/cash workspace, read-only order details,
-  complete operational audit and shift/calendar-month analytics; verifies submitted
+- `ACCOUNTANT`: sees the dedicated daily cash workspace, read-only order details,
+  complete operational audit and day/calendar-month analytics; verifies submitted
   cash packets and performs final reconciliation for every included order.
 - `ADMIN`: operational administration, audited correction of active orders,
   backward workflow control before courier pickup, late cancellation before
-  cash return, and submission of completed-shift cash to accounting.
+  cash return, and submission of completed-day cash to accounting.
 - `SUPER_ADMIN`: owner-level administrator with all admin access and protected
   authority over the `SUPER_ADMIN` role.
 
@@ -289,9 +289,9 @@ see two active lanes: kitchen (`COOKING` and `READY`) and courier (assignment
 through delivery). Cash-returned, reconciled, and cancelled orders remain in
 one collapsed archive. The separate `/accounting` workspace is the only admin
 navigation item for `ACCOUNTANT`; it exposes financial summaries, submitted
-shift packets, read-only customer/order contents, business audit and shift carryover.
-`ADMIN` sees only shift totals and the amount to submit. `SUPER_ADMIN` sees the
-complete report, popular-product analytics, and shift settings. Frontend
+day packets, read-only customer/order contents, business audit and day carryover.
+`ADMIN` sees only daily totals and the amount to submit. `SUPER_ADMIN` sees the
+complete report and popular-product analytics. Frontend
 visibility is usability and data minimization only—the NestJS guards, role
 scope, and accounting/order policies remain authoritative.
 
@@ -561,23 +561,23 @@ also records the attested full received total. Award loyalty only when delivery
 had not already been recorded. Existing shift-packet reconciliation remains
 authoritative. Rejected/stale requests leave all business records unchanged.
 
-## Shift cash handoff and reports
+## Daily cash handoff and reports
 
-Cash settlement remains order-specific, while delivery to accounting is
-grouped by a configurable shift. The singleton schedule uses
-`Asia/Ashgabat`: defaults are `09:30–19:00` and `19:00–09:30` on the following
-day. Only `SUPER_ADMIN` may change the two names and boundaries. A setting
-change never rewrites an already submitted packet because every `CashHandoff`
-snapshots its shift name, start, end, expected amount and order count.
+Cash settlement remains order-specific. New handoffs are grouped by one
+calendar day, 00:00–00:00 in `Asia/Ashgabat`; there are no operational shifts
+or shift settings in the admin. One day produces at most one new packet. Old
+two-shift packets keep their frozen period, amount, membership and confirmation
+state. Pending historical packets remain confirmable.
 The customer and courier still use the complete order total, but the amount
 recorded for accounting is only the discounted food subtotal
 (`total - deliveryFee`). Delivery is displayed separately and is excluded from
-shift handoffs, accounting summaries, daily revenue and the accounting average.
+daily handoffs, accounting summaries, daily revenue and the accounting average.
 Already submitted handoff snapshots remain unchanged.
 
-After a shift ends, `ADMIN` or `SUPER_ADMIN` submits all unclaimed confirmed
+After a day ends, `ADMIN` or `SUPER_ADMIN` submits all unclaimed confirmed
 cash settlements whose `operatorTakenAt` falls inside the interval. One unique
-`shiftKey` permits only one packet and a serializable transaction claims every
+`shiftKey` with a `YYYY-MM-DD:day` suffix permits only one new packet and a
+serializable transaction claims every
 settlement; the administrator may record a different declared amount and note,
 but cannot change the backend-calculated expected amount. `ACCOUNTANT` or
 `SUPER_ADMIN` confirms the whole packet atomically: all settlements become
@@ -590,8 +590,20 @@ year. Accountants and super administrators see collected, submitted,
 confirmed and outstanding cash, order count/average, cancellations, daily
 series and packet history. `ACCOUNTANT` and `SUPER_ADMIN` receive top-product quantity
 and revenue analytics. `ADMIN` is denied the financial report endpoint and
-sees only the shift amount they must submit. The UI is lazy-loaded and changes
-from three summary columns/two shift columns to one column on a phone.
+sees only the daily amount they must submit. The UI is lazy-loaded and changes
+from multiple summary columns/two day columns to one column on a phone.
+
+Each newly created order has a receipt/order number starting at 1 each
+Ashgabat calendar day. PostgreSQL increments the per-day counter inside the
+order transaction; concurrent orders receive distinct numbers and a rolled-back
+order does not consume one. `numberDate` and the number form the database
+uniqueness key. Pre-change orders keep their historical global numbers and have
+`numberDate = NULL`; UUIDs remain the stable identity for API mutations.
+
+Deleting a category removes it and all its products from the active and admin
+catalog, while retaining the category, products, order history, stock/recipe
+links and images in PostgreSQL/private storage. The action is audited and
+cannot be repeated. A new order cannot use an archived category's product.
 
 Cancellation:
 
@@ -956,7 +968,7 @@ heights; visual density must not be reduced to the previous pale compact map.
   redispatch an old print task.
 - The assigned courier, `ADMIN`, or `SUPER_ADMIN` confirms
   `DELIVERED → CASH_RETURNED`; the accountant then reconciles the order as
-  part of a submitted shift cash packet.
+  part of a submitted daily cash packet.
 - Customer may submit one rating/comment after delivery.
 
 ## Catalog and marketing
@@ -967,11 +979,12 @@ delete a banner record after an explicit admin confirmation. The deletion is
 audited and immediately removes the banner from admin and customer lists; its
 private S3 image object is retained because media paths may be reused by other
 content and storage cleanup is a separate operation. They may also permanently
-delete a product that has never appeared in an order, or an unused category
-together with all of its products, after a separate confirmation. Catalog
-deletion is audited and retains private media objects. A product referenced by
-an `OrderItem`, or a category containing such a product, returns `409 Conflict`
-and must be hidden instead so historical orders and receipts remain valid.
+delete a product that has never appeared in an order. Category deletion archives
+the category and removes its products from every catalog list while retaining
+their order, recipe, stock and media links. Both operations require separate
+confirmation and audit. A product referenced by an `OrderItem` still returns
+`409 Conflict` and must be hidden instead so historical orders and receipts
+remain valid.
 The catalog editor never asks administrators to enter or understand a technical
 slug. NestJS generates a stable unique slug from the category or product name
 when a create request omits it; explicit slugs remain optional only for backward
@@ -2482,14 +2495,15 @@ grant. Order edits/cancellations remain governed by existing operational roles.
 The accountant continues to confirm submitted cash packets.
 
 /accounting offers exact calendar months as well as date ranges and individual
-shifts. Clicking a date in the orders chart selects that calendar day; each
-shift card has a direct inspection button. Order creation, cash return and
+calendar days. Clicking a date in the orders chart selects that day; each
+daily cash card has a direct inspection button. Order creation, cash return and
 audit action times are separate cohorts.
 Food after discounts is the amount owed by employees; delivery stays separate.
 Declared cash and packet discrepancies are visible; there is no system-fee
-commission. Packet membership and submitted shift boundaries remain frozen.
+commission. Packet membership and submitted period boundaries remain frozen,
+including historical two-shift packets.
 
-Incoming/outgoing unfinished work is reconstructed at shift or calendar-period
+Incoming/outgoing unfinished work is reconstructed at day or calendar-period
 boundaries, including cooking, assembly, delivery and delivered orders awaiting
 cash return. Cash-returned, reconciled and cancelled orders do not carry over.
 Current periods show a provisional live boundary. Old edits without complete
@@ -2549,7 +2563,7 @@ retained privately at
 ## Readable accounting workspace — 2026-09-27
 
 The accountant workspace opens on numbered orders. Separate sections expose
-shift cash, monthly charts, named employee actions and incoming/outgoing work.
+daily cash, monthly charts, named employee actions and incoming/outgoing work.
 Selecting a calendar month opens the charts; choosing a chart day opens that
 day's orders using its creation or cash-return basis. Financial totals and
 creation cohorts remain distinct. Mobile uses readable order cards and a

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   addLocalDays,
+  enumerateShiftWindows,
   localDateForInstant,
   localDateRange,
   resolveShiftWindow,
@@ -15,6 +16,23 @@ const settings = {
 };
 
 describe("Ashgabat accounting periods", () => {
+  it("uses one calendar day from local midnight to local midnight", () => {
+    expect(enumerateShiftWindows("2026-08-20", "2026-08-21")).toEqual([
+      {
+        shiftKey: "2026-08-20:day",
+        shiftName: "За день",
+        periodStart: new Date("2026-08-19T19:00:00.000Z"),
+        periodEnd: new Date("2026-08-20T19:00:00.000Z"),
+      },
+      {
+        shiftKey: "2026-08-21:day",
+        shiftName: "За день",
+        periodStart: new Date("2026-08-20T19:00:00.000Z"),
+        periodEnd: new Date("2026-08-21T19:00:00.000Z"),
+      },
+    ]);
+  });
+
   it("builds both shift windows across local midnight", () => {
     expect(resolveShiftWindow("2026-08-20:first", settings)).toMatchObject({
       shiftName: "Day",

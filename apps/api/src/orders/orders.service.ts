@@ -33,6 +33,7 @@ import { TrackingService } from "../tracking/tracking.service";
 import { OrderingHoursService } from "./ordering-hours.service";
 import { LoyaltyService } from "../loyalty/loyalty.service";
 import { orderAuditSnapshot } from "./order-audit-snapshot";
+import { allocateDailyOrderNumber } from "./order-number";
 import { earnedPoints } from "../loyalty/loyalty-points";
 import {
   AdminCompleteOrderDto,
@@ -696,7 +697,7 @@ export class OrdersService {
       where: {
         id: { in: productIds },
         isActive: true,
-        category: { isActive: true, cafe: { isActive: true } },
+        category: { isActive: true, deletedAt: null, cafe: { isActive: true } },
       },
       include: {
         images: { orderBy: { sortOrder: "asc" }, take: 1 },
@@ -920,8 +921,10 @@ export class OrdersService {
       }
     }
 
+    const dailyNumber = await allocateDailyOrderNumber(tx, createdAt);
     const order = await tx.order.create({
       data: {
+        ...dailyNumber,
         customerId,
         createdAt,
         source,

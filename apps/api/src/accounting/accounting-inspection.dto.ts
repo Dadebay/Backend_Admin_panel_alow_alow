@@ -27,7 +27,7 @@ export class InspectionRangeDto extends AccountingRangeQueryDto {
     example: "2026-09-27:second",
   })
   @IsOptional()
-  @Matches(/^\d{4}-\d{2}-\d{2}:(first|second)$/)
+  @Matches(/^\d{4}-\d{2}-\d{2}:(day|first|second)$/)
   shiftKey?: string;
 }
 

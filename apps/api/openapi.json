@@ -738,10 +738,7 @@
         ],
         "responses": {
           "204": {
-            "description": "Category deleted"
-          },
-          "409": {
-            "description": "Category contains a product referenced by order history"
+            "description": "Category archived"
           }
         },
         "security": [
@@ -749,7 +746,7 @@
             "bearer": []
           }
         ],
-        "summary": "Permanently delete an unused category",
+        "summary": "Remove a category from the catalog, retaining order history",
         "tags": [
           "catalog"
         ]
@@ -5597,48 +5594,13 @@
             "bearer": []
           }
         ],
-        "summary": "Get the configurable Ashgabat cash shift schedule",
-        "tags": [
-          "accounting"
-        ]
-      },
-      "patch": {
-        "operationId": "AccountingController_updateSettings_v1",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdateAccountingSettingsDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AccountingSettingsResponseDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Update shift names and boundaries for future handoffs",
+        "summary": "Read the legacy shift schedule for historical accounting periods",
         "tags": [
           "accounting"
         ]
       }
     },
-    "/api/v1/accounting/shifts": {
+    "/api/v1/accounting/days": {
       "get": {
         "operationId": "AccountingController_shifts_v1",
         "parameters": [
@@ -5681,7 +5643,56 @@
             "bearer": []
           }
         ],
-        "summary": "List shift totals and cash handoff state",
+        "summary": "List Ashgabat calendar-day food revenue and cash handoff state",
+        "tags": [
+          "accounting"
+        ]
+      }
+    },
+    "/api/v1/accounting/shifts": {
+      "get": {
+        "operationId": "AccountingController_legacyShifts_v1",
+        "parameters": [
+          {
+            "name": "fromDate",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "example": "2026-08-20",
+              "type": "string"
+            }
+          },
+          {
+            "name": "toDate",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "example": "2026-08-26",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AccountingShiftResponseDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Legacy alias for daily cash totals",
         "tags": [
           "accounting"
         ]
@@ -5718,7 +5729,7 @@
             "bearer": []
           }
         ],
-        "summary": "Submit one completed shift cash packet to accounting",
+        "summary": "Submit one completed calendar day's cash to accounting",
         "tags": [
           "accounting"
         ]
@@ -15281,37 +15292,6 @@
           "updatedAt"
         ]
       },
-      "UpdateAccountingSettingsDto": {
-        "type": "object",
-        "properties": {
-          "firstShiftName": {
-            "type": "string",
-            "example": "Дневная смена",
-            "maxLength": 80
-          },
-          "firstShiftStart": {
-            "type": "string",
-            "example": "09:30",
-            "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$"
-          },
-          "secondShiftName": {
-            "type": "string",
-            "example": "Ночная смена",
-            "maxLength": 80
-          },
-          "secondShiftStart": {
-            "type": "string",
-            "example": "19:00",
-            "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$"
-          }
-        },
-        "required": [
-          "firstShiftName",
-          "firstShiftStart",
-          "secondShiftName",
-          "secondShiftStart"
-        ]
-      },
       "CashHandoffActorResponseDto": {
         "type": "object",
         "properties": {
@@ -15463,6 +15443,12 @@
                 "$ref": "#/components/schemas/CashHandoffResponseDto"
               }
             ]
+          },
+          "historicalHandoffs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CashHandoffResponseDto"
+            }
           }
         },
         "required": [
@@ -15475,7 +15461,8 @@
           "availableAmount",
           "settlementCount",
           "canSubmit",
-          "state"
+          "state",
+          "historicalHandoffs"
         ]
       },
       "SubmitCashHandoffDto": {
@@ -15483,7 +15470,7 @@
         "properties": {
           "shiftKey": {
             "type": "string",
-            "example": "2026-08-25:first"
+            "example": "2026-10-05:day"
           },
           "declaredAmount": {
             "type": "number",

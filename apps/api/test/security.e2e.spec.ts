@@ -24,6 +24,7 @@ import {
 } from "../src/auth/sms-gateway.dto";
 import { SmsGatewayService } from "../src/auth/sms-gateway.service";
 import { RedisService } from "../src/redis/redis.service";
+import { allocateDailyOrderNumber } from "../src/orders/order-number";
 
 type TestUsers = Record<
   | "customer"
@@ -2155,7 +2156,34 @@ describe("backend security and critical workflow", () => {
     }
   });
 
-  it("permanently deletes unused catalog records and preserves order history", async () => {
+  it("allocates order numbers atomically and restarts at Ashgabat midnight", async () => {
+    const firstDate = new Date("2099-01-01T18:59:59.000Z");
+    const secondDate = new Date("2099-01-01T19:00:00.000Z");
+    try {
+      const allocated = await Promise.all(
+        Array.from({ length: 5 }, () =>
+          prisma.$transaction((tx) => allocateDailyOrderNumber(tx, firstDate)),
+        ),
+      );
+      expect(
+        allocated.map(({ number }) => number).sort((a, b) => a - b),
+      ).toEqual([1, 2, 3, 4, 5]);
+      expect(
+        allocated.every(({ numberDate }) => numberDate === "2099-01-01"),
+      ).toBe(true);
+      expect(
+        await prisma.$transaction((tx) =>
+          allocateDailyOrderNumber(tx, secondDate),
+        ),
+      ).toEqual({ numberDate: "2099-01-02", number: 1 });
+    } finally {
+      await prisma.orderDailyCounter.deleteMany({
+        where: { date: { in: ["2099-01-01", "2099-01-02"] } },
+      });
+    }
+  });
+
+  it("removes categories from the catalog while preserving product and order history", async () => {
     const deletableCategoryResponse = await request(server)
       .post("/api/v1/catalog/categories")
       .set(bearer(tokens.admin))
@@ -2212,10 +2240,20 @@ describe("backend security and critical workflow", () => {
       await prisma.product.count({
         where: { categoryId: deletableCategoryId },
       }),
-    ).toBe(0);
+    ).toBe(1);
     expect(
-      await prisma.category.count({ where: { id: deletableCategoryId } }),
-    ).toBe(0);
+      await prisma.category.count({
+        where: { id: deletableCategoryId, deletedAt: { not: null } },
+      }),
+    ).toBe(1);
+    expect(
+      (await request(server).get("/api/v1/catalog/categories").expect(200))
+        .body,
+    ).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: deletableCategoryId }),
+      ]),
+    );
 
     const protectedCategoryResponse = await request(server)
       .post("/api/v1/catalog/categories")
@@ -2241,7 +2279,7 @@ describe("backend security and critical workflow", () => {
       .expect(201);
     const protectedProductId = (protectedProductResponse.body as { id: string })
       .id;
-    await request(server)
+    const historicalOrderResponse = await request(server)
       .post("/api/v1/orders")
       .set(bearer(tokens.customer))
       .send({
@@ -2251,6 +2289,22 @@ describe("backend security and critical workflow", () => {
         longitude: 58.38021,
       })
       .expect(201);
+    const historicalOrder = historicalOrderResponse.body as OrderResponse;
+    const persistedOrder = await prisma.order.findUniqueOrThrow({
+      where: { id: historicalOrder.id },
+    });
+    expect(persistedOrder.number).toBe(historicalOrder.number);
+    expect(persistedOrder.numberDate).toBe(
+      new Date(persistedOrder.createdAt.getTime() + 5 * 3600000)
+        .toISOString()
+        .slice(0, 10),
+    );
+    const receiptTask = await prisma.receiptPrintTask.findFirstOrThrow({
+      where: { orderId: historicalOrder.id },
+    });
+    expect(receiptTask.plan).toMatchObject({
+      orderNumber: historicalOrder.number,
+    });
 
     const productConflict = await request(server)
       .delete(`/api/v1/catalog/products/${protectedProductId}`)
@@ -2259,16 +2313,46 @@ describe("backend security and critical workflow", () => {
     expect((productConflict.body as { message: string }).message).toContain(
       "Скройте блюдо",
     );
-    const categoryConflict = await request(server)
+    await request(server)
+      .delete(`/api/v1/catalog/categories/${protectedCategoryId}`)
+      .set(bearer(tokens.operator))
+      .expect(403);
+    await request(server)
       .delete(`/api/v1/catalog/categories/${protectedCategoryId}`)
       .set(bearer(tokens.admin))
-      .expect(409);
-    expect((categoryConflict.body as { message: string }).message).toContain(
-      "Скройте категорию",
-    );
+      .expect(204);
+    await request(server)
+      .delete(`/api/v1/catalog/categories/${protectedCategoryId}`)
+      .set(bearer(tokens.admin))
+      .expect(404);
     expect(
       await prisma.product.count({ where: { id: protectedProductId } }),
     ).toBe(1);
+    const adminProducts = await request(server)
+      .get(
+        `/api/v1/catalog/admin/products/page?categoryId=${protectedCategoryId}`,
+      )
+      .set(bearer(tokens.admin))
+      .expect(200);
+    expect(adminProducts.body).toMatchObject({ total: 0, items: [] });
+    const oldOrder = await request(server)
+      .get(`/api/v1/orders/${historicalOrder.id}`)
+      .set(bearer(tokens.customer))
+      .expect(200);
+    expect(oldOrder.body).toMatchObject({
+      id: historicalOrder.id,
+      number: historicalOrder.number,
+    });
+    await request(server)
+      .post("/api/v1/orders")
+      .set(bearer(tokens.customer))
+      .send({
+        items: [{ productId: protectedProductId, quantity: 1 }],
+        address: "Archived category street",
+        latitude: 37.95021,
+        longitude: 58.38021,
+      })
+      .expect(400);
 
     expect(
       await prisma.auditLog.findFirst({
@@ -2292,7 +2376,7 @@ describe("backend security and critical workflow", () => {
     ).toMatchObject({
       actorId: users.superAdmin.id,
       entityType: "Category",
-      metadata: { productCount: 1, retainedMediaObjects: true },
+      metadata: { productCount: 1, retainedProductsAndMedia: true },
     });
   });
 

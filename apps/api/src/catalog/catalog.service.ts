@@ -52,6 +52,7 @@ type ProductWithRelations = Prisma.ProductGetPayload<{
 
 function categoryResponse<
   TCategory extends {
+    deletedAt?: Date | null;
     receiptPrinterId: string | null;
     receiptPrinterIp: string | null;
     receiptPrinter?: {
@@ -61,11 +62,13 @@ function categoryResponse<
   },
 >(category: TCategory, includeAdminFields: boolean) {
   const {
+    deletedAt,
     receiptPrinterId,
     receiptPrinterIp: legacyReceiptPrinterIp,
     receiptPrinter = null,
     ...publicCategory
   } = category;
+  void deletedAt;
   const receiptPrinterIp = receiptPrinter?.ipAddress ?? legacyReceiptPrinterIp;
   return {
     ...publicCategory,
@@ -244,6 +247,19 @@ async function assertCafeReference(
   if (!cafe) throw new BadRequestException("Cafe is missing");
 }
 
+async function assertAvailableCategory(
+  tx: Prisma.TransactionClient,
+  id: string,
+) {
+  const category = await tx.category.findUnique({
+    where: { id },
+    select: { deletedAt: true },
+  });
+  if (!category || category.deletedAt) {
+    throw new BadRequestException("Category is missing or deleted");
+  }
+}
+
 function mainPrinterReferenceData(input: UpdateReceiptPrintSettingsDto) {
   if (
     input.mainPrinterId === undefined &&
@@ -297,7 +313,9 @@ export class CatalogService {
   async cafes(includeInactive = false) {
     const cafes = await this.prisma.cafe.findMany({
       where: includeInactive ? {} : { isActive: true },
-      include: { _count: { select: { categories: true } } },
+      include: {
+        _count: { select: { categories: { where: { deletedAt: null } } } },
+      },
       orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
     });
     return toApiResponse(
@@ -311,6 +329,7 @@ export class CatalogService {
   async categories(includeInactive = false, cafeId?: string) {
     const categories = await this.prisma.category.findMany({
       where: {
+        deletedAt: null,
         ...(cafeId ? { cafeId } : {}),
         ...(includeInactive
           ? {}
@@ -346,7 +365,7 @@ export class CatalogService {
 
   async categorySummaries(cafeId?: string) {
     const categories = await this.prisma.category.findMany({
-      where: cafeId ? { cafeId } : {},
+      where: { deletedAt: null, ...(cafeId ? { cafeId } : {}) },
       include: {
         cafe: true,
         receiptPrinter: true,
@@ -372,12 +391,16 @@ export class CatalogService {
       where: {
         ...(query.categoryId ? { categoryId: query.categoryId } : {}),
         ...(includeInactive
-          ? query.cafeId
-            ? { category: { cafeId: query.cafeId } }
-            : {}
+          ? {
+              category: {
+                deletedAt: null,
+                ...(query.cafeId ? { cafeId: query.cafeId } : {}),
+              },
+            }
           : {
               isActive: true,
               category: {
+                deletedAt: null,
                 isActive: true,
                 cafe: { isActive: true },
                 ...(query.cafeId ? { cafeId: query.cafeId } : {}),
@@ -394,8 +417,13 @@ export class CatalogService {
   async productPage(query: ListAdminCatalogProductsQueryDto) {
     const search = query.query?.trim();
     const where = {
+      category: {
+        is: {
+          deletedAt: null,
+          ...(query.cafeId ? { cafeId: query.cafeId } : {}),
+        },
+      },
       ...(query.categoryId ? { categoryId: query.categoryId } : {}),
-      ...(query.cafeId ? { category: { is: { cafeId: query.cafeId } } } : {}),
       ...(search
         ? {
             OR: [
@@ -549,7 +577,11 @@ export class CatalogService {
             action: "catalog.cafe.updated",
             entityType: "Cafe",
             entityId: cafe.id,
-            metadata: { changedFields: Object.keys(dto), before: toApiResponse(existing), after: toApiResponse(cafe) },
+            metadata: {
+              changedFields: Object.keys(dto),
+              before: toApiResponse(existing),
+              after: toApiResponse(cafe),
+            },
           },
         });
         const { _count, ...response } = cafe;
@@ -668,7 +700,8 @@ export class CatalogService {
     return this.prisma
       .$transaction(async (tx) => {
         const category = await tx.category.findUnique({ where: { id } });
-        if (!category) throw new NotFoundException("Category not found");
+        if (!category || category.deletedAt)
+          throw new NotFoundException("Category not found");
         if (cafeId !== undefined) await assertCafeReference(tx, cafeId);
         await assertActivePrinterReference(tx, receiptPrinterId);
         let slug: string | undefined;
@@ -703,7 +736,11 @@ export class CatalogService {
             action: "catalog.category.updated",
             entityType: "Category",
             entityId: id,
-            metadata: { changedFields: Object.keys(dto), before: toApiResponse(category), after: toApiResponse(updated) },
+            metadata: {
+              changedFields: Object.keys(dto),
+              before: toApiResponse(category),
+              after: toApiResponse(updated),
+            },
           },
         });
         return toApiResponse(categoryResponse(updated, true));
@@ -712,46 +749,43 @@ export class CatalogService {
   }
 
   async deleteCategory(actor: AuthUser, id: string): Promise<void> {
-    const conflictMessage =
-      "Категория содержит блюда из истории заказов. Скройте категорию вместо удаления.";
-    try {
-      await this.prisma.$transaction(async (tx) => {
-        const category = await tx.category.findUnique({
-          where: { id },
-          include: { products: { select: { id: true } } },
-        });
-        if (!category) throw new NotFoundException("Category not found");
-
-        const orderItemCount = await tx.orderItem.count({
-          where: { product: { categoryId: id } },
-        });
-        if (orderItemCount > 0) {
-          throw new ConflictException(conflictMessage);
-        }
-
-        await tx.product.deleteMany({ where: { categoryId: id } });
-        await tx.category.delete({ where: { id } });
-        await tx.auditLog.create({
-          data: {
-            actorId: actor.id,
-            action: "catalog.category.deleted",
-            entityType: "Category",
-            entityId: id,
-            metadata: {
-              name: category.name,
-              slug: category.slug,
-              productCount: category.products.length,
-              retainedMediaObjects: true,
-            },
-          },
-        });
+    await this.prisma.$transaction(async (tx) => {
+      const category = await tx.category.findUnique({
+        where: { id },
+        include: { products: { select: { id: true } } },
       });
-    } catch (error) {
-      if (error instanceof ConflictException) {
-        throw error;
-      }
-      rethrowDeleteConstraint(error, conflictMessage);
-    }
+      if (!category || category.deletedAt)
+        throw new NotFoundException("Category not found");
+      const archived = await tx.category.updateMany({
+        where: { id, deletedAt: null },
+        data: {
+          deletedAt: new Date(),
+          isActive: false,
+          receiptPrinterId: null,
+          receiptPrinterIp: null,
+        },
+      });
+      if (archived.count !== 1)
+        throw new ConflictException("Category changed during deletion");
+      await tx.product.updateMany({
+        where: { categoryId: id },
+        data: { receiptPrinterId: null, receiptPrinterIp: null },
+      });
+      await tx.auditLog.create({
+        data: {
+          actorId: actor.id,
+          action: "catalog.category.deleted",
+          entityType: "Category",
+          entityId: id,
+          metadata: {
+            name: category.name,
+            slug: category.slug,
+            productCount: category.products.length,
+            retainedProductsAndMedia: true,
+          },
+        },
+      });
+    });
   }
 
   async receiptPrintSettings() {
@@ -824,7 +858,11 @@ export class CatalogService {
             action: "catalog.receipt-printer.updated",
             entityType: "ReceiptPrinter",
             entityId: printer.id,
-            metadata: { changedFields: Object.keys(dto), before: toApiResponse(existing), after: toApiResponse(printer) },
+            metadata: {
+              changedFields: Object.keys(dto),
+              before: toApiResponse(existing),
+              after: toApiResponse(printer),
+            },
           },
         });
         return toApiResponse(printer);
@@ -966,6 +1004,7 @@ export class CatalogService {
 
     return this.prisma
       .$transaction(async (tx) => {
+        await assertAvailableCategory(tx, product.categoryId);
         await assertActivePrinterReference(tx, receiptPrinterId);
         const slugBase = catalogSlug(requestedSlug || product.name, 180);
         const matchingSlugs = await tx.product.findMany({
@@ -1034,6 +1073,10 @@ export class CatalogService {
           include: { variants: { include: { images: true } }, images: true },
         });
         if (!existing) throw new NotFoundException("Product not found");
+        await assertAvailableCategory(
+          tx,
+          product.categoryId ?? existing.categoryId,
+        );
         await assertActivePrinterReference(tx, receiptPrinterId);
 
         let slug: string | undefined;

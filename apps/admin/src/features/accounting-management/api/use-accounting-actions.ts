@@ -4,8 +4,6 @@ import {
   type CashHandoff,
   type ConfirmCashHandoff,
   type SubmitCashHandoff,
-  type UpdateAccountingSettings,
-  type AccountingSettings,
 } from "@/src/entities/accounting";
 import { useSession } from "@/src/shared/auth";
 
@@ -15,14 +13,6 @@ export function useAccountingActions() {
   const refresh = () =>
     queryClient.invalidateQueries({ queryKey: accountingQueryKeys.all });
 
-  const updateSettings = useMutation({
-    mutationFn: (body: UpdateAccountingSettings) =>
-      authorizedRequest<AccountingSettings>("/accounting/settings", {
-        method: "PATCH",
-        body: JSON.stringify(body),
-      }),
-    onSuccess: refresh,
-  });
   const submitHandoff = useMutation({
     mutationFn: (body: SubmitCashHandoff) =>
       authorizedRequest<CashHandoff>("/accounting/handoffs", {
@@ -39,5 +29,5 @@ export function useAccountingActions() {
       }),
     onSuccess: refresh,
   });
-  return { updateSettings, submitHandoff, confirmHandoff };
+  return { submitHandoff, confirmHandoff };
 }

@@ -33,8 +33,8 @@ import "./inspection.css";
 const tabs = [
   ["overview", "Сводка и графики"],
   ["orders", "Все заказы"],
-  ["in", "Из предыдущей смены"],
-  ["out", "Следующей смене"],
+  ["in", "С прошлого дня"],
+  ["out", "На следующий день"],
   ["audit", "Журнал действий"],
 ] as const;
 const pageNumber = (value: string | null) =>
@@ -145,8 +145,8 @@ export function AccountingInspection({
                   orders: "Заказы",
                   overview: "Графики за период",
                   audit: "Кто что сделал",
-                  in: "Принято от предыдущей смены",
-                  out: "Передано следующей смене",
+                  in: "Принято с прошлого дня",
+                  out: "Перешло на следующий день",
                 } as Record<string, string>
               )[tab]
             }
@@ -156,7 +156,7 @@ export function AccountingInspection({
               ? "Нажмите номер заказа: состав, курьер, участники и история"
               : tab === "audit"
                 ? "Номер заказа, сотрудник и результат каждого действия"
-                : "За выбранные даты или одну смену"}
+                : "За выбранные даты или один день"}
           </p>
         </div>
         <button
@@ -175,7 +175,7 @@ export function AccountingInspection({
       </header>
       {shiftsError && (
         <div className="inline-alert" role="alert">
-          Не удалось загрузить смены.{" "}
+          Не удалось загрузить дни.{" "}
           <button
             type="button"
             data-testid="inspection-shifts-retry"
@@ -203,7 +203,7 @@ export function AccountingInspection({
           </option>
           {[...shifts].reverse().map((shift) => (
             <option key={shift.shiftKey} value={shift.shiftKey}>
-              {shift.shiftName} · {inspectionTime(shift.periodStart)} —{" "}
+              {shift.shiftKey.slice(0, 10)} · {inspectionTime(shift.periodStart)} —{" "}
               {inspectionTime(shift.periodEnd)}
             </option>
           ))}
@@ -211,7 +211,7 @@ export function AccountingInspection({
       </label>
       {selected && (
         <div className="inspection-shift-summary">
-          <strong>{selected.shiftName}</strong>
+          <strong>За {selected.shiftKey.slice(0, 10)}</strong>
           <span>
             Деньги за еду по системе: {inspectionMoney(selected.expectedAmount)}
           </span>
@@ -397,7 +397,7 @@ export function AccountingInspection({
               </p>
               <p className="muted-text">
                 Готовка, сборка, доставка и доставленные заказы без возврата
-                денег. Один заказ может переходить через несколько смен;
+                денег. Один заказ может переходить через несколько дней;
                 передача не создаёт повторное начисление.
               </p>
               {carryover.data.items.map((order) => (
@@ -508,7 +508,7 @@ export function AccountingInspection({
                           Category: "Категории",
                           Cafe: "Кафе",
                           CashHandoff: "Сдача денег",
-                          AccountingSettings: "Смены",
+                          AccountingSettings: "Настройки учёта (архив)",
                           User: "Сотрудники",
                           Branch: "Филиалы",
                           PromoCode: "Промокоды",

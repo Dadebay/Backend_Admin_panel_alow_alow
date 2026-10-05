@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -17,11 +17,11 @@ import "./inspection.css";
 
 const sections = [
   ["orders", "Заказы"],
-  ["shifts", "Смены и деньги"],
+  ["shifts", "Выручка за день"],
   ["overview", "Графики"],
   ["audit", "Кто что сделал"],
-  ["in", "Принято от смены"],
-  ["out", "Передано смене"],
+  ["in", "Принято с прошлого дня"],
+  ["out", "Перешло на следующий день"],
 ] as const;
 const dateLabel = (date: string) =>
   new Intl.DateTimeFormat("ru-RU", {
@@ -35,9 +35,22 @@ export function AccountingDashboard() {
   const canInspect =
     session?.user.role === "ACCOUNTANT" || session?.user.role === "SUPER_ADMIN";
   const [params, setParams] = useSearchParams();
-  const [today] = useState(() =>
+  const [today, setToday] = useState(() =>
     new Date(Date.now() + 5 * 3600000).toISOString().slice(0, 10),
   );
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout>;
+    const schedule = () => {
+      const untilMidnight =
+        86_400_000 - ((Date.now() + 5 * 3600000) % 86_400_000);
+      timer = setTimeout(() => {
+        setToday(new Date(Date.now() + 5 * 3600000).toISOString().slice(0, 10));
+        schedule();
+      }, untilMidnight + 100);
+    };
+    schedule();
+    return () => clearTimeout(timer);
+  }, []);
   const range = {
     fromDate: params.get("fromDate") ?? today,
     toDate: params.get("toDate") ?? today,
@@ -63,6 +76,22 @@ export function AccountingDashboard() {
       next.set("toDate", value.toDate);
       if (section) next.set("inspection", section);
       for (const key of [
+        "shift",
+        "inspectionPage",
+        "order",
+        "historyPage",
+        "orderNumber",
+      ])
+        next.delete(key);
+      return next;
+    });
+  }
+  function showToday() {
+    setParams((previous) => {
+      const next = new URLSearchParams(previous);
+      for (const key of [
+        "fromDate",
+        "toDate",
         "shift",
         "inspectionPage",
         "order",
@@ -115,7 +144,7 @@ export function AccountingDashboard() {
             <button
               data-testid="accounting-today"
               type="button"
-              onClick={() => setRange({ fromDate: today, toDate: today })}
+              onClick={showToday}
             >
               Сегодня
             </button>

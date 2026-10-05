@@ -447,3 +447,31 @@ failure may restore the previous image manifest while retaining additive tables.
 The fallback uses the existing deployment lock, immutable revision labels,
 archive/image/file checksums, backup and `.release.previous.env`; it preserves
 runtime secrets and the supporting database, Redis, storage and map containers.
+
+## Daily accounting and receipt numbering rollout — 2026-10-05
+
+Migration `20261005120000_daily_order_numbers_and_category_archive` is applied
+by the normal migration container before the API is replaced. Take and verify
+the production PostgreSQL backup first. It adds a nullable `Order.numberDate`,
+an atomic `OrderDailyCounter`, and `Category.deletedAt`. It removes only the
+global unique index on `Order.number`, replacing it with a unique pair of
+`numberDate` and `number`; the existing serial default remains for old clients
+and operational imports. The migration does not update existing order numbers,
+cash packets, settlements or product rows. Existing orders have a NULL
+`numberDate` and remain identifiable by UUID.
+
+After release, create two ordinary test orders and confirm their receipt-print
+plans show consecutive daily numbers. At the next Ashgabat midnight, verify the
+first new order has number 1. Check `/api/v1/accounting/days` for one card per
+day, the daily revenue report, and confirmation of any pending historical cash
+packets. Delete a test category containing a previously ordered product and
+confirm it disappears from the catalog while the old order detail remains.
+The application health check and these business checks both matter: a healthy
+process alone does not prove numbering or accounting behavior.
+
+If a release fails before new daily orders or category archives, the previous
+API/admin images can be restored while retaining the additive schema. After
+new daily orders exist, old code does not understand repeated visible numbers;
+after archives exist, it may expose archived categories. Preserve the database
+and fix forward rather than using the old application images. Never restore a
+database backup over live orders merely to reverse this migration.

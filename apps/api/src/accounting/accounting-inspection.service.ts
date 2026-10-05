@@ -292,7 +292,7 @@ export class AccountingInspectionService {
       async (tx) => {
         const range = await this.range(tx, query);
         const handoff =
-          query.basis === "cashReturned" && query.shiftKey
+          query.basis === "cashReturned" && query.shiftKey && !query.shiftKey.endsWith(":day")
             ? await tx.cashHandoff.findUnique({
                 where: { shiftKey: query.shiftKey },
                 select: { id: true },

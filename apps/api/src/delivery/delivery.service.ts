@@ -31,6 +31,7 @@ import {
   DELIVERY_TIME_ZONE,
 } from "./delivery-pricing";
 import { findDeliveryAreaForAddress } from "./delivery-area-matcher";
+import { assertDeliveryServiceArea } from "./delivery-service-area";
 import {
   parseDistancePriceTiers,
   type DistancePriceTier,
@@ -88,6 +89,7 @@ export class DeliveryService {
   }
 
   async quote(dto: QuoteDeliveryDto) {
+    assertDeliveryServiceArea(dto);
     const [addressLine, settings, etraps] = await Promise.all([
       this.geocoding.reverseGeocode(dto.latitude, dto.longitude),
       this.prisma.deliverySettings.findUnique({ where: { id: SETTINGS_ID } }),
@@ -161,6 +163,7 @@ export class DeliveryService {
     distanceMeters?: number,
     options: { allowManualFallback?: boolean } = {},
   ) {
+    if (coordinates) assertDeliveryServiceArea(coordinates);
     const settings = await tx.deliverySettings.findUnique({
       where: { id: SETTINGS_ID },
     });

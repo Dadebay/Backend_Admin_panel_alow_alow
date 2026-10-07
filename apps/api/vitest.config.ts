@@ -59,6 +59,7 @@ export default defineConfig({
         "src/catalog/**/*.ts",
         "src/common/**/*.ts",
         "src/config/**/*.ts",
+        "src/delivery/delivery-service-area.ts",
         "src/orders/**/*.ts",
         "src/users/**/*.ts",
         "src/media/**/*.ts",

@@ -72,7 +72,7 @@ describe("delivery service area HTTP enforcement", () => {
     const jwt = app.get(JwtService);
     for (const [i, role] of Object.values(Role).entries()) {
       const user = await prisma.user.create({
-        data: { phone: `+9936100880${i}`, role, pointsBalance: 100 },
+        data: { phone: `+9936100785${i}`, role, pointsBalance: 100 },
       });
       users.set(role, user);
       tokens.set(
@@ -482,7 +482,7 @@ describe("delivery service area HTTP enforcement", () => {
   });
 
   it("rolls back a new caller account when a phone order is outside coverage", async () => {
-    const phone = "+99361008990";
+    const phone = "+99361007890";
     expect(await prisma.user.findUnique({ where: { phone } })).toBeNull();
     const response = await request(server)
       .post("/api/v1/orders/assisted")

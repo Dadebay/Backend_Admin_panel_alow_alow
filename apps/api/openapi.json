@@ -1178,6 +1178,16 @@
                 }
               }
             }
+          },
+          "400": {
+            "description": "Provided coordinates must be inside Ahal or Ashgabat; a quote without coordinates does not confirm delivery availability",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeliveryAvailabilityErrorDto"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -1212,6 +1222,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/OrderResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Personal orders require map coordinates inside Ahal or Ashgabat",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeliveryAvailabilityErrorDto"
                 }
               }
             }
@@ -1434,6 +1454,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/OrderResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Map addresses must be inside Ahal or Ashgabat; authorized phone staff retain text-only manual addresses",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeliveryAvailabilityErrorDto"
                 }
               }
             }
@@ -1707,6 +1737,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/OrderResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The replacement delivery coordinates must be inside Ahal or Ashgabat",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeliveryAvailabilityErrorDto"
                 }
               }
             }
@@ -4516,6 +4556,16 @@
                 }
               }
             }
+          },
+          "400": {
+            "description": "Coordinates outside Ahal and Ashgabat return OUTSIDE_DELIVERY_AREA",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeliveryAvailabilityErrorDto"
+                }
+              }
+            }
           }
         },
         "summary": "Resolve the official address and authoritative delivery quote for map coordinates",
@@ -4545,6 +4595,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/DeliveryTariffQuoteResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Provided coordinates must be inside Ahal or Ashgabat; a quote without coordinates does not confirm delivery availability",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeliveryAvailabilityErrorDto"
                 }
               }
             }
@@ -8526,6 +8586,46 @@
           "deliveryEtrapId",
           "deliveryWelayatName",
           "deliveryEtrapName"
+        ]
+      },
+      "DeliveryAvailabilityErrorDto": {
+        "type": "object",
+        "properties": {
+          "statusCode": {
+            "type": "number",
+            "example": 400
+          },
+          "error": {
+            "type": "string",
+            "example": "Bad Request"
+          },
+          "message": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            ],
+            "example": "По этому адресу доставка пока недоступна. Обслуживаем Ахалский велаят и Ашхабад."
+          },
+          "code": {
+            "type": "string",
+            "enum": [
+              "OUTSIDE_DELIVERY_AREA",
+              "DELIVERY_LOCATION_REQUIRED"
+            ],
+            "description": "Stable delivery availability code; absent for other validation errors"
+          }
+        },
+        "required": [
+          "statusCode",
+          "error",
+          "message"
         ]
       },
       "CreateOrderDto": {

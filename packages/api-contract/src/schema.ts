@@ -3078,6 +3078,19 @@ export interface components {
             deliveryWelayatName: string | null;
             deliveryEtrapName: string | null;
         };
+        DeliveryAvailabilityErrorDto: {
+            /** @example 400 */
+            statusCode: number;
+            /** @example Bad Request */
+            error: string;
+            /** @example По этому адресу доставка пока недоступна. Обслуживаем Ахалский велаят и Ашхабад. */
+            message: string | string[];
+            /**
+             * @description Stable delivery availability code; absent for other validation errors
+             * @enum {string}
+             */
+            code?: "OUTSIDE_DELIVERY_AREA" | "DELIVERY_LOCATION_REQUIRED";
+        };
         CreateOrderDto: {
             /**
              * Format: uuid
@@ -6212,6 +6225,15 @@ export interface operations {
                     "application/json": components["schemas"]["OrderQuoteResponseDto"];
                 };
             };
+            /** @description Provided coordinates must be inside Ahal or Ashgabat; a quote without coordinates does not confirm delivery availability */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeliveryAvailabilityErrorDto"];
+                };
+            };
         };
     };
     OrdersController_list_v1: {
@@ -6268,6 +6290,15 @@ export interface operations {
                     "application/json": components["schemas"]["OrderResponseDto"];
                 };
             };
+            /** @description Personal orders require map coordinates inside Ahal or Ashgabat */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeliveryAvailabilityErrorDto"];
+                };
+            };
         };
     };
     OrdersController_assistedCustomers_v1: {
@@ -6312,6 +6343,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OrderResponseDto"];
+                };
+            };
+            /** @description Map addresses must be inside Ahal or Ashgabat; authorized phone staff retain text-only manual addresses */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeliveryAvailabilityErrorDto"];
                 };
             };
         };
@@ -6469,6 +6509,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OrderResponseDto"];
+                };
+            };
+            /** @description The replacement delivery coordinates must be inside Ahal or Ashgabat */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeliveryAvailabilityErrorDto"];
                 };
             };
         };
@@ -8110,6 +8159,15 @@ export interface operations {
                     "application/json": components["schemas"]["DeliveryQuoteResponseDto"];
                 };
             };
+            /** @description Coordinates outside Ahal and Ashgabat return OUTSIDE_DELIVERY_AREA */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeliveryAvailabilityErrorDto"];
+                };
+            };
         };
     };
     DeliveryController_tariffQuote_v1: {
@@ -8131,6 +8189,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DeliveryTariffQuoteResponseDto"];
+                };
+            };
+            /** @description Provided coordinates must be inside Ahal or Ashgabat; a quote without coordinates does not confirm delivery availability */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeliveryAvailabilityErrorDto"];
                 };
             };
         };

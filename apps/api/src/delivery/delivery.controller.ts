@@ -9,6 +9,7 @@ import {
   Post,
 } from "@nestjs/common";
 import {
+  ApiBadRequestResponse,
   ApiBearerAuth,
   ApiCreatedResponse,
   ApiOkResponse,
@@ -43,6 +44,7 @@ import {
   DeliveryZoneSuggestionResponseDto,
 } from "./delivery-response.dto";
 import { DeliveryService } from "./delivery.service";
+import { DeliveryAvailabilityErrorDto } from "./delivery-availability-error.dto";
 
 @ApiTags("delivery")
 @Controller("delivery")
@@ -68,6 +70,10 @@ export class DeliveryController {
       "Resolve the official address and authoritative delivery quote for map coordinates",
   })
   @ApiOkResponse({ type: DeliveryQuoteResponseDto })
+  @ApiBadRequestResponse({
+    type: DeliveryAvailabilityErrorDto,
+    description: "Coordinates outside Ahal and Ashgabat return OUTSIDE_DELIVERY_AREA",
+  })
   quote(@Body() dto: QuoteDeliveryDto) {
     return this.delivery.quote(dto);
   }
@@ -80,6 +86,10 @@ export class DeliveryController {
       "Quote the current day or night tariff for a known etrap or fallback address",
   })
   @ApiOkResponse({ type: DeliveryTariffQuoteResponseDto })
+  @ApiBadRequestResponse({
+    type: DeliveryAvailabilityErrorDto,
+    description: "Provided coordinates must be inside Ahal or Ashgabat; a quote without coordinates does not confirm delivery availability",
+  })
   tariffQuote(@Body() dto: QuoteDeliveryTariffDto) {
     return this.delivery.tariffQuote(dto);
   }

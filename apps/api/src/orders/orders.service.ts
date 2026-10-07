@@ -32,6 +32,7 @@ import {
 import { TrackingService } from "../tracking/tracking.service";
 import { OrderingHoursService } from "./ordering-hours.service";
 import { LoyaltyService } from "../loyalty/loyalty.service";
+import { assertDeliveryServiceArea } from "../delivery/delivery-service-area";
 import { orderAuditSnapshot } from "./order-audit-snapshot";
 import { allocateDailyOrderNumber } from "./order-number";
 import { earnedPoints } from "../loyalty/loyalty-points";
@@ -859,15 +860,17 @@ export class OrdersService {
       ignoresSelectedEtrap ? { ...dto, deliveryEtrapId: undefined } : dto,
       actorId,
     );
-    if (
-      source !== OrderSource.STAFF_PHONE &&
-      selectedAddress.locationStatus === AddressLocationStatus.MANUAL_UNVERIFIED
-    ) {
-      throw new BadRequestException(
-        "A customer order requires a mapped delivery address",
+    const hasCoordinates = selectedAddress.latitude !== null && selectedAddress.longitude !== null;
+    if (hasCoordinates || source === OrderSource.CUSTOMER_APP) {
+      assertDeliveryServiceArea(
+        hasCoordinates
+          ? {
+              latitude: Number(selectedAddress.latitude),
+              longitude: Number(selectedAddress.longitude),
+            }
+          : undefined,
       );
     }
-    const hasCoordinates = selectedAddress.latitude !== null && selectedAddress.longitude !== null;
     const nearest = hasCoordinates
       ? await this.branches.findNearestActive(tx, {
           latitude: Number(selectedAddress.latitude),

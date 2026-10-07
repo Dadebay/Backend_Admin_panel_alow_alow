@@ -32,7 +32,7 @@ const tiers = [
 const DAY = new Date("2026-09-27T08:00:00Z");
 const NIGHT = new Date("2026-09-27T19:00:00Z");
 // Exactly 6 km north (rounded to whole meters) of the isolated test branch.
-const coordinates = { latitude: 36.5539593, longitude: 60 };
+const coordinates = { latitude: 37.5539593, longitude: 60 };
 
 describe("configurable distance price tiers HTTP", () => {
   let app: INestApplication;
@@ -92,7 +92,7 @@ describe("configurable distance price tiers HTTP", () => {
         data: {
           name: "Distance tier branch",
           address: "Test",
-          latitude: 36.5,
+          latitude: 37.5,
           longitude: 60,
         },
       })
@@ -216,7 +216,7 @@ describe("configurable distance price tiers HTTP", () => {
       .send({
         ...orderBody(),
         deliveryEtrapId: 1,
-        latitude: 36.6079186,
+        latitude: 37.6079186,
         version: order.version,
       })
       .expect(200);

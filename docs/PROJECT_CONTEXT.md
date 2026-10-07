@@ -5,7 +5,7 @@ changes. It is intentionally concise and should be read before every task.
 
 ## Product
 
-A7-tagam is a cash-on-delivery food ordering platform for Ashgabat with:
+A7-tagam is a cash-on-delivery food ordering platform for Ahal and Ashgabat with:
 
 - a NestJS API;
 - a pure React/Vite SPA operations admin;
@@ -818,9 +818,9 @@ heights; visual density must not be reduced to the previous pale compact map.
   etrap, persists a supplied match on the saved address, computes the current
   fee from database configuration, and snapshots the Russian welayat/etrap
   names plus fee on the order. An address without an unambiguous configured
-  match uses the separately configurable fallback tariff, 25 TMT by default and
-  free from 150 TMT; the operator does not duplicate the address choice with a
-  mandatory manual tariff-zone selection.
+  match inside the service area uses the separately configurable fallback tariff,
+  25 TMT by default and free from 150 TMT; the operator does not duplicate the
+  address choice with a mandatory manual tariff-zone selection.
 - Delivery has independently configurable day and night prices and free-delivery
   thresholds per etrap, plus independent day/night fallback prices. Both
   unmatched-location fallback prices default to 25 TMT. A null
@@ -859,7 +859,8 @@ heights; visual density must not be reduced to the previous pale compact map.
   prefix matches remain unresolved. Numbered stages and microdistricts match
   only through an explicit number-plus-area expression; a bare house number
   must never select a tariff zone.
-  Unknown/ambiguous locations return the authoritative fallback quote with
+  Unknown/ambiguous tariff locations inside the service area return the
+  authoritative fallback quote with
   `matched=false`; assisted checkout accepts that quote without a second
   district selector. The map coordinates are the source of truth: changing
   the marker triggers a new quote and replaces the visible official-address
@@ -912,7 +913,8 @@ heights; visual density must not be reduced to the previous pale compact map.
   reverse-geocoded text remains display data for the courier. Coordinates at
   final customer/assisted order creation and administrator editing override a
   stale or manipulated `deliveryEtrapId`, update the saved address reference,
-  and use the fallback tariff outside every configured zone. The rollout and
+  and use the fallback tariff outside every configured tariff zone only while
+  the point remains inside the Ahal/Ashgabat service area. The rollout and
   mobile contract live in `docs/MAP_DELIVERY_ZONES.md`.
 - Orders keep immutable snapshots of the address plus product/variant name,
   price, and the effective kitchen receipt-printer endpoint (IPv4 address,
@@ -2579,3 +2581,32 @@ and referenced staff names, including old records without before/after data.
 Technical IDs and raw evidence remain in expandable technical details; primary
 entries show Russian action labels, order numbers, staff, time and changes.
 No operational mutation rights or cash calculation rules change.
+
+## Ahal and Ashgabat service-area enforcement — 2026-10-07
+
+The business service area is the union of Ahal and Ashgabat, as explicitly
+confirmed by the user. Complete OSM polygons, including inner rings, are bundled
+in the backend's versioned `delivery/data/delivery-service-area.json`. Tariff
+polygons and kilometer rates do not determine service availability. No live
+geocoding call is required for eligibility and missing tariff matches inside
+the service area still use the configured fallback price. Boundary points are
+accepted. Source relations, attribution, date and geometry hashes are retained
+with the data; expansion requires a reviewed backend configuration/release.
+
+All coordinate-based delivery/order quotes and final personal/phone orders
+validate the coordinates on the server. Saved/default addresses and
+administrator address replacements use the same rule. Outside points return
+HTTP 400 with `OUTSIDE_DELIVERY_AREA` before any order/receipt task is committed;
+address changes, promo use, loyalty redemption, stock and idempotency writes are
+rolled back together. An enabled etrap or staff manual price cannot bypass this.
+Historical orders are not automatically cancelled or repriced.
+
+Personal `CUSTOMER_APP` checkout requires coordinates, even in legacy area
+pricing, and otherwise returns `DELIVERY_LOCATION_REQUIRED`. This deliberately
+closes a text-only geographic bypass. Trusted `STAFF_PHONE` creation retains
+manual unverified text-only addresses and its existing role checks/fallback
+prices; the employee must check coverage manually. Coordinate-free price
+previews retain their existing contract and do not confirm availability.
+The successful payloads, order/cancellation policy, print agent, database
+schema and frontend are unchanged. Swagger documents the stable rejection
+codes; existing clients can surface the backend message on submission.

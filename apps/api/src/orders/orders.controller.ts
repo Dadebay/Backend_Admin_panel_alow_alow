@@ -11,6 +11,7 @@ import {
   Query,
 } from "@nestjs/common";
 import {
+  ApiBadRequestResponse,
   ApiBearerAuth,
   ApiCreatedResponse,
   ApiOkResponse,
@@ -35,6 +36,7 @@ import {
   TransitionOrderDto,
 } from "./orders.dto";
 import { OrdersService } from "./orders.service";
+import { DeliveryAvailabilityErrorDto } from "../delivery/delivery-availability-error.dto";
 import {
   AssistedCustomerListResponseDto,
   CourierRouteResponseDto,
@@ -58,6 +60,10 @@ export class OrdersController {
       "Preview an authenticated user's authoritative order totals without creating an order",
   })
   @ApiOkResponse({ type: OrderQuoteResponseDto })
+  @ApiBadRequestResponse({
+    type: DeliveryAvailabilityErrorDto,
+    description: "Provided coordinates must be inside Ahal or Ashgabat; a quote without coordinates does not confirm delivery availability",
+  })
   quote(@CurrentUser() user: AuthUser, @Body() dto: QuoteOrderDto) {
     return this.orders.quote(user, dto);
   }
@@ -67,6 +73,10 @@ export class OrdersController {
     summary: "Create a personal cash-on-delivery order for the current user",
   })
   @ApiCreatedResponse({ type: OrderResponseDto })
+  @ApiBadRequestResponse({
+    type: DeliveryAvailabilityErrorDto,
+    description: "Personal orders require map coordinates inside Ahal or Ashgabat",
+  })
   create(@CurrentUser() user: AuthUser, @Body() dto: CreateOrderDto) {
     return this.orders.create(user, dto);
   }
@@ -90,6 +100,10 @@ export class OrdersController {
       "Create a cash order for a caller without issuing a customer session",
   })
   @ApiCreatedResponse({ type: OrderResponseDto })
+  @ApiBadRequestResponse({
+    type: DeliveryAvailabilityErrorDto,
+    description: "Map addresses must be inside Ahal or Ashgabat; authorized phone staff retain text-only manual addresses",
+  })
   createAssisted(
     @CurrentUser() actor: AuthUser,
     @Body() dto: CreateAssistedOrderDto,
@@ -203,6 +217,10 @@ export class OrdersController {
       "Edit administrator-managed order content and recalculate authoritative totals",
   })
   @ApiOkResponse({ type: OrderResponseDto })
+  @ApiBadRequestResponse({
+    type: DeliveryAvailabilityErrorDto,
+    description: "The replacement delivery coordinates must be inside Ahal or Ashgabat",
+  })
   adminEdit(
     @CurrentUser() user: AuthUser,
     @Param("id", ParseUUIDPipe) id: string,

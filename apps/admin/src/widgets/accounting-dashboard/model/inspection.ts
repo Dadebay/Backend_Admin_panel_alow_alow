@@ -95,6 +95,7 @@ export const auditActionLabels: Record<string, string> = {
   "marketing.promo.updated": "Промокод изменён",
   "marketing.banner.updated": "Баннер изменён",
   "branch.updated": "Филиал изменён",
+  "staff.deleted": "Удалён сотрудник",
   "staff.updated": "Сотрудник изменён",
   "accounting.settings_updated": "Границы смен изменены",
   "contacts.updated": "Контакты изменены",

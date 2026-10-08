@@ -1187,7 +1187,11 @@ describe("durable receipt queue", () => {
           expect(next.plan.documentType).toBe(
             action === "cancel" ? "CANCELLATION" : "ORDER",
           );
-          await outcome(next, "DELIVERED").expect(201);
+          await outcome(next, "DELIVERED")
+            .expect((result) => {
+              expect(result.status, JSON.stringify(result.body)).toBe(201);
+            })
+            .expect(201);
         }
         expect(await claim()).toBeNull();
       } finally {

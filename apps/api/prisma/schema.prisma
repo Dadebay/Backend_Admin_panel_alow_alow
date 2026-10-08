@@ -161,6 +161,7 @@ model User {
   lastName              String?                @db.VarChar(80)
   role                  Role                   @default(CUSTOMER)
   isActive              Boolean                @default(true)
+  deletedAt DateTime?
   lastLoginAt           DateTime?
   pointsBalance         Int                    @default(0)
   createdAt             DateTime               @default(now())

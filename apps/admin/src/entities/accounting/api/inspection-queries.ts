@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useSession } from "@/src/shared/auth";
 import { accountingQueryKeys } from "./accounting-queries";
 import type {
+  AccountingSalesPage,
   InspectionAuditPage,
   InspectionCarryoverPage,
   InspectionOrderDetail,
@@ -93,6 +94,26 @@ export function useAccountingOrderAudit(id: string | null, page: number) {
       id &&
       session &&
       ["ACCOUNTANT", "SUPER_ADMIN"].includes(session.user.role),
+    ),
+    staleTime: 30_000,
+    gcTime: 300_000,
+    retry: 1,
+    refetchOnWindowFocus: false,
+    refetchInterval: false,
+  });
+}
+
+export function useAccountingSales(search: string) {
+  const { session, authorizedRequest } = useSession();
+  return useQuery({
+    queryKey: [...accountingQueryKeys.all, "sales", session?.user.id, search],
+    queryFn: ({ signal }) =>
+      authorizedRequest<AccountingSalesPage>(`/accounting/sales?${search}`, {
+        signal,
+      }),
+    enabled: Boolean(
+      session &&
+      ["ADMIN", "ACCOUNTANT", "SUPER_ADMIN"].includes(session.user.role),
     ),
     staleTime: 30_000,
     gcTime: 300_000,

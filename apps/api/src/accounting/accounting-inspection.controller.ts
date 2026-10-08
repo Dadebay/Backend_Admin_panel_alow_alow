@@ -10,6 +10,8 @@ import type { AuthUser } from "../common/auth.types";
 import { AdminPage, Role } from "../generated/prisma/client";
 import { AccountingInspectionService } from "./accounting-inspection.service";
 import {
+  AccountingSalesPageDto,
+  AccountingSalesQueryDto,
   InspectionAuditPageDto,
   InspectionAuditQueryDto,
   InspectionCarryoverPageDto,
@@ -29,6 +31,20 @@ import {
 @Controller("accounting")
 export class AccountingInspectionController {
   constructor(private readonly inspection: AccountingInspectionService) {}
+
+  @Get("sales")
+  @Roles(Role.ADMIN, Role.ACCOUNTANT)
+  @ApiOperation({
+    summary:
+      "Read paginated cash-shift sales with food/delivery totals; cancelled orders excluded",
+  })
+  @ApiOkResponse({ type: AccountingSalesPageDto })
+  sales(
+    @CurrentUser() actor: AuthUser,
+    @Query() query: AccountingSalesQueryDto,
+  ) {
+    return this.inspection.sales(actor, query);
+  }
 
   @Get("carryover")
   @ApiOperation({

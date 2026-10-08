@@ -5,6 +5,8 @@ import {
   type StaffMutation,
   type UpdateStaff,
 } from "@/src/entities/staff";
+import { orderQueryKeys } from "@/src/entities/order";
+import { courierQueryKeys } from "@/src/entities/courier";
 import { useSession } from "@/src/shared/auth";
 
 export function useStaffActions() {
@@ -28,5 +30,16 @@ export function useStaffActions() {
       }),
     onSuccess: refresh,
   });
-  return { createStaff, updateStaff };
+  const deleteStaff = useMutation({
+    mutationFn: (id: string) =>
+      authorizedRequest<void>(`/staff/${id}`, { method: "DELETE" }),
+    onSuccess: async () => {
+      await refresh();
+      await queryClient.invalidateQueries({
+        queryKey: [...orderQueryKeys.all, "couriers"],
+      });
+      await queryClient.invalidateQueries({ queryKey: courierQueryKeys.all });
+    },
+  });
+  return { createStaff, updateStaff, deleteStaff };
 }

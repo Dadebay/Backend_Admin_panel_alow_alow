@@ -2610,3 +2610,29 @@ previews retain their existing contract and do not confirm availability.
 The successful payloads, order/cancellation policy, print agent, database
 schema and frontend are unchanged. Swagger documents the stable rejection
 codes; existing clients can surface the backend message on submission.
+
+## Staff removal and administrator cash-shift sales — 2026-10-08
+
+`ADMIN` and `SUPER_ADMIN` may remove a staff account through `DELETE /staff/:id`.
+Removal sets `User.deletedAt` and disables access, revokes refresh sessions and
+records `staff.deleted` atomically. The employee disappears from staff/recent-login
+lists; orders, cash records, the employee identity and audit history are retained.
+Disabling an employee remains a separate reversible action. Removed accounts
+cannot be edited/reactivated through staff editing or sign in through OTP.
+Their phone remains reserved by the historical identity. A retry is idempotent.
+Only `SUPER_ADMIN` may remove another `SUPER_ADMIN`; self-removal, removing the
+last active owner and removal while the employee has unfinished kitchen/courier
+assignments are rejected. Apply migration `20261008090000_staff_soft_delete`
+before the matching API release.
+
+`GET /accounting/sales` is read-only for `ADMIN`, `ACCOUNTANT` and `SUPER_ADMIN`.
+An expanded page grant alone does not grant sales access to other roles.
+It returns paginated orders and server-calculated totals for the entire filtered
+cohort, excluding cancellations. Food after discounts and delivery are separate.
+The default cohort is cash return time. Daily `:day` views include all confirmed
+or reconciled receipts for that Ashgabat day, including legacy cash packets,
+matching the existing daily cash cards. Historical `:first`/`:second` shift views
+use frozen packet membership. The alternative creation-time cohort includes unfinished orders and
+is explicitly labelled as order amounts, not received money. Both creation and
+cash-return timestamps are shown in the admin shift sales table. Accountant-only
+inspection/audit and financial-report permissions remain unchanged.

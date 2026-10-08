@@ -475,3 +475,24 @@ new daily orders exist, old code does not understand repeated visible numbers;
 after archives exist, it may expose archived categories. Preserve the database
 and fix forward rather than using the old application images. Never restore a
 database backup over live orders merely to reverse this migration.
+
+## Staff removal and cash-day sales rollout — 2026-10-08
+
+Apply additive migration `20261008090000_staff_soft_delete` after a verified
+full PostgreSQL backup and before replacing the API. It adds nullable
+`User.deletedAt`; no staff, orders, settlements or cash packets are deleted or
+rewritten by the migration. Deploy the matching API, migration and admin images
+from the same quality-gated `main` revision through the existing flow.
+
+Verify that the staff page has a separate removal confirmation and that
+administrators can open daily sales from the cash cards. Returned-cash totals
+for a `:day` key include legacy packets and must equal the card's food amount;
+historical `:first`/`:second` keys retain frozen packet membership. Both creation
+and cash-return timestamps are visible. See `docs/STAFF_SALES_QA.md` for isolated
+real-API verification; do not delete real employees as a production smoke test.
+
+If health checks fail before any staff removal, previous application images may
+be restored while retaining the additive column. After a removal, old code does
+not filter `deletedAt` and could expose removed identities or reactivate them.
+Preserve the database and fix forward; never restore the backup over live orders
+to reverse a staff removal.

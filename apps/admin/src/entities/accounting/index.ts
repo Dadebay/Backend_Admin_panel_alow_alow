@@ -18,3 +18,6 @@ export type {
   SubmitCashHandoff,
 } from "./model/types";
 export { useAccountingInspection, useAccountingOrder, useAccountingOrderAudit } from "./api/inspection-queries";
+
+export type { AccountingSalesPage, AccountingSale } from "./model/types";
+export { useAccountingSales } from "./api/inspection-queries";

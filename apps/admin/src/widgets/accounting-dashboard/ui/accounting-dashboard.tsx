@@ -77,6 +77,8 @@ export function AccountingDashboard() {
       if (section) next.set("inspection", section);
       for (const key of [
         "shift",
+        "salesShift",
+        "salesPage",
         "inspectionPage",
         "order",
         "historyPage",
@@ -93,6 +95,8 @@ export function AccountingDashboard() {
         "fromDate",
         "toDate",
         "shift",
+        "salesShift",
+        "salesPage",
         "inspectionPage",
         "order",
         "historyPage",

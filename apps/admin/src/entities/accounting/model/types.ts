@@ -12,3 +12,6 @@ export type InspectionOrderDetail = components["schemas"]["InspectionOrderDetail
 export type InspectionAudit = components["schemas"]["InspectionAuditDto"];
 export type InspectionAuditPage = components["schemas"]["InspectionAuditPageDto"];
 export type InspectionCarryoverPage = components["schemas"]["InspectionCarryoverPageDto"];
+
+export type AccountingSalesPage = components["schemas"]["AccountingSalesPageDto"];
+export type AccountingSale = components["schemas"]["AccountingSaleDto"];

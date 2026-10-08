@@ -7,7 +7,12 @@ import {
 } from "@nestjs/common";
 import { parsePhoneNumberFromString } from "libphonenumber-js";
 import type { AuthUser } from "../common/auth.types";
-import { LoginAttemptStatus, Prisma, Role } from "../generated/prisma/client";
+import {
+  LoginAttemptStatus,
+  OrderStatus,
+  Prisma,
+  Role,
+} from "../generated/prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import {
   CreateStaffDto,
@@ -39,6 +44,7 @@ export class UsersService {
   list(role?: Role) {
     return this.prisma.user.findMany({
       where: {
+        deletedAt: null,
         ...(role ? { role } : { role: { not: Role.CUSTOMER } }),
       },
       select: {
@@ -57,7 +63,7 @@ export class UsersService {
 
   couriers() {
     return this.prisma.user.findMany({
-      where: { role: Role.COURIER, isActive: true },
+      where: { role: Role.COURIER, isActive: true, deletedAt: null },
       select: {
         id: true,
         phone: true,
@@ -78,7 +84,7 @@ export class UsersService {
 
   recentLogins() {
     return this.prisma.user.findMany({
-      where: { lastLoginAt: { not: null } },
+      where: { lastLoginAt: { not: null }, deletedAt: null },
       select: {
         id: true,
         phone: true,
@@ -212,7 +218,8 @@ export class UsersService {
     }
     return this.prisma.$transaction(async (tx) => {
       const target = await tx.user.findUnique({ where: { id } });
-      if (!target) throw new NotFoundException("Staff member not found");
+      if (!target || target.deletedAt || target.role === Role.CUSTOMER)
+        throw new NotFoundException("Staff member not found");
 
       const touchesSuperAdmin =
         target.role === Role.SUPER_ADMIN || dto.role === Role.SUPER_ADMIN;
@@ -237,7 +244,22 @@ export class UsersService {
         }
       }
 
-      const updated = await tx.user.update({ where: { id }, data: dto });
+      const changed = await tx.user.updateMany({
+        where: {
+          id,
+          deletedAt: null,
+          role: target.role,
+          isActive: target.isActive,
+        },
+        data: dto,
+      });
+      if (changed.count !== 1) {
+        throw new ConflictException(
+          "Сотрудник изменился. Обновите список и повторите действие",
+        );
+      }
+      const updated = await tx.user.findUniqueOrThrow({ where: { id } });
+
       await tx.auditLog.create({
         data: {
           actorId: actor.id,
@@ -245,8 +267,20 @@ export class UsersService {
           entityType: "User",
           entityId: updated.id,
           metadata: {
-            before: { firstName: target.firstName, lastName: target.lastName, phone: target.phone, role: target.role, isActive: target.isActive },
-            after: { firstName: updated.firstName, lastName: updated.lastName, phone: updated.phone, role: updated.role, isActive: updated.isActive },
+            before: {
+              firstName: target.firstName,
+              lastName: target.lastName,
+              phone: target.phone,
+              role: target.role,
+              isActive: target.isActive,
+            },
+            after: {
+              firstName: updated.firstName,
+              lastName: updated.lastName,
+              phone: updated.phone,
+              role: updated.role,
+              isActive: updated.isActive,
+            },
             previousRole: target.role,
             role: updated.role,
             previousIsActive: target.isActive,
@@ -264,5 +298,103 @@ export class UsersService {
       throw new BadRequestException("Phone number is invalid");
     }
     return parsed.number;
+  }
+  private requireAdministrator(actor: AuthUser) {
+    if (actor.role !== Role.ADMIN && actor.role !== Role.SUPER_ADMIN) {
+      throw new ForbiddenException("Only administrators can manage staff");
+    }
+  }
+
+  async remove(actor: AuthUser, id: string) {
+    this.requireAdministrator(actor);
+    if (actor.id === id) {
+      throw new BadRequestException(
+        "Нельзя удалить собственную учётную запись",
+      );
+    }
+    try {
+      await this.prisma.$transaction(
+        async (tx) => {
+          const target = await tx.user.findUnique({ where: { id } });
+          if (!target || target.role === Role.CUSTOMER) {
+            throw new NotFoundException("Сотрудник не найден");
+          }
+          if (
+            target.role === Role.SUPER_ADMIN &&
+            actor.role !== Role.SUPER_ADMIN
+          ) {
+            throw new ForbiddenException(
+              "Только главный администратор может удалить главного администратора",
+            );
+          }
+          if (target.deletedAt) return;
+          if (
+            target.role === Role.SUPER_ADMIN &&
+            target.isActive &&
+            (await tx.user.count({
+              where: { role: Role.SUPER_ADMIN, isActive: true },
+            })) <= 1
+          ) {
+            throw new BadRequestException(
+              "Должен остаться хотя бы один активный главный администратор",
+            );
+          }
+          const activeOrders = await tx.order.count({
+            where: {
+              OR: [{ courierId: id }, { cookId: id }],
+              status: {
+                notIn: [
+                  OrderStatus.CASH_RETURNED,
+                  OrderStatus.RECONCILED,
+                  OrderStatus.CANCELLED,
+                ],
+              },
+            },
+          });
+          if (activeOrders) {
+            throw new ConflictException(
+              "Сначала завершите или переназначьте активные заказы сотрудника",
+            );
+          }
+          const deletedAt = new Date();
+          await tx.user.update({
+            where: { id },
+            data: { isActive: false, deletedAt },
+          });
+          await tx.refreshToken.updateMany({
+            where: { userId: id, revokedAt: null },
+            data: { revokedAt: deletedAt },
+          });
+          await tx.auditLog.create({
+            data: {
+              actorId: actor.id,
+              action: "staff.deleted",
+              entityType: "User",
+              entityId: id,
+              metadata: {
+                before: {
+                  firstName: target.firstName,
+                  lastName: target.lastName,
+                  role: target.role,
+                  isActive: target.isActive,
+                },
+                after: { isActive: false, deletedAt: deletedAt.toISOString() },
+              },
+            },
+          });
+        },
+        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+      );
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2034"
+      ) {
+        throw new ConflictException(
+          "Сотрудник или его заказы изменились. Обновите список и повторите удаление",
+        );
+      }
+      throw error;
+    }
   }
 }

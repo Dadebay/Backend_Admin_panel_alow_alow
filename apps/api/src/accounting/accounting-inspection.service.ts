@@ -16,6 +16,7 @@ import {
   resolveShiftWindow,
 } from "./accounting-period";
 import {
+  AccountingSalesQueryDto,
   InspectionAuditQueryDto,
   InspectionCarryoverQueryDto,
   InspectionOrdersQueryDto,
@@ -290,30 +291,7 @@ export class AccountingInspectionService {
     this.authorize(actor);
     return this.prisma.$transaction(
       async (tx) => {
-        const range = await this.range(tx, query);
-        const handoff =
-          query.basis === "cashReturned" && query.shiftKey && !query.shiftKey.endsWith(":day")
-            ? await tx.cashHandoff.findUnique({
-                where: { shiftKey: query.shiftKey },
-                select: { id: true },
-              })
-            : null;
-        const where: Prisma.OrderWhereInput = {
-          ...(query.basis === "cashReturned"
-            ? {
-                cashSettlement: {
-                  is: handoff
-                    ? { cashHandoffId: handoff.id }
-                    : {
-                        operatorTakenAt: { gte: range.start, lt: range.end },
-                        status: { in: ["CONFIRMED", "RECONCILED"] },
-                      },
-                },
-              }
-            : { createdAt: { gte: range.start, lt: range.end } }),
-          status: query.status,
-          number: query.number,
-        };
+        const where = await this.ordersWhere(tx, query);
         const [items, total] = await Promise.all([
           tx.order.findMany({
             where,
@@ -332,6 +310,94 @@ export class AccountingInspectionService {
           total,
           page: query.page,
           limit: query.limit,
+        });
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },
+    );
+  }
+
+  private async ordersWhere(
+    tx: Prisma.TransactionClient,
+    query: InspectionOrdersQueryDto,
+  ): Promise<Prisma.OrderWhereInput> {
+    const range = await this.range(tx, query);
+    const handoff =
+      query.basis === "cashReturned" &&
+      query.shiftKey &&
+      !query.shiftKey.endsWith(":day")
+        ? await tx.cashHandoff.findUnique({
+            where: { shiftKey: query.shiftKey },
+            select: { id: true },
+          })
+        : null;
+    return {
+      ...(query.basis === "cashReturned"
+        ? {
+            cashSettlement: {
+              is: handoff
+                ? { cashHandoffId: handoff.id }
+                : {
+                    operatorTakenAt: { gte: range.start, lt: range.end },
+                    status: { in: ["CONFIRMED", "RECONCILED"] },
+                  },
+            },
+          }
+        : { createdAt: { gte: range.start, lt: range.end } }),
+      status: query.status,
+      number: query.number,
+    };
+  }
+
+  async sales(actor: AuthUser, query: AccountingSalesQueryDto) {
+    if (
+      actor.role !== Role.ADMIN &&
+      actor.role !== Role.ACCOUNTANT &&
+      actor.role !== Role.SUPER_ADMIN
+    ) {
+      throw new ForbiddenException(
+        "Просмотр продаж доступен администратору и бухгалтеру",
+      );
+    }
+    return this.prisma.$transaction(
+      async (tx) => {
+        const where: Prisma.OrderWhereInput = {
+          ...(await this.ordersWhere(tx, query)),
+          AND: [{ status: { not: OrderStatus.CANCELLED } }],
+        };
+        const [items, total, amounts] = await Promise.all([
+          tx.order.findMany({
+            where,
+            select: {
+              ...orderSelect,
+              cashSettlement: { select: { operatorTakenAt: true } },
+            },
+            orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+            skip: (query.page - 1) * query.limit,
+            take: query.limit,
+          }),
+          tx.order.count({ where }),
+          tx.order.aggregate({
+            where,
+            _sum: { total: true, deliveryFee: true },
+          }),
+        ]);
+        return toApiResponse({
+          items: items.map(({ cashSettlement, ...order }) => ({
+            ...order,
+            foodAmount: foodAmount(order.total, order.deliveryFee),
+            cashReturnedAt: cashSettlement?.operatorTakenAt ?? null,
+          })),
+          total,
+          page: query.page,
+          limit: query.limit,
+          summary: {
+            foodAmount: foodAmount(
+              amounts._sum.total,
+              amounts._sum.deliveryFee,
+            ),
+            deliveryAmount: Number(amounts._sum.deliveryFee ?? 0),
+            totalAmount: Number(amounts._sum.total ?? 0),
+          },
         });
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },

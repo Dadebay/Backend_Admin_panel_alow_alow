@@ -3,7 +3,11 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useForm } from "react-hook-form";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { PencilEdit02Icon, PowerIcon } from "@hugeicons/core-free-icons";
+import {
+  Delete02Icon,
+  PencilEdit02Icon,
+  PowerIcon,
+} from "@hugeicons/core-free-icons";
 import { roleLabels, type Role } from "@/src/entities/order";
 import { useMyAdminPageAccess } from "@/src/entities/admin-page-access";
 import { useRecentLogins, useStaff, type Staff } from "@/src/entities/staff";
@@ -15,7 +19,7 @@ import {
   PHONE_PREFIX,
   PhoneNumberInput,
 } from "@/src/shared/forms";
-import { AsyncPanel, DataTable } from "@/src/shared/ui";
+import { AsyncPanel, ConfirmDeleteDialog, DataTable } from "@/src/shared/ui";
 import {
   staffFormSchema,
   staffRoles,
@@ -31,6 +35,13 @@ export function StaffManager() {
   const staff = useStaff();
   const recentLogins = useRecentLogins();
   const actions = useStaffActions();
+  const [deleteTarget, setDeleteTarget] = useState<Staff | null>(null);
+  const [deleteSuccess, setDeleteSuccess] = useState("");
+  const canDelete = Boolean(
+    session &&
+    ["ADMIN", "SUPER_ADMIN"].includes(session.user.role) &&
+    pageAccess.data?.allowedPages.includes("STAFF"),
+  );
   const [editing, setEditing] = useState<Staff | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [phoneDigits, setPhoneDigits] = useState("");
@@ -57,11 +68,21 @@ export function StaffManager() {
   });
   const canEdit = Boolean(
     session &&
-      (["ADMIN", "SUPER_ADMIN"].includes(session.user.role) ||
-        pageAccess.data?.allowedPages.includes("STAFF")),
+    (["ADMIN", "SUPER_ADMIN"].includes(session.user.role) ||
+      pageAccess.data?.allowedPages.includes("STAFF")),
   );
 
   const formRef = useRef<HTMLFormElement>(null);
+
+  useEffect(() => {
+    if (!deleteTarget) return;
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape" && !actions.deleteStaff.isPending)
+        setDeleteTarget(null);
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [deleteTarget, actions.deleteStaff.isPending]);
 
   const closeForm = useCallback(() => {
     setShowForm(false);
@@ -108,7 +129,10 @@ export function StaffManager() {
   }, [staff.data, staffRoleFilter]);
 
   const lastLoginById = useMemo(
-    () => new Map((recentLogins.data ?? []).map((user) => [user.id, user.lastLoginAt])),
+    () =>
+      new Map(
+        (recentLogins.data ?? []).map((user) => [user.id, user.lastLoginAt]),
+      ),
     [recentLogins.data],
   );
 
@@ -130,7 +154,9 @@ export function StaffManager() {
       {
         header: "Роль",
         cell: ({ row }) => (
-          <span className={`role-badge role-badge-${row.original.role.toLowerCase()}`}>
+          <span
+            className={`role-badge role-badge-${row.original.role.toLowerCase()}`}
+          >
             {roleLabels[row.original.role]}
           </span>
         ),
@@ -150,7 +176,9 @@ export function StaffManager() {
           const lastLoginAt = lastLoginById.get(row.original.id);
           return (
             <span className="muted">
-              {lastLoginAt ? new Date(lastLoginAt).toLocaleString("ru-RU") : "Не входил"}
+              {lastLoginAt
+                ? new Date(lastLoginAt).toLocaleString("ru-RU")
+                : "Не входил"}
             </span>
           );
         },
@@ -188,7 +216,11 @@ export function StaffManager() {
                   setShowForm(true);
                 }}
               >
-                <HugeiconsIcon icon={PencilEdit02Icon} size={15} strokeWidth={1.8} />
+                <HugeiconsIcon
+                  icon={PencilEdit02Icon}
+                  size={15}
+                  strokeWidth={1.8}
+                />
               </button>
               <button
                 aria-label={row.original.isActive ? "Отключить" : "Включить"}
@@ -207,11 +239,44 @@ export function StaffManager() {
               >
                 <HugeiconsIcon icon={PowerIcon} size={15} strokeWidth={1.8} />
               </button>
+              {canDelete &&
+                row.original.id !== session?.user.id &&
+                (row.original.role !== "SUPER_ADMIN" ||
+                  session?.user.role === "SUPER_ADMIN") && (
+                  <button
+                    aria-label="Удалить сотрудника"
+                    title="Удалить сотрудника"
+                    className="text-button row-icon-button"
+                    data-testid={`staff-delete-open-${row.original.id}`}
+                    disabled={actions.deleteStaff.isPending}
+                    type="button"
+                    onClick={() => {
+                      actions.deleteStaff.reset();
+                      setDeleteSuccess("");
+                      setDeleteTarget(row.original);
+                    }}
+                  >
+                    <HugeiconsIcon
+                      icon={Delete02Icon}
+                      size={15}
+                      strokeWidth={1.8}
+                    />
+                  </button>
+                )}
             </div>
           ),
       },
     ],
-    [actions.updateStaff, canEdit, lastLoginById, reset],
+    [
+      actions.updateStaff,
+      actions.deleteStaff,
+      canEdit,
+      canDelete,
+      lastLoginById,
+      reset,
+      session?.user.id,
+      session?.user.role,
+    ],
   );
 
   async function submit(values: StaffFormValues) {
@@ -274,6 +339,39 @@ export function StaffManager() {
         <div className="inline-alert">
           {mutationError instanceof Error ? mutationError.message : ""}
         </div>
+      )}
+
+      {deleteSuccess && (
+        <p
+          className="inline-alert"
+          role="status"
+          data-testid="staff-delete-success"
+        >
+          {deleteSuccess}
+        </p>
+      )}
+      {deleteTarget && (
+        <ConfirmDeleteDialog
+          titleId="staff-delete-title"
+          title="Удалить сотрудника?"
+          description={`${[deleteTarget.firstName, deleteTarget.lastName].filter(Boolean).join(" ") || deleteTarget.phone} исчезнет из списка сотрудников и потеряет доступ к системе.`}
+          note="Заказы, кассовые операции и история действий сохранятся."
+          dialogTestId="staff-delete-dialog"
+          cancelTestId="staff-delete-cancel"
+          confirmTestId="staff-delete-confirm"
+          confirmLabel="Удалить сотрудника"
+          isPending={actions.deleteStaff.isPending}
+          error={actions.deleteStaff.error?.message}
+          onCancel={() => setDeleteTarget(null)}
+          onConfirm={() =>
+            actions.deleteStaff.mutate(deleteTarget.id, {
+              onSuccess: () => {
+                setDeleteTarget(null);
+                setDeleteSuccess("Сотрудник удалён из списка. Доступ закрыт.");
+              },
+            })
+          }
+        />
       )}
 
       {showForm && (
@@ -404,7 +502,8 @@ export function StaffManager() {
                   className="primary-button"
                   data-testid="staff-save"
                   disabled={
-                    actions.createStaff.isPending || actions.updateStaff.isPending
+                    actions.createStaff.isPending ||
+                    actions.updateStaff.isPending
                   }
                 >
                   Сохранить сотрудника
@@ -420,7 +519,11 @@ export function StaffManager() {
           <h2>Все сотрудники</h2>
           <span>{filteredStaff.length}</span>
         </div>
-        <div className="view-tabs role-tabbar" role="tablist" aria-label="Фильтр по роли">
+        <div
+          className="view-tabs role-tabbar"
+          role="tablist"
+          aria-label="Фильтр по роли"
+        >
           <button
             type="button"
             role="tab"
@@ -442,8 +545,10 @@ export function StaffManager() {
             >
               {roleLabels[role]}
               <span className="role-tab-count">
-                {(staff.data ?? []).filter((member) => member.role === role)
-                  .length}
+                {
+                  (staff.data ?? []).filter((member) => member.role === role)
+                    .length
+                }
               </span>
             </button>
           ))}

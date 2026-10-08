@@ -62,9 +62,10 @@ export class JwtAuthGuard implements CanActivate {
           phone: true,
           role: true,
           isActive: true,
+          deletedAt: true,
         },
       });
-      if (!user?.isActive) {
+      if (!user?.isActive || user.deletedAt) {
         throw new UnauthorizedException("Account is inactive");
       }
       if (payload.sid) {

@@ -1,6 +1,8 @@
 import {
   Body,
   Controller,
+  Delete,
+  HttpCode,
   Get,
   Param,
   ParseUUIDPipe,
@@ -12,6 +14,8 @@ import {
   ApiBearerAuth,
   ApiCreatedResponse,
   ApiOkResponse,
+  ApiNoContentResponse,
+  ApiOperation,
   ApiTags,
 } from "@nestjs/swagger";
 import { AdminPages, CurrentUser, Roles } from "../common/auth.decorators";
@@ -96,5 +100,20 @@ export class UsersController {
     @Body() dto: UpdateStaffDto,
   ) {
     return this.users.update(actor, id, dto);
+  }
+  @Delete(":id")
+  @HttpCode(204)
+  @Roles(Role.ADMIN)
+  @AdminPages(AdminPage.STAFF)
+  @ApiOperation({
+    summary:
+      "Remove staff from lists and revoke access, preserving business history",
+  })
+  @ApiNoContentResponse()
+  async remove(
+    @CurrentUser() actor: AuthUser,
+    @Param("id", ParseUUIDPipe) id: string,
+  ) {
+    await this.users.remove(actor, id);
   }
 }

@@ -307,6 +307,9 @@ describe("backend security and critical workflow", () => {
       .patch(`/api/v1/orders/${order.id}/transition`)
       .set(bearer(token))
       .send({ status, version: order.version })
+      .expect((result) => {
+        expect(result.status, JSON.stringify(result.body)).toBe(200);
+      })
       .expect(200);
     return response.body as OrderResponse;
   }

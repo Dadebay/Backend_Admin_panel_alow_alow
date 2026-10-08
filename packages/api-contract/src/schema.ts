@@ -1319,7 +1319,8 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        delete?: never;
+        /** Remove staff from lists and revoke access, preserving business history */
+        delete: operations["UsersController_remove_v1"];
         options?: never;
         head?: never;
         patch: operations["UsersController_update_v1"];
@@ -2225,6 +2226,23 @@ export interface paths {
         };
         /** Get cash totals, handoffs, daily series and accountant/owner product analytics */
         get: operations["AccountingController_report_v1"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/accounting/sales": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read paginated cash-shift sales with food/delivery totals; cancelled orders excluded */
+        get: operations["AccountingInspectionController_sales_v1"];
         put?: never;
         post?: never;
         delete?: never;
@@ -5205,6 +5223,38 @@ export interface components {
             /** @enum {string} */
             role: "CUSTOMER" | "OPERATOR" | "COOK" | "COURIER" | "ACCOUNTANT" | "ADMIN" | "SUPER_ADMIN";
         };
+        AccountingSaleDto: {
+            id: string;
+            number: number;
+            /** @enum {string} */
+            status: "COOKING" | "READY" | "ASSIGNED_TO_COURIER" | "OUT_FOR_DELIVERY" | "DELIVERED" | "CASH_RETURNED" | "RECONCILED" | "CANCELLED";
+            source: string;
+            /** Format: date-time */
+            createdAt: string;
+            total: number;
+            discount: number;
+            deliveryFee: number;
+            foodAmount: number;
+            address: string;
+            branchName: string | null;
+            deliveryEtrapName: string | null;
+            cancellationReason: string | null;
+            courier: components["schemas"]["InspectionActorDto"] | null;
+            /** Format: date-time */
+            cashReturnedAt: string | null;
+        };
+        AccountingSalesSummaryDto: {
+            foodAmount: number;
+            deliveryAmount: number;
+            totalAmount: number;
+        };
+        AccountingSalesPageDto: {
+            items: components["schemas"]["AccountingSaleDto"][];
+            total: number;
+            page: number;
+            limit: number;
+            summary: components["schemas"]["AccountingSalesSummaryDto"];
+        };
         InspectionCarryoverOrderDto: {
             id: string;
             number: number;
@@ -7559,6 +7609,25 @@ export interface operations {
             };
         };
     };
+    UsersController_remove_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     UsersController_update_v1: {
         parameters: {
             query?: never;
@@ -8979,6 +9048,36 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AccountingReportResponseDto"];
+                };
+            };
+        };
+    };
+    AccountingInspectionController_sales_v1: {
+        parameters: {
+            query?: {
+                fromDate?: string;
+                toDate?: string;
+                /** @description Overrides calendar dates; submitted shifts use their frozen boundaries */
+                shiftKey?: string;
+                page?: components["schemas"]["Object"];
+                limit?: components["schemas"]["Object"];
+                /** @description Select by creation time or cash return time; submitted shifts use frozen packet membership */
+                basis?: "created" | "cashReturned";
+                status?: "COOKING" | "READY" | "ASSIGNED_TO_COURIER" | "OUT_FOR_DELIVERY" | "DELIVERED" | "CASH_RETURNED" | "RECONCILED" | "CANCELLED";
+                number?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountingSalesPageDto"];
                 };
             };
         };

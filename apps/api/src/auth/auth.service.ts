@@ -116,6 +116,10 @@ export class AuthService {
       },
     });
 
+    if (!user.isActive || user.deletedAt) {
+      await this.updateOpenAttempt(phone, LoginAttemptStatus.FAILED, user.id);
+      throw new UnauthorizedException("Account is inactive");
+    }
     await this.updateOpenAttempt(phone, LoginAttemptStatus.VERIFIED, user.id);
     return this.issueSession(user);
   }
@@ -134,6 +138,7 @@ export class AuthService {
       stored.revokedAt ||
       stored.expiresAt < new Date() ||
       !stored.user.isActive ||
+      stored.user.deletedAt ||
       !(await this.verifyHash(stored.secretHash, secret))
     ) {
       throw new UnauthorizedException("Refresh token is invalid or expired");

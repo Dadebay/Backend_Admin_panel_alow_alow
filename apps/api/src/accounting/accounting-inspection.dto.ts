@@ -74,6 +74,16 @@ export class InspectionOrdersQueryDto extends InspectionPageDto {
   number?: number;
 }
 
+export class AccountingSalesQueryDto extends InspectionOrdersQueryDto {
+  @ApiPropertyOptional({
+    enum: ["created", "cashReturned"],
+    default: "cashReturned",
+  })
+  @IsOptional()
+  @IsIn(["created", "cashReturned"])
+  override basis: "created" | "cashReturned" = "cashReturned";
+}
+
 export class InspectionAuditQueryDto extends InspectionPageDto {
   @ApiPropertyOptional({ format: "uuid" })
   @IsOptional()
@@ -168,6 +178,26 @@ export class InspectionOrdersPageDto {
   @ApiProperty() total: number;
   @ApiProperty() page: number;
   @ApiProperty() limit: number;
+}
+
+export class AccountingSaleDto extends InspectionOrderDto {
+  @ApiProperty({ nullable: true, type: String, format: "date-time" })
+  cashReturnedAt: string | null;
+}
+
+export class AccountingSalesSummaryDto {
+  @ApiProperty() foodAmount: number;
+  @ApiProperty() deliveryAmount: number;
+  @ApiProperty() totalAmount: number;
+}
+
+export class AccountingSalesPageDto {
+  @ApiProperty({ type: [AccountingSaleDto] }) items: AccountingSaleDto[];
+  @ApiProperty() total: number;
+  @ApiProperty() page: number;
+  @ApiProperty() limit: number;
+  @ApiProperty({ type: AccountingSalesSummaryDto })
+  summary: AccountingSalesSummaryDto;
 }
 
 export class InspectionCarryoverOrderDto extends InspectionOrderDto {

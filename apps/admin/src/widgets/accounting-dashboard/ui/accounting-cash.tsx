@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useSearchParams } from "react-router";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -11,6 +11,7 @@ import { useMyAdminPageAccess } from "@/src/entities/admin-page-access";
 import { useAccountingActions } from "@/src/features/accounting-management";
 import { FormFieldError } from "@/src/shared/forms";
 import { useSession } from "@/src/shared/auth";
+import { AccountingSales } from "./accounting-sales";
 import { AsyncPanel } from "@/src/shared/ui";
 import {
   cashHandoffSchema,
@@ -64,6 +65,7 @@ function actorName(
 }
 
 export function AccountingCash() {
+  const salesRef = useRef<HTMLElement>(null);
   const { session } = useSession();
   const pageAccess = useMyAdminPageAccess();
   const role = session?.user.role;
@@ -371,6 +373,25 @@ export function AccountingCash() {
                     Открыть заказы дня
                   </button>
                 )}
+                {(role === "ADMIN" || isSuperAdmin) && (
+                  <button
+                    className="secondary-button"
+                    data-testid={`accounting-sales-open-${shift.shiftKey}`}
+                    type="button"
+                    onClick={() => {
+                      setParams((previous) => {
+                        const next = new URLSearchParams(previous);
+                        next.set("salesShift", shift.shiftKey);
+                        next.set("salesBasis", "cashReturned");
+                        next.delete("salesPage");
+                        return next;
+                      });
+                      salesRef.current?.scrollIntoView({ block: "start" });
+                    }}
+                  >
+                    Продажи смены
+                  </button>
+                )}
                 {isAdmin && shift.canSubmit && (
                   <button
                     className="primary-button"
@@ -407,6 +428,15 @@ export function AccountingCash() {
           )}
         </section>
       </AsyncPanel>
+
+      {(role === "ADMIN" || isSuperAdmin) && (
+        <AccountingSales
+          ref={salesRef}
+          fromDate={range.fromDate}
+          toDate={range.toDate}
+          shifts={shifts.data ?? []}
+        />
+      )}
 
       {selectedShift && (
         <form

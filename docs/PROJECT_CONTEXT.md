@@ -2420,8 +2420,15 @@ and static admin container gzip JSON, JavaScript and CSS responses.
 ## Loyalty gifts and selectable kilometer delivery — 2026-09-25
 
 Every catalog dish has an administrator-configured positive number of loyalty
-points per unit; existing dishes receive one point by default. An order saves
-the point amount of each line and its total. Points are credited once when the
+points per unit; existing dishes receive one point by default. As of 2026-10-10,
+per-dish points accept values from 0.01 through 100000 with up to two decimal
+places (for example 0.65). The admin accepts either a dot or comma separator.
+Product values, order-line/earned snapshots, wallet balances and signed ledger
+entries use exact decimal hundredths; earning and cancellation never round to
+whole points. API responses retain JSON numbers. Gift prices remain positive
+integers. Apply migration `20261010100000_fractional_loyalty_points` before the
+matching API/admin release; existing integer values and defaults are preserved.
+An order saves the point amount of each line and its total. Points are credited once when the
 order reaches `DELIVERED`. A later permitted administrator cancellation reverses
 that credit. A balance can become negative after reversal if the customer has
 already spent the earned points; new redemptions require sufficient balance.

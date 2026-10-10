@@ -121,7 +121,11 @@ export const productFormSchema = z
       .multipleOf(0.01, "Не больше двух знаков после запятой"),
     receiptPrinterId: z.union([z.literal(""), z.uuid("Выберите аппарат")]),
     preparationMinutes: z.number().int().min(0).max(1440),
-    loyaltyPoints: z.number().int().min(1).max(100000),
+    loyaltyPoints: z
+      .number({ error: "Укажите количество баллов" })
+      .min(0.01, "Минимум 0,01 балла")
+      .max(100000, "Не больше 100 000 баллов")
+      .multipleOf(0.01, "Не больше двух знаков после запятой"),
     variantLabel: z.string().trim().max(80, "Не больше 80 символов"),
     variants: z.array(productVariantSchema).max(30, "Не больше 30 вариантов"),
     sortOrder: z

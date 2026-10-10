@@ -1425,12 +1425,17 @@ export function CatalogManager() {
                 <span>Баллы за одно блюдо</span>
                 <input
                   data-testid="product-loyalty-points"
-                  type="number"
-                  min="1"
-                  max="100000"
-                  {...registerProduct("loyaltyPoints", { valueAsNumber: true })}
+                  type="text"
+                  inputMode="decimal"
+                  {...registerProduct("loyaltyPoints", {
+                    setValueAs: (value: string | number) => {
+                      if (typeof value === "number") return value;
+                      return value.trim() ? Number(value.replace(",", ".")) : Number.NaN;
+                    },
+                  })}
                   aria-invalid={Boolean(productErrors.loyaltyPoints)}
                 />
+                <small>От 0,01 до 100 000 баллов, например 0,65.</small>
                 <FormFieldError message={productErrors.loyaltyPoints?.message} />
               </label>
               <label>

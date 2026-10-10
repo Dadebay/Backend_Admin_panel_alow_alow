@@ -2587,6 +2587,7 @@ export interface components {
             slug: string;
             description: string;
             preparationMinutes: number;
+            /** @example 0.65 */
             loyaltyPoints: number;
             /** @enum {string} */
             pricingType: "FIXED" | "VARIANT";
@@ -2662,6 +2663,7 @@ export interface components {
             slug: string;
             description: string;
             preparationMinutes: number;
+            /** @example 0.65 */
             loyaltyPoints: number;
             /** @enum {string} */
             pricingType: "FIXED" | "VARIANT";
@@ -2912,7 +2914,10 @@ export interface components {
             description: string;
             /** @description Preparation time in minutes */
             preparationMinutes?: number;
-            /** @description Points earned for each ordered unit after delivery */
+            /**
+             * @description Points earned for each ordered unit after delivery, with up to two decimal places
+             * @example 0.65
+             */
             loyaltyPoints?: number;
             /**
              * @description Required for FIXED pricing and ignored for VARIANT pricing, where the backend derives the minimum price
@@ -2961,7 +2966,10 @@ export interface components {
             description?: string;
             /** @description Preparation time in minutes */
             preparationMinutes?: number;
-            /** @description Points earned for each ordered unit after delivery */
+            /**
+             * @description Points earned for each ordered unit after delivery, with up to two decimal places
+             * @example 0.65
+             */
             loyaltyPoints?: number;
             /**
              * @description Required for FIXED pricing and ignored for VARIANT pricing, where the backend derives the minimum price
@@ -3191,7 +3199,7 @@ export interface components {
             productName: string;
             variantName: string | null;
             preparationMinutes: number;
-            /** @description Points earned by this order line after delivery */
+            /** @description Points earned by this order line after delivery, with up to two decimal places */
             loyaltyPoints: number;
             productImageUrl: string | null;
             unitPrice: number;
@@ -4966,11 +4974,13 @@ export interface components {
             orderId: string;
             /** @enum {string} */
             kind: "EARN" | "REDEEM" | "REFUND" | "REVERSE_EARN";
+            /** @description Signed loyalty points, with up to two decimal places */
             points: number;
             /** Format: date-time */
             createdAt: string;
         };
         LoyaltyWalletResponseDto: {
+            /** @description Loyalty balance, with up to two decimal places; may be negative after cancellation */
             pointsBalance: number;
             entries: components["schemas"]["LoyaltyEntryResponseDto"][];
         };

@@ -187,7 +187,7 @@ export class CatalogProductResponseDto {
   @ApiProperty({ minimum: 0 })
   preparationMinutes: number;
 
-  @ApiProperty({ minimum: 0 })
+  @ApiProperty({ minimum: 0.01, maximum: 100000, multipleOf: 0.01, example: 0.65 })
   loyaltyPoints: number;
 
   @ApiProperty({ enum: ProductPricingType })

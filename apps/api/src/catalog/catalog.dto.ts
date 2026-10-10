@@ -389,10 +389,10 @@ export class CreateProductDto {
   @Max(1440)
   preparationMinutes?: number;
 
-  @ApiPropertyOptional({ minimum: 1, maximum: 100000, description: "Points earned for each ordered unit after delivery" })
+  @ApiPropertyOptional({ minimum: 0.01, maximum: 100000, multipleOf: 0.01, example: 0.65, description: "Points earned for each ordered unit after delivery, with up to two decimal places" })
   @IsOptional()
-  @IsInt()
-  @Min(1)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0.01)
   @Max(100000)
   loyaltyPoints?: number;
 

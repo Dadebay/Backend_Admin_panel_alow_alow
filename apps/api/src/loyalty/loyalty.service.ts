@@ -78,18 +78,18 @@ export class LoyaltyService {
     await tx.loyaltyEntry.create({ data: { userId, orderId, kind: LoyaltyEntryKind.REDEEM, points: -pointsSpent } });
   }
 
-  async award(tx: Prisma.TransactionClient, userId: string, orderId: string, points: number) {
-    if (!points) return;
+  async award(tx: Prisma.TransactionClient, userId: string, orderId: string, points: Prisma.Decimal) {
+    if (points.isZero()) return;
     await tx.loyaltyEntry.create({ data: { userId, orderId, kind: LoyaltyEntryKind.EARN, points } });
-    const credited = await tx.user.updateMany({ where: { id: userId, pointsBalance: { lte: 2_147_483_647 - points } }, data: { pointsBalance: { increment: points } } });
+    const credited = await tx.user.updateMany({ where: { id: userId, pointsBalance: { lte: new Prisma.Decimal(2_147_483_647).minus(points) } }, data: { pointsBalance: { increment: points } } });
     if (credited.count !== 1) throw new ConflictException("Loyalty balance limit reached");
   }
 
-  async cancel(tx: Prisma.TransactionClient, userId: string, orderId: string, earned: number, spent: number) {
-    if (earned) {
+  async cancel(tx: Prisma.TransactionClient, userId: string, orderId: string, earned: Prisma.Decimal, spent: number) {
+    if (!earned.isZero()) {
       const existing = await tx.loyaltyEntry.findUnique({ where: { orderId_kind: { orderId, kind: LoyaltyEntryKind.EARN } } });
       if (existing) {
-        await tx.loyaltyEntry.create({ data: { userId, orderId, kind: LoyaltyEntryKind.REVERSE_EARN, points: -earned } });
+        await tx.loyaltyEntry.create({ data: { userId, orderId, kind: LoyaltyEntryKind.REVERSE_EARN, points: earned.negated() } });
         await tx.user.update({ where: { id: userId }, data: { pointsBalance: { decrement: earned } } });
       }
     }

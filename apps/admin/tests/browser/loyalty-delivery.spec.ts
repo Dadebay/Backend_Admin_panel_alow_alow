@@ -15,6 +15,7 @@ test.afterEach(({ page }) => {
 const CAFE_ID = "11111111-1111-4111-8111-111111111111";
 const CATEGORY_ID = "22222222-2222-4222-8222-222222222222";
 const GIFT_ID = "33333333-3333-4333-8333-333333333333";
+const PRODUCT_ID = "55555555-5555-4555-8555-555555555555";
 const IMAGE_URL = `/api/v1/media/${GIFT_ID}.webp`;
 const now = "2026-09-25T10:00:00.000Z";
 const cafe = { id: CAFE_ID, name: "Test cafe", slug: "test-cafe", description: null, imageUrl: null, sortOrder: 0, isActive: true, createdAt: now, updatedAt: now, categoryCount: 1 };
@@ -29,7 +30,7 @@ async function mockAdmin(page: Page) {
   await page.route("**/styles/alowalow/**", (route) => route.fulfill({ status: 200, contentType: "image/png", body: png }));
   const session = { accessToken: "test-access", refreshToken: "test-refresh", expiresInSeconds: 3600, accessExpiresAt: Date.now() + 3_600_000, user: { id: "44444444-4444-4444-8444-444444444444", phone: "+99365123456", firstName: "Admin", lastName: null, role: "ADMIN" } };
   await page.addInitScript((value) => sessionStorage.setItem("alowalow.session.v1", JSON.stringify(value)), session);
-  const state = { gifts: [] as Record<string, unknown>[], productPosts: [] as Record<string, unknown>[], deliveryPatches: [] as Record<string, unknown>[], deliveryConfigReads: 0, delivery: makeDeliveryConfig() };
+  const state = { gifts: [] as Record<string, unknown>[], products: [] as Record<string, unknown>[], productPosts: [] as Record<string, unknown>[], productPatches: [] as Record<string, unknown>[], deliveryPatches: [] as Record<string, unknown>[], deliveryConfigReads: 0, delivery: makeDeliveryConfig() };
   await page.route("**/api/v1/**", async (route) => {
     const url = new URL(route.request().url());
     const path = url.pathname.replace(/^\/api\/v1/, "");
@@ -41,8 +42,9 @@ async function mockAdmin(page: Page) {
     else if (path === "/catalog/admin/category-summaries") json = [category];
     else if (path === "/catalog/admin/receipt-printers") json = [];
     else if (path === "/catalog/admin/receipt-print-settings") json = { mainCopies: 2, mainPrinterId: null, mainPrinterIp: null, mainPrinter: null, updatedAt: now };
-    else if (path === "/catalog/admin/products/page") json = { items: [], page: 1, limit: 40, total: 0, pages: 0 };
-    else if (path === "/catalog/products" && method === "POST") { const body = route.request().postDataJSON() as Record<string, unknown>; state.productPosts.push(body); json = { id: "55555555-5555-4555-8555-555555555555", ...body }; status = 201; }
+    else if (path === "/catalog/admin/products/page") json = { items: state.products, page: 1, pageSize: 40, total: state.products.length, totalPages: state.products.length ? 1 : 0 };
+    else if (path === "/catalog/products" && method === "POST") { const body = route.request().postDataJSON() as Record<string, unknown>; state.productPosts.push(body); const product = { id: PRODUCT_ID, category, images: [], variants: [], receiptPrinter: null, minPrice: body.price, maxPrice: body.price, ...body }; state.products.push(product); json = product; status = 201; }
+    else if (path === `/catalog/products/${PRODUCT_ID}` && method === "PATCH") { const body = route.request().postDataJSON() as Record<string, unknown>; state.productPatches.push(body); state.products[0] = { ...state.products[0], ...body }; json = state.products[0]; }
     else if (path === "/loyalty/admin/gifts" && method === "GET") json = state.gifts;
     else if (path === "/loyalty/admin/gifts" && method === "POST") { const body = route.request().postDataJSON() as Record<string, unknown>; const gift = { id: GIFT_ID, ...body, version: 1, createdAt: now, updatedAt: now }; state.gifts.push(gift); json = gift; status = 201; }
     else if (path === "/media/images" && method === "POST") { json = { url: IMAGE_URL, filename: `${GIFT_ID}.webp` }; status = 201; }
@@ -81,6 +83,46 @@ test("per-dish points are sent with the product form", async ({ page }) => {
   await expectNoHorizontalOverflow(page);
   expect(errors).toEqual([]);
 });
+
+for (const separator of [".", ","]) {
+  test(`fractional per-dish points accept ${separator} and survive editing and reload`, async ({ page }, testInfo) => {
+    const state = await mockAdmin(page);
+    const errors: string[] = [];
+    page.on("pageerror", (error) => errors.push(error.message));
+    await page.goto("/catalog");
+    await page.getByTestId("catalog-product-open").click();
+    await page.getByTestId("product-category").selectOption(CATEGORY_ID);
+    await page.getByTestId("product-name").fill("Манты");
+    await page.getByTestId("product-description").fill("Дробные баллы за блюдо");
+    await page.getByTestId("product-price").fill("50");
+    const points = page.getByTestId("product-loyalty-points");
+    for (const invalid of ["", "0", "-0.65", "0.001", "0.655", "100000.01"]) {
+      await points.fill(invalid.replace(".", separator));
+      await page.getByTestId("product-save").click();
+      await expect(points).toHaveAttribute("aria-invalid", "true");
+      expect(state.productPosts).toHaveLength(0);
+    }
+    await points.fill(`0${separator}65`);
+    await page.getByTestId("product-save").click();
+    await expect.poll(() => state.productPosts.length).toBe(1);
+    expect(state.productPosts[0]?.loyaltyPoints).toBe(0.65);
+    await page.reload();
+    await page.getByTestId("catalog-tab-products").click();
+    await page.getByTestId(`product-edit-${PRODUCT_ID}`).click();
+    await expect(points).toHaveValue("0.65");
+    await page.screenshot({ path: testInfo.outputPath("fractional-points.png"), animations: "disabled" });
+    await points.fill(`0${separator}01`);
+    await page.getByTestId("product-save").click();
+    await expect.poll(() => state.productPatches.length).toBe(1);
+    expect(state.productPatches[0]?.loyaltyPoints).toBe(0.01);
+    await page.reload();
+    await page.getByTestId("catalog-tab-products").click();
+    await page.getByTestId(`product-edit-${PRODUCT_ID}`).click();
+    await expect(points).toHaveValue("0.01");
+    await expectNoHorizontalOverflow(page);
+    expect(errors).toEqual([]);
+  });
+}
 
 test("gift photo and configurable point price are submitted in the shop", async ({ page }) => {
   const state = await mockAdmin(page);

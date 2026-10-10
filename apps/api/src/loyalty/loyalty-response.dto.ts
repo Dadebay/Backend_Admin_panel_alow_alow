@@ -19,11 +19,11 @@ export class LoyaltyEntryResponseDto {
   @ApiProperty({ format: "uuid" }) id: string;
   @ApiProperty({ format: "uuid" }) orderId: string;
   @ApiProperty({ enum: LoyaltyEntryKind }) kind: LoyaltyEntryKind;
-  @ApiProperty() points: number;
+  @ApiProperty({ multipleOf: 0.01, description: "Signed loyalty points, with up to two decimal places" }) points: number;
   @ApiProperty({ format: "date-time" }) createdAt: string;
 }
 
 export class LoyaltyWalletResponseDto {
-  @ApiProperty() pointsBalance: number;
+  @ApiProperty({ multipleOf: 0.01, description: "Loyalty balance, with up to two decimal places; may be negative after cancellation" }) pointsBalance: number;
   @ApiProperty({ type: [LoyaltyEntryResponseDto] }) entries: LoyaltyEntryResponseDto[];
 }

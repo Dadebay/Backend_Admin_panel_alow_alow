@@ -191,7 +191,7 @@ describe("loyalty shop and kilometer delivery HTTP", () => {
     expect(createdOrder.gifts).toEqual([expect.objectContaining({ giftId, quantity: 1, pointsCost: 30 })]);
     const repeated = await create({ gifts: [gift], idempotencyKey: key }).expect(201);
     expect((repeated.body as OrderResponseDto).id).toBe(createdOrder.id);
-    expect((await prisma.user.findUniqueOrThrow({ where: { id: customerId } })).pointsBalance).toBe(70);
+    expect((await prisma.user.findUniqueOrThrow({ where: { id: customerId } })).pointsBalance.toNumber()).toBe(70);
     expect((await prisma.gift.findUniqueOrThrow({ where: { id: giftId } })).stock).toBe(1);
 
     const checkedItemIds = createdOrder.items.map((item) => item.id);
@@ -203,11 +203,11 @@ describe("loyalty shop and kilometer delivery HTTP", () => {
     await request(server).patch(`/api/v1/orders/${createdOrder.id}/transition`).set(auth(customerToken)).send({ status: OrderStatus.DELIVERED, version: beforeDelivery.version }).expect(403);
     const delivered = await request(server).patch(`/api/v1/orders/${createdOrder.id}/transition`).set(auth(adminToken)).send({ status: OrderStatus.DELIVERED, version: beforeDelivery.version }).expect(200);
     const deliveredOrder = delivered.body as OrderResponseDto;
-    expect((await prisma.user.findUniqueOrThrow({ where: { id: customerId } })).pointsBalance).toBe(76);
+    expect((await prisma.user.findUniqueOrThrow({ where: { id: customerId } })).pointsBalance.toNumber()).toBe(76);
     await request(server).patch(`/api/v1/orders/${createdOrder.id}/transition`).set(auth(adminToken)).send({ status: OrderStatus.DELIVERED, version: beforeDelivery.version }).expect(409);
     const cancelled = await request(server).patch(`/api/v1/orders/${createdOrder.id}/cancel`).set(auth(adminToken)).send({ version: deliveredOrder.version, reason: "Test cancellation" });
     expect(cancelled.status).toBe(200);
-    expect((await prisma.user.findUniqueOrThrow({ where: { id: customerId } })).pointsBalance).toBe(100);
+    expect((await prisma.user.findUniqueOrThrow({ where: { id: customerId } })).pointsBalance.toNumber()).toBe(100);
     expect((await prisma.gift.findUniqueOrThrow({ where: { id: giftId } })).stock).toBe(2);
     expect(await prisma.loyaltyEntry.count({ where: { orderId: createdOrder.id } })).toBe(4);
   });
@@ -227,6 +227,6 @@ describe("loyalty shop and kilometer delivery HTTP", () => {
     expect((await prisma.gift.findUniqueOrThrow({ where: { id: gift.id } })).stock).toBeNull();
     await request(server).patch(`/api/v1/orders/${placedOrder.id}/cancel`).set(auth(adminToken)).send({ version: placedOrder.version, reason: "Test" }).expect(200);
     expect((await prisma.gift.findUniqueOrThrow({ where: { id: gift.id } })).stock).toBeNull();
-    expect((await prisma.user.findUniqueOrThrow({ where: { id: customerId } })).pointsBalance).toBe(100);
+    expect((await prisma.user.findUniqueOrThrow({ where: { id: customerId } })).pointsBalance.toNumber()).toBe(100);
   });
 });

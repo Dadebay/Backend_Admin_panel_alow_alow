@@ -280,7 +280,7 @@ export class OrdersService {
         where: { id: user.id },
         select: { pointsBalance: true },
       });
-      if (redemption.pointsSpent > wallet.pointsBalance)
+      if (wallet.pointsBalance.lt(redemption.pointsSpent))
         throw new ConflictException("Insufficient loyalty points");
       const loyaltyPointsEarned = earnedPoints(
         resolvedItems.map(({ product, quantity }) => ({
@@ -308,7 +308,7 @@ export class OrdersService {
             productImageUrl:
               variant?.images[0]?.url ?? product.images[0]?.url ?? null,
             quantity,
-            loyaltyPoints: product.loyaltyPoints * quantity,
+            loyaltyPoints: product.loyaltyPoints.mul(quantity),
             unitPrice: Number(variant?.price ?? product.price),
             originalLineTotal,
             discount: lineDiscount,
@@ -968,7 +968,7 @@ export class OrdersService {
               productName: product.name,
               variantName: variant?.name,
               preparationMinutes: product.preparationMinutes,
-              loyaltyPoints: product.loyaltyPoints * quantity,
+              loyaltyPoints: product.loyaltyPoints.mul(quantity),
               receiptPrinterIp: receiptRoute?.receiptPrinterIp,
               receiptPrinterPort: receiptRoute?.receiptPrinterPort,
               receiptPrinterTransport: receiptRoute?.receiptPrinterTransport,
@@ -1726,7 +1726,7 @@ export class OrdersService {
             productName: product.name,
             variantName: variant?.name,
             preparationMinutes: product.preparationMinutes,
-            loyaltyPoints: product.loyaltyPoints * quantity,
+            loyaltyPoints: product.loyaltyPoints.mul(quantity),
             receiptPrinterIp: receiptRoute?.receiptPrinterIp ?? null,
             receiptPrinterPort: receiptRoute?.receiptPrinterPort ?? null,
             receiptPrinterTransport:

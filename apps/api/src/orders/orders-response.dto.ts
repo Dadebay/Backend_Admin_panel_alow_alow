@@ -111,7 +111,7 @@ export class OrderItemResponseDto {
   @ApiProperty({ minimum: 0 })
   preparationMinutes: number;
 
-  @ApiProperty({ minimum: 0, description: "Points earned by this order line after delivery" })
+  @ApiProperty({ minimum: 0, multipleOf: 0.01, description: "Points earned by this order line after delivery, with up to two decimal places" })
   loyaltyPoints: number;
 
   @ApiProperty({ type: String, nullable: true })
@@ -146,7 +146,7 @@ export class OrderQuoteItemResponseDto {
   @ApiProperty()
   quantity: number;
 
-  @ApiProperty({ minimum: 0 })
+  @ApiProperty({ minimum: 0, multipleOf: 0.01 })
   loyaltyPoints: number;
 
   @ApiProperty({
@@ -207,8 +207,8 @@ export class OrderQuoteResponseDto {
   @ApiProperty({ type: [OrderQuoteGiftResponseDto] })
   gifts: OrderQuoteGiftResponseDto[];
 
-  @ApiProperty() pointsBalance: number;
-  @ApiProperty() loyaltyPointsEarned: number;
+  @ApiProperty({ multipleOf: 0.01 }) pointsBalance: number;
+  @ApiProperty({ minimum: 0, multipleOf: 0.01 }) loyaltyPointsEarned: number;
   @ApiProperty() loyaltyPointsSpent: number;
 
   @ApiProperty({ type: OrderQuotePromoResponseDto, nullable: true })
@@ -520,7 +520,7 @@ export class OrderResponseDto {
   @ApiProperty()
   total: number;
 
-  @ApiProperty()
+  @ApiProperty({ minimum: 0, multipleOf: 0.01 })
   loyaltyPointsEarned: number;
 
   @ApiProperty()

@@ -7,7 +7,7 @@ import request from "supertest";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { AppModule } from "../src/app.module";
 import { configureApp } from "../src/bootstrap";
-import { OrderStatus, Role, type Order } from "../src/generated/prisma/client";
+import { OrderStatus, Prisma, Role, type Order } from "../src/generated/prisma/client";
 import { LoyaltyService } from "../src/loyalty/loyalty.service";
 import { PrismaService } from "../src/prisma/prisma.service";
 import type { OrderResponseDto } from "../src/orders/orders-response.dto";
@@ -154,12 +154,12 @@ describe("administrator completion for a courier without the app", () => {
       const order = await create(status);
       if (status === OrderStatus.DELIVERED) {
         await prisma.$transaction((tx) =>
-          app.get(LoyaltyService).award(tx, order.customerId, order.id, 7),
+          app.get(LoyaltyService).award(tx, order.customerId, order.id, new Prisma.Decimal(7)),
         );
       }
       const beforePoints = (
         await prisma.user.findUniqueOrThrow({ where: { id: order.customerId } })
-      ).pointsBalance;
+      ).pointsBalance.toNumber();
       const actor = index % 2 ? Role.SUPER_ADMIN : Role.ADMIN;
       const response = await complete(
         order,
@@ -221,7 +221,7 @@ describe("administrator completion for a courier without the app", () => {
           await prisma.user.findUniqueOrThrow({
             where: { id: order.customerId },
           })
-        ).pointsBalance,
+        ).pointsBalance.toNumber(),
       ).toBe(beforePoints + (status === OrderStatus.DELIVERED ? 0 : 7));
       expect(
         await prisma.loyaltyEntry.count({

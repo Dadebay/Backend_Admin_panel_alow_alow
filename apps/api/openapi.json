@@ -7297,7 +7297,10 @@
           },
           "loyaltyPoints": {
             "type": "number",
-            "minimum": 0
+            "minimum": 0.01,
+            "maximum": 100000,
+            "multipleOf": 0.01,
+            "example": 0.65
           },
           "pricingType": {
             "type": "string",
@@ -7561,7 +7564,10 @@
           },
           "loyaltyPoints": {
             "type": "number",
-            "minimum": 0
+            "minimum": 0.01,
+            "maximum": 100000,
+            "multipleOf": 0.01,
+            "example": 0.65
           },
           "pricingType": {
             "type": "string",
@@ -8288,9 +8294,11 @@
           },
           "loyaltyPoints": {
             "type": "number",
-            "minimum": 1,
+            "minimum": 0.01,
             "maximum": 100000,
-            "description": "Points earned for each ordered unit after delivery"
+            "multipleOf": 0.01,
+            "example": 0.65,
+            "description": "Points earned for each ordered unit after delivery, with up to two decimal places"
           },
           "price": {
             "type": "number",
@@ -8380,9 +8388,11 @@
           },
           "loyaltyPoints": {
             "type": "number",
-            "minimum": 1,
+            "minimum": 0.01,
             "maximum": 100000,
-            "description": "Points earned for each ordered unit after delivery"
+            "multipleOf": 0.01,
+            "example": 0.65,
+            "description": "Points earned for each ordered unit after delivery, with up to two decimal places"
           },
           "price": {
             "type": "number",
@@ -8570,7 +8580,8 @@
           },
           "loyaltyPoints": {
             "type": "number",
-            "minimum": 0
+            "minimum": 0,
+            "multipleOf": 0.01
           },
           "unitPrice": {
             "type": "number",
@@ -8678,10 +8689,13 @@
             }
           },
           "pointsBalance": {
-            "type": "number"
+            "type": "number",
+            "multipleOf": 0.01
           },
           "loyaltyPointsEarned": {
-            "type": "number"
+            "type": "number",
+            "minimum": 0,
+            "multipleOf": 0.01
           },
           "loyaltyPointsSpent": {
             "type": "number"
@@ -8977,7 +8991,8 @@
           "loyaltyPoints": {
             "type": "number",
             "minimum": 0,
-            "description": "Points earned by this order line after delivery"
+            "multipleOf": 0.01,
+            "description": "Points earned by this order line after delivery, with up to two decimal places"
           },
           "productImageUrl": {
             "type": "string",
@@ -9415,7 +9430,9 @@
             "type": "number"
           },
           "loyaltyPointsEarned": {
-            "type": "number"
+            "type": "number",
+            "minimum": 0,
+            "multipleOf": 0.01
           },
           "loyaltyPointsSpent": {
             "type": "number"
@@ -15012,7 +15029,9 @@
             ]
           },
           "points": {
-            "type": "number"
+            "type": "number",
+            "multipleOf": 0.01,
+            "description": "Signed loyalty points, with up to two decimal places"
           },
           "createdAt": {
             "type": "string",
@@ -15031,7 +15050,9 @@
         "type": "object",
         "properties": {
           "pointsBalance": {
-            "type": "number"
+            "type": "number",
+            "multipleOf": 0.01,
+            "description": "Loyalty balance, with up to two decimal places; may be negative after cancellation"
           },
           "entries": {
             "type": "array",

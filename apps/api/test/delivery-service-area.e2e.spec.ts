@@ -384,8 +384,8 @@ describe("delivery service area HTTP enforcement", () => {
       await prisma.gift.findUniqueOrThrow({ where: { id: gift.id } }),
     ).toMatchObject({ stock: 1 });
     expect(
-      await prisma.user.findUniqueOrThrow({ where: { id: customer().id } }),
-    ).toMatchObject({ pointsBalance: 100 });
+      (await prisma.user.findUniqueOrThrow({ where: { id: customer().id } })).pointsBalance.toNumber(),
+    ).toBe(100);
     expect(
       await prisma.promoRedemption.count({ where: { promoCodeId: promo.id } }),
     ).toBe(0);

@@ -344,6 +344,12 @@ test("printer registry validates LAN endpoint and product uses its ID", () => {
   };
 
   assert.equal(productFormSchema.safeParse(product).success, true);
+  for (const loyaltyPoints of [0.01, 0.1, 0.65, 1.5, 100000]) {
+    assert.equal(productFormSchema.parse({ ...product, loyaltyPoints }).loyaltyPoints, loyaltyPoints);
+  }
+  for (const loyaltyPoints of [-0.65, 0.001, 0.655, 100000.01, Number.NaN]) {
+    assert.equal(productFormSchema.safeParse({ ...product, loyaltyPoints }).success, false);
+  }
   assert.equal(productFormSchema.safeParse({ ...product, loyaltyPoints: 0 }).success, false);
   assert.equal(
     productFormSchema.safeParse({

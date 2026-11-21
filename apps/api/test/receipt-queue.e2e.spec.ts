@@ -369,6 +369,61 @@ describe("durable receipt queue", () => {
       },
     );
 
+    it("claims a cancellation receipt ahead of older waiting receipts", async () => {
+      // Kitchen ticket of the slow dish is printed, then another order queues
+      // behind it. The later cancellation must not wait in that FIFO line.
+      const { order, quick } = await fixture();
+      await outcome((await claim())!, "DELIVERED").expect(201);
+      const waiting = await create();
+      await edit(order, [{ productId: quick.id, quantity: 2 }]).expect(200);
+      const cancellation = (await tickets(order.id)).find(
+        (task) => task.documentType === "CANCELLATION",
+      )!;
+      const waitingTask = await prisma.receiptPrintTask.findFirstOrThrow({
+        where: { orderId: waiting.id },
+        orderBy: { sequence: "asc" },
+      });
+      expect(waitingTask.sequence < cancellation.sequence).toBe(true);
+      expect(cancellation.nextAttemptAt.getTime()).toBeLessThanOrEqual(
+        Date.now(),
+      );
+
+      // Every other receipt here is older than the cancellation, yet the
+      // cancellation is the one handed to the printer first.
+      const next = (await claim())!;
+      expect(next.id).toBe(cancellation.id);
+      expect(next.documentType).toBe("CANCELLATION");
+    });
+
+    it("claims a full-order cancellation ahead of older waiting receipts", async () => {
+      const older = await create();
+      const cancelled = await create();
+      await request(server)
+        .patch(`/api/v1/orders/${cancelled.id}/cancel`)
+        .set(auth())
+        .send({ version: cancelled.version, reason: "Priority cancellation" })
+        .expect(200);
+      const olderTask = await prisma.receiptPrintTask.findFirstOrThrow({
+        where: { orderId: older.id },
+        orderBy: { sequence: "asc" },
+      });
+      const cancellation = await prisma.receiptPrintTask.findFirstOrThrow({
+        where: { orderId: cancelled.id, documentType: "CANCELLATION" },
+      });
+      expect(olderTask.sequence < cancellation.sequence).toBe(true);
+
+      // The administrator's queue list shows the same order the printer uses.
+      const list = await request(server).get(root).set(auth()).expect(200);
+      const listed = (list.body as { items: { id: string }[] }).items;
+      expect(listed[0]!.id).toBe(cancellation.id);
+      expect(listed.map((item) => item.id)).toContain(olderTask.id);
+
+      const next = (await claim())!;
+      expect(next.id).toBe(cancellation.id);
+      await outcome(next, "DELIVERED").expect(201);
+      expect((await claim())!.id).toBe(olderTask.id);
+    });
+
     it("retains printed line identity through repeated edits and cancels each removed portion once", async () => {
       const { order, slow, quick } = await fixture();
       const printed = (await claim())!;
@@ -885,6 +940,10 @@ describe("durable receipt queue", () => {
       });
       expect(retained.status).toBe("PENDING");
       expect(retained.nextAttemptAt.getTime()).toBeLessThanOrEqual(Date.now());
+      // The printed long dish is cancelled first, then the retained ticket.
+      const cancellation = (await claim())!;
+      expect(cancellation.documentType).toBe("CANCELLATION");
+      await outcome(cancellation, "DELIVERED").expect(201);
       expect((await claim())?.id).toBe(retained.id);
     } finally {
       await prisma.product.update({

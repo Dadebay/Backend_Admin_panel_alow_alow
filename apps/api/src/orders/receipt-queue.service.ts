@@ -106,10 +106,20 @@ export class ReceiptQueueService {
   }
   async list(actor: AuthUser) {
     this.authorize(actor);
-    const [items, pending, needsAttention] = await Promise.all([
+    const open = ["PENDING", "PROCESSING", "FAILED", "UNCERTAIN"] as const;
+    const [others, cancellations, pending, needsAttention] = await Promise.all([
+      this.prisma.receiptPrintTask.findMany({
+        where: { status: { in: [...open] } },
+        include: { order: { select: { number: true } } },
+        orderBy: { sequence: "asc" },
+        take: 50,
+      }),
+      // Fetched separately so an urgent cancellation is never pushed out of the
+      // first page by a long backlog of older receipts.
       this.prisma.receiptPrintTask.findMany({
         where: {
-          status: { in: ["PENDING", "PROCESSING", "FAILED", "UNCERTAIN"] },
+          status: "PENDING",
+          documentType: ReceiptDocumentType.CANCELLATION,
         },
         include: { order: { select: { number: true } } },
         orderBy: { sequence: "asc" },
@@ -122,6 +132,20 @@ export class ReceiptQueueService {
         where: { status: { in: ["FAILED", "UNCERTAIN"] } },
       }),
     ]);
+    // Show the queue in the order the printer will take it: the send in flight,
+    // then waiting cancellations, then everything else first-in first-out.
+    const rank = (task: { status: string; documentType: string }) =>
+      task.status === "PROCESSING"
+        ? 0
+        : task.status === "PENDING" &&
+            task.documentType === String(ReceiptDocumentType.CANCELLATION)
+          ? 1
+          : 2;
+    const items = [
+      ...new Map([...others, ...cancellations].map((t) => [t.id, t])).values(),
+    ]
+      .sort((a, b) => rank(a) - rank(b) || Number(a.sequence - b.sequence))
+      .slice(0, 50);
     return {
       items: items.map((t) => this.view(t)),
       pending,
@@ -181,14 +205,23 @@ export class ReceiptQueueService {
         return { task: null };
       // A lost acknowledgment is replayed only on the original agent journal.
       // A different workstation must never resend an ambiguous dispatch.
-      const next = await tx.receiptPrintTask.findFirst({
-        where: {
-          status: "PENDING",
-          nextAttemptAt: { lte: now },
-          OR: [{ stationId: null }, { stationId }],
-        },
-        orderBy: { sequence: "asc" },
-      });
+      const due = {
+        status: "PENDING" as const,
+        nextAttemptAt: { lte: now },
+        OR: [{ stationId: null }, { stationId }],
+      };
+      // A cancellation is urgent: the kitchen must stop work at once, so it
+      // jumps ahead of every older waiting receipt. Everything else keeps FIFO
+      // order. A send already in flight is never interrupted (checked above).
+      const next =
+        (await tx.receiptPrintTask.findFirst({
+          where: { ...due, documentType: ReceiptDocumentType.CANCELLATION },
+          orderBy: { sequence: "asc" },
+        })) ??
+        (await tx.receiptPrintTask.findFirst({
+          where: due,
+          orderBy: { sequence: "asc" },
+        }));
       if (!next) return { task: null };
       const task = await tx.receiptPrintTask.update({
         where: { id: next.id },

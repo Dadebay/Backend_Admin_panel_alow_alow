@@ -27,7 +27,7 @@
     "api:client": "npm --prefix apps/api run openapi && openapi-typescript apps/api/openapi.json -o packages/api-contract/src/schema.ts"
   },
   "devDependencies": {
-    "concurrently": "10.0.4",
+    "concurrently": "10.0.7",
     "openapi-typescript": "7.13.0"
   },
   "overrides": {
